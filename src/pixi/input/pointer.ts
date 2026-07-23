@@ -1,4 +1,8 @@
-import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js';
+import {
+  Graphics,
+  type Application,
+  type FederatedPointerEvent,
+} from 'pixi.js';
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Entity } from '../../engine/ecs/entity';
 import type { GameEngine } from '../../engine/game/engine';
@@ -27,6 +31,13 @@ const FLY_KEYS: Record<string, { x: number; y: number }> = {
   KeyS: { x: 0, y: 1 },
 };
 
+/** True when a keyboard event should drive the observer drone. Modifier combos such as Ctrl+A are reserved for UI shortcuts. */
+export function shouldHandleDroneFlightKey(e: KeyboardEvent): boolean {
+  if (!(e.code in FLY_KEYS)) return false;
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  return true;
+}
+
 /** Land on / take off from an idle robot. */
 const POSSESS_KEY = 'KeyF';
 /** Fire / detonate the possessed robot. */
@@ -41,7 +52,11 @@ const FIRE_KEY = 'KeyE';
  * - Right click on an enemy (robot or base) = order the selection to attack it;
  *   right click on open ground = move the selection there in a compact formation.
  */
-export function attachPointerControls(app: Application, camera: Camera, engine: GameEngine): () => void {
+export function attachPointerControls(
+  app: Application,
+  camera: Camera,
+  engine: GameEngine,
+): () => void {
   const stage = app.stage;
   stage.eventMode = 'static';
   stage.hitArea = app.screen;
@@ -71,14 +86,26 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
 
   const onMove = (e: FederatedPointerEvent) => {
     if (!selecting) return;
-    if (Math.abs(e.global.x - startX) + Math.abs(e.global.y - startY) > CLICK_SLOP) moved = true;
+    if (
+      Math.abs(e.global.x - startX) + Math.abs(e.global.y - startY) >
+      CLICK_SLOP
+    )
+      moved = true;
     if (moved) drawMarquee(marqueeGfx, startX, startY, e.global.x, e.global.y);
   };
 
   const onUp = (e: FederatedPointerEvent) => {
     if (selecting) {
       if (moved) {
-        selectInBox(camera, engine, startX, startY, e.global.x, e.global.y, additive);
+        selectInBox(
+          camera,
+          engine,
+          startX,
+          startY,
+          e.global.x,
+          e.global.y,
+          additive,
+        );
         marqueeGfx.visible = false;
         marqueeGfx.clear();
       } else if (!additive && e.button === 0) {
@@ -103,12 +130,14 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
       dy += FLY_KEYS[code].y;
     }
     const len = Math.hypot(dx, dy);
-    useGameStore.getState().setDroneInput(len > 0 ? { x: dx / len, y: dy / len } : { x: 0, y: 0 });
+    useGameStore
+      .getState()
+      .setDroneInput(len > 0 ? { x: dx / len, y: dy / len } : { x: 0, y: 0 });
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (useGameStore.getState().status !== 'playing') return;
-    if (e.code in FLY_KEYS) {
+    if (shouldHandleDroneFlightKey(e)) {
       if (e.code.startsWith('Arrow')) e.preventDefault(); // stop the page from scrolling
       if (!pressedKeys.has(e.code)) {
         pressedKeys.add(e.code);
@@ -150,7 +179,13 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
   };
 }
 
-function drawMarquee(g: Graphics, x0: number, y0: number, x1: number, y1: number): void {
+function drawMarquee(
+  g: Graphics,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): void {
   const x = Math.min(x0, x1);
   const y = Math.min(y0, y1);
   g.clear();
@@ -185,17 +220,27 @@ function selectInBox(
     .map((e) => e.id);
 
   const store = useGameStore.getState();
-  store.selectRobots(additive ? [...new Set([...store.selectedRobotIds, ...inBox])] : inBox);
+  store.selectRobots(
+    additive ? [...new Set([...store.selectedRobotIds, ...inBox])] : inBox,
+  );
 }
 
 /** Right click: attack an enemy under the cursor if any, else move the selection there. */
-function issueRightClick(camera: Camera, engine: GameEngine, globalX: number, globalY: number): void {
+function issueRightClick(
+  camera: Camera,
+  engine: GameEngine,
+  globalX: number,
+  globalY: number,
+): void {
   const ctx = engine.context;
   if (!ctx) return;
   const robots = useGameStore
     .getState()
     .selectedRobotIds.map((id) => findById(ctx, id))
-    .filter((e): e is Entity => e?.robot === true && e.owner === Owner.Player && !!e.position);
+    .filter(
+      (e): e is Entity =>
+        e?.robot === true && e.owner === Owner.Player && !!e.position,
+    );
   if (robots.length === 0) return;
 
   const point = camera.screenToWorld(globalX, globalY);
@@ -225,7 +270,12 @@ function moveTo(ctx: GameContext, robots: Entity[], point: Vec2): void {
     const oy = (row - (rows - 1) / 2) * spacing;
     robot.script = makeIdle();
     robot.targetId = undefined;
-    setGoal(ctx, robot, clamp(point.x + ox, 0, worldPixelSize.width), clamp(point.y + oy, 0, worldPixelSize.height));
+    setGoal(
+      ctx,
+      robot,
+      clamp(point.x + ox, 0, worldPixelSize.width),
+      clamp(point.y + oy, 0, worldPixelSize.height),
+    );
   });
 }
 
@@ -237,16 +287,19 @@ function enemyAt(ctx: GameContext, p: Vec2): Entity | undefined {
       (e) =>
         (e.hp ?? 0) > 0 &&
         isEnemy(Owner.Player, e.owner) &&
-        distance(p.x, p.y, e.position!.x, e.position!.y) <= gameConfig.robots.radius + 4,
+        distance(p.x, p.y, e.position!.x, e.position!.y) <=
+          gameConfig.robots.radius + 4,
     );
   if (robot) return robot;
 
   const { tilePx } = gameConfig.grid;
-  return ctx.world
-    .with('base', 'position')
-    .entities.find((e) => {
-      if ((e.hp ?? 0) <= 0 || !isEnemy(Owner.Player, e.owner)) return false;
-      const half = ((e.footprint ?? gameConfig.bases.footprintTiles) * tilePx) / 2;
-      return Math.abs(p.x - e.position!.x) <= half && Math.abs(p.y - e.position!.y) <= half;
-    });
+  return ctx.world.with('base', 'position').entities.find((e) => {
+    if ((e.hp ?? 0) <= 0 || !isEnemy(Owner.Player, e.owner)) return false;
+    const half =
+      ((e.footprint ?? gameConfig.bases.footprintTiles) * tilePx) / 2;
+    return (
+      Math.abs(p.x - e.position!.x) <= half &&
+      Math.abs(p.y - e.position!.y) <= half
+    );
+  });
 }
