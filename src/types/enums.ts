@@ -16,6 +16,7 @@ export const WeaponType = {
   Missiles: 'missiles',
   Bomb: 'bomb',
   Radar: 'radar',
+  Ew: 'ew',
 } as const;
 export type WeaponType = (typeof WeaponType)[keyof typeof WeaponType];
 

@@ -74,3 +74,26 @@ describe('fogSystem — drone-driven reveal', () => {
     expect(ctx.fog.version).toBe(v1);
   });
 });
+
+describe('fogSystem — ew jamming', () => {
+  it('an enemy ew robot halves the reveal radius of a nearby scout', () => {
+    const ctx = makeCtx(1);
+    // Tracks sight is 190px: 170px away would be revealed unjammed, but not at half (95px).
+    spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.None);
+    spawnRobot(ctx.world, Owner.AI, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Ew);
+
+    fogSystem(ctx);
+
+    expect(visibleAt(ctx, 400 + 170, 400)).toBe(false);
+  });
+
+  it('does not jam once the ew robot is outside jamRadius', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.None);
+    spawnRobot(ctx.world, Owner.AI, { x: 1400, y: 1400 }, ChassisType.Tracks, WeaponType.Ew);
+
+    fogSystem(ctx);
+
+    expect(visibleAt(ctx, 400 + 170, 400)).toBe(true);
+  });
+});
