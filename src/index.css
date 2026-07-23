@@ -1,0 +1,30 @@
+:root {
+  --bg: #0d1117;
+  --panel-bg: #12161f;
+  --panel-border: #232a36;
+  --text: #b6c0cf;
+  --text-h: #eef2f7;
+  --text-dim: #6b7686;
+
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 16px/1.4 var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
