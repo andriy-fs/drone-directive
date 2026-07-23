@@ -27,6 +27,15 @@ export interface Dict {
     hard: string;
     hardHint: string;
   };
+  mapSize: {
+    label: string;
+    small: string;
+    smallHint: string;
+    medium: string;
+    mediumHint: string;
+    large: string;
+    largeHint: string;
+  };
   hud: {
     title: string;
     statusPrefix: string;
@@ -109,6 +118,9 @@ export interface Dict {
     tracks: string;
     wheels: string;
     legs: string;
+    statsHp: string;
+    statsSpeed: string;
+    statsSight: string;
   };
   weapons: {
     none: string;
@@ -117,6 +129,11 @@ export interface Dict {
     bomb: string;
     radar: string;
     ew: string;
+    statsRange: string;
+    statsDamage: string;
+    radarNote: string;
+    ewNote: string;
+    bombNote: string;
   };
   aria: {
     resume: string;
@@ -154,6 +171,15 @@ export const en: Dict = {
     normalHint: 'Even start',
     hard: 'Hard',
     hardHint: 'The AI starts with one extra robot',
+  },
+  mapSize: {
+    label: 'Map size',
+    small: 'Small',
+    smallHint: '40×40 — fastest matches',
+    medium: 'Medium',
+    mediumHint: '60×60 — balanced (default)',
+    large: 'Large',
+    largeHint: '80×80 — longest, most tactical',
   },
   hud: {
     title: 'Drone Directive',
@@ -237,6 +263,9 @@ export const en: Dict = {
     tracks: 'Tracks',
     wheels: 'Wheels',
     legs: 'Legs',
+    statsHp: 'HP',
+    statsSpeed: 'Speed',
+    statsSight: 'Sight',
   },
   weapons: {
     none: 'None',
@@ -245,6 +274,11 @@ export const en: Dict = {
     bomb: 'Bomb',
     radar: 'Radar',
     ew: 'EW',
+    statsRange: 'Range',
+    statsDamage: 'Damage',
+    radarNote: 'No weapon — doubles sight radius',
+    ewNote: 'No weapon — jams enemy sight within',
+    bombNote: 'Self-destructs on impact, blast radius',
   },
   aria: {
     resume: 'Resume',

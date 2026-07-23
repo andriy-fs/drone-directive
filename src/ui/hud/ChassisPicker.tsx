@@ -1,3 +1,4 @@
+import { gameConfig } from '../../config/gameConfig';
 import { useT } from '../../i18n';
 import { ChassisType } from '../../types/enums';
 import { Button } from '../common/Button';
@@ -15,15 +16,20 @@ export function ChassisPicker({
   const t = useT();
   return (
     <div className="picker">
-      {OPTIONS.map((chassis) => (
-        <Button
-          key={chassis}
-          className={`chip ${chassis === value ? 'chip--on' : ''}`.trim()}
-          onClick={() => onChange(chassis)}
-        >
-          {t('chassis', chassis)}
-        </Button>
-      ))}
+      {OPTIONS.map((chassis) => {
+        const stats = gameConfig.robots.chassis[chassis];
+        const hint = `${t('chassis', 'statsHp')}: ${stats.hp} · ${t('chassis', 'statsSpeed')}: ${stats.speed} · ${t('chassis', 'statsSight')}: ${stats.sight}`;
+        return (
+          <Button
+            key={chassis}
+            className={`chip ${chassis === value ? 'chip--on' : ''}`.trim()}
+            onClick={() => onChange(chassis)}
+            title={hint}
+          >
+            {t('chassis', chassis)}
+          </Button>
+        );
+      })}
     </div>
   );
 }

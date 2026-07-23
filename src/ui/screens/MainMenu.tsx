@@ -10,7 +10,7 @@ import { sfx } from '../../pixi/audio/sfx';
 import { useT, Locale } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectStatus } from '../../store/selectors';
-import { Difficulty } from '../../types/enums';
+import { Difficulty, MapSize } from '../../types/enums';
 import { Button } from '../common/Button';
 import { BaseSetupModal } from './BaseSetupModal';
 
@@ -22,6 +22,16 @@ const DIFFICULTIES: {
   { value: Difficulty.Easy, label: 'easy', hint: 'easyHint' },
   { value: Difficulty.Normal, label: 'normal', hint: 'normalHint' },
   { value: Difficulty.Hard, label: 'hard', hint: 'hardHint' },
+];
+
+const MAP_SIZES: {
+  value: MapSize;
+  label: 'small' | 'medium' | 'large';
+  hint: 'smallHint' | 'mediumHint' | 'largeHint';
+}[] = [
+  { value: MapSize.Small, label: 'small', hint: 'smallHint' },
+  { value: MapSize.Medium, label: 'medium', hint: 'mediumHint' },
+  { value: MapSize.Large, label: 'large', hint: 'largeHint' },
 ];
 
 const LANGUAGES: { value: Locale; label: string }[] = [
@@ -40,6 +50,7 @@ export function MainMenu() {
   const t = useT();
   const status = useGameStore(selectStatus);
   const difficulty = useGameStore((s) => s.settings.match.difficulty);
+  const mapSize = useGameStore((s) => s.settings.match.mapSize);
   const updateSettings = useGameStore((s) => s.updateSettings);
   const requestRestart = useGameStore((s) => s.requestRestart);
   const locale = useGameStore((s) => s.locale);
@@ -92,6 +103,22 @@ export function MainMenu() {
                   aria-label={t('difficulty', o.hint)}
                 >
                   {t('difficulty', o.label)}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="picker-group">
+            <span className="picker__label">{t('mapSize', 'label')}</span>
+            <div className="picker">
+              {MAP_SIZES.map((o) => (
+                <Button
+                  key={o.value}
+                  className={`chip ${o.value === mapSize ? 'chip--on' : ''}`.trim()}
+                  onClick={() => updateSettings({ match: { mapSize: o.value } })}
+                  aria-label={t('mapSize', o.hint)}
+                >
+                  {t('mapSize', o.label)}
                 </Button>
               ))}
             </div>

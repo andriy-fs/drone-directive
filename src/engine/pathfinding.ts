@@ -2,7 +2,6 @@ import { gameConfig } from '../config/gameConfig';
 import type { Vec2 } from '../types/entities';
 import { inBounds, isBlockedGrid, tileCentre, tileOf, type ObstacleGrid } from './obstacles';
 
-const { width } = gameConfig.grid;
 const SQRT2 = Math.SQRT2;
 
 interface Tile {
@@ -10,7 +9,7 @@ interface Tile {
   ty: number;
 }
 
-const idx = (tx: number, ty: number): number => ty * width + tx;
+const idx = (tx: number, ty: number): number => ty * gameConfig.grid.width + tx;
 
 /** Octile heuristic (matches 8-dir movement costs). */
 function heuristic(ax: number, ay: number, bx: number, by: number): number {
@@ -81,8 +80,8 @@ export function findPath(grid: ObstacleGrid, from: Vec2, to: Vec2): Vec2[] {
       return escape ? [escape, ...path] : path;
     }
 
-    const cx = current % width;
-    const cy = Math.floor(current / width);
+    const cx = current % gameConfig.grid.width;
+    const cy = Math.floor(current / gameConfig.grid.width);
     for (const [dx, dy, cost] of dirs) {
       const nx = cx + dx;
       const ny = cy + dy;
@@ -123,6 +122,7 @@ function reconstruct(
     cur = cameFrom.get(cur)!;
   }
   chain.reverse(); // first step after start ... goal
+  const { width } = gameConfig.grid;
   const points = chain.map((i) => tileCentre(i % width, Math.floor(i / width)));
   if (points.length > 0) {
     points[points.length - 1] = snapped ? tileCentre(goal.tx, goal.ty) : { x: to.x, y: to.y };

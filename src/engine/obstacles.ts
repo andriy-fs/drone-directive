@@ -5,17 +5,18 @@ import type { Rng } from '../utils/rng';
 /** Blocked-tile grid: `grid[ty][tx]` is true where terrain is impassable. */
 export type ObstacleGrid = boolean[][];
 
-const { width, height, tilePx } = gameConfig.grid;
-
 export function tileOf(pos: Vec2): { tx: number; ty: number } {
+  const { tilePx } = gameConfig.grid;
   return { tx: Math.floor(pos.x / tilePx), ty: Math.floor(pos.y / tilePx) };
 }
 
 export function tileCentre(tx: number, ty: number): Vec2 {
+  const { tilePx } = gameConfig.grid;
   return { x: (tx + 0.5) * tilePx, y: (ty + 0.5) * tilePx };
 }
 
 export function inBounds(tx: number, ty: number): boolean {
+  const { width, height } = gameConfig.grid;
   return tx >= 0 && ty >= 0 && tx < width && ty < height;
 }
 
@@ -35,6 +36,7 @@ function key(tx: number, ty: number): string {
  * L-shaped corridor if the map came out sealed.
  */
 export function generateObstacles(rng: Rng): ObstacleGrid {
+  const { width, height } = gameConfig.grid;
   const grid: ObstacleGrid = [];
   for (let y = 0; y < height; y++) grid.push(new Array<boolean>(width).fill(false));
 
@@ -171,6 +173,7 @@ export function withBaseFootprints(
   terrain: ObstacleGrid,
   bases: { position: Vec2; footprint: number }[],
 ): ObstacleGrid {
+  const { tilePx } = gameConfig.grid;
   const grid = terrain.map((row) => row.slice());
   for (const b of bases) {
     const fp = b.footprint;

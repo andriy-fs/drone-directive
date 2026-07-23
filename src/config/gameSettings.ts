@@ -1,5 +1,5 @@
 import type { BuildOrder } from "../types/entities";
-import { ChassisType, Difficulty, TaskType, WeaponType } from "../types/enums";
+import { ChassisType, Difficulty, MapSize, TaskType, WeaponType } from "../types/enums";
 
 /**
  * Player-editable settings (distinct from `gameConfig`, which is fixed balance /
@@ -14,6 +14,7 @@ import { ChassisType, Difficulty, TaskType, WeaponType } from "../types/enums";
 /** Match-wide options. */
 export interface MatchSettings {
   difficulty: Difficulty;
+  mapSize: MapSize;
 }
 
 /** Player base configuration applied at match start. */
@@ -43,7 +44,7 @@ export const defaultBuildOrder: BuildOrder = {
 /** Fresh copy of the default settings (never share the object — it's mutated per game). */
 export function createDefaultSettings(): GameSettings {
   return {
-    match: { difficulty: Difficulty.Normal },
+    match: { difficulty: Difficulty.Normal, mapSize: MapSize.Medium },
     // Auto-produce tracked robots by default, set to Guard.
     base: { autoBuild: { ...defaultBuildOrder }, defaultProgram: TaskType.Guard },
   };

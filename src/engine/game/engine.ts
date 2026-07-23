@@ -1,3 +1,4 @@
+import { applyMapSize } from '../../config/gameConfig';
 import type { GameSettings } from '../../config/gameSettings';
 import type { Command } from '../../types/commands';
 import { createEcsWorld, type EcsWorld } from '../ecs/world';
@@ -28,6 +29,7 @@ export class GameEngine {
 
   /** (Re)start a match with the given player settings. */
   startMatch(settings: GameSettings): void {
+    applyMapSize(settings.match.mapSize);
     this.commands.length = 0;
     this.ctx = createGameContext(this.world, this.bus, this.commands, settings);
     this.manager.change(new GameScene(this.ctx));

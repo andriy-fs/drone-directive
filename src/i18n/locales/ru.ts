@@ -29,6 +29,15 @@ export const ru: Dict = {
     hard: 'Сложный',
     hardHint: 'У ИИ на одного робота больше',
   },
+  mapSize: {
+    label: 'Размер карты',
+    small: 'Маленькая',
+    smallHint: '40×40 — самые быстрые матчи',
+    medium: 'Средняя',
+    mediumHint: '60×60 — сбалансированно (по умолчанию)',
+    large: 'Большая',
+    largeHint: '80×80 — самые долгие и тактичные матчи',
+  },
   hud: {
     title: 'Drone Directive',
     statusPrefix: 'Статус',
@@ -111,6 +120,9 @@ export const ru: Dict = {
     tracks: 'Гусеницы',
     wheels: 'Колёса',
     legs: 'Ноги',
+    statsHp: 'ХП',
+    statsSpeed: 'Скорость',
+    statsSight: 'Обзор',
   },
   weapons: {
     none: 'Нет',
@@ -119,6 +131,11 @@ export const ru: Dict = {
     bomb: 'Бомба',
     radar: 'Радар',
     ew: 'РЭБ',
+    statsRange: 'Дальность',
+    statsDamage: 'Урон',
+    radarNote: 'Без оружия — удваивает радиус обзора',
+    ewNote: 'Без оружия — глушит обзор врагов в радиусе',
+    bombNote: 'Подрывается при контакте, радиус взрыва',
   },
   aria: {
     resume: 'Продолжить',

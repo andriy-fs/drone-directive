@@ -28,6 +28,15 @@ export const pl: Dict = {
     hard: 'Trudny',
     hardHint: 'SI zaczyna z jednym dodatkowym robotem',
   },
+  mapSize: {
+    label: 'Rozmiar mapy',
+    small: 'Mała',
+    smallHint: '40×40 — najszybsze mecze',
+    medium: 'Średnia',
+    mediumHint: '60×60 — zbalansowana (domyślna)',
+    large: 'Duża',
+    largeHint: '80×80 — najdłuższe, najbardziej taktyczne',
+  },
   hud: {
     title: 'Drone Directive',
     statusPrefix: 'Status',
@@ -110,6 +119,9 @@ export const pl: Dict = {
     tracks: 'Gąsienice',
     wheels: 'Koła',
     legs: 'Nogi',
+    statsHp: 'HP',
+    statsSpeed: 'Prędkość',
+    statsSight: 'Zasięg wzroku',
   },
   weapons: {
     none: 'Brak',
@@ -118,6 +130,11 @@ export const pl: Dict = {
     bomb: 'Bomba',
     radar: 'Radar',
     ew: 'Zakłócacz',
+    statsRange: 'Zasięg',
+    statsDamage: 'Obrażenia',
+    radarNote: 'Brak broni — podwaja zasięg wzroku',
+    ewNote: 'Brak broni — zagłusza wzrok wrogów w promieniu',
+    bombNote: 'Wybucha przy kontakcie, promień wybuchu',
   },
   aria: {
     resume: 'Wznów',
