@@ -1,14 +1,23 @@
+import type { MapSize } from '../types/enums';
+
 /**
  * Central tunables for the game. Kept dependency-free so both the engine and the
  * Pixi layer can import it without pulling in React or Pixi types.
  */
 export const gameConfig = {
-  /** Battlefield dimensions, measured in tiles. */
+  /** Battlefield dimensions, measured in tiles. Resized per match by `applyMapSize`. */
   grid: {
     width: 40,
     height: 40,
     /** Pixel size of a single tile in world space. */
     tilePx: 32,
+  },
+
+  /** Tile-count lookup for MapSize presets (square maps: width = height). */
+  mapSize: {
+    small: 40,
+    medium: 60,
+    large: 80,
   },
 
   /** Camera behaviour. */
@@ -174,8 +183,8 @@ export const gameConfig = {
 
   /** Randomly generated impassable terrain. */
   obstacles: {
-    /** Number of obstacle clusters to attempt to place. */
-    blobCount: 16,
+    /** Number of obstacle clusters to attempt to place (1.5× the original 16 — harder routes to the enemy base). */
+    blobCount: 24,
     /** Max tiles per cluster (random walk length). */
     maxBlobTiles: 5,
     /** Tiles kept clear around each base (Chebyshev) — covers spawns + starters. */
@@ -241,3 +250,32 @@ export const worldPixelSize = {
   width: gameConfig.grid.width * gameConfig.grid.tilePx,
   height: gameConfig.grid.height * gameConfig.grid.tilePx,
 } as const;
+
+/**
+ * Resizes the battlefield for a new match — call once from `GameEngine.startMatch`,
+ * before `createGameContext`/`generateObstacles` run. Mutates `grid`/`worldPixelSize`/
+ * base corner placements in place; everything else already reads them live each call
+ * (see `obstacles.ts`/`pathfinding.ts`/`coords.ts`), so nothing else needs telling.
+ * `applyMapSize('small')` reproduces the original fixed 40×40 layout exactly (same
+ * corner margin the original placements used).
+ */
+export function applyMapSize(size: MapSize): void {
+  const n = gameConfig.mapSize[size];
+  const grid = gameConfig.grid as { width: number; height: number; tilePx: number };
+  grid.width = n;
+  grid.height = n;
+
+  const wp = worldPixelSize as { width: number; height: number };
+  wp.width = n * grid.tilePx;
+  wp.height = n * grid.tilePx;
+
+  const margin = 4; // tiles kept clear from the corner (matches the original layout)
+  const fp = gameConfig.bases.footprintTiles;
+  const placements = gameConfig.bases.placements as unknown as { owner: string; tx: number; ty: number }[];
+  const player = placements.find((p) => p.owner === 'player')!;
+  const ai = placements.find((p) => p.owner === 'ai')!;
+  player.tx = margin;
+  player.ty = n - fp - margin;
+  ai.tx = n - fp - margin;
+  ai.ty = margin;
+}

@@ -111,6 +111,10 @@ export class GameApp {
           this.clearObstacles();
         } else {
           store().setStatus('playing');
+          // Map size can change between matches — rebuild everything sized off
+          // the grid so it reflects the size `applyMapSize` just set.
+          this.rebuildGround();
+          this.rebuildFog();
           this.rebuildObstacles();
         }
         this.pushSnapshot();
@@ -180,6 +184,19 @@ export class GameApp {
     if (e.robot) return intel.visibleRobotIds.has(e.id);
     if (e.base) return intel.knownBaseIds.has(e.id);
     return true;
+  }
+
+  /** Ground fill + grid lines are sized off `worldPixelSize`/`gameConfig.grid` — rebuild per match. */
+  private rebuildGround(): void {
+    for (const child of this.layers.ground.removeChildren()) child.destroy({ children: true });
+    this.layers.ground.addChild(createGround(), createGrid());
+  }
+
+  /** Fresh fog mask sized for the current match's grid, with its redraw cache reset. */
+  private rebuildFog(): void {
+    this.fogView?.destroy();
+    this.fogView = new FogView();
+    this.layers.fog.addChild(this.fogView.container);
   }
 
   private rebuildObstacles(): void {

@@ -12,10 +12,9 @@ export interface TilePoint {
   ty: number;
 }
 
-const { tilePx, width, height } = gameConfig.grid;
-
 /** Centre of a tile in world coordinates. */
 export function tileToWorld(tx: number, ty: number): WorldPoint {
+  const { tilePx } = gameConfig.grid;
   return {
     x: tx * tilePx + tilePx / 2,
     y: ty * tilePx + tilePx / 2,
@@ -24,6 +23,7 @@ export function tileToWorld(tx: number, ty: number): WorldPoint {
 
 /** Tile containing a world-space point. */
 export function worldToTile(wx: number, wy: number): TilePoint {
+  const { tilePx } = gameConfig.grid;
   return {
     tx: Math.floor(wx / tilePx),
     ty: Math.floor(wy / tilePx),
@@ -32,5 +32,6 @@ export function worldToTile(wx: number, wy: number): TilePoint {
 
 /** True when a tile is inside the battlefield bounds. */
 export function isInBounds(tx: number, ty: number): boolean {
+  const { width, height } = gameConfig.grid;
   return tx >= 0 && ty >= 0 && tx < width && ty < height;
 }

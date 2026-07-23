@@ -43,6 +43,9 @@ export type RobotState = (typeof RobotState)[keyof typeof RobotState];
 export const Difficulty = { Easy: 'easy', Normal: 'normal', Hard: 'hard' } as const;
 export type Difficulty = (typeof Difficulty)[keyof typeof Difficulty];
 
+export const MapSize = { Small: 'small', Medium: 'medium', Large: 'large' } as const;
+export type MapSize = (typeof MapSize)[keyof typeof MapSize];
+
 /** Named auto-production sequences a base can cycle through — see `config/buildPresets.ts`. */
 export const BuildPresetType = {
   Tracks: 'tracks',

@@ -28,6 +28,15 @@ export const uk: Dict = {
     hard: 'Складний',
     hardHint: 'У ШІ на одного робота більше',
   },
+  mapSize: {
+    label: 'Розмір карти',
+    small: 'Маленька',
+    smallHint: '40×40 — найшвидші матчі',
+    medium: 'Середня',
+    mediumHint: '60×60 — збалансовано (за замовчуванням)',
+    large: 'Велика',
+    largeHint: '80×80 — найдовші й найтактичніші матчі',
+  },
   hud: {
     title: 'Drone Directive',
     statusPrefix: 'Статус',
@@ -110,6 +119,9 @@ export const uk: Dict = {
     tracks: 'Гусениці',
     wheels: 'Колеса',
     legs: 'Ноги',
+    statsHp: 'ХП',
+    statsSpeed: 'Швидкість',
+    statsSight: 'Огляд',
   },
   weapons: {
     none: 'Немає',
@@ -118,6 +130,11 @@ export const uk: Dict = {
     bomb: 'Бомба',
     radar: 'Радар',
     ew: 'РЕБ',
+    statsRange: 'Дальність',
+    statsDamage: 'Шкода',
+    radarNote: 'Без зброї — подвоює радіус огляду',
+    ewNote: 'Без зброї — глушить огляд ворогів у радіусі',
+    bombNote: 'Підривається при контакті, радіус вибуху',
   },
   aria: {
     resume: 'Продовжити',
