@@ -87,7 +87,7 @@ function App() {
         </div>
 
         <div className="hud__section">
-          <h2 className="hud__heading">Program</h2>
+          <h2 className="hud__heading">Directive</h2>
           <ProgrammingPanel />
         </div>
 

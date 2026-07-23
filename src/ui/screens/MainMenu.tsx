@@ -107,16 +107,28 @@ export function MainMenu() {
               <div className="modal__body">
                 <div className="controls-list">
                   <div className="control-item">
-                    <kbd>W A S D</kbd>
-                    <span>Navigate the map</span>
-                  </div>
-                  <div className="control-item">
                     <kbd>Ctrl + A</kbd>
                     <span>Select all robots</span>
                   </div>
                   <div className="control-item">
                     <kbd>Esc</kbd>
                     <span>Pause game</span>
+                  </div>
+                </div>
+
+                <span className="picker__label controls-list__heading">Observer drone</span>
+                <div className="controls-list">
+                  <div className="control-item">
+                    <kbd>W A S D</kbd>
+                    <span>Fly the drone</span>
+                  </div>
+                  <div className="control-item">
+                    <kbd>F</kbd>
+                    <span>Land on / release an idle robot</span>
+                  </div>
+                  <div className="control-item">
+                    <kbd>E</kbd>
+                    <span>Fire the possessed robot's weapon</span>
                   </div>
                 </div>
               </div>

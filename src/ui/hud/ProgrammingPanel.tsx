@@ -64,7 +64,7 @@ export function ProgrammingPanel() {
       </div>
 
       <label className="unit-field">
-        <span className="unit-field__label">Program</span>
+        <span className="unit-field__label">Directive</span>
         <select
           className="unit-select"
           value={current}
