@@ -5,7 +5,7 @@ import type { Entity } from '../engine/ecs/entity';
 import { GameEngine } from '../engine/game/engine';
 import { playerAutoBuildSuppressed } from '../engine/systems/production';
 import { useGameStore, type BaseSnapshot, type RobotSnapshot } from '../store/gameStore';
-import { Owner, TaskType } from '../types/enums';
+import { Owner, TaskType, WeaponType } from '../types/enums';
 import { loadGameAssets } from './assets';
 import { sfx } from './audio/sfx';
 import { Camera } from './Camera';
@@ -94,7 +94,12 @@ export class GameApp {
   private wireBus(): void {
     const bus = this.engine.bus;
     const store = useGameStore.getState;
-    this.busUnsubs.push(bus.on('projectileFired', () => sfx.shot()));
+    this.busUnsubs.push(
+      bus.on('projectileFired', ({ weapon }) => {
+        if (weapon === WeaponType.Missiles) sfx.missileShot();
+        else sfx.cannonShot();
+      }),
+    );
     this.busUnsubs.push(bus.on('entityDestroyed', () => sfx.explosion()));
     this.busUnsubs.push(bus.on('entitySpawned', () => this.pushSnapshot()));
     this.busUnsubs.push(bus.on('entityDestroyed', () => this.pushSnapshot()));

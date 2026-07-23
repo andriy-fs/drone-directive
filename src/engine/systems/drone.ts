@@ -133,9 +133,9 @@ function fireManual(ctx: GameContext, robot: Entity): void {
   const target = nearest(pos, foes);
   if (!target?.position) return;
 
-  spawnProjectile(ctx.world, robot.owner!, pos, target.position, target.id, w.damage, robot.id);
+  spawnProjectile(ctx.world, robot.owner!, pos, target.position, target.id, w.damage, robot.id, robot.weaponType!);
   w.cooldownLeft = w.cooldown;
-  ctx.bus.emit('projectileFired', { owner: robot.owner!, pos: { x: pos.x, y: pos.y } });
+  ctx.bus.emit('projectileFired', { owner: robot.owner!, pos: { x: pos.x, y: pos.y }, weapon: robot.weaponType! });
 }
 
 function normalize(v: Vec2): Vec2 {

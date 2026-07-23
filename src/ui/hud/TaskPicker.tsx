@@ -1,7 +1,8 @@
+import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import type { TaskType } from '../../types/enums';
 import { Button } from '../common/Button';
-import { ASSIGNABLE_TASKS, TASK_LABELS } from './programOptions';
+import { ASSIGNABLE_TASKS, taskLabels } from './programOptions';
 
 /**
  * Buttons that assign a task to every selected robot by enqueuing one AssignTask
@@ -9,7 +10,9 @@ import { ASSIGNABLE_TASKS, TASK_LABELS } from './programOptions';
  * enemy) at apply time from each robot's live world state.
  */
 export function TaskPicker({ robotIds }: { robotIds: string[] }) {
+  const t = useT();
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
+  const labels = taskLabels(t);
   const assign = (task: TaskType) => {
     for (const robotId of robotIds) enqueueCommand({ kind: 'AssignTask', robotId, task });
   };
@@ -17,7 +20,7 @@ export function TaskPicker({ robotIds }: { robotIds: string[] }) {
     <div className="task-picker">
       {ASSIGNABLE_TASKS.map((task) => (
         <Button key={task} onClick={() => assign(task)}>
-          {TASK_LABELS[task]}
+          {labels[task]}
         </Button>
       ))}
     </div>

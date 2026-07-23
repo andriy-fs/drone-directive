@@ -1,6 +1,7 @@
+import { useT } from '../../i18n';
 import type { TaskType } from '../../types/enums';
 import { Button } from '../common/Button';
-import { PROGRAM_OPTIONS } from './programOptions';
+import { programOptions } from './programOptions';
 
 /** Single-select program/task chooser, shared by build-time and pre-game setup flows. */
 export function ProgramPicker({
@@ -10,9 +11,10 @@ export function ProgramPicker({
   value: TaskType | null;
   onChange: (task: TaskType | null) => void;
 }) {
+  const t = useT();
   return (
     <div className="picker">
-      {PROGRAM_OPTIONS.map((p) => (
+      {programOptions(t).map((p) => (
         <Button
           key={p.label}
           className={`chip ${p.value === value ? 'chip--on' : ''}`.trim()}

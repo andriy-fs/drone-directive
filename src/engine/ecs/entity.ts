@@ -98,6 +98,7 @@ export interface Entity {
 
   // Robot build identity (render + production)
   chassis?: ChassisType;
+  /** Robot: the equipped weapon. Projectile: which weapon fired it (render + sfx pick by this). */
   weaponType?: WeaponType;
 
   // Robot behaviour

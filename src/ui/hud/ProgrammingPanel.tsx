@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectRobots, selectSelectedIds } from '../../store/selectors';
 import { TaskType } from '../../types/enums';
 import { Bar } from '../common/Bar';
-import { ASSIGNABLE_TASKS, TASK_LABELS } from './programOptions';
+import { ASSIGNABLE_TASKS, taskLabels } from './programOptions';
 import { TaskPicker } from './TaskPicker';
 
 /**
@@ -12,6 +13,7 @@ import { TaskPicker } from './TaskPicker';
  * group task picker. Assignments flow through the command queue (AssignTask).
  */
 export function ProgrammingPanel() {
+  const t = useT();
   const robots = useGameStore(selectRobots);
   const selectedIds = useGameStore(selectSelectedIds);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
@@ -31,17 +33,19 @@ export function ProgrammingPanel() {
   if (pick && !activePick) setPick(null);
 
   if (selected.length === 0) {
-    return <p className="hud__muted">Select unit(s) to program.</p>;
+    return <p className="hud__muted">{t('programming', 'selectUnits')}</p>;
   }
   if (players.length === 0) {
-    return <p className="hud__muted">Enemy unit — cannot program.</p>;
+    return <p className="hud__muted">{t('programming', 'enemyUnit')}</p>;
   }
 
   // Group: just the count + a task picker that applies to all selected units.
   if (!single) {
     return (
       <div className="programming">
-        <p className="hud__muted">{players.length} robots selected</p>
+        <p className="hud__muted">
+          {players.length} {t('programming', 'robotsSelected')}
+        </p>
         <TaskPicker robotIds={players.map((r) => r.id)} />
       </div>
     );
@@ -51,6 +55,7 @@ export function ProgrammingPanel() {
   // normally assignable (e.g. Idle after a manual move order).
   const current = activePick ? activePick.to : single.task;
   const options = ASSIGNABLE_TASKS.includes(current) ? ASSIGNABLE_TASKS : [current, ...ASSIGNABLE_TASKS];
+  const labels = taskLabels(t);
   const assign = (task: TaskType) => {
     setPick({ id: single.id, from: single.task, to: task });
     enqueueCommand({ kind: 'AssignTask', robotId: single.id, task });
@@ -60,11 +65,11 @@ export function ProgrammingPanel() {
     <div className="programming">
       <div className="hud__selected">
         <span className={`dot dot--${single.owner}`} />
-        <span className="hud__row-label">{single.chassis}</span>
+        <span className="hud__row-label">{t('chassis', single.chassis)}</span>
       </div>
 
       <label className="unit-field">
-        <span className="unit-field__label">Directive</span>
+        <span className="unit-field__label">{t('programming', 'directive')}</span>
         <select
           className="unit-select"
           value={current}
@@ -72,19 +77,19 @@ export function ProgrammingPanel() {
         >
           {options.map((task) => (
             <option key={task} value={task}>
-              {TASK_LABELS[task]}
+              {labels[task]}
             </option>
           ))}
         </select>
       </label>
 
       <div className="unit-field">
-        <span className="unit-field__label">Weapon</span>
-        <span className="unit-field__value">{single.weapon}</span>
+        <span className="unit-field__label">{t('programming', 'weapon')}</span>
+        <span className="unit-field__value">{t('weapons', single.weapon)}</span>
       </div>
 
       <div className="unit-field">
-        <span className="unit-field__label">Health</span>
+        <span className="unit-field__label">{t('programming', 'health')}</span>
         <span className="unit-field__value">
           {Math.ceil(single.hp)} / {single.maxHp}
         </span>

@@ -1,5 +1,5 @@
 import type { Vec2 } from '../../types/entities';
-import type { Owner } from '../../types/enums';
+import type { Owner, WeaponType } from '../../types/enums';
 import type { EntityKind } from '../ecs/entity';
 
 export type SceneName = 'menu' | 'game';
@@ -14,7 +14,7 @@ export interface GameEvents {
   entitySpawned: { id: string; kind: EntityKind; owner?: Owner };
   entityDestroyed: { id: string; kind: EntityKind; owner?: Owner; pos: Vec2 };
   baseDestroyed: { owner: Owner };
-  projectileFired: { owner: Owner; pos: Vec2 };
+  projectileFired: { owner: Owner; pos: Vec2; weapon: WeaponType };
   gameOver: { winner: Owner };
   sceneChanged: { scene: SceneName };
 }

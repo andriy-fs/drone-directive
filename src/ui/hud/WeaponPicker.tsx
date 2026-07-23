@@ -1,8 +1,8 @@
+import { useT } from '../../i18n';
 import { WeaponType } from '../../types/enums';
 import { Button } from '../common/Button';
 
 const OPTIONS: WeaponType[] = [
-  WeaponType.None,
   WeaponType.Cannon,
   WeaponType.Missiles,
   WeaponType.Bomb,
@@ -18,6 +18,7 @@ export function WeaponPicker({
   value: WeaponType;
   onChange: (weapon: WeaponType) => void;
 }) {
+  const t = useT();
   return (
     <div className="picker">
       {OPTIONS.map((weapon) => (
@@ -26,7 +27,7 @@ export function WeaponPicker({
           className={`chip ${weapon === value ? 'chip--on' : ''}`.trim()}
           onClick={() => onChange(weapon)}
         >
-          {weapon}
+          {t('weapons', weapon)}
         </Button>
       ))}
     </div>
