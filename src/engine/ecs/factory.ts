@@ -79,6 +79,7 @@ export function spawnProjectile(
   targetId: string | undefined,
   damage: number,
   sourceId: string,
+  weapon: WeaponType,
 ): Entity {
   const { projectileSpeed, projectileTtl } = gameConfig.combat;
   const dx = targetPos.x - from.x;
@@ -94,6 +95,8 @@ export function spawnProjectile(
     targetId,
     sourceId,
     ttl: projectileTtl,
+    // Which weapon fired this shot (render + sfx pick their look/sound from it).
+    weaponType: weapon,
   });
 }
 

@@ -36,6 +36,22 @@ function blip(freq: number, duration: number, type: OscillatorType, gain: number
   osc.stop(a.currentTime + duration);
 }
 
+/** Like `blip`, but the oscillator's pitch sweeps from `freq` to `endFreq` over `duration`. */
+function sweep(freq: number, endFreq: number, duration: number, type: OscillatorType, gain: number): void {
+  const a = audioCtx();
+  if (!a || muted) return;
+  const osc = a.createOscillator();
+  const g = a.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, a.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(endFreq, a.currentTime + duration);
+  g.gain.setValueAtTime(gain, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + duration);
+  osc.connect(g).connect(a.destination);
+  osc.start();
+  osc.stop(a.currentTime + duration);
+}
+
 function noiseBurst(duration: number, gain: number): void {
   const a = audioCtx();
   if (!a || muted) return;
@@ -64,8 +80,13 @@ export const sfx = {
   isMuted(): boolean {
     return muted;
   },
-  shot(): void {
+  cannonShot(): void {
     blip(760, 0.06, 'square', 0.04);
+  },
+  /** Louder, longer launch: a descending thump sweep layered under a short whoosh. */
+  missileShot(): void {
+    sweep(320, 90, 0.18, 'sawtooth', 0.09);
+    noiseBurst(0.16, 0.05);
   },
   explosion(): void {
     noiseBurst(0.3, 0.18);

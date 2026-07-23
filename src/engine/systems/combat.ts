@@ -36,9 +36,9 @@ export function combatSystem(ctx: GameContext, dt: number): void {
       continue;
     }
 
-    spawnProjectile(world, e.owner!, pos, target.position, target.id, w.damage, e.id);
+    spawnProjectile(world, e.owner!, pos, target.position, target.id, w.damage, e.id, e.weaponType!);
     w.cooldownLeft = w.cooldown;
-    ctx.bus.emit('projectileFired', { owner: e.owner!, pos: { x: pos.x, y: pos.y } });
+    ctx.bus.emit('projectileFired', { owner: e.owner!, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType! });
   }
 
   stepProjectiles(ctx, dt);

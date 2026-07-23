@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { defaultBuildOrder } from '../../config/gameSettings';
+import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { ChassisType, WeaponType } from '../../types/enums';
 import { Button } from '../common/Button';
@@ -14,6 +15,7 @@ import { WeaponPicker } from '../hud/WeaponPicker';
  * the place to grow further base settings. Writes straight to store settings.
  */
 export function BaseSetupModal({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const defaultProgram = useGameStore((s) => s.settings.base.defaultProgram);
   const updateSettings = useGameStore((s) => s.updateSettings);
   const initialAuto = useGameStore.getState().settings.base.autoBuild;
@@ -32,22 +34,22 @@ export function BaseSetupModal({ onClose }: { onClose: () => void }) {
       <DialogBackdrop className="dialog-backdrop" />
       <div className="dialog-frame">
         <DialogPanel className="modal" onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
-          <DialogTitle className="modal__title">Base Setup</DialogTitle>
+          <DialogTitle className="modal__title">{t('baseSetup', 'title')}</DialogTitle>
 
           <div className="picker-group">
-            <span className="picker__label">Auto-produce robots</span>
+            <span className="picker__label">{t('baseSetup', 'autoProduce')}</span>
             <div className="picker">
               <Button
                 className={`chip ${!autoOn ? 'chip--on' : ''}`.trim()}
                 onClick={() => setAutoOn(false)}
               >
-                Off
+                {t('baseSetup', 'off')}
               </Button>
               <Button
                 className={`chip ${autoOn ? 'chip--on' : ''}`.trim()}
                 onClick={() => setAutoOn(true)}
               >
-                On
+                {t('baseSetup', 'on')}
               </Button>
             </div>
           </div>
@@ -55,18 +57,18 @@ export function BaseSetupModal({ onClose }: { onClose: () => void }) {
           {autoOn && (
             <>
               <div className="picker-group">
-                <span className="picker__label">Chassis</span>
+                <span className="picker__label">{t('baseSetup', 'chassis')}</span>
                 <ChassisPicker value={chassis} onChange={setChassis} />
               </div>
               <div className="picker-group">
-                <span className="picker__label">Weapon</span>
+                <span className="picker__label">{t('baseSetup', 'weapon')}</span>
                 <WeaponPicker value={weapon} onChange={setWeapon} />
               </div>
             </>
           )}
 
           <div className="picker-group">
-            <span className="picker__label">New robot program</span>
+            <span className="picker__label">{t('baseSetup', 'newRobotProgram')}</span>
             <ProgramPicker
               value={defaultProgram}
               onChange={(task) => updateSettings({ base: { defaultProgram: task } })}
@@ -74,7 +76,7 @@ export function BaseSetupModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <Button className="modal__action" onClick={onClose}>
-            Done
+            {t('baseSetup', 'done')}
           </Button>
         </DialogPanel>
       </div>

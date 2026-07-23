@@ -5,6 +5,7 @@ import {
   type GameSettings,
   type SettingsPatch,
 } from '../config/gameSettings';
+import { Locale } from '../i18n/locale';
 import type { Command } from '../types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '../types/entities';
 import type { ChassisType, Owner, TaskType, WeaponType } from '../types/enums';
@@ -71,6 +72,8 @@ export interface GameState {
   droneStatus: DroneStatus;
   /** Player-editable settings + their defaults (see config/gameSettings). */
   settings: GameSettings;
+  /** Active UI language. */
+  locale: Locale;
   setStatus: (status: GameStatus) => void;
   setBases: (bases: BaseSnapshot[]) => void;
   setRobots: (robots: RobotSnapshot[]) => void;
@@ -92,6 +95,7 @@ export interface GameState {
   requestDroneFire: () => void;
   clearDroneRequests: () => void;
   setDroneStatus: (status: DroneStatus) => void;
+  setLocale: (locale: Locale) => void;
 }
 
 const initialState = {
@@ -116,6 +120,7 @@ const initialState = {
     autoBuildSuppressed: false,
   } as DroneStatus,
   settings: createDefaultSettings(),
+  locale: Locale.En,
 };
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -155,6 +160,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   requestDroneFire: () => set({ droneFireRequested: true }),
   clearDroneRequests: () => set({ dronePossessRequested: false, droneFireRequested: false }),
   setDroneStatus: (status) => set({ droneStatus: status }),
+  setLocale: (locale) => set({ locale }),
 }));
 
 /** Non-reactive handle for the app bridge (outside React). */

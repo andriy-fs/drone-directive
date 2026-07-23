@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { buildCost } from '../../engine/economy';
+import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectPlayerBase, selectResources } from '../../store/selectors';
 import { ChassisType, TaskType, WeaponType } from '../../types/enums';
@@ -17,6 +18,7 @@ import { WeaponPicker } from './WeaponPicker';
  * re-checks affordability defensively).
  */
 export function BuildRobotModal({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const playerBase = useGameStore(selectPlayerBase);
   // Seed from the base's current auto-build model so it reflects (and doesn't
   // accidentally reset) the running setting.
@@ -47,32 +49,33 @@ export function BuildRobotModal({ onClose }: { onClose: () => void }) {
       <DialogBackdrop className="dialog-backdrop" />
       <div className="dialog-frame">
         <DialogPanel className="modal" onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
-          <DialogTitle className="modal__title">Build & Program</DialogTitle>
+          <DialogTitle className="modal__title">{t('buildRobot', 'title')}</DialogTitle>
 
           <div className="picker-group">
-            <span className="picker__label">Chassis</span>
+            <span className="picker__label">{t('buildRobot', 'chassis')}</span>
             <ChassisPicker value={chassis} onChange={setChassis} />
           </div>
           <div className="picker-group">
-            <span className="picker__label">Weapon</span>
+            <span className="picker__label">{t('buildRobot', 'weapon')}</span>
             <WeaponPicker value={weapon} onChange={setWeapon} />
           </div>
           <div className="picker-group">
-            <span className="picker__label">Program</span>
+            <span className="picker__label">{t('buildRobot', 'program')}</span>
             <ProgramPicker value={task} onChange={setTask} />
           </div>
 
           <p className="modal__body">
-            Cost <strong>{cost}</strong> · Available {Math.floor(resources.player)}
+            {t('buildRobot', 'cost')} <strong>{cost}</strong> · {t('buildRobot', 'available')}{' '}
+            {Math.floor(resources.player)}
           </p>
 
           <div className="modal__buttons">
-            <Button onClick={onClose}>Cancel</Button>
+            <Button onClick={onClose}>{t('buildRobot', 'cancel')}</Button>
             <Button onClick={setAutoBuild} disabled={!playerBase}>
-              Set Auto-Build
+              {t('buildRobot', 'setAutoBuild')}
             </Button>
             <Button onClick={build} disabled={!affordable}>
-              Build Once
+              {t('buildRobot', 'buildOnce')}
             </Button>
           </div>
         </DialogPanel>

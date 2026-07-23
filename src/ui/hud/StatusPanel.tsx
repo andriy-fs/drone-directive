@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useT } from '../../i18n';
 import { selectPlayerBase, selectResources } from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
 import { Bar } from '../common/Bar';
@@ -12,6 +13,7 @@ import { programLabel } from './programOptions';
  * re-rendering on unrelated world changes.
  */
 export function StatusPanel() {
+  const t = useT();
   const resources = useGameStore(selectResources);
   const playerBase = useGameStore(selectPlayerBase);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
@@ -27,19 +29,21 @@ export function StatusPanel() {
       <ul className="hud__list">
         <li className="hud__row">
           <span className="dot dot--player" />
-          <span className="hud__row-label">Resources</span>
+          <span className="hud__row-label">{t('statusPanel', 'resources')}</span>
           <span className="hud__row-value">{Math.floor(resources.player)}</span>
         </li>
         <li className="hud__row">
           <span className="dot dot--ai" />
-          <span className="hud__row-label">AI</span>
+          <span className="hud__row-label">{t('statusPanel', 'ai')}</span>
           <span className="hud__row-value">{Math.floor(resources.ai)}</span>
         </li>
       </ul>
 
       {playerBase && playerBase.queueLength > 0 && (
         <div className="build-progress">
-          <span className="hud__muted">Building · {playerBase.queueLength} queued</span>
+          <span className="hud__muted">
+            {t('statusPanel', 'building')} · {playerBase.queueLength} {t('statusPanel', 'queued')}
+          </span>
           <Bar value={playerBase.buildProgress} />
         </div>
       )}
@@ -47,17 +51,17 @@ export function StatusPanel() {
       {auto && (
         <div className="auto-build">
           <span className="hud__muted">
-            Auto: {auto.chassis}/{auto.weapon}
-            {auto.task !== undefined ? ` · ${programLabel(auto.task)}` : ''}
+            {t('statusPanel', 'auto')}: {auto.chassis}/{auto.weapon}
+            {auto.task !== undefined ? ` · ${programLabel(auto.task, t)}` : ''}
           </span>
           <Button className="auto-build__stop" onClick={stopAuto}>
-            Stop
+            {t('statusPanel', 'stop')}
           </Button>
         </div>
       )}
 
       <Button onClick={() => setBuildOpen(true)} disabled={!playerBase}>
-        Build & Program
+        {t('statusPanel', 'buildProgram')}
       </Button>
 
       {buildOpen && <BuildRobotModal onClose={() => setBuildOpen(false)} />}

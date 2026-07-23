@@ -1,14 +1,5 @@
+import type { T } from '../../i18n';
 import { TaskType } from '../../types/enums';
-
-/** Human-readable label for every program id. */
-export const TASK_LABELS: Record<TaskType, string> = {
-  [TaskType.Idle]: 'Idle',
-  [TaskType.Guard]: 'Guard',
-  [TaskType.AttackBase]: 'Attack Base',
-  [TaskType.AttackRobots]: 'Attack Robots',
-  [TaskType.Scout]: 'Search & Detect',
-  [TaskType.AttackTarget]: 'Attack Target',
-};
 
 /** Programs a player can actively assign to a live unit (Idle is engine-internal). */
 export const ASSIGNABLE_TASKS: TaskType[] = [
@@ -18,13 +9,28 @@ export const ASSIGNABLE_TASKS: TaskType[] = [
   TaskType.Scout,
 ];
 
+/** Human-readable label for every program id, in the active language. */
+export function taskLabels(t: T): Record<TaskType, string> {
+  return {
+    [TaskType.Idle]: t('programs', 'idle'),
+    [TaskType.Guard]: t('programs', 'guard'),
+    [TaskType.AttackBase]: t('programs', 'attackBase'),
+    [TaskType.AttackRobots]: t('programs', 'attackRobots'),
+    [TaskType.Scout]: t('programs', 'scout'),
+    [TaskType.AttackTarget]: t('programs', 'attackTarget'),
+  };
+}
+
 /** Build/setup options: the assignable programs plus a "None" (null) choice. */
-export const PROGRAM_OPTIONS: { value: TaskType | null; label: string }[] = [
-  { value: null, label: 'None' },
-  ...ASSIGNABLE_TASKS.map((task) => ({ value: task, label: TASK_LABELS[task] })),
-];
+export function programOptions(t: T): { value: TaskType | null; label: string }[] {
+  const labels = taskLabels(t);
+  return [
+    { value: null, label: t('programs', 'none') },
+    ...ASSIGNABLE_TASKS.map((task) => ({ value: task, label: labels[task] })),
+  ];
+}
 
 /** Display label for a program id (or "None" for `null`). */
-export function programLabel(task: TaskType | null): string {
-  return task === null ? 'None' : TASK_LABELS[task];
+export function programLabel(task: TaskType | null, t: T): string {
+  return task === null ? t('programs', 'none') : taskLabels(t)[task];
 }

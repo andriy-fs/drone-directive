@@ -1,3 +1,4 @@
+import { useT } from '../../i18n';
 import { ChassisType } from '../../types/enums';
 import { Button } from '../common/Button';
 
@@ -11,6 +12,7 @@ export function ChassisPicker({
   value: ChassisType;
   onChange: (chassis: ChassisType) => void;
 }) {
+  const t = useT();
   return (
     <div className="picker">
       {OPTIONS.map((chassis) => (
@@ -19,7 +21,7 @@ export function ChassisPicker({
           className={`chip ${chassis === value ? 'chip--on' : ''}`.trim()}
           onClick={() => onChange(chassis)}
         >
-          {chassis}
+          {t('chassis', chassis)}
         </Button>
       ))}
     </div>

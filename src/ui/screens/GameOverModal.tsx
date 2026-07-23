@@ -1,3 +1,4 @@
+import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { Button } from '../common/Button';
@@ -8,6 +9,7 @@ import { Button } from '../common/Button';
  * resets the store back to `playing` — which hides this modal again.
  */
 export function GameOverModal() {
+  const t = useT();
   const status = useGameStore((s) => s.status);
   const requestRestart = useGameStore((s) => s.requestRestart);
   const requestMenu = useGameStore((s) => s.requestMenu);
@@ -21,14 +23,14 @@ export function GameOverModal() {
       <div className="dialog-frame">
         <DialogPanel className="modal">
           <DialogTitle className={`modal__title modal__title--${won ? 'win' : 'lose'}`}>
-            {won ? 'Victory' : 'Defeat'}
+            {won ? t('gameOver', 'victory') : t('gameOver', 'defeat')}
           </DialogTitle>
           <p className="modal__body">
-            {won ? 'All enemy bases destroyed.' : 'All your bases were destroyed.'}
+            {won ? t('gameOver', 'victoryBody') : t('gameOver', 'defeatBody')}
           </p>
           <div className="modal__buttons">
-            <Button onClick={() => requestMenu()}>Main Menu</Button>
-            <Button onClick={() => requestRestart()}>Play Again</Button>
+            <Button onClick={() => requestMenu()}>{t('gameOver', 'mainMenu')}</Button>
+            <Button onClick={() => requestRestart()}>{t('gameOver', 'playAgain')}</Button>
           </div>
         </DialogPanel>
       </div>
