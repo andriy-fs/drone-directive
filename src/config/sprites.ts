@@ -23,6 +23,7 @@ const BASE_TARGET = 96;
 const WEAPON_TARGET = 24;
 /** On-field diameter (px) for the observer drone — a light recon flyer, a touch smaller than a robot. */
 const DRONE_TARGET = 40;
+const PUBLIC_BASE = import.meta.env.BASE_URL;
 
 /**
  * Robot sprites keyed by **owner → chassis**, so each faction has distinct art
@@ -30,23 +31,52 @@ const DRONE_TARGET = 40;
  * Math.PI / 2`. A missing entry falls back to the Graphics placeholder. Add a
  * chassis/faction by adding a `src`.
  */
-export const robotSprites: Partial<Record<Owner, Partial<Record<ChassisType, SpriteDef>>>> = {
+export const robotSprites: Partial<
+  Record<Owner, Partial<Record<ChassisType, SpriteDef>>>
+> = {
   [Owner.Player]: {
-    tracks: { src: '/robot-tracks-player.png', rotationOffset: Math.PI / 2, targetSize: ROBOT_TARGET },
-    wheels: { src: '/robot-wheels-player.png', rotationOffset: Math.PI / 2, targetSize: ROBOT_TARGET },
-    legs: { src: '/robot-legs-player.png', rotationOffset: Math.PI / 2, targetSize: ROBOT_TARGET },
+    tracks: {
+      src: `${PUBLIC_BASE}robot-tracks-player.png`,
+      rotationOffset: Math.PI / 2,
+      targetSize: ROBOT_TARGET,
+    },
+    wheels: {
+      src: `${PUBLIC_BASE}robot-wheels-player.png`,
+      rotationOffset: Math.PI / 2,
+      targetSize: ROBOT_TARGET,
+    },
+    legs: {
+      src: `${PUBLIC_BASE}robot-legs-player.png`,
+      rotationOffset: Math.PI / 2,
+      targetSize: ROBOT_TARGET,
+    },
   },
   [Owner.AI]: {
-    tracks: { src: '/robot-tracks-ai.png', rotationOffset: Math.PI / 2, targetSize: ROBOT_TARGET },
-    wheels: { src: '/robot-wheels-ai.png', rotationOffset: Math.PI / 2, targetSize: ROBOT_TARGET },
-    legs: { src: '/robot-legs-ai.png', rotationOffset: Math.PI / 2, targetSize: ROBOT_TARGET },
+    tracks: {
+      src: `${PUBLIC_BASE}robot-tracks-ai.png`,
+      rotationOffset: Math.PI / 2,
+      targetSize: ROBOT_TARGET,
+    },
+    wheels: {
+      src: `${PUBLIC_BASE}robot-wheels-ai.png`,
+      rotationOffset: Math.PI / 2,
+      targetSize: ROBOT_TARGET,
+    },
+    legs: {
+      src: `${PUBLIC_BASE}robot-legs-ai.png`,
+      rotationOffset: Math.PI / 2,
+      targetSize: ROBOT_TARGET,
+    },
   },
 };
 
 /** Base sprites keyed by owner (bases don't rotate, so no `rotationOffset`). */
 export const baseSprites: Partial<Record<Owner, SpriteDef>> = {
-  [Owner.Player]: { src: '/base-player.png', targetSize: BASE_TARGET },
-  [Owner.AI]: { src: '/base-ai.png', targetSize: BASE_TARGET },
+  [Owner.Player]: {
+    src: `${PUBLIC_BASE}base-player.png`,
+    targetSize: BASE_TARGET,
+  },
+  [Owner.AI]: { src: `${PUBLIC_BASE}base-ai.png`, targetSize: BASE_TARGET },
 };
 
 /**
@@ -54,13 +84,17 @@ export const baseSprites: Partial<Record<Owner, SpriteDef>> = {
  * `ObstaclesView` scales it to `gameConfig.grid.tilePx`). Undefined → the flat
  * Graphics fill placeholder.
  */
-export const obstacleSprite: SpriteDef | undefined = { src: '/obstacle-rock.png' };
+export const obstacleSprite: SpriteDef | undefined = {
+  src: `${PUBLIC_BASE}obstacle-rock.png`,
+};
 
 /**
  * Seamless walkable-ground tile tiled across the whole field beneath the grid
  * (see `createGround`). Undefined → the flat `palette.background` fill.
  */
-export const groundSprite: SpriteDef | undefined = { src: '/ground-tile.png' };
+export const groundSprite: SpriteDef | undefined = {
+  src: `${PUBLIC_BASE}ground-tile.png`,
+};
 
 /**
  * The player's observer drone (single faction). Whole-image PNG authored facing
@@ -68,7 +102,7 @@ export const groundSprite: SpriteDef | undefined = { src: '/ground-tile.png' };
  * `DroneView`. See `.docs/sprites/drone.md`.
  */
 export const droneSprite: SpriteDef | undefined = {
-  src: '/drone-player.png',
+  src: `${PUBLIC_BASE}drone-player.png`,
   rotationOffset: Math.PI / 2,
   targetSize: DRONE_TARGET,
 };
@@ -79,14 +113,28 @@ export const droneSprite: SpriteDef | undefined = {
  * to the Graphics marker in `RobotView`. Modules are radially balanced, so no
  * `rotationOffset` is needed even though they inherit the robot's heading.
  */
-export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, SpriteDef>>>> = {
+export const weaponSprites: Partial<
+  Record<Owner, Partial<Record<WeaponType, SpriteDef>>>
+> = {
   [Owner.Player]: {
-    radar: { src: '/weapon-radar-player.png', targetSize: WEAPON_TARGET },
-    bomb: { src: '/weapon-bomb-player.png', targetSize: WEAPON_TARGET },
+    radar: {
+      src: `${PUBLIC_BASE}weapon-radar-player.png`,
+      targetSize: WEAPON_TARGET,
+    },
+    bomb: {
+      src: `${PUBLIC_BASE}weapon-bomb-player.png`,
+      targetSize: WEAPON_TARGET,
+    },
   },
   [Owner.AI]: {
-    radar: { src: '/weapon-radar-ai.png', targetSize: WEAPON_TARGET },
-    bomb: { src: '/weapon-bomb-ai.png', targetSize: WEAPON_TARGET },
+    radar: {
+      src: `${PUBLIC_BASE}weapon-radar-ai.png`,
+      targetSize: WEAPON_TARGET,
+    },
+    bomb: {
+      src: `${PUBLIC_BASE}weapon-bomb-ai.png`,
+      targetSize: WEAPON_TARGET,
+    },
   },
 };
 
