@@ -122,7 +122,6 @@ one registry entry.
   must all be clean; boot the dev server to sanity-check gameplay.
 - **`CLAUDE.md`** documents conventions and points to per-layer skills in
   `.claude/skills/` (engine / pixi / react).
-- **`.docs/drone-directive-roadmap.md`** is the full phase-by-phase design.
 - TypeScript is configured strictly (`erasableSyntaxOnly`,
   `verbatimModuleSyntax`): no TS `enum`s, no constructor parameter properties,
   and `import type` for type-only imports.

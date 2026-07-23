@@ -27,6 +27,8 @@ export interface WeaponComp {
   cooldownLeft: number;
   /** Kamikaze AOE blast radius (px) on detonation; 0 = not a bomb (fires projectiles). */
   explosionRadius: number;
+  /** Jamming aura radius (px); >0 halves nearby enemy scouts' sightRange (ew). */
+  jamRadius: number;
 }
 
 /** Base production component. */

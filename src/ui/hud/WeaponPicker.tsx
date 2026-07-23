@@ -7,6 +7,7 @@ const OPTIONS: WeaponType[] = [
   WeaponType.Missiles,
   WeaponType.Bomb,
   WeaponType.Radar,
+  WeaponType.Ew,
 ];
 
 /** Single-select weapon chooser for the build flow. */

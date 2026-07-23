@@ -93,3 +93,34 @@ describe('visionSystem — detection (no omniscience)', () => {
     expect(radar.sightRange).toBe(plain.sightRange! * gameConfig.robots.weapons.radar.sightMultiplier);
   });
 });
+
+describe('visionSystem — ew jamming', () => {
+  it('an enemy ew robot halves a scout effective sight range', () => {
+    const ctx = makeCtx(1);
+    // Tracks sight is 190px: 100px away would be spotted unjammed, but not at half (95px).
+    spawnRobot(ctx.world, Owner.Player, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.None);
+    spawnRobot(ctx.world, Owner.AI, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 100, y: 0 }, ChassisType.Tracks, WeaponType.Cannon);
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(false);
+  });
+
+  it('does not jam once the ew robot is outside jamRadius', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.Player, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.None);
+    spawnRobot(ctx.world, Owner.AI, { x: 1000, y: 1000 }, ChassisType.Tracks, WeaponType.Ew);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 100, y: 0 }, ChassisType.Tracks, WeaponType.Cannon);
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(true);
+  });
+
+  it('a dead ew robot no longer jams', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.Player, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.None);
+    const jammer = spawnRobot(ctx.world, Owner.AI, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 100, y: 0 }, ChassisType.Tracks, WeaponType.Cannon);
+    jammer.hp = 0;
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(true);
+  });
+});

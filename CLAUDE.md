@@ -36,4 +36,4 @@ Detailed, per-layer knowledge lives in `.claude/skills/` and auto-activates by t
 
 ## Reference
 
-- Full phase-by-phase design: `.docs/drone-directive-roadmap.md`.
+- Engine internals: `.docs/engine-ecs.md` (ECS/miniplex), `.docs/movement.md` (pathfinding + movement), `.docs/zustand.md` (store rationale).

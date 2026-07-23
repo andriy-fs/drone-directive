@@ -173,6 +173,14 @@ function drawBody(robot: Entity, r: number, drawWeapon: boolean): Graphics {
         // Concentric "dish" arcs signalling the spotter.
         g.circle(0, 0, r * 0.3).circle(0, 0, r * 0.6).stroke({ width: 1.5, color: 0x0b0e13 });
         break;
+      case WeaponType.Ew:
+        // Crossed jammer mast: an X over the hull signalling the EW aura.
+        g.moveTo(-r * 0.45, -r * 0.45)
+          .lineTo(r * 0.45, r * 0.45)
+          .moveTo(-r * 0.45, r * 0.45)
+          .lineTo(r * 0.45, -r * 0.45)
+          .stroke({ width: 1.5, color: 0x0b0e13 });
+        break;
       default:
         break;
     }

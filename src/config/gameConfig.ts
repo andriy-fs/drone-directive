@@ -65,7 +65,7 @@ export const gameConfig = {
      * `explosionRadius` (px) only matters for `bomb` — the kamikaze AOE blast
      * radius on detonation. `sightMultiplier` scales the chassis's own `sight`
      * stat (see `chassis` above); only `radar` raises it, everything else is 1
-     * (no-op).
+     * (no-op). `jamRadius` (px) only matters for `ew` — see `combat.jamMultiplier`.
      */
     weapons: {
       none: {
@@ -74,6 +74,7 @@ export const gameConfig = {
         cooldown: 0,
         explosionRadius: 0,
         sightMultiplier: 1,
+        jamRadius: 0,
       },
       cannon: {
         range: 120,
@@ -81,6 +82,7 @@ export const gameConfig = {
         cooldown: 0.8,
         explosionRadius: 0,
         sightMultiplier: 1,
+        jamRadius: 0,
       },
       missiles: {
         range: 170,
@@ -88,6 +90,7 @@ export const gameConfig = {
         cooldown: 1.6,
         explosionRadius: 0,
         sightMultiplier: 1,
+        jamRadius: 0,
       },
       // Kamikaze: closes to `range` then detonates, dealing `damage` in `explosionRadius`, destroying itself.
       // range (60) must exceed a base's half-footprint (48px) so it can trigger at the base's edge, not only inside it.
@@ -97,6 +100,7 @@ export const gameConfig = {
         cooldown: 0,
         explosionRadius: 80,
         sightMultiplier: 1,
+        jamRadius: 0,
       },
       /** Unarmed spotter: no damage, but doubles detection radius. */
       radar: {
@@ -105,6 +109,16 @@ export const gameConfig = {
         cooldown: 0,
         explosionRadius: 0,
         sightMultiplier: 2,
+        jamRadius: 0,
+      },
+      /** Unarmed jammer: no damage, but halves the effective sight range of enemy scouts within `jamRadius`. */
+      ew: {
+        range: 0,
+        damage: 0,
+        cooldown: 0,
+        explosionRadius: 0,
+        sightMultiplier: 1,
+        jamRadius: 150,
       },
     },
   },
@@ -119,6 +133,8 @@ export const gameConfig = {
     projectileRadius: 3,
     /** Stand-off distance (px) an unarmed attacker stops at so it doesn't jam. */
     unarmedStandoff: 40,
+    /** EW jamming aura: multiplies an enemy scout's effective sightRange while inside an `ew` robot's `jamRadius`. */
+    jamMultiplier: 0.5,
   },
 
   /** Reactive behaviour tunables (used by the directive resolver). */
@@ -185,7 +201,7 @@ export const gameConfig = {
     /** Build cost by ChassisType value. */
     chassisCost: { tracks: 60, wheels: 50, legs: 80 },
     /** Build cost by WeaponType value. */
-    weaponCost: { none: 0, cannon: 40, missiles: 70, bomb: 90, radar: 20 },
+    weaponCost: { none: 0, cannon: 40, missiles: 70, bomb: 90, radar: 20, ew: 25 },
   },
 
   /** Enemy AI behaviour. */

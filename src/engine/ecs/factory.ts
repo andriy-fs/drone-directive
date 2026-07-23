@@ -49,6 +49,7 @@ export function spawnRobot(
       cooldown: w.cooldown,
       cooldownLeft: 0,
       explosionRadius: w.explosionRadius,
+      jamRadius: w.jamRadius,
     },
     // Radar (and any future spotter) scales the chassis sight radius; others = 1.
     sightRange: stats.sight * w.sightMultiplier,
