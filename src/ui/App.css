@@ -1,0 +1,462 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.hud {
+  background: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  padding: 20px 18px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.hud__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hud__controls {
+  display: flex;
+  gap: 6px;
+}
+
+.hud__title {
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  margin: 0;
+  color: var(--text-h);
+}
+
+.sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  font-size: 16px;
+  line-height: 1;
+  padding: 5px 8px;
+}
+
+.sound-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Paused watermark over the viewport (non-interactive) */
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 13, 0.35);
+  pointer-events: none;
+}
+
+.pause-overlay__label {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-h);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.menu__title {
+  margin: 0;
+  font-size: 34px;
+  letter-spacing: 1px;
+  color: var(--text-h);
+}
+
+.hud__status {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 14px;
+  text-transform: capitalize;
+}
+
+.hud__hint {
+  margin: auto 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.hud__section {
+  border-top: 1px solid var(--panel-border);
+  padding-top: 12px;
+}
+
+.hud__heading {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+
+.hud__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hud__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.hud__row-label {
+  text-transform: capitalize;
+}
+
+.hud__row-value {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.hud__build {
+  margin-left: auto;
+  font-size: 12px;
+  color: #f59e0b;
+}
+
+.hud__build + .hud__row-value {
+  margin-left: 10px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.dot--player {
+  background: #3b82f6;
+}
+
+.dot--ai {
+  background: #ef4444;
+}
+
+.dot--neutral {
+  background: #9ca3af;
+}
+
+.hud__selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  text-transform: capitalize;
+}
+
+.hud__muted {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.hud__task {
+  color: var(--text-h);
+  font-family: var(--mono);
+  text-transform: none;
+}
+
+.programming {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Single-unit stat rows (program select / weapon / health) */
+.unit-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.unit-field__label {
+  color: var(--text-dim);
+}
+
+.unit-field__value {
+  color: var(--text-h);
+  font-family: var(--mono);
+  text-transform: capitalize;
+}
+
+.unit-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 62%;
+  border: 1px solid var(--panel-border);
+  background: #1a2130;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.unit-select:hover {
+  border-color: #3a4a63;
+}
+
+.task-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--panel-border);
+  background: #1a2130;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover {
+  background: #232c40;
+  border-color: #3a4a63;
+}
+
+.btn:active {
+  background: #2b3650;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Status / command panel */
+.status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.build-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auto-build {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auto-build .hud__muted {
+  text-transform: capitalize;
+}
+
+.auto-build__stop {
+  margin-left: auto;
+  color: #ef4444;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+.bar {
+  height: 6px;
+  background: #0b0e13;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bar__fill {
+  height: 100%;
+  background: #22c55e;
+  transition: width 0.1s linear;
+}
+
+/* Chassis / weapon pickers */
+.picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.picker__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.picker {
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  flex: 1;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 6px;
+  text-transform: capitalize;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.chip:hover {
+  background: #232c40;
+}
+
+.chip--on {
+  background: #2b3650;
+  border-color: #3b82f6;
+  color: var(--text-h);
+}
+
+.modal__buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.modal__buttons .btn {
+  min-width: 96px;
+  text-align: center;
+}
+
+.viewport {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Host div for the Pixi canvas; the canvas itself is sized by resizeTo. */
+.game-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.game-canvas canvas {
+  display: block;
+  touch-action: none; /* let Pixi handle pointer drags without page scroll */
+}
+
+/* Headless UI dialog overlay / frame */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 13, 0.68);
+  z-index: 10;
+}
+
+.dialog-frame {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.modal {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 28px 32px;
+  min-width: 260px;
+  max-width: min(92vw, 420px);
+  max-height: 88vh;
+  overflow-y: auto;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal__title {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: 0.5px;
+}
+
+.modal__title--win {
+  color: #22c55e;
+}
+
+.modal__title--lose {
+  color: #ef4444;
+}
+
+.modal__body {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.modal__action {
+  align-self: center;
+  text-align: center;
+  min-width: 140px;
+}
+
+.controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-item kbd {
+  background: #0b0e13;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.control-item span {
+  font-size: 14px;
+  color: var(--text);
+}
