@@ -272,6 +272,12 @@
   gap: 4px;
 }
 
+/* Nothing queued: keep the row's height reserved (no layout shift below it),
+   just grey it out instead of unmounting it. */
+.build-progress--idle {
+  opacity: 0.45;
+}
+
 .auto-build {
   display: flex;
   align-items: center;

@@ -19,6 +19,7 @@ export function StatusPanel() {
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   const [buildOpen, setBuildOpen] = useState(false);
 
+  const queueLength = playerBase?.queueLength ?? 0;
   const auto = playerBase?.autoBuild ?? null;
   const stopAuto = () => {
     if (playerBase) enqueueCommand({ kind: 'SetAutoBuild', baseId: playerBase.id, order: null });
@@ -39,14 +40,14 @@ export function StatusPanel() {
         </li>
       </ul>
 
-      {playerBase && playerBase.queueLength > 0 && (
-        <div className="build-progress">
-          <span className="hud__muted">
-            {t('statusPanel', 'building')} · {playerBase.queueLength} {t('statusPanel', 'queued')}
-          </span>
-          <Bar value={playerBase.buildProgress} />
-        </div>
-      )}
+      <div className={`build-progress ${!queueLength ? 'build-progress--idle' : ''}`.trim()}>
+        <span className="hud__muted">
+          {queueLength > 0
+            ? `${t('statusPanel', 'building')} · ${queueLength} ${t('statusPanel', 'queued')}`
+            : t('statusPanel', 'idle')}
+        </span>
+        <Bar value={playerBase?.buildProgress ?? 0} />
+      </div>
 
       {auto && (
         <div className="auto-build">

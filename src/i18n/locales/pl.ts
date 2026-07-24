@@ -97,6 +97,7 @@ export const pl: Dict = {
     ai: 'SI',
     building: 'Budowa',
     queued: 'w kolejce',
+    idle: 'Kolejka pusta',
     auto: 'Auto',
     stop: 'Stop',
     buildProgram: 'Budowa i dyrektywa',
