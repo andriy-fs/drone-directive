@@ -147,8 +147,16 @@ function attackAttackerOutcome(ctx: GameContext, e: Entity): Outcome {
   return { fire: attacker.id };
 }
 
-/** Move-only: strafe perpendicular to incoming fire to dodge. */
+/**
+ * Move-only: strafe perpendicular to incoming fire to dodge. A kamikaze has
+ * nothing to gain from surviving — dodging only pushes it out of its own
+ * (short) blast range of whoever's attacking it, so it never runs: it just
+ * holds (falling through to `attackNearestRobot`/`attackAttacker` below to
+ * close in and detonate on the group instead of fleeing a fight it can't lose).
+ */
 function evadeOutcome(ctx: GameContext, e: Entity): Outcome {
+  if ((e.weapon?.explosionRadius ?? 0) > 0) return {};
+
   const pos = e.position!;
   const attackerId = e.threat?.attackerId;
   const attacker = attackerId ? findById(ctx, attackerId) : undefined;

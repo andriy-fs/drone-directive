@@ -239,6 +239,10 @@ export const gameConfig = {
     kamikazeClusterMin: 2,
     /** Chance a freshly-idle kamikaze picks a big enough cluster over rushing the base outright. */
     kamikazeClusterChance: 0.5,
+    /** Living-robot-count edge (either side) needed to call the fight lopsided enough to change posture — see `forcePosture`. */
+    forceAdvantageMargin: 3,
+    /** Extra guard slots (on top of `guardQuota`) filled while in a defensive posture (significantly outnumbered). */
+    defensiveGuardBonus: 3,
   },
 
   /** HUD snapshot throttle: push roster/HP to the store every N sim ticks. */

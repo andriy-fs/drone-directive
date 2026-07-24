@@ -8,8 +8,8 @@ import { HealthBar } from './HealthBar';
 
 /**
  * View for a base entity: its faction sprite (or an owner-tinted square + cross
- * placeholder if no art is loaded), a sight-zone ring for the player's own base,
- * and an HP bar above it, positioned at the base's world-space centre.
+ * placeholder if no art is loaded) and an HP bar above it, positioned at the
+ * base's world-space centre.
  */
 export class BaseView {
   readonly container: Container;
@@ -21,17 +21,6 @@ export class BaseView {
 
     const size = (base.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx;
     const half = size / 2;
-
-    // Vision-zone ring: the base's own detection radius (own side only). Drawn
-    // first so it sits under the body.
-    if (base.owner === Owner.Player && (base.sightRange ?? 0) > 0) {
-      const zone = new Graphics();
-      zone
-        .circle(0, 0, base.sightRange!)
-        .fill({ color: palette.vision.zone, alpha: 0.03 })
-        .stroke({ width: 1, color: palette.vision.zone, alpha: 0.35 });
-      this.container.addChild(zone);
-    }
 
     const sprite = base.owner ? getBaseTexture(base.owner) : null;
     if (sprite) {

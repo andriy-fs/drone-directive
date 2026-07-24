@@ -308,12 +308,24 @@ describe('aiSystem — group attacks', () => {
     }
   }
 
+  // Far from the AI base (well outside threatRange) so these don't trip
+  // `isThreatened` — only here to keep `forcePosture` at 'balanced' so these
+  // tests exercise the wave-threshold mechanic on its own (posture behaviour
+  // has its own describe block below).
+  function matchAiCount(ctx: ReturnType<typeof makeCtx>, count: number) {
+    for (let i = 0; i < count; i++) {
+      spawnRobot(ctx.world, Owner.Player, { x: 40 + i, y: 40 }, ChassisType.Tracks, WeaponType.Cannon);
+    }
+  }
+
   it('releases offensive units in a wave once enough have gathered', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0; // starve production so only assignment runs
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
     ctx.ai.groupTarget = 3;
-    seedIdleAi(ctx, base, gameConfig.ai.guardQuota + 3);
+    const count = gameConfig.ai.guardQuota + 3;
+    seedIdleAi(ctx, base, count);
+    matchAiCount(ctx, count);
 
     aiSystem(ctx, 100);
 
@@ -329,7 +341,9 @@ describe('aiSystem — group attacks', () => {
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
     ctx.ai.groupTarget = 3;
-    seedIdleAi(ctx, base, gameConfig.ai.guardQuota + 2); // only 2 staged, below the wave size
+    const count = gameConfig.ai.guardQuota + 2; // only 2 staged, below the wave size
+    seedIdleAi(ctx, base, count);
+    matchAiCount(ctx, count);
 
     aiSystem(ctx, 100);
 
@@ -343,7 +357,9 @@ describe('aiSystem — group attacks', () => {
     const ctx = makeCtx(3);
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
     ctx.ai.groupTarget = 0; // force a roll
-    seedIdleAi(ctx, base, gameConfig.ai.guardQuota + gameConfig.ai.attackGroupMax);
+    const count = gameConfig.ai.guardQuota + gameConfig.ai.attackGroupMax;
+    seedIdleAi(ctx, base, count);
+    matchAiCount(ctx, count);
     ctx.resources.ai = 0;
 
     aiSystem(ctx, 100);
@@ -351,5 +367,79 @@ describe('aiSystem — group attacks', () => {
     const attackers = aiRobots(ctx).filter((r) => r.script!.programId === TaskType.AttackBase).length;
     expect(attackers).toBeGreaterThanOrEqual(gameConfig.ai.attackGroupMin);
     expect(attackers).toBeLessThanOrEqual(gameConfig.ai.attackGroupMax);
+  });
+});
+
+describe('aiSystem — force posture', () => {
+  function spawnDistantPlayerRobots(ctx: ReturnType<typeof makeCtx>, count: number) {
+    const robots = [];
+    for (let i = 0; i < count; i++) {
+      robots.push(spawnRobot(ctx.world, Owner.Player, { x: 40 + i, y: 40 }, ChassisType.Tracks, WeaponType.Cannon));
+    }
+    return robots;
+  }
+
+  function seedIdleAi(ctx: ReturnType<typeof makeCtx>, base: ReturnType<typeof spawnBase>, count: number) {
+    const robots = [];
+    for (let i = 0; i < count; i++) {
+      robots.push(
+        spawnRobot(
+          ctx.world,
+          Owner.AI,
+          { x: base.position!.x, y: base.position!.y + 40 + i * 4 },
+          ChassisType.Tracks,
+          WeaponType.Cannon,
+        ),
+      );
+    }
+    return robots;
+  }
+
+  it('presses the attack immediately when significantly ahead, without waiting for a full wave', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.ai = 0;
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    ctx.ai.groupTarget = 10; // would normally hold back until 10 have gathered
+    seedIdleAi(ctx, base, gameConfig.ai.guardQuota + 1); // only 1 staged, no player robots at all
+
+    aiSystem(ctx, 100);
+
+    const robots = aiRobots(ctx);
+    expect(robots.filter((r) => r.script!.programId === TaskType.AttackBase).length).toBe(1);
+    expect(robots.filter((r) => r.script!.programId === TaskType.Idle).length).toBe(0);
+  });
+
+  it('turtles up and expands the guard line when significantly outnumbered', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.ai = 0;
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    const count = gameConfig.ai.guardQuota + gameConfig.ai.defensiveGuardBonus + 2;
+    seedIdleAi(ctx, base, count);
+    spawnDistantPlayerRobots(ctx, count + gameConfig.ai.forceAdvantageMargin);
+
+    aiSystem(ctx, 100);
+
+    const robots = aiRobots(ctx);
+    const by = (t: TaskType) => robots.filter((r) => r.script!.programId === t).length;
+    expect(by(TaskType.Guard)).toBe(gameConfig.ai.guardQuota + gameConfig.ai.defensiveGuardBonus);
+    expect(by(TaskType.AttackBase)).toBe(0);
+  });
+
+  it('keeps a kamikaze at home instead of sending it off when significantly outnumbered', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.ai = 0;
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    const bomber = spawnRobot(
+      ctx.world,
+      Owner.AI,
+      { x: base.position!.x, y: base.position!.y + 40 },
+      ChassisType.Tracks,
+      WeaponType.Bomb,
+    );
+    spawnDistantPlayerRobots(ctx, gameConfig.ai.forceAdvantageMargin + 1); // AI has 1 robot, player has margin+1 more
+
+    aiSystem(ctx, 100);
+
+    expect(bomber.script!.programId).toBe(TaskType.Guard);
   });
 });
