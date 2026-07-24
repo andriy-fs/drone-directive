@@ -97,6 +97,7 @@ export const uk: Dict = {
     ai: 'ШІ',
     building: 'Будівництво',
     queued: 'у черзі',
+    idle: 'Черга порожня',
     auto: 'Авто',
     stop: 'Стоп',
     buildProgram: 'Побудова і директива',

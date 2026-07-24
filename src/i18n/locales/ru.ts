@@ -98,6 +98,7 @@ export const ru: Dict = {
     ai: 'ИИ',
     building: 'Постройка',
     queued: 'в очереди',
+    idle: 'Очередь пуста',
     auto: 'Авто',
     stop: 'Стоп',
     buildProgram: 'Постройка и директива',

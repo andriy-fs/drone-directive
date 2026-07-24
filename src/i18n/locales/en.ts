@@ -96,6 +96,7 @@ export interface Dict {
     ai: string;
     building: string;
     queued: string;
+    idle: string;
     auto: string;
     stop: string;
     buildProgram: string;
@@ -244,6 +245,7 @@ export const en: Dict = {
     ai: 'AI',
     building: 'Building',
     queued: 'queued',
+    idle: 'Nothing in queue',
     auto: 'Auto',
     stop: 'Stop',
     buildProgram: 'Build & Program',
