@@ -51,7 +51,7 @@ export const BuildPresetType = {
   Tracks: 'tracks',
   TracksWheels: 'tracksWheels',
   MixedSquad: 'mixedSquad',
-  /** The AI's production series (every 10th unit is a base-rushing kamikaze). */
+  /** The AI's production series (every 10th unit is a kamikaze, sent at a cluster or the base). */
   AiAssault: 'aiAssault',
 } as const;
 export type BuildPresetType = (typeof BuildPresetType)[keyof typeof BuildPresetType];
