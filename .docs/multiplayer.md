@@ -19,18 +19,18 @@ simulation is fully deterministic, which this engine already mostly is:
 
 - **Fixed 30 Hz step** (`gameConfig.fixedDt`, driven by `GameLoop.ts`'s
   accumulator) — combat/AI/movement never depend on wall-clock frame time.
-- **Seeded RNG** (`src/utils/rng.ts`, threaded through `GameContext.rng`) — no
+- **Seeded RNG** (`client/src/utils/rng.ts`, threaded through `GameContext.rng`) — no
   engine code calls `Math.random()` directly (checked: the only
-  `Math.random()` calls in the repo are cosmetic, in `src/pixi/render/
-  ProjectileView.ts`'s flame flicker and `src/pixi/audio/sfx.ts`'s noise
-  burst — both outside `src/engine/**` and outside the simulation).
+  `Math.random()` calls in the repo are cosmetic, in `client/src/pixi/render/
+  ProjectileView.ts`'s flame flicker and `client/src/pixi/audio/sfx.ts`'s noise
+  burst — both outside `client/src/engine/**` and outside the simulation).
 - **All world mutation already flows through one queue** — UI never touches
   the ECS world directly; it pushes `Command`s (`types/commands.ts`) that
   `commandsSystem.ts` drains and applies once per tick. That queue is exactly
   the seam a network layer needs to intercept.
 
 The one non-deterministic piece is `createGameContext` seeding its RNG from
-`Date.now()` (`src/engine/game/context.ts`) — see [Determinism
+`Date.now()` (`client/src/engine/game/context.ts`) — see [Determinism
 prerequisites](#determinism-prerequisites).
 
 ## The core trick: both clients play as `Owner.Player`
@@ -70,7 +70,7 @@ this plan opts out of. Not addressed here.
 
 Kept intentionally thin — the Durable Object should not need to understand
 game rules at all, just pair two sockets and relay bytes. Define the message
-shapes once in a shared file (`src/net/protocol.ts`) importable by both the
+shapes once in a shared **`@drone-directive/protocol`** workspace (types-only) importable by both the
 client and the Worker (Workers support TypeScript, so no duplication):
 
 | Direction         | Message                                                              | Purpose |
@@ -99,8 +99,8 @@ them before simulating that tick:
    case). `INPUT_DELAY_TICKS = 6` (~200ms at 30Hz) is a reasonable starting
    point — higher tolerates more jitter before stalling, at the cost of
    input feeling laggier.
-2. A new `LockstepSession` (proposed: `src/pixi/net/LockstepSession.ts`,
-   sibling to `src/pixi/audio/`) buffers both the local and the peer's
+2. A new `LockstepSession` (proposed: `client/src/pixi/net/LockstepSession.ts`,
+   sibling to `client/src/pixi/audio/`) buffers both the local and the peer's
    incoming `tick` messages by tick number.
 3. Before `GameApp.step()` calls `engine.tick(dt)`, it asks the session: do I
    have *both* sides' commands for `currentTick` yet? If not, skip ticking
@@ -117,12 +117,12 @@ them before simulating that tick:
 
 ## Determinism prerequisites
 
-- `createGameContext` (`src/engine/game/context.ts`) must take the seed as a
+- `createGameContext` (`client/src/engine/game/context.ts`) must take the seed as a
   parameter instead of deriving it from `Date.now()` — the `start` message's
   `seed` becomes `GameEngine.startMatch`'s source of truth for online
   matches (keep the `Date.now()` fallback for solo/offline play).
 - Keep the existing invariant: no `Math.random()` / `Date.now()` /
-  `performance.now()` anywhere under `src/engine/**`. This already holds
+  `performance.now()` anywhere under `client/src/engine/**`. This already holds
   today; it just needs to stay true as the engine grows.
 - **Recommended, not required for a first cut:** a cheap per-N-ticks state
   checksum (e.g. hash of every entity's rounded position + hp) included in
@@ -149,19 +149,23 @@ them before simulating that tick:
 
 ## New / changed files
 
+The repo is now an npm-workspaces monorepo — `client/` (`@drone-directive/client`,
+the existing game) and `server/` (`@drone-directive/server`, this backend, currently
+a placeholder). Client paths below are workspace-relative (`client/src/…`).
+
 | Path | Change |
 | ---- | ------ |
-| `server/` (new) | Standalone Cloudflare Worker project (own `package.json`/`wrangler.toml`), deployed separately via `wrangler deploy`. Not part of the Vite build. |
-| `src/net/protocol.ts` (new) | Shared wire-message types, importable by both `server/` and the client. |
-| `src/pixi/net/LockstepSession.ts` (new) | WebSocket connection, per-tick command buffering/stall logic, owner relabeling. |
-| `src/pixi/GameApp.ts` | `step()` consults `LockstepSession` (when online) before calling `engine.tick()`. |
-| `src/engine/game/scenes/gameScene.ts` | Gate the `aiSystem(ctx, dt)` call behind `ctx.online`. |
-| `src/engine/game/engine.ts` | `startMatch` accepts an optional external seed. |
-| `src/engine/game/context.ts` | `createGameContext` takes the seed as a parameter instead of calling `Date.now()` internally. |
-| `src/config/gameSettings.ts` | Add an online/match-mode flag to `MatchSettings`. For online matches, force symmetric starter counts (reuse `gameConfig.difficulty.normal` for both sides) rather than exposing the asymmetric Easy/Hard presets — those only make sense against a bot. |
-| `src/store/gameStore.ts` | Connection/lobby status state (`connecting` / `waitingForOpponent` / `inMatch` / `opponentLeft`). |
-| `src/ui/screens/OnlineLobby.tsx` (new) | Create/join-room screen, wired from `MainMenu.tsx`. |
-| `src/ui/hooks/usePauseHotkey.ts` | Disabled while `online`. |
+| `server/` (workspace scaffolded) | The `@drone-directive/server` npm workspace already exists as a placeholder. Implement the Cloudflare Worker + Durable Object here with its own `wrangler.toml`; deploy separately via `wrangler deploy`, outside the Vite build. |
+| `protocol/` (new workspace) | New `@drone-directive/protocol` workspace holding the shared wire-message types; both `@drone-directive/client` and `@drone-directive/server` depend on it (avoids cross-workspace source imports). |
+| `client/src/pixi/net/LockstepSession.ts` (new) | WebSocket connection, per-tick command buffering/stall logic, owner relabeling. |
+| `client/src/pixi/GameApp.ts` | `step()` consults `LockstepSession` (when online) before calling `engine.tick()`. |
+| `client/src/engine/game/scenes/gameScene.ts` | Gate the `aiSystem(ctx, dt)` call behind `ctx.online`. |
+| `client/src/engine/game/engine.ts` | `startMatch` accepts an optional external seed. |
+| `client/src/engine/game/context.ts` | `createGameContext` takes the seed as a parameter instead of calling `Date.now()` internally. |
+| `client/src/config/gameSettings.ts` | Add an online/match-mode flag to `MatchSettings`. For online matches, force symmetric starter counts (reuse `gameConfig.difficulty.normal` for both sides) rather than exposing the asymmetric Easy/Hard presets — those only make sense against a bot. |
+| `client/src/store/gameStore.ts` | Connection/lobby status state (`connecting` / `waitingForOpponent` / `inMatch` / `opponentLeft`). |
+| `client/src/ui/screens/OnlineLobby.tsx` (new) | Create/join-room screen, wired from `MainMenu.tsx`. |
+| `client/src/ui/hooks/usePauseHotkey.ts` | Disabled while `online`. |
 
 ## Suggested phases
 

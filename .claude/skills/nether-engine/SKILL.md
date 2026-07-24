@@ -1,8 +1,8 @@
 ---
 name: nether-engine
 description: >-
-  Knowledge for the Drone Directive game CORE (src/engine/**, src/types/**,
-  src/config/gameConfig.ts). Use whenever a task changes game rules or structure:
+  Knowledge for the Drone Directive game CORE (client/src/engine/**, client/src/types/**,
+  client/src/config/gameConfig.ts). Use whenever a task changes game rules or structure:
   ECS entities/components, systems (movement/pathfinding, combat, tasks, AI,
   economy, production, reap, explosions), scenes, the GameEngine facade, the
   EventBus, obstacles, or difficulty. Explains the ECS model, the fixed-step
