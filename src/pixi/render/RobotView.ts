@@ -7,6 +7,9 @@ import { ChassisType, Owner, WeaponType } from '../../types/enums';
 import { getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
 import { HealthBar } from './HealthBar';
 
+/** Max gap (ms) between two clicks on the same robot to count as a double-click. */
+const DOUBLE_CLICK_MS = 350;
+
 /**
  * View for a robot entity. If its chassis has a registered sprite it is drawn as
  * a (cropped) Sprite with an owner-coloured disc beneath; otherwise a coloured
@@ -20,6 +23,7 @@ export class RobotView {
   private readonly spotted: Graphics;
   private readonly healthBar: HealthBar;
   private readonly isEnemy: boolean;
+  private lastClickAt = 0;
 
   constructor(robot: Entity) {
     const r = gameConfig.robots.radius;
@@ -98,6 +102,19 @@ export class RobotView {
         if (e.button !== 0) return; // left-click selects; right-click falls to the stage
         e.stopPropagation(); // don't let the stage start a pan / marquee / deselect
         const store = useGameStore.getState();
+
+        const now = performance.now();
+        // Double left-click (no shift): select every player robot sharing this
+        // one's weapon type — a quick way to pull together e.g. all cannons.
+        if (!e.shiftKey && now - this.lastClickAt < DOUBLE_CLICK_MS) {
+          this.lastClickAt = 0; // consume so a third click starts a fresh pair
+          store.selectRobots(
+            store.robots.filter((r) => r.owner === Owner.Player && r.weapon === robot.weaponType).map((r) => r.id),
+          );
+          return;
+        }
+        this.lastClickAt = now;
+
         if (e.shiftKey) store.toggleRobot(robot.id);
         else store.selectRobots([robot.id]);
       });
