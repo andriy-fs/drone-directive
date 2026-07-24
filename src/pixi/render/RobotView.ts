@@ -12,9 +12,9 @@ const DOUBLE_CLICK_MS = 350;
 
 /**
  * View for a robot entity. If its chassis has a registered sprite it is drawn as
- * a (cropped) Sprite with an owner-coloured disc beneath; otherwise a coloured
- * Graphics placeholder (shape by chassis, marker by weapon). `body` rotates with
- * heading; the HP bar and selection ring stay upright.
+ * a (cropped) Sprite; otherwise a coloured Graphics placeholder (shape by
+ * chassis, marker by weapon). `body` rotates with heading; the HP bar and
+ * selection ring stay upright.
  */
 export class RobotView {
   readonly container: Container;
@@ -38,24 +38,12 @@ export class RobotView {
       this.container.cursor = 'pointer';
     }
 
-    // Vision-zone ring: the robot's own detection radius, shown for the
-    // player's own units only (an enemy's sight range stays hidden intel).
-    if (!this.isEnemy && (robot.sightRange ?? 0) > 0) {
-      const zone = new Graphics();
-      zone
-        .circle(0, 0, robot.sightRange!)
-        .fill({ color: palette.vision.zone, alpha: 0.03 })
-        .stroke({ width: 1, color: palette.vision.zone, alpha: 0.35 });
-      this.container.addChild(zone);
-    }
-
     this.body = new Container();
     const sprite = robot.chassis && robot.owner ? getRobotTexture(robot.chassis, robot.owner) : null;
     // Weapon-module overlay for the central hardpoint (radar/bomb have art);
     // when present it replaces the drawn weapon marker to avoid doubling up.
     const weaponSprite =
       robot.weaponType && robot.owner ? getWeaponTexture(robot.weaponType, robot.owner) : null;
-    let ownerDisc: Graphics | null = null;
     let outerRadius = r;
 
     if (sprite) {
@@ -69,9 +57,6 @@ export class RobotView {
       this.body.addChild(img);
 
       outerRadius = target / 2;
-      const discColor = robot.owner === Owner.Player ? palette.owner.player : palette.owner.ai;
-      ownerDisc = new Graphics();
-      ownerDisc.circle(0, 0, outerRadius).fill({ color: discColor, alpha: 0.28 });
     } else {
       this.body.addChild(drawBody(robot, r, !weaponSprite));
     }
@@ -90,12 +75,11 @@ export class RobotView {
     this.healthBar = new HealthBar(2 * outerRadius + 6, 4);
     this.healthBar.container.position.set(0, -(outerRadius + 10));
 
-    if (ownerDisc) this.container.addChild(ownerDisc);
     this.container.addChild(this.ring, this.spotted, this.body, this.healthBar.container);
 
     if (!this.isEnemy) {
-      // Pin the clickable area to the robot's own body — without this, the (much
-      // larger) vision-zone circle above would expand hit-testing to its radius
+      // Pin the clickable area to the robot's own body — without this, the
+      // health bar sitting above it would expand hit-testing past the body
       // and swallow drag-select clicks anywhere near an allied robot.
       this.container.hitArea = new Circle(0, 0, outerRadius + 5);
       this.container.on('pointerdown', (e) => {

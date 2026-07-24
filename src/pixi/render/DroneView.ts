@@ -5,9 +5,9 @@ import type { Entity } from '../../engine/ecs/entity';
 import { getDroneTexture } from '../assets';
 
 /**
- * View for the player's observer drone: a small diamond marker (so it reads as a
- * flyer, not a ground unit) plus its sight-radius ring. Lives on the `overlay`
- * layer so it draws above fog and units. `body` rotates with heading.
+ * View for the player's observer drone: a small diamond marker (so it reads as
+ * a flyer, not a ground unit). Lives on the `overlay` layer so it draws above
+ * fog and units. `body` rotates with heading.
  */
 export class DroneView {
   readonly container: Container;
@@ -16,18 +16,9 @@ export class DroneView {
   constructor(drone: Entity) {
     this.container = new Container();
     this.container.label = `drone:${drone.id}`;
-    // Visual only: prune from hit-testing so the large sight-zone circle (topmost
-    // overlay layer) never swallows clicks meant for robots in the units layer.
+    // Visual only: prune from hit-testing so it never swallows clicks meant
+    // for robots in the units layer beneath it.
     this.container.eventMode = 'none';
-
-    if ((drone.sightRange ?? 0) > 0) {
-      const zone = new Graphics();
-      zone
-        .circle(0, 0, drone.sightRange!)
-        .fill({ color: palette.vision.zone, alpha: 0.04 })
-        .stroke({ width: 1, color: palette.vision.zone, alpha: 0.4 });
-      this.container.addChild(zone);
-    }
 
     this.body = new Container();
     const sprite = getDroneTexture();
