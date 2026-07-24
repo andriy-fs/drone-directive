@@ -103,9 +103,10 @@ export const gameConfig = {
       },
       // Kamikaze: closes to `range` then detonates, dealing `damage` in `explosionRadius`, destroying itself.
       // range (60) must exceed a base's half-footprint (48px) so it can trigger at the base's edge, not only inside it.
+      // damage doubled (150 → 300) so building one is worth it against a base/cluster, not just chip damage.
       bomb: {
         range: 60,
-        damage: 150,
+        damage: 300,
         cooldown: 0,
         explosionRadius: 80,
         sightMultiplier: 1,
@@ -229,9 +230,15 @@ export const gameConfig = {
     guardRadius: 240,
     /** Enemy within this range (px) of the AI base triggers a defensive unit. */
     threatRange: 220,
+    /** Enemy robots within `threatRange` at once, at/above which the AI recalls its whole force (including active attackers) to defend, not just home-based units. */
+    massRushThreshold: 5,
     /** Offensive units are staged near base and released together in a wave of this size (inclusive). */
     attackGroupMin: 3,
     attackGroupMax: 10,
+    /** Minimum other known enemy robots huddled within the bomb's blast radius before a kamikaze bothers with a cluster run. */
+    kamikazeClusterMin: 2,
+    /** Chance a freshly-idle kamikaze picks a big enough cluster over rushing the base outright. */
+    kamikazeClusterChance: 0.5,
   },
 
   /** HUD snapshot throttle: push roster/HP to the store every N sim ticks. */

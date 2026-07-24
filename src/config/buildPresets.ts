@@ -52,7 +52,10 @@ export const buildPresets: Record<BuildPresetType, BuildPreset> = {
   /**
    * The AI's production series. Steps 1–9 are a durable/ranged combat mix with
    * no forced program (they're staged into attack groups by `systems/ai.ts`);
-   * the 10th is a tracked kamikaze bomb that rushes the enemy base directly.
+   * the 10th is a tracked kamikaze bomb. It's left without a `task` override
+   * (unlike the old fixed base-rush) so it spawns Idle and `systems/ai.ts`'s
+   * `assignKamikaze` picks its target once it exists — a fat cluster of known
+   * enemy robots, or the base if nothing juicier is around.
    */
   [BuildPresetType.AiAssault]: {
     id: BuildPresetType.AiAssault,
@@ -67,7 +70,7 @@ export const buildPresets: Record<BuildPresetType, BuildPreset> = {
       { chassis: ChassisType.Wheels, weapon: WeaponType.Missiles },
       { chassis: ChassisType.Legs, weapon: WeaponType.Missiles },
       { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon },
-      { chassis: ChassisType.Tracks, weapon: WeaponType.Bomb, task: TaskType.AttackBase },
+      { chassis: ChassisType.Tracks, weapon: WeaponType.Bomb },
     ],
   },
 };
