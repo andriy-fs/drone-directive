@@ -38,8 +38,8 @@ export const gameConfig = {
     footprintTiles: 3,
     /** Starting placements, keyed by owner; tx/ty is the top-left tile. */
     placements: [
-      { owner: "player", tx: 4, ty: 33 },
-      { owner: "ai", tx: 33, ty: 4 },
+      { owner: 'player', tx: 4, ty: 33 },
+      { owner: 'ai', tx: 33, ty: 4 },
     ],
     /** Detection radius (px): a base's own "radar" — enemies within this become known. */
     sightRange: 260,
@@ -155,6 +155,8 @@ export const gameConfig = {
     evadeDistance: 48,
     /** Max distance (px) a Guard patrols from its post — perimeter defence, not a whole-map search. */
     guardPatrolRadius: 240,
+    /** Overwatch: distance (px) behind an advancing friendly group's centroid an unarmed spotter trails at. */
+    overwatchTrailDistance: 180,
     /**
      * Anti-jam: a robot with a non-idle program that wants to move (has a goal)
      * or is trapped inside a base, yet makes < `stuckEpsilon` px net progress for

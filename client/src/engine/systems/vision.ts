@@ -32,9 +32,7 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
     ...ctx.world.with('base', 'position').entities.filter(isMine),
     // The observer drone spots enemies too (additive); it has no hp, so match on
     // owner + sight only. AI has no drone, so this is empty for that side.
-    ...ctx.world
-      .with('drone', 'position')
-      .entities.filter((e) => e.owner === owner && (e.sightRange ?? 0) > 0),
+    ...ctx.world.with('drone', 'position').entities.filter((e) => e.owner === owner && (e.sightRange ?? 0) > 0),
   ];
   // Enemy `ew` robots jamming this side's scouts.
   const jammers = ctx.world

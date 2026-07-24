@@ -48,6 +48,11 @@ Built with **React 19 · PixiJS 8 · TypeScript · Vite · Zustand**.
 
 Requires a recent Node.js (Vite 8 needs Node 20.19+ or 22.12+).
 
+This is an **npm-workspaces monorepo** — the game lives in the `client`
+workspace and a placeholder `server` workspace is reserved for future online
+multiplayer. Run everything from the repo root: `npm install` installs all
+workspaces, and the root scripts delegate to `client`.
+
 ```bash
 npm install
 npm run dev      # start the dev server (prints a local URL)
@@ -55,33 +60,35 @@ npm run dev      # start the dev server (prints a local URL)
 
 ### Scripts
 
-| Command               | Description                                                   |
-| ---------------------- | -------------------------------------------------------------- |
-| `npm run dev`          | Start the Vite dev server with HMR.                            |
-| `npm run build`        | Type-check and build for production (`tsc -b && vite build`).  |
-| `npm run preview`      | Serve the production build locally.                            |
-| `npm run lint`         | Run ESLint.                                                    |
-| `npm test`             | Run the Vitest engine test suite.                              |
-| `npm run test:watch`   | Run the test suite in watch mode.                               |
+All run from the repo root and delegate to the `client` workspace.
+
+| Command              | Description                                                   |
+| -------------------- | ------------------------------------------------------------- |
+| `npm run dev`        | Start the Vite dev server with HMR.                           |
+| `npm run build`      | Type-check and build for production (`tsc -b && vite build`). |
+| `npm run preview`    | Serve the production build locally.                           |
+| `npm run lint`       | Run ESLint.                                                   |
+| `npm test`           | Run the Vitest engine test suite.                             |
+| `npm run test:watch` | Run the test suite in watch mode.                             |
 
 ## Controls
 
-| Input                             | Action                                              |
-| ---------------------------------- | ---------------------------------------------------- |
-| **Left-drag** (empty ground)       | Box-select your robots (marquee)                     |
-| **Left-click** a robot             | Select it                                            |
-| **Shift+click** / **Shift+drag**   | Add to the current selection                         |
-| **Double-click** a robot           | Select all your robots carrying the same weapon      |
-| **Ctrl/Cmd + A**                   | Select all your robots                               |
-| **Ctrl/Cmd + 1-9**                 | Save the current selection as control group N        |
-| **1-9**                            | Recall control group N                               |
-| **Left-click** empty ground        | Clear selection                                      |
-| **Right-click**                    | Move the selection to that point (in formation)      |
-| **Middle-mouse drag**              | Pan the camera                                       |
-| **Esc** / **Space** / **P**        | Pause / resume                                       |
-| **W A S D**                        | Fly the observer drone                                |
-| **F**                              | Land the drone on / release an idle robot            |
-| **E**                              | Fire the possessed robot's weapon                     |
+| Input                            | Action                                          |
+| -------------------------------- | ----------------------------------------------- |
+| **Left-drag** (empty ground)     | Box-select your robots (marquee)                |
+| **Left-click** a robot           | Select it                                       |
+| **Shift+click** / **Shift+drag** | Add to the current selection                    |
+| **Double-click** a robot         | Select all your robots carrying the same weapon |
+| **Ctrl/Cmd + A**                 | Select all your robots                          |
+| **Ctrl/Cmd + 1-9**               | Save the current selection as control group N   |
+| **1-9**                          | Recall control group N                          |
+| **Left-click** empty ground      | Clear selection                                 |
+| **Right-click**                  | Move the selection to that point (in formation) |
+| **Middle-mouse drag**            | Pan the camera                                  |
+| **Esc** / **Space** / **P**      | Pause / resume                                  |
+| **W A S D**                      | Fly the observer drone                          |
+| **F**                            | Land the drone on / release an idle robot       |
+| **E**                            | Fire the possessed robot's weapon               |
 
 Use the **Program** panel in the HUD to assign a directive to the selected
 unit(s), and the **Build Robot** dialog to produce units (once or on a
@@ -101,16 +108,21 @@ continuous auto-build loop).
 
 ## Architecture
 
-Three layers with strict boundaries, plus a **Scene-based ECS** game core:
+The repo is an **npm-workspaces monorepo**: the game is the `client` workspace;
+a `server` workspace is reserved for planned online multiplayer over WebSocket
+(see [`.docs/multiplayer.md`](.docs/multiplayer.md)) and is not yet implemented.
 
-- **Engine** (`src/engine`) — pure game core: **ECS (miniplex)** entities +
+Within `client/`, the game is three layers with strict boundaries, plus a
+**Scene-based ECS** game core:
+
+- **Engine** (`client/src/engine`) — pure game core: **ECS (miniplex)** entities +
   systems (movement/pathfinding, combat, tasks, AI, economy, production…),
   Menu/Game **scenes**, a `GameEngine` facade, and a typed **EventBus**. No
   React, Pixi, or store imports.
-- **Pixi** (`src/pixi`) — canvas rendering and input (fixed-step loop,
+- **Pixi** (`client/src/pixi`) — canvas rendering and input (fixed-step loop,
   reactive-query renderer, entity views, camera, sprites) + the engine↔store
   bridge.
-- **React/UI** (`src/ui`, backed by `src/store`) — the HUD, screens, and
+- **React/UI** (`client/src/ui`, backed by `client/src/store`) — the HUD, screens, and
   overlays, using a Zustand store.
 
 Data flows one way in each direction: **UI → command queue / flags → GameEngine
@@ -119,25 +131,28 @@ EventBus is a supplement (discrete events); the store stays the render-state
 channel. The only React↔Pixi seam is `GameCanvas` + `useGameApp`.
 
 ```
-src/
-  engine/     # game core (no React/Pixi/store)
-    ecs/      #   entity (components), world, factory
-    systems/  #   commands, economy, ai, production, task, movement, combat, reap, explosion
-    game/     #   engine (facade), scene + scenes/, eventBus, events, context
-    (helpers) #   pathfinding, obstacles, economy, tasks/
-  pixi/       # GameApp (bridge), GameLoop, Camera, layers, assets, input/, render/
-  ui/         # React: App, GameCanvas, hud/, screens/, common/, hooks/
-  store/      # gameStore (Zustand) + selectors (shared with the Pixi bridge)
-  config/     # gameConfig, palette, sprites
-  types/      # enums, entities (value types), tasks, commands
-  i18n/       # locale dictionaries (en/ru/uk/pl)
+client/           # @drone-directive/client — the game (app code, configs, index.html)
+  src/
+    engine/     # game core (no React/Pixi/store)
+      ecs/      #   entity (components), world, factory
+      systems/  #   commands, economy, ai, production, task, movement, combat, reap, explosion
+      game/     #   engine (facade), scene + scenes/, eventBus, events, context
+      (helpers) #   pathfinding, obstacles, economy, tasks/
+    pixi/       # GameApp (bridge), GameLoop, Camera, layers, assets, input/, render/
+    ui/         # React: App, GameCanvas, hud/, screens/, common/, hooks/
+    store/      # gameStore (Zustand) + selectors (shared with the Pixi bridge)
+    config/     # gameConfig, palette, sprites
+    types/      # enums, entities (value types), tasks, commands
+    i18n/       # locale dictionaries (en/ru/uk/pl)
+  public/       # static assets + placeholder sprites
+server/           # @drone-directive/server — planned multiplayer backend (not yet implemented)
 ```
 
 ### Sprites
 
-Robot art is registered in `src/config/sprites.ts` (chassis → image, with an
+Robot art is registered in `client/src/config/sprites.ts` (chassis → image, with an
 optional crop frame). Missing entries fall back to a coloured shape, so art
-can be added incrementally — drop a transparent, top-down PNG into `public/`
+can be added incrementally — drop a transparent, top-down PNG into `client/public/`
 and add one registry entry.
 
 ## Credits

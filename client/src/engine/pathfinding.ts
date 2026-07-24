@@ -108,13 +108,7 @@ export function findPath(grid: ObstacleGrid, from: Vec2, to: Vec2): Vec2[] {
   return escape ? [escape] : [];
 }
 
-function reconstruct(
-  cameFrom: Map<number, number>,
-  goalI: number,
-  goal: Tile,
-  to: Vec2,
-  snapped: boolean,
-): Vec2[] {
+function reconstruct(cameFrom: Map<number, number>, goalI: number, goal: Tile, to: Vec2, snapped: boolean): Vec2[] {
   const chain: number[] = [];
   let cur = goalI;
   while (cameFrom.has(cur)) {

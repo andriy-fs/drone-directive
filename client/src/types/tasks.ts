@@ -40,6 +40,10 @@ export type BehaviorAction =
   | { type: 'search' }
   /** Approach + engage the specific ordered target in `blackboard.attackTargetId`. */
   | { type: 'attackTarget' }
+  /** Fall back toward this side's own base (move-only) — for units with nothing to fight back with. */
+  | { type: 'retreatToBase' }
+  /** Trail behind an advancing friendly group, or hold near base for early warning if none is advancing. */
+  | { type: 'overwatch' }
   /** Do nothing (hold position, no target). */
   | { type: 'idle' };
 

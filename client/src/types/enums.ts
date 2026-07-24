@@ -28,6 +28,8 @@ export const TaskType = {
   Scout: 'scout',
   /** Focus-fire a specific ordered target (robot or base) — see `blackboard.attackTargetId`. */
   AttackTarget: 'attackTarget',
+  /** Unarmed support role: trail an advancing friendly group, or hold near base for early warning; retreats if hit. */
+  Overwatch: 'overwatch',
 } as const;
 export type TaskType = (typeof TaskType)[keyof typeof TaskType];
 

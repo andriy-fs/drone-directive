@@ -110,8 +110,14 @@ markers in `RobotView`). To use these:
    mirroring `robotSprites` (a small `targetSize`, ~22–24 px):
    ```ts
    export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, SpriteDef>>>> = {
-     player: { radar: { src: '/weapon-radar-player.png', targetSize: 24 }, bomb: { src: '/weapon-bomb-player.png', targetSize: 24 } },
-     ai:     { radar: { src: '/weapon-radar-ai.png',     targetSize: 24 }, bomb: { src: '/weapon-bomb-ai.png',     targetSize: 24 } },
+     player: {
+       radar: { src: '/weapon-radar-player.png', targetSize: 24 },
+       bomb: { src: '/weapon-bomb-player.png', targetSize: 24 },
+     },
+     ai: {
+       radar: { src: '/weapon-radar-ai.png', targetSize: 24 },
+       bomb: { src: '/weapon-bomb-ai.png', targetSize: 24 },
+     },
    };
    ```
    Add a `getWeaponTexture(weapon, owner)` in `src/pixi/assets.ts` (same cached

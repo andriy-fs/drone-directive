@@ -53,8 +53,7 @@ export class RobotView {
     const sprite = robot.chassis && robot.owner ? getRobotTexture(robot.chassis, robot.owner) : null;
     // Weapon-module overlay for the central hardpoint (radar/bomb have art);
     // when present it replaces the drawn weapon marker to avoid doubling up.
-    const weaponSprite =
-      robot.weaponType && robot.owner ? getWeaponTexture(robot.weaponType, robot.owner) : null;
+    const weaponSprite = robot.weaponType && robot.owner ? getWeaponTexture(robot.weaponType, robot.owner) : null;
     let outerRadius = r;
 
     if (sprite) {
@@ -152,7 +151,9 @@ function drawBody(robot: Entity, r: number, drawWeapon: boolean): Graphics {
 
   switch (robot.chassis) {
     case ChassisType.Wheels:
-      g.roundRect(-r, -r, r * 2, r * 2, r * 0.55).fill(color).stroke(stroke);
+      g.roundRect(-r, -r, r * 2, r * 2, r * 0.55)
+        .fill(color)
+        .stroke(stroke);
       break;
     case ChassisType.Legs: {
       const pts: number[] = [];
@@ -165,7 +166,9 @@ function drawBody(robot: Entity, r: number, drawWeapon: boolean): Graphics {
     }
     case ChassisType.Tracks:
     default:
-      g.rect(-r, -r, r * 2, r * 2).fill(color).stroke(stroke);
+      g.rect(-r, -r, r * 2, r * 2)
+        .fill(color)
+        .stroke(stroke);
       break;
   }
 
@@ -175,15 +178,21 @@ function drawBody(robot: Entity, r: number, drawWeapon: boolean): Graphics {
         g.rect(r * 0.3, -2, r * 0.9, 4).fill(0x0b0e13);
         break;
       case WeaponType.Missiles:
-        g.circle(r * 0.5, -4, 2).circle(r * 0.5, 4, 2).fill(0x0b0e13);
+        g.circle(r * 0.5, -4, 2)
+          .circle(r * 0.5, 4, 2)
+          .fill(0x0b0e13);
         break;
       case WeaponType.Bomb:
         // Warning-red core marking the kamikaze payload.
-        g.circle(0, 0, r * 0.42).fill(0xef4444).stroke({ width: 1.5, color: 0x0b0e13 });
+        g.circle(0, 0, r * 0.42)
+          .fill(0xef4444)
+          .stroke({ width: 1.5, color: 0x0b0e13 });
         break;
       case WeaponType.Radar:
         // Concentric "dish" arcs signalling the spotter.
-        g.circle(0, 0, r * 0.3).circle(0, 0, r * 0.6).stroke({ width: 1.5, color: 0x0b0e13 });
+        g.circle(0, 0, r * 0.3)
+          .circle(0, 0, r * 0.6)
+          .stroke({ width: 1.5, color: 0x0b0e13 });
         break;
       case WeaponType.Ew:
         // Crossed jammer mast: an X over the hull signalling the EW aura.

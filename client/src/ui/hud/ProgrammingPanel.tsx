@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isTaskBlockedForWeapon } from '../../engine/tasks/taskDefinitions';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectRobots, selectSelectedIds } from '../../store/selectors';
@@ -28,8 +29,7 @@ export function ProgrammingPanel() {
 
   // The pick is still "in flight" only while it targets the current unit and its
   // task hasn't changed yet; otherwise it has applied (or been overridden) — drop it.
-  const activePick =
-    pick && single && single.id === pick.id && single.task === pick.from ? pick : null;
+  const activePick = pick && single && single.id === pick.id && single.task === pick.from ? pick : null;
   if (pick && !activePick) setPick(null);
 
   if (selected.length === 0) {
@@ -54,7 +54,10 @@ export function ProgrammingPanel() {
   // Single unit: live stats. Keep the current program visible even if it isn't
   // normally assignable (e.g. Idle after a manual move order).
   const current = activePick ? activePick.to : single.task;
-  const options = ASSIGNABLE_TASKS.includes(current) ? ASSIGNABLE_TASKS : [current, ...ASSIGNABLE_TASKS];
+  // Hide directives this robot's weapon can't act on (e.g. "Attack Robots" for
+  // a radar) — offering a choice that silently no-ops would just confuse.
+  const assignable = ASSIGNABLE_TASKS.filter((task) => !isTaskBlockedForWeapon(single.weapon, task));
+  const options = assignable.includes(current) ? assignable : [current, ...assignable];
   const labels = taskLabels(t);
   const assign = (task: TaskType) => {
     setPick({ id: single.id, from: single.task, to: task });
@@ -70,11 +73,7 @@ export function ProgrammingPanel() {
 
       <label className="unit-field">
         <span className="unit-field__label">{t('programming', 'directive')}</span>
-        <select
-          className="unit-select"
-          value={current}
-          onChange={(e) => assign(e.target.value as TaskType)}
-        >
+        <select className="unit-select" value={current} onChange={(e) => assign(e.target.value as TaskType)}>
           {options.map((task) => (
             <option key={task} value={task}>
               {labels[task]}

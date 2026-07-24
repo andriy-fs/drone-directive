@@ -13,9 +13,7 @@ function audioCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   if (!ctx) {
     const Ctor: typeof AudioContext | undefined =
-      typeof AudioContext !== 'undefined'
-        ? AudioContext
-        : (window as AudioWindow).webkitAudioContext;
+      typeof AudioContext !== 'undefined' ? AudioContext : (window as AudioWindow).webkitAudioContext;
     if (!Ctor) return null;
     ctx = new Ctor();
   }

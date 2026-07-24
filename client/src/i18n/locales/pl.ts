@@ -117,6 +117,7 @@ export const pl: Dict = {
     attackRobots: 'Atak na roboty',
     scout: 'Zwiad',
     attackTarget: 'Atak celu',
+    overwatch: 'Osłona',
     none: 'Brak',
   },
   chassis: {

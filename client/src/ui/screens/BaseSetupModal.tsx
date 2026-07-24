@@ -39,16 +39,10 @@ export function BaseSetupModal({ onClose }: { onClose: () => void }) {
           <div className="picker-group">
             <span className="picker__label">{t('baseSetup', 'autoProduce')}</span>
             <div className="picker">
-              <Button
-                className={`chip ${!autoOn ? 'chip--on' : ''}`.trim()}
-                onClick={() => setAutoOn(false)}
-              >
+              <Button className={`chip ${!autoOn ? 'chip--on' : ''}`.trim()} onClick={() => setAutoOn(false)}>
                 {t('baseSetup', 'off')}
               </Button>
-              <Button
-                className={`chip ${autoOn ? 'chip--on' : ''}`.trim()}
-                onClick={() => setAutoOn(true)}
-              >
+              <Button className={`chip ${autoOn ? 'chip--on' : ''}`.trim()} onClick={() => setAutoOn(true)}>
                 {t('baseSetup', 'on')}
               </Button>
             </div>

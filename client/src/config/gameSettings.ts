@@ -1,5 +1,5 @@
-import type { BuildOrder } from "../types/entities";
-import { ChassisType, Difficulty, MapSize, TaskType, WeaponType } from "../types/enums";
+import type { BuildOrder } from '../types/entities';
+import { ChassisType, Difficulty, MapSize, TaskType, WeaponType } from '../types/enums';
 
 /**
  * Player-editable settings (distinct from `gameConfig`, which is fixed balance /

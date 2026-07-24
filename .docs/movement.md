@@ -2,7 +2,7 @@
 
 Movement is a **hybrid**: pathfinding operates on a discrete tile grid, but the
 actual per-tick motion is continuous, float-precision interpolation in pixel
-space. The grid never constrains where a robot *sits* — only how a route
+space. The grid never constrains where a robot _sits_ — only how a route
 around obstacles is computed.
 
 ## Position is continuous, not grid-snapped
@@ -26,7 +26,7 @@ around obstacles is computed.
 4. The **final** waypoint is the exact requested destination pixel, not a tile
    centre (unless the destination tile itself was blocked, in which case it's
    snapped to the nearest free tile's centre).
-5. If the robot's *own* tile is blocked (e.g. shoved inside a base footprint),
+5. If the robot's _own_ tile is blocked (e.g. shoved inside a base footprint),
    the path is prefixed with a straight "escape" hop to the nearest free tile
    (`nearestFreeTile`, outward BFS) — otherwise A* has no legal first move.
 
@@ -52,7 +52,7 @@ fixed step for each entity with `robot`, `position`, `movement`:
 
 So a robot's trajectory is: pixel position → straight line to next tile-centre
 waypoint → straight line to the next → ... → straight line to the exact
-final destination pixel. The grid only decided *which* tile centres to visit
+final destination pixel. The grid only decided _which_ tile centres to visit
 and in what order; the robot glides between them continuously.
 
 ## Anti-jam retreat (also continuous)
@@ -76,17 +76,17 @@ continuous `pos += direction * speed * dt` stepping as normal movement
 - `hasLineOfSight(grid, from, to)` — Bresenham walk over tiles, used
   elsewhere (vision/targeting), not by movement itself.
 - `withBaseFootprints` — layers living bases as blocked tiles onto a copy of
-  the terrain grid, producing the *navigation* grid (`ctx.navObstacles`),
+  the terrain grid, producing the _navigation_ grid (`ctx.navObstacles`),
   kept separate from the terrain-only grid so a destroyed base doesn't reveal
   "rock" underneath it.
 
 ## Summary
 
-| Concern | Representation |
-|---|---|
-| Entity position | continuous float pixels (`Vec2`) |
-| Pathfinding | discrete tile grid, 8-dir A* |
-| Path waypoints | pixel coordinates (tile centres + exact destination) |
+| Concern         | Representation                                             |
+| --------------- | ---------------------------------------------------------- |
+| Entity position | continuous float pixels (`Vec2`)                           |
+| Pathfinding     | discrete tile grid, 8-dir A*                               |
+| Path waypoints  | pixel coordinates (tile centres + exact destination)       |
 | Per-tick motion | continuous float interpolation toward the current waypoint |
-| Heading | exact `atan2`, not quantized |
-| Obstacle checks | tile lookup (`tileOf` + `isBlockedGrid`) |
+| Heading         | exact `atan2`, not quantized                               |
+| Obstacle checks | tile lookup (`tileOf` + `isBlockedGrid`)                   |

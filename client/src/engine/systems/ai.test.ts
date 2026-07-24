@@ -30,7 +30,9 @@ describe('aiSystem — production preset', () => {
     }
     aiSystem(ctx, 100); // one more pass so the freshly-built (Idle) bomb gets a kamikaze order
 
-    const built = ctx.world.with('robot').entities.filter((e) => e.owner === Owner.AI && e.weaponType !== WeaponType.Ew);
+    const built = ctx.world
+      .with('robot')
+      .entities.filter((e) => e.owner === Owner.AI && e.weaponType !== WeaponType.Ew);
     expect(built.length).toBe(10);
     // The first nine are ordinary combat robots...
     expect(built.slice(0, 9).every((r) => r.weaponType !== WeaponType.Bomb)).toBe(true);
@@ -47,9 +49,9 @@ describe('aiSystem — EW guarantee', () => {
 
     aiSystem(ctx, 0);
 
-    expect(
-      base.production!.queue.some((o) => o.weapon === WeaponType.Ew && o.chassis === ChassisType.Wheels),
-    ).toBe(true);
+    expect(base.production!.queue.some((o) => o.weapon === WeaponType.Ew && o.chassis === ChassisType.Wheels)).toBe(
+      true,
+    );
   });
 
   it('does not queue another once one is alive', () => {
@@ -124,7 +126,10 @@ describe('aiSystem — defense mobilization', () => {
       ChassisType.Tracks,
       WeaponType.Cannon,
     );
-    guard.script = { programId: TaskType.Guard, blackboard: { guardPos: { x: guard.position!.x, y: guard.position!.y } } };
+    guard.script = {
+      programId: TaskType.Guard,
+      blackboard: { guardPos: { x: guard.position!.x, y: guard.position!.y } },
+    };
     spawnPlayerRobotsNear(ctx, base, 1);
 
     aiSystem(ctx, 0);

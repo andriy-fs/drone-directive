@@ -9,7 +9,7 @@ systems**, driven by **scenes**, behind a `GameEngine` facade, with a typed
 
 The game has a small, fixed set of "kinds" (base, robot, projectile,
 explosion, the observer drone) but a growing, cross-cutting set of
-*behaviours* that don't map cleanly onto a class-per-kind hierarchy:
+_behaviours_ that don't map cleanly onto a class-per-kind hierarchy:
 movement, combat, vision, fog of war, tasks/AI scripting, economy,
 production, separation (unit-unit push-apart), the drone's possession
 mechanic. Several kinds share behaviours (bases and robots both take damage
@@ -22,15 +22,15 @@ ECS fits this directly:
 - **Entities** are just an `id` plus whichever optional components they carry
   (`src/engine/ecs/entity.ts`'s `Entity` interface — a flat bag of optional
   fields, no subclassing). A robot is `{ robot: true, position, movement,
-  weapon, script, threat, ... }`; a projectile is `{ projectile: true,
-  position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
+weapon, script, threat, ... }`; a projectile is `{ projectile: true,
+position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
   component + a system, not touching a class hierarchy.
 - **Systems** are plain functions over the world (`src/engine/systems/*.ts`,
   each one `fooSystem(ctx, dt)`), run in a fixed order each tick by
   `GameScene.update` (`src/engine/game/scenes/gameScene.ts`). Order encodes
   real dependencies — e.g. `droneSystem` runs after `taskSystem` so it can
   override a possessed robot's target and steering, and `fogSystem` runs last
-  so it reveals from this tick's *settled* positions.
+  so it reveals from this tick's _settled_ positions.
 - **Boolean/object "tag" components** (`base?: true`, `robot?: true`,
   `drone?: Drone`) drive **archetype queries** — "give me every entity that
   has these components" — instead of `instanceof` checks or manual type
@@ -50,7 +50,9 @@ hand-roll archetype indexing ourselves. Concretely, from
 ```ts
 import { World } from 'miniplex';
 export type EcsWorld = World<Entity>;
-export function createEcsWorld(): EcsWorld { return new World<Entity>(); }
+export function createEcsWorld(): EcsWorld {
+  return new World<Entity>();
+}
 ```
 
 What's used, and where:
@@ -76,7 +78,7 @@ What's used, and where:
   returning to the menu (`GameEngine.startMatch` / `toMenu` →
   `clearWorld(world)`).
 - **Reactive queries — `query.onEntityAdded` / `query.onEntityRemoved`** —
-  used *outside* the engine, in the Pixi bridge
+  used _outside_ the engine, in the Pixi bridge
   (`src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds five `world.with(...)`
   queries (bases/robots/projectiles/explosions/drones) and subscribes to their
   add/remove events to create/destroy the matching Pixi view object
@@ -102,9 +104,9 @@ because those moments are **events, not state** — a projectile firing, a
 scene transition, a game-over — and don't fit naturally into the
 throttled, snapshot-based Zustand store that drives React's re-renders.
 
-The store remains the *render-state* channel (HP bars, unit lists, resource
+The store remains the _render-state_ channel (HP bars, unit lists, resource
 counts — anything the UI polls/derives every frame or on a throttle). The bus
-is a *supplement* for one-shot notifications the app layer wants to react to
+is a _supplement_ for one-shot notifications the app layer wants to react to
 directly and immediately (e.g. the audio adapter playing a sound effect on
 `'fire'`, or the UI switching screens on `'sceneChanged'`) without having to
 diff store snapshots to infer that something instantaneous happened.

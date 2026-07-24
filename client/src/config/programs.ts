@@ -1,5 +1,5 @@
-import { TaskType } from "../types/enums";
-import type { Program } from "../types/tasks";
+import { TaskType } from '../types/enums';
+import type { Program } from '../types/tasks';
 
 /**
  * Built-in robot behaviour programs — each a priority-ordered directive list
@@ -17,89 +17,101 @@ import type { Program } from "../types/tasks";
 export const programs: Record<TaskType, Program> = {
   [TaskType.Idle]: {
     id: TaskType.Idle,
-    label: "Idle",
+    label: 'Idle',
     directives: [
       // Even while idle, shoot back at whoever hits us (self-defence, no chasing).
-      { when: { type: "underFire" }, do: { type: "attackAttacker" } },
-      { when: { type: "always" }, do: { type: "idle" } },
+      { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
+      { when: { type: 'always' }, do: { type: 'idle' } },
     ],
   },
 
   [TaskType.Guard]: {
     id: TaskType.Guard,
-    label: "Guard",
+    label: 'Guard',
     directives: [
       // Patrol the perimeter of the post, but shoot back at whoever hits us.
-      { when: { type: "underFire" }, do: { type: "attackAttacker" } },
-      { when: { type: "underFire" }, do: { type: "evade" } },
-      { when: { type: "always" }, do: { type: "guard" } },
+      { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
+      { when: { type: 'underFire' }, do: { type: 'evade' } },
+      { when: { type: 'always' }, do: { type: 'guard' } },
     ],
   },
 
   [TaskType.AttackBase]: {
     id: TaskType.AttackBase,
-    label: "Attack Base",
+    label: 'Attack Base',
     directives: [
       // Under fire: dodge while shooting back...
-      { when: { type: "underFire" }, do: { type: "evade" } },
-      { when: { type: "underFire" }, do: { type: "attackAttacker" } },
+      { when: { type: 'underFire' }, do: { type: 'evade' } },
+      { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
       // ...deal with robots that get in close...
       {
-        when: { type: "enemyRobotWithin" },
-        do: { type: "attackNearestRobot" },
+        when: { type: 'enemyRobotWithin' },
+        do: { type: 'attackNearestRobot' },
       },
       // ...the main objective is the enemy base, once its location is known...
-      { when: { type: "enemyBasesExist" }, do: { type: "attackNearestBase" } },
+      { when: { type: 'enemyBasesExist' }, do: { type: 'attackNearestBase' } },
       // ...otherwise its location hasn't been discovered yet — go find it.
-      { when: { type: "always" }, do: { type: "search" } },
+      { when: { type: 'always' }, do: { type: 'search' } },
     ],
   },
 
   [TaskType.AttackRobots]: {
     id: TaskType.AttackRobots,
-    label: "Attack Robots",
+    label: 'Attack Robots',
     directives: [
       // Under fire: dodge and return fire on the attacker.
-      { when: { type: "underFire" }, do: { type: "evade" } },
-      { when: { type: "underFire" }, do: { type: "attackAttacker" } },
+      { when: { type: 'underFire' }, do: { type: 'evade' } },
+      { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
       // Priority: hunt down any enemy robot our team has detected...
       {
-        when: { type: "enemyRobotsExist" },
-        do: { type: "attackNearestRobot" },
+        when: { type: 'enemyRobotsExist' },
+        do: { type: 'attackNearestRobot' },
       },
       // ...once none are known, push the enemy base if it's been found...
-      { when: { type: "enemyBasesExist" }, do: { type: "attackNearestBase" } },
+      { when: { type: 'enemyBasesExist' }, do: { type: 'attackNearestBase' } },
       // ...otherwise nothing is known yet — go find something.
-      { when: { type: "always" }, do: { type: "search" } },
+      { when: { type: 'always' }, do: { type: 'search' } },
     ],
   },
 
   [TaskType.Scout]: {
     id: TaskType.Scout,
-    label: "Search & Detect",
+    label: 'Search & Detect',
     directives: [
       // Self-defence: dodge and return fire if attacked while scouting...
-      { when: { type: "underFire" }, do: { type: "evade" } },
-      { when: { type: "underFire" }, do: { type: "attackAttacker" } },
+      { when: { type: 'underFire' }, do: { type: 'evade' } },
+      { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
       // ...engage anything that wanders within weapon range...
       {
-        when: { type: "enemyRobotWithin" },
-        do: { type: "attackNearestRobot" },
+        when: { type: 'enemyRobotWithin' },
+        do: { type: 'attackNearestRobot' },
       },
       // ...but the job is to roam and reveal the map, not to hunt.
-      { when: { type: "always" }, do: { type: "search" } },
+      { when: { type: 'always' }, do: { type: 'search' } },
     ],
   },
 
   [TaskType.AttackTarget]: {
     id: TaskType.AttackTarget,
-    label: "Attack Target",
+    label: 'Attack Target',
     directives: [
       // Defend itself en route, but the order is to focus one specific target
       // (robot or base) until it's destroyed, then hold.
-      { when: { type: "underFire" }, do: { type: "evade" } },
-      { when: { type: "underFire" }, do: { type: "attackAttacker" } },
-      { when: { type: "always" }, do: { type: "attackTarget" } },
+      { when: { type: 'underFire' }, do: { type: 'evade' } },
+      { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
+      { when: { type: 'always' }, do: { type: 'attackTarget' } },
+    ],
+  },
+
+  [TaskType.Overwatch]: {
+    id: TaskType.Overwatch,
+    label: 'Overwatch',
+    directives: [
+      // No weapon to fight back with — getting hit means fall back to base
+      // immediately rather than stand and take more punishment for nothing.
+      { when: { type: 'underFire' }, do: { type: 'retreatToBase' } },
+      // Otherwise: trail an advancing friendly group, or hold near base.
+      { when: { type: 'always' }, do: { type: 'overwatch' } },
     ],
   },
 };

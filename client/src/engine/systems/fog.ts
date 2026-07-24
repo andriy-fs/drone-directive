@@ -22,9 +22,7 @@ export function fogSystem(ctx: GameContext): void {
     ...ctx.world.with('robot', 'position').entities.filter(alive),
     ...ctx.world.with('base', 'position').entities.filter(alive),
     // The drone has no hp; include it on owner + sight range only.
-    ...ctx.world
-      .with('drone', 'position')
-      .entities.filter((e) => e.owner === Owner.Player && (e.sightRange ?? 0) > 0),
+    ...ctx.world.with('drone', 'position').entities.filter((e) => e.owner === Owner.Player && (e.sightRange ?? 0) > 0),
   ].filter((s) => (s.sightRange ?? 0) > 0);
 
   const jammers = ctx.world

@@ -3,8 +3,7 @@ import type { Dict } from './en';
 export const ru: Dict = {
   mainMenu: {
     title: 'Drone Directive',
-    intro:
-      'Стройте роботов, задавайте им директивы и уничтожьте вражескую базу, прежде чем она уничтожит вашу.',
+    intro: 'Стройте роботов, задавайте им директивы и уничтожьте вражескую базу, прежде чем она уничтожит вашу.',
     difficulty: 'Сложность',
     baseSetup: 'Настройка базы',
     autoProduceProgram: 'Автопроизводство и директива',
@@ -118,6 +117,7 @@ export const ru: Dict = {
     attackRobots: 'Атака роботов',
     scout: 'Разведка',
     attackTarget: 'Атака цели',
+    overwatch: 'Прикрытие',
     none: 'Нет',
   },
   chassis: {

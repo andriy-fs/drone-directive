@@ -7,6 +7,7 @@ export const ASSIGNABLE_TASKS: TaskType[] = [
   TaskType.AttackBase,
   TaskType.AttackRobots,
   TaskType.Scout,
+  TaskType.Overwatch,
 ];
 
 /** Human-readable label for every program id, in the active language. */
@@ -18,6 +19,7 @@ export function taskLabels(t: T): Record<TaskType, string> {
     [TaskType.AttackRobots]: t('programs', 'attackRobots'),
     [TaskType.Scout]: t('programs', 'scout'),
     [TaskType.AttackTarget]: t('programs', 'attackTarget'),
+    [TaskType.Overwatch]: t('programs', 'overwatch'),
   };
 }
 

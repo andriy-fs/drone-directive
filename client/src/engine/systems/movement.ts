@@ -75,8 +75,7 @@ function maybeStartRetreat(ctx: GameContext, e: Entity, dt: number): void {
     return;
   }
 
-  const moved =
-    m.prevX !== undefined ? Math.hypot(pos.x - m.prevX, pos.y - (m.prevY ?? pos.y)) : Infinity;
+  const moved = m.prevX !== undefined ? Math.hypot(pos.x - m.prevX, pos.y - (m.prevY ?? pos.y)) : Infinity;
   if (moved >= gameConfig.behavior.stuckEpsilon) {
     m.stuckTime = 0;
     return;
@@ -87,9 +86,7 @@ function maybeStartRetreat(ctx: GameContext, e: Entity, dt: number): void {
   m.stuckTime = 0;
 
   // Retreat: straight out of a base when trapped, else back the way it came.
-  m.retreatAngle = base
-    ? Math.atan2(pos.y - base.position!.y, pos.x - base.position!.x)
-    : (e.heading ?? 0) + Math.PI;
+  m.retreatAngle = base ? Math.atan2(pos.y - base.position!.y, pos.x - base.position!.x) : (e.heading ?? 0) + Math.PI;
   m.retreatTime = gameConfig.behavior.retreatSeconds;
 }
 

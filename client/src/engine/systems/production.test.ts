@@ -21,7 +21,11 @@ describe('productionSystem — program resolution', () => {
     const ctx = makeCtx(1);
     const base = spawnBase(ctx.world, Owner.Player, 4, 33);
     base.production!.defaultTask = TaskType.Guard;
-    base.production!.queue.push({ chassis: ChassisType.Tracks, weapon: WeaponType.Cannon, task: TaskType.AttackRobots });
+    base.production!.queue.push({
+      chassis: ChassisType.Tracks,
+      weapon: WeaponType.Cannon,
+      task: TaskType.AttackRobots,
+    });
     const robot = buildOne(ctx, base);
     expect(robot.script!.programId).toBe(TaskType.AttackRobots);
   });
@@ -51,6 +55,32 @@ describe('productionSystem — program resolution', () => {
     base.production!.queue.push({ chassis: ChassisType.Wheels, weapon: WeaponType.Missiles });
     const robot = buildOne(ctx, base);
     expect(robot.script!.programId).toBe(TaskType.Idle);
+  });
+
+  it('refuses an "Attack Robots" order.task for a radar build, spawning Idle instead', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    base.production!.defaultTask = TaskType.Guard;
+    base.production!.queue.push({ chassis: ChassisType.Tracks, weapon: WeaponType.Radar, task: TaskType.AttackRobots });
+    const robot = buildOne(ctx, base);
+    expect(robot.script!.programId).toBe(TaskType.Idle);
+  });
+
+  it('refuses an "Attack Base" base default for a radar build, spawning Idle instead', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    base.production!.defaultTask = TaskType.AttackBase;
+    base.production!.queue.push({ chassis: ChassisType.Tracks, weapon: WeaponType.Radar });
+    const robot = buildOne(ctx, base);
+    expect(robot.script!.programId).toBe(TaskType.Idle);
+  });
+
+  it('still allows Overwatch for a radar build', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    base.production!.queue.push({ chassis: ChassisType.Tracks, weapon: WeaponType.Radar, task: TaskType.Overwatch });
+    const robot = buildOne(ctx, base);
+    expect(robot.script!.programId).toBe(TaskType.Overwatch);
   });
 });
 
