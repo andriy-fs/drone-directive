@@ -14,6 +14,9 @@ export interface Dict {
     close: string;
     ctrlA: string;
     esc: string;
+    dblClick: string;
+    groupAssign: string;
+    groupSelect: string;
     droneHeading: string;
     flyDrone: string;
     landRelease: string;
@@ -159,6 +162,9 @@ export const en: Dict = {
     close: 'Close',
     ctrlA: 'Select all robots',
     esc: 'Pause game',
+    dblClick: 'Select all robots with this weapon',
+    groupAssign: 'Save the current selection as a group',
+    groupSelect: 'Select a saved group',
     droneHeading: 'Observer drone',
     flyDrone: 'Fly the drone',
     landRelease: 'Land on / release an idle robot',

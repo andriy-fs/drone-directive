@@ -164,6 +164,18 @@ export function MainMenu() {
                     <kbd>Esc</kbd>
                     <span>{t('mainMenu', 'esc')}</span>
                   </div>
+                  <div className="control-item">
+                    <kbd>Double-click</kbd>
+                    <span>{t('mainMenu', 'dblClick')}</span>
+                  </div>
+                  <div className="control-item">
+                    <kbd>Ctrl + 1-9</kbd>
+                    <span>{t('mainMenu', 'groupAssign')}</span>
+                  </div>
+                  <div className="control-item">
+                    <kbd>1-9</kbd>
+                    <span>{t('mainMenu', 'groupSelect')}</span>
+                  </div>
                 </div>
 
                 <span className="picker__label controls-list__heading">

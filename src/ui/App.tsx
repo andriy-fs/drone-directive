@@ -6,6 +6,7 @@ import { StatusPanel } from './hud/StatusPanel';
 import { ProgrammingPanel } from './hud/ProgrammingPanel';
 import { GameOverModal } from './screens/GameOverModal';
 import { MainMenu } from './screens/MainMenu';
+import { useControlGroupHotkeys } from './hooks/useControlGroupHotkeys';
 import { usePauseHotkey } from './hooks/usePauseHotkey';
 import { useSelectAllHotkey } from './hooks/useSelectAllHotkey';
 import { useT } from '../i18n';
@@ -42,6 +43,7 @@ function App() {
   const droneStatus = useGameStore((s) => s.droneStatus);
   usePauseHotkey();
   useSelectAllHotkey();
+  useControlGroupHotkeys();
 
   const playerCount = robots.filter((r) => r.owner === 'player').length;
   const aiCount = robots.filter((r) => r.owner === 'ai').length;
