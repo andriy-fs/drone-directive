@@ -38,6 +38,17 @@ export class RobotView {
       this.container.cursor = 'pointer';
     }
 
+    // Kamikaze blast-radius ring: shown on every bomb-armed robot, on both
+    // sides — the payload's kill zone matters whether it's yours or theirs.
+    if (robot.weaponType === WeaponType.Bomb && (robot.weapon?.explosionRadius ?? 0) > 0) {
+      const blast = new Graphics();
+      blast
+        .circle(0, 0, robot.weapon!.explosionRadius)
+        .fill({ color: palette.blast.zone, alpha: 0.05 })
+        .stroke({ width: 1, color: palette.blast.zone, alpha: 0.4 });
+      this.container.addChild(blast);
+    }
+
     this.body = new Container();
     const sprite = robot.chassis && robot.owner ? getRobotTexture(robot.chassis, robot.owner) : null;
     // Weapon-module overlay for the central hardpoint (radar/bomb have art);

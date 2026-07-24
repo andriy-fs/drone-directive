@@ -26,6 +26,10 @@ export const palette = {
     /** Highlight ring on an enemy the instant it's spotted (within sight). */
     spotted: 0xf59e0b,
   },
+  blast: {
+    /** Kamikaze blast-radius ring, shown on every bomb-armed robot, both sides. */
+    zone: 0xef4444,
+  },
   fog: {
     /** Overlay colour for both fog states (unexplored + remembered). */
     color: 0x0d1117,
