@@ -1,7 +1,7 @@
 ---
 name: nether-pixi
 description: >-
-  Knowledge for the Drone Directive PixiJS RENDERING + bridge layer (src/pixi/**).
+  Knowledge for the Drone Directive PixiJS RENDERING + bridge layer (client/src/pixi/**).
   Use whenever a task changes how the world is drawn or how pointer/camera input
   works, or how the engine connects to the store: GameApp, the reactive-query
   WorldRenderer, entity views (Base/Robot/Projectile/Explosion/Obstacles/
@@ -12,7 +12,7 @@ description: >-
 
 # Drone Directive — Pixi rendering + bridge (PixiJS v8, miniplex)
 
-Owns the canvas and bridges the `GameEngine` to the store. **No React imports.** May import `src/engine/**` and the store (vanilla `useGameStore.getState()`).
+Owns the canvas and bridges the `GameEngine` to the store. **No React imports.** May import `client/src/engine/**` and the store (vanilla `useGameStore.getState()`).
 
 ## Files
 

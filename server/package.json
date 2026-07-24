@@ -1,0 +1,9 @@
+{
+  "name": "@drone-directive/server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"@drone-directive/server: not implemented yet\" && exit 0"
+  }
+}
