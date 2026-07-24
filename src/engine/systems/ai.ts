@@ -78,11 +78,13 @@ function updateProduction(ctx: GameContext, base: Entity, dt: number): void {
 /**
  * Assigns programs to Idle AI robots. Under threat, `mobilizeDefense` takes over
  * (checked before the Idle-only slice below, so a base defended purely by
- * Guards — no Idle units at all — still responds). Otherwise a freshly-idle
- * kamikaze bomb gets an immediate target of its own (see `assignKamikaze`)
- * instead of joining the guard/wave pipeline; the rest fill the guard quota,
- * then *stage* near base and only release once a full wave (2–4) has gathered,
- * so the AI attacks in groups instead of trickling out one robot at a time.
+ * Guards — no Idle units at all — still responds). Otherwise behaviour depends
+ * on `forcePosture`: outnumbered → turtle up (bigger guard line, no offensive
+ * wave, kamikaze stays home too); significantly ahead → press the advantage
+ * immediately instead of waiting for a full wave; roughly even → the original
+ * behaviour — fill the guard quota, *stage* the rest near base, and only
+ * release once a full wave (2–4) has gathered, so the AI attacks in groups
+ * instead of trickling out one robot at a time.
  */
 function assignIdleUnits(ctx: GameContext, base: Entity): void {
   const aiRobots = ctx.world
@@ -97,19 +99,37 @@ function assignIdleUnits(ctx: GameContext, base: Entity): void {
   const idle = aiRobots.filter((e) => e.script!.programId === TaskType.Idle);
   if (idle.length === 0) return;
 
+  const posture = forcePosture(ctx);
+
   const bombers = idle.filter((e) => e.weaponType === WeaponType.Bomb);
-  for (const bomber of bombers) assignKamikaze(ctx, bomber);
+  for (const bomber of bombers) {
+    // Outnumbered: keep the kamikaze home as an extra defender rather than
+    // spending it on a run the AI may not survive to benefit from.
+    if (posture === 'defensive') bomber.script = makeGuard(guardPost(base, ctx.rng));
+    else assignKamikaze(ctx, bomber);
+  }
   const rest = idle.filter((e) => e.weaponType !== WeaponType.Bomb);
+
+  const guardQuota =
+    posture === 'defensive' ? gameConfig.ai.guardQuota + gameConfig.ai.defensiveGuardBonus : gameConfig.ai.guardQuota;
 
   let guards = aiRobots.filter((e) => e.script!.programId === TaskType.Guard).length;
   const staged: Entity[] = [];
   for (const robot of rest) {
-    if (guards < gameConfig.ai.guardQuota) {
+    if (guards < guardQuota) {
       robot.script = makeGuard(guardPost(base, ctx.rng));
       guards += 1;
     } else {
-      staged.push(robot); // hold near base until a wave forms
+      staged.push(robot); // hold near base until a wave forms (or posture calls for one)
     }
+  }
+
+  if (posture === 'defensive') return; // significantly outnumbered — hold everything back, no offensive wave
+
+  if (posture === 'offensive' && staged.length > 0) {
+    // Significantly ahead — press it now instead of waiting for a full wave to form.
+    for (const robot of staged) robot.script = makeAttackBase();
+    return;
   }
 
   if (ctx.ai.groupTarget <= 0) ctx.ai.groupTarget = rollAttackGroup(ctx.rng);
@@ -117,6 +137,28 @@ function assignIdleUnits(ctx: GameContext, base: Entity): void {
     for (const robot of staged.slice(0, ctx.ai.groupTarget)) robot.script = makeAttackBase();
     ctx.ai.groupTarget = rollAttackGroup(ctx.rng); // size the next wave
   }
+}
+
+type ForcePosture = 'offensive' | 'defensive' | 'balanced';
+
+/**
+ * Compares living robot counts (both sides, whole map — same omniscience
+ * `isThreatened` already uses) to decide whether the AI should press an
+ * advantage, turtle up, or play its usual staged-wave game. Only a
+ * significant edge (`forceAdvantageMargin`) moves it off `balanced`, so small
+ * fluctuations don't cause posture to flip-flop every tick.
+ */
+function forcePosture(ctx: GameContext): ForcePosture {
+  const aiCount = livingRobotCount(ctx, Owner.AI);
+  const playerCount = livingRobotCount(ctx, Owner.Player);
+  const margin = gameConfig.ai.forceAdvantageMargin;
+  if (aiCount - playerCount >= margin) return 'offensive';
+  if (playerCount - aiCount >= margin) return 'defensive';
+  return 'balanced';
+}
+
+function livingRobotCount(ctx: GameContext, owner: Owner): number {
+  return ctx.world.with('robot').entities.filter((e) => e.owner === owner && (e.hp ?? 0) > 0).length;
 }
 
 /**
