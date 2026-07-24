@@ -74,13 +74,7 @@ function computeProtected(): Set<string> {
 }
 
 /** Random-walk a small cluster of blocked tiles from a seed cell. */
-function stampBlob(
-  grid: ObstacleGrid,
-  protectedCells: Set<string>,
-  tx: number,
-  ty: number,
-  rng: Rng,
-): void {
+function stampBlob(grid: ObstacleGrid, protectedCells: Set<string>, tx: number, ty: number, rng: Rng): void {
   const size = 1 + rng.int(gameConfig.obstacles.maxBlobTiles);
   let cx = tx;
   let cy = ty;
@@ -94,9 +88,7 @@ function stampBlob(
 
 function baseCentre(owner: string): { tx: number; ty: number } {
   const fp = gameConfig.bases.footprintTiles;
-  const p =
-    gameConfig.bases.placements.find((b) => b.owner === owner) ??
-    gameConfig.bases.placements[0];
+  const p = gameConfig.bases.placements.find((b) => b.owner === owner) ?? gameConfig.bases.placements[0];
   return { tx: p.tx + Math.floor(fp / 2), ty: p.ty + Math.floor(fp / 2) };
 }
 
@@ -108,11 +100,7 @@ function ensureConnectivity(grid: ObstacleGrid): void {
 }
 
 /** BFS over free tiles, 8-directional with no corner-cutting (matches A*). */
-function isReachable(
-  grid: ObstacleGrid,
-  a: { tx: number; ty: number },
-  b: { tx: number; ty: number },
-): boolean {
+function isReachable(grid: ObstacleGrid, a: { tx: number; ty: number }, b: { tx: number; ty: number }): boolean {
   const seen = new Set<string>([key(a.tx, a.ty)]);
   const queue: { tx: number; ty: number }[] = [a];
   const dirs = [
@@ -145,11 +133,7 @@ function isReachable(
 }
 
 /** Clears an orthogonal L-shaped corridor (x then y) — guarantees a path. */
-function carveCorridor(
-  grid: ObstacleGrid,
-  a: { tx: number; ty: number },
-  b: { tx: number; ty: number },
-): void {
+function carveCorridor(grid: ObstacleGrid, a: { tx: number; ty: number }, b: { tx: number; ty: number }): void {
   let x = a.tx;
   let y = a.ty;
   const clear = () => {

@@ -28,13 +28,7 @@ function weaponHint(weapon: WeaponType, t: T): string {
 }
 
 /** Single-select weapon chooser for the build flow. */
-export function WeaponPicker({
-  value,
-  onChange,
-}: {
-  value: WeaponType;
-  onChange: (weapon: WeaponType) => void;
-}) {
+export function WeaponPicker({ value, onChange }: { value: WeaponType; onChange: (weapon: WeaponType) => void }) {
   const t = useT();
   return (
     <div className="picker">

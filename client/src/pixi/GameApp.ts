@@ -78,9 +78,7 @@ export class GameApp {
   /** Render pass: follow the drone with the camera, sync views, redraw fog. */
   private render(): void {
     this.followDrone();
-    this.worldRenderer.sync(new Set(useGameStore.getState().selectedRobotIds), (e) =>
-      this.isVisibleToPlayer(e),
-    );
+    this.worldRenderer.sync(new Set(useGameStore.getState().selectedRobotIds), (e) => this.isVisibleToPlayer(e));
     this.fogView?.update(this.engine.context?.fog);
   }
 

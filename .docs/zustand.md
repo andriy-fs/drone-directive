@@ -50,8 +50,8 @@ steps (plus immediately on discrete bus events like `entitySpawned` /
 independent of how often the simulation itself advances.
 
 **4. Two clean, typed traffic directions, matching the architecture doc's
-data flow** (`CLAUDE.md`: *UI → command queue / control flags → GameEngine →
-EventBus + throttled store snapshots → UI*):
+data flow** (`CLAUDE.md`: _UI → command queue / control flags → GameEngine →
+EventBus + throttled store snapshots → UI_):
 
 - **UI → engine**: `enqueueCommand`/`drainCommands` (a command queue the
   bridge drains into `engine.enqueueCommand` each step), plus one-shot control
@@ -70,12 +70,12 @@ that mutate it live in one typed object, which keeps `GameState` (in
 `gameStore.ts`) as a single readable contract for everything that crosses the
 UI↔engine boundary.
 
-## What deliberately does *not* go through the store
+## What deliberately does _not_ go through the store
 
 Discrete one-shot moments (a shot fired, an entity destroyed, a scene change,
 game over) go through the **EventBus** (`src/engine/game/eventBus.ts`)
 instead — see `.docs/engine-ecs.md`. The store models continuous
-render *state* (what the HUD currently shows); the bus models *events* app-layer
+render _state_ (what the HUD currently shows); the bus models _events_ app-layer
 adapters react to once (playing a sound, triggering a snapshot push, flipping
 `status`). Routing everything through the store would mean polling/diffing
 snapshots to detect instantaneous occurrences; the bus lets engine code just

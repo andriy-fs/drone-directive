@@ -31,9 +31,7 @@ const PUBLIC_BASE = import.meta.env.BASE_URL;
  * Math.PI / 2`. A missing entry falls back to the Graphics placeholder. Add a
  * chassis/faction by adding a `src`.
  */
-export const robotSprites: Partial<
-  Record<Owner, Partial<Record<ChassisType, SpriteDef>>>
-> = {
+export const robotSprites: Partial<Record<Owner, Partial<Record<ChassisType, SpriteDef>>>> = {
   [Owner.Player]: {
     tracks: {
       src: `${PUBLIC_BASE}robot-tracks-player.png`,
@@ -113,9 +111,7 @@ export const droneSprite: SpriteDef | undefined = {
  * to the Graphics marker in `RobotView`. Modules are radially balanced, so no
  * `rotationOffset` is needed even though they inherit the robot's heading.
  */
-export const weaponSprites: Partial<
-  Record<Owner, Partial<Record<WeaponType, SpriteDef>>>
-> = {
+export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, SpriteDef>>>> = {
   [Owner.Player]: {
     radar: {
       src: `${PUBLIC_BASE}weapon-radar-player.png`,

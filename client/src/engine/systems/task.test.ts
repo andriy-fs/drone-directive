@@ -3,7 +3,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, RobotState, TaskType, WeaponType } from '../../types/enums';
 import { distance } from '../../utils/math';
 import { spawnBase, spawnRobot } from '../ecs/factory';
-import { makeAttackTarget, makeGuard } from '../tasks/taskDefinitions';
+import { makeAttackTarget, makeGuard, makeOverwatch } from '../tasks/taskDefinitions';
 import { makeCtx } from './testkit';
 import { taskSystem } from './task';
 import { movementSystem } from './movement';
@@ -77,6 +77,62 @@ describe('taskSystem — AttackTarget (ordered focus-fire)', () => {
     taskSystem(ctx, DT);
     expect(attacker.targetId).toBeUndefined();
     expect(attacker.movement!.goal).toBeUndefined();
+  });
+});
+
+describe('taskSystem — Overwatch (unarmed support role)', () => {
+  it('falls back toward its own base the instant it takes fire', () => {
+    const ctx = makeCtx(2);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    const spotter = spawnRobot(ctx.world, Owner.Player, { x: 500, y: 500 }, ChassisType.Tracks, WeaponType.Radar);
+    spotter.script = makeOverwatch();
+    const attacker = spawnRobot(ctx.world, Owner.AI, { x: 560, y: 500 }, ChassisType.Tracks, WeaponType.Cannon);
+    spotter.threat = { attackerId: attacker.id, underFireLeft: gameConfig.behavior.underFireDuration };
+
+    taskSystem(ctx, DT);
+    expect(spotter.movement!.goal).toEqual(base.position);
+  });
+
+  it('trails behind an advancing friendly group instead of leading it', () => {
+    const ctx = makeCtx(2);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    const spotter = spawnRobot(ctx.world, Owner.Player, { x: 200, y: 900 }, ChassisType.Tracks, WeaponType.Radar);
+    spotter.script = makeOverwatch();
+    const vanguard = spawnRobot(ctx.world, Owner.Player, { x: 900, y: 900 }, ChassisType.Tracks, WeaponType.Cannon);
+    vanguard.script = { programId: TaskType.AttackBase, blackboard: {} };
+
+    taskSystem(ctx, DT);
+
+    const goal = spotter.movement!.goal!;
+    // Trails at the configured distance behind the vanguard...
+    expect(distance(goal.x, goal.y, vanguard.position!.x, vanguard.position!.y)).toBeCloseTo(
+      gameConfig.behavior.overwatchTrailDistance,
+      5,
+    );
+    // ...and that trailing point sits closer to home than the vanguard itself (behind it, not beside or ahead).
+    expect(distance(goal.x, goal.y, base.position!.x, base.position!.y)).toBeLessThan(
+      distance(vanguard.position!.x, vanguard.position!.y, base.position!.x, base.position!.y),
+    );
+  });
+
+  it('hovers near its own base when no friendly group is advancing', () => {
+    const ctx = makeCtx(9);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    const spotter = spawnRobot(ctx.world, Owner.Player, { ...base.position! }, ChassisType.Wheels, WeaponType.Radar);
+    spotter.script = makeOverwatch();
+
+    let maxDist = 0;
+    for (let i = 0; i < 30 * 15; i++) {
+      visionSystem(ctx);
+      taskSystem(ctx, DT);
+      movementSystem(ctx, DT);
+      maxDist = Math.max(
+        maxDist,
+        distance(spotter.position!.x, spotter.position!.y, base.position!.x, base.position!.y),
+      );
+    }
+    expect(spotter.movement!.state).not.toBe(RobotState.Dead);
+    expect(maxDist).toBeLessThanOrEqual(gameConfig.behavior.guardPatrolRadius + gameConfig.grid.tilePx * 2);
   });
 });
 

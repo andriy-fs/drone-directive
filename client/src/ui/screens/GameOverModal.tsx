@@ -25,9 +25,7 @@ export function GameOverModal() {
           <DialogTitle className={`modal__title modal__title--${won ? 'win' : 'lose'}`}>
             {won ? t('gameOver', 'victory') : t('gameOver', 'defeat')}
           </DialogTitle>
-          <p className="modal__body">
-            {won ? t('gameOver', 'victoryBody') : t('gameOver', 'defeatBody')}
-          </p>
+          <p className="modal__body">{won ? t('gameOver', 'victoryBody') : t('gameOver', 'defeatBody')}</p>
           <div className="modal__buttons">
             <Button onClick={() => requestMenu()}>{t('gameOver', 'mainMenu')}</Button>
             <Button onClick={() => requestRestart()}>{t('gameOver', 'playAgain')}</Button>

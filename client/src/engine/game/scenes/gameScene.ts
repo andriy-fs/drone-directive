@@ -51,9 +51,7 @@ export class GameScene implements Scene {
     refreshNavObstacles(this.ctx);
 
     // Apply pre-game base setup to the player base.
-    const playerBase = world
-      .with('base', 'production')
-      .entities.find((e) => e.owner === Owner.Player);
+    const playerBase = world.with('base', 'production').entities.find((e) => e.owner === Owner.Player);
     if (playerBase?.production) {
       playerBase.production.autoBuild = this.ctx.settings.base.autoBuild;
       playerBase.production.defaultTask = this.ctx.settings.base.defaultProgram;
@@ -108,8 +106,7 @@ export class GameScene implements Scene {
 /** Places `count` starter robots just outside a base, toward the field. */
 function spawnStarters(ctx: GameContext, owner: Owner, count: number, dirX: number): void {
   const fp = gameConfig.bases.footprintTiles;
-  const placement =
-    gameConfig.bases.placements.find((p) => p.owner === owner) ?? gameConfig.bases.placements[0];
+  const placement = gameConfig.bases.placements.find((p) => p.owner === owner) ?? gameConfig.bases.placements[0];
   const bcx = placement.tx + Math.floor(fp / 2);
   const bcy = placement.ty + Math.floor(fp / 2);
   const { tilePx } = gameConfig.grid;

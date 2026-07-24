@@ -65,8 +65,7 @@ describe('movementSystem — anti-jam retreat', () => {
 
     const half = (gameConfig.bases.footprintTiles * gameConfig.grid.tilePx) / 2;
     const inside = () =>
-      Math.abs(robot.position!.x - base.position!.x) < half &&
-      Math.abs(robot.position!.y - base.position!.y) < half;
+      Math.abs(robot.position!.x - base.position!.x) < half && Math.abs(robot.position!.y - base.position!.y) < half;
     expect(inside()).toBe(true);
 
     for (let i = 0; i < 150; i++) movementSystem(ctx, gameConfig.fixedDt);

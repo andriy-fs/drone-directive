@@ -12,6 +12,12 @@
     "build": "npm run build -w client",
     "lint": "npm run lint -w client",
     "preview": "npm run preview -w client",
-    "test": "npm run test -w client"
+    "test": "npm run test -w client",
+    "test:watch": "npm run test:watch -w client",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6"
   }
 }

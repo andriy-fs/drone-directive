@@ -1,7 +1,7 @@
 import type { Command } from '../../types/commands';
 import { buildCost, canAfford, spend } from '../economy';
 import type { GameContext } from '../game/context';
-import { scriptForTask } from '../tasks/taskDefinitions';
+import { isTaskBlockedForWeapon, scriptForTask } from '../tasks/taskDefinitions';
 import { atRobotCap } from './production';
 import { findById } from './targeting';
 
@@ -16,7 +16,9 @@ function applyCommand(ctx: GameContext, command: Command): void {
   switch (command.kind) {
     case 'AssignTask': {
       const robot = findById(ctx, command.robotId);
-      if (robot?.robot && robot.position) {
+      // A radar has no weapon to attack with — refuse the order and leave its
+      // current directive untouched, rather than march it uselessly forward.
+      if (robot?.robot && robot.position && !isTaskBlockedForWeapon(robot.weaponType, command.task)) {
         robot.script = scriptForTask(robot.position, command.task);
       }
       break;

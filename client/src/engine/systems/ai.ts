@@ -87,9 +87,7 @@ function updateProduction(ctx: GameContext, base: Entity, dt: number): void {
  * instead of trickling out one robot at a time.
  */
 function assignIdleUnits(ctx: GameContext, base: Entity): void {
-  const aiRobots = ctx.world
-    .with('robot', 'position', 'script')
-    .entities.filter((e) => e.owner === Owner.AI);
+  const aiRobots = ctx.world.with('robot', 'position', 'script').entities.filter((e) => e.owner === Owner.AI);
 
   if (isThreatened(ctx, base)) {
     mobilizeDefense(ctx, base, aiRobots);
@@ -237,9 +235,7 @@ function nearbyPlayerCount(ctx: GameContext, base: Entity): number {
   return ctx.world
     .with('robot', 'position')
     .entities.filter(
-      (r) =>
-        r.owner === Owner.Player &&
-        distance(r.position!.x, r.position!.y, bp.x, bp.y) < gameConfig.ai.threatRange,
+      (r) => r.owner === Owner.Player && distance(r.position!.x, r.position!.y, bp.x, bp.y) < gameConfig.ai.threatRange,
     ).length;
 }
 

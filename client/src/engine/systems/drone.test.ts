@@ -11,12 +11,7 @@ function fillNav(ctx: GameContext, blocked: boolean): void {
   ctx.navObstacles = Array.from({ length: height }, () => new Array<boolean>(width).fill(blocked));
 }
 
-function setControl(
-  ctx: GameContext,
-  dir = { x: 0, y: 0 },
-  possessPulse = false,
-  firePulse = false,
-): void {
+function setControl(ctx: GameContext, dir = { x: 0, y: 0 }, possessPulse = false, firePulse = false): void {
   ctx.droneControl = { dir, possessPulse, firePulse };
 }
 

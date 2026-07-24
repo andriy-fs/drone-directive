@@ -8,7 +8,7 @@ import { spawnRobot } from '../ecs/factory';
 import type { Entity } from '../ecs/entity';
 import { buildCost, canAfford, spend } from '../economy';
 import type { GameContext } from '../game/context';
-import { scriptForTask } from '../tasks/taskDefinitions';
+import { isTaskBlockedForWeapon, scriptForTask } from '../tasks/taskDefinitions';
 
 /** Robots a side already has committed: living units + everything still queued. */
 export function sideRobotLoad(ctx: GameContext, owner: Owner): number {
@@ -64,8 +64,14 @@ export function productionSystem(ctx: GameContext, dt: number): void {
       const pos = spawnPointFor(base, ctx.rng);
       const robot = spawnRobot(ctx.world, base.owner!, pos, order.chassis, order.weapon);
       const task = order.task !== undefined ? order.task : prod.defaultTask;
-      if (task) robot.script = scriptForTask(robot.position!, task);
-      ctx.bus.emit('entitySpawned', { id: robot.id, kind: 'robot', owner: base.owner });
+      // A radar has no weapon — an attack-oriented task/default is refused, so it
+      // spawns on the factory default (Idle) instead of marching off pointlessly.
+      if (task && !isTaskBlockedForWeapon(order.weapon, task)) robot.script = scriptForTask(robot.position!, task);
+      ctx.bus.emit('entitySpawned', {
+        id: robot.id,
+        kind: 'robot',
+        owner: base.owner,
+      });
     }
   }
 }
@@ -78,10 +84,7 @@ export function productionSystem(ctx: GameContext, dt: number): void {
 function droneDocked(ctx: GameContext, base: Entity): boolean {
   const drone = ctx.world.with('drone', 'position').entities[0];
   if (!drone?.position || !base.position) return true;
-  return (
-    distance(drone.position.x, drone.position.y, base.position.x, base.position.y) <=
-    gameConfig.drone.dockRadius
-  );
+  return distance(drone.position.x, drone.position.y, base.position.x, base.position.y) <= gameConfig.drone.dockRadius;
 }
 
 /**

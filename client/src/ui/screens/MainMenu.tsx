@@ -1,9 +1,4 @@
-import {
-  Dialog,
-  DialogBackdrop,
-  DialogPanel,
-  DialogTitle,
-} from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { Settings2Icon, HelpCircleIcon } from '../common/icons';
 import { useState } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
@@ -70,9 +65,7 @@ export function MainMenu() {
       <DialogBackdrop className="dialog-backdrop" />
       <div className="dialog-frame">
         <DialogPanel className="modal menu">
-          <DialogTitle className="menu__title">
-            {t('mainMenu', 'title')}
-          </DialogTitle>
+          <DialogTitle className="menu__title">{t('mainMenu', 'title')}</DialogTitle>
           <p className="modal__body">{t('mainMenu', 'intro')}</p>
 
           <div className="picker-group">
@@ -97,9 +90,7 @@ export function MainMenu() {
                 <Button
                   key={o.value}
                   className={`chip ${o.value === difficulty ? 'chip--on' : ''}`.trim()}
-                  onClick={() =>
-                    updateSettings({ match: { difficulty: o.value } })
-                  }
+                  onClick={() => updateSettings({ match: { difficulty: o.value } })}
                   aria-label={t('difficulty', o.hint)}
                 >
                   {t('difficulty', o.label)}
@@ -151,9 +142,7 @@ export function MainMenu() {
           <DialogBackdrop className="dialog-backdrop" />
           <div className="dialog-frame">
             <DialogPanel className="modal">
-              <DialogTitle className="modal__title">
-                {t('mainMenu', 'controlsTitle')}
-              </DialogTitle>
+              <DialogTitle className="modal__title">{t('mainMenu', 'controlsTitle')}</DialogTitle>
               <div className="modal__body">
                 <div className="controls-list">
                   <div className="control-item">
@@ -178,9 +167,7 @@ export function MainMenu() {
                   </div>
                 </div>
 
-                <span className="picker__label controls-list__heading">
-                  {t('mainMenu', 'droneHeading')}
-                </span>
+                <span className="picker__label controls-list__heading">{t('mainMenu', 'droneHeading')}</span>
                 <div className="controls-list">
                   <div className="control-item">
                     <kbd>W A S D</kbd>
@@ -196,10 +183,7 @@ export function MainMenu() {
                   </div>
                 </div>
               </div>
-              <Button
-                className="modal__action"
-                onClick={() => setControlsOpen(false)}
-              >
+              <Button className="modal__action" onClick={() => setControlsOpen(false)}>
                 {t('mainMenu', 'close')}
               </Button>
             </DialogPanel>

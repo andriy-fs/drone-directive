@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { gameConfig } from '../config/gameConfig';
-import {
-  createDefaultSettings,
-  type GameSettings,
-  type SettingsPatch,
-} from '../config/gameSettings';
+import { createDefaultSettings, type GameSettings, type SettingsPatch } from '../config/gameSettings';
 import { Locale } from '../i18n/locale';
 import type { Command } from '../types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '../types/entities';

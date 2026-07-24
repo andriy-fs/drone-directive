@@ -15,7 +15,9 @@ describe('separationSystem — robots never share coordinates', () => {
     const b = spawnRobot(ctx.world, Owner.Player, { x: 300, y: 300 }, ChassisType.Wheels, WeaponType.Missiles);
     expect(distance(a.position!.x, a.position!.y, b.position!.x, b.position!.y)).toBe(0);
     separationSystem(ctx);
-    expect(distance(a.position!.x, a.position!.y, b.position!.x, b.position!.y)).toBeGreaterThanOrEqual(MIN_DIST - 1e-6);
+    expect(distance(a.position!.x, a.position!.y, b.position!.x, b.position!.y)).toBeGreaterThanOrEqual(
+      MIN_DIST - 1e-6,
+    );
   });
 
   it('resolves partially-overlapping robots to exactly the collision distance', () => {

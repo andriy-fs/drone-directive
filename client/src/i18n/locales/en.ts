@@ -116,6 +116,7 @@ export interface Dict {
     attackRobots: string;
     scout: string;
     attackTarget: string;
+    overwatch: string;
     none: string;
   };
   chassis: {
@@ -265,6 +266,7 @@ export const en: Dict = {
     attackRobots: 'Attack Robots',
     scout: 'Search & Detect',
     attackTarget: 'Attack Target',
+    overwatch: 'Overwatch',
     none: 'None',
   },
   chassis: {

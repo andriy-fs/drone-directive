@@ -117,6 +117,7 @@ export const uk: Dict = {
     attackRobots: 'Атака роботів',
     scout: 'Розвідка',
     attackTarget: 'Атака цілі',
+    overwatch: 'Прикриття',
     none: 'Немає',
   },
   chassis: {

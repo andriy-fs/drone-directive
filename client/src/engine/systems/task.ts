@@ -1,7 +1,7 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { getProgram } from '../../config/programs';
 import type { Vec2 } from '../../types/entities';
-import { RobotState } from '../../types/enums';
+import { RobotState, TaskType } from '../../types/enums';
 import type { BehaviorAction, BehaviorCondition } from '../../types/tasks';
 import { clamp, distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
@@ -9,7 +9,10 @@ import type { GameContext } from '../game/context';
 import { hasLineOfSight, tileCentre, tileOf } from '../obstacles';
 import { nearestFreeTile } from '../pathfinding';
 import { clearGoal, setGoal } from './movement';
-import { findById, isEnemy, knownEnemyBases, knownEnemyRobots, nearest } from './targeting';
+import { findById, isEnemy, knownEnemyBases, knownEnemyRobots, nearest, ownBase } from './targeting';
+
+/** Directives that count as an advancing "vanguard" for Overwatch to trail behind. */
+const ADVANCING_TASKS = new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots, TaskType.AttackTarget]);
 
 /**
  * Behaviour resolver. Each robot runs a priority-ordered directive program
@@ -76,10 +79,7 @@ function conditionHolds(ctx: GameContext, e: Entity, cond: BehaviorCondition): b
       const range = cond.range ?? e.weapon?.range ?? 0;
       if (range <= 0) return false;
       const foe = nearest(e.position!, knownEnemyRobots(ctx, e.owner!));
-      return (
-        !!foe?.position &&
-        distance(e.position!.x, e.position!.y, foe.position.x, foe.position.y) <= range
-      );
+      return !!foe?.position && distance(e.position!.x, e.position!.y, foe.position.x, foe.position.y) <= range;
     }
   }
 }
@@ -107,6 +107,10 @@ function resolveAction(ctx: GameContext, e: Entity, action: BehaviorAction): Out
     }
     case 'attackTarget':
       return attackTargetOutcome(ctx, e);
+    case 'retreatToBase':
+      return retreatToBaseOutcome(ctx, e);
+    case 'overwatch':
+      return overwatchOutcome(ctx, e);
   }
 }
 
@@ -244,6 +248,59 @@ function guardOutcome(ctx: GameContext, e: Entity): Outcome {
   }
   if (!post) return { move: { kind: 'hold' } };
   return roamOutcome(e, () => randomPointNear(ctx, post, gameConfig.behavior.guardPatrolRadius));
+}
+
+/** Move-only: fall back toward this side's own base — for a unit with nothing to fight back with. */
+function retreatToBaseOutcome(ctx: GameContext, e: Entity): Outcome {
+  const home = ownBase(ctx, e.owner!);
+  if (!home?.position) return {}; // no base left to run to — let a lower-priority directive decide
+  return { move: { kind: 'goal', x: home.position.x, y: home.position.y } };
+}
+
+/**
+ * Unarmed support role: trail behind an advancing friendly group (own team's
+ * robots currently running an attack-oriented program), staying
+ * `overwatchTrailDistance` back toward home — close enough to keep spotting
+ * for it without leading the charge. With no such push under way, it instead
+ * hovers near its own base, roaming like a Guard for early-warning coverage.
+ */
+function overwatchOutcome(ctx: GameContext, e: Entity): Outcome {
+  const home = ownBase(ctx, e.owner!);
+  if (!home?.position) return { move: { kind: 'hold' } };
+
+  const vanguard = ctx.world
+    .with('robot', 'position', 'script')
+    .entities.filter(
+      (r) => r.id !== e.id && r.owner === e.owner && (r.hp ?? 0) > 0 && ADVANCING_TASKS.has(r.script!.programId),
+    );
+
+  if (vanguard.length > 0) {
+    const centroid = centroidOf(vanguard);
+    const dx = home.position.x - centroid.x;
+    const dy = home.position.y - centroid.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const trail = gameConfig.behavior.overwatchTrailDistance;
+    return {
+      move: {
+        kind: 'goal',
+        x: centroid.x + (dx / len) * trail,
+        y: centroid.y + (dy / len) * trail,
+      },
+    };
+  }
+
+  return roamOutcome(e, () => randomPointNear(ctx, home.position!, gameConfig.behavior.guardPatrolRadius));
+}
+
+/** Centre of mass of a list of positioned entities (assumed non-empty). */
+function centroidOf(list: Entity[]): Vec2 {
+  let sx = 0;
+  let sy = 0;
+  for (const r of list) {
+    sx += r.position!.x;
+    sy += r.position!.y;
+  }
+  return { x: sx / list.length, y: sy / list.length };
 }
 
 /** Stable per-robot dodge side so a robot doesn't jitter between the two. */

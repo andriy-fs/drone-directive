@@ -15,16 +15,17 @@ export function findById(ctx: GameContext, id: string): Entity | undefined {
 
 /** Living enemy robots relative to `owner`. */
 export function enemyRobots(ctx: GameContext, owner: Owner): Entity[] {
-  return ctx.world
-    .with('robot', 'position')
-    .entities.filter((e) => (e.hp ?? 0) > 0 && isEnemy(owner, e.owner));
+  return ctx.world.with('robot', 'position').entities.filter((e) => (e.hp ?? 0) > 0 && isEnemy(owner, e.owner));
 }
 
 /** Living enemy bases relative to `owner`. */
 export function enemyBases(ctx: GameContext, owner: Owner): Entity[] {
-  return ctx.world
-    .with('base', 'position')
-    .entities.filter((e) => (e.hp ?? 0) > 0 && isEnemy(owner, e.owner));
+  return ctx.world.with('base', 'position').entities.filter((e) => (e.hp ?? 0) > 0 && isEnemy(owner, e.owner));
+}
+
+/** This owner's own living base, if it still stands. */
+export function ownBase(ctx: GameContext, owner: Owner): Entity | undefined {
+  return ctx.world.with('base', 'position').entities.find((e) => e.owner === owner && (e.hp ?? 0) > 0);
 }
 
 /** Living enemy robots `owner`'s team currently has in sight (see `visionSystem`). */

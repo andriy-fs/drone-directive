@@ -21,7 +21,7 @@ no centering), and **seamlessly tileable** (opposite edges match).
   telegraphs the grid when tiled) — favor an even, broken-rock texture.
 - **On-field size:** one game tile = **32 px**. Author at **256×256** (min) or
   512×512 so it stays crisp; it will be downscaled and repeated per blocked cell.
-- **Palette — must sit *behind* the action:** dark, desaturated **slate / blue-gray
+- **Palette — must sit _behind_ the action:** dark, desaturated **slate / blue-gray
   stone** matching the field (background is near-black `#0d1117`; current obstacle
   fill `#3a3f4a`, edges `#555c68`). Keep it **muted and low-contrast** so bright
   blue (player) and red (enemy) units always pop against it — the obstacle should

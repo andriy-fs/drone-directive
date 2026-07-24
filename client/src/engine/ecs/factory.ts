@@ -23,13 +23,7 @@ export function spawnBase(world: EcsWorld, owner: Owner, tx: number, ty: number)
 }
 
 /** Adds a robot entity; stats derive from chassis + weapon. */
-export function spawnRobot(
-  world: EcsWorld,
-  owner: Owner,
-  pos: Vec2,
-  chassis: ChassisType,
-  weapon: WeaponType,
-): Entity {
+export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: ChassisType, weapon: WeaponType): Entity {
   const stats = gameConfig.robots.chassis[chassis];
   const w = gameConfig.robots.weapons[weapon];
   return world.add({
