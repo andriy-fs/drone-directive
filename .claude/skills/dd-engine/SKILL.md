@@ -1,5 +1,5 @@
 ---
-name: nether-engine
+name: dd-engine
 description: >-
   Knowledge for the Drone Directive game CORE (client/src/engine/**, client/src/types/**,
   client/src/config/gameConfig.ts). Use whenever a task changes game rules or structure:

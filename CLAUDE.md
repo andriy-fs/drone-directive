@@ -4,7 +4,7 @@ Top-down RTS game built with **React 19 + PixiJS 8 + TypeScript + Vite + Zustand
 
 ## Monorepo (npm workspaces)
 
-Two workspaces: **`client/`** (`@drone-directive/client` — the web game; all app code, configs, `index.html`, and `public/` live here, source under `client/src/**`, build output `client/dist/`) and **`server/`** (`@drone-directive/server` — planned online-multiplayer backend, **not yet implemented**; see `.docs/multiplayer.md`). The root `package.json` only wires the workspaces; its `dev`/`build`/`lint`/`test` scripts delegate to `client`.
+Three workspaces: **`client/`** (`@drone-directive/client` — the web game; all app code, configs, `index.html`, and `public/` live here, source under `client/src/**`, build output `client/dist/`), **`protocol/`** (`@drone-directive/protocol` — types-only wire protocol shared by the other two), and **`server/`** (`@drone-directive/server` — the online-multiplayer relay: a Cloudflare Worker + Durable Object; see `.docs/server-relay.md`). The root `package.json` only wires the workspaces; its `dev`/`build`/`lint`/`test` scripts delegate to `client` — the server has its own `dev`/`type-check`/`deploy` (`npm run <script> -w server`) and is **not** covered by the root build/test/lint.
 
 ## Commands
 
@@ -31,9 +31,9 @@ Data flow: **UI → command queue / control flags → GameEngine (scenes → sys
 
 Detailed, per-layer knowledge lives in `.claude/skills/` and auto-activates by task. Consult:
 
-- **nether-engine** — `.claude/skills/nether-engine/SKILL.md` — ECS game core (`client/src/engine`): entities/components, systems, scenes, GameEngine, EventBus, pathfinding/obstacles/economy/tasks helpers.
-- **nether-pixi** — `.claude/skills/nether-pixi/SKILL.md` — rendering/input (`client/src/pixi`): GameApp bridge, reactive-query `WorldRenderer`, entity views, camera, sprites/assets, pointer, bus/store adapters.
-- **nether-react** — `.claude/skills/nether-react/SKILL.md` — HUD/state (`client/src/ui/**`, `client/src/store`): store snapshots/DTOs, command queue, control flags→engine, selectors, screens/hud/hotkeys.
+- **dd-engine** — `.claude/skills/dd-engine/SKILL.md` — ECS game core (`client/src/engine`): entities/components, systems, scenes, GameEngine, EventBus, pathfinding/obstacles/economy/tasks helpers.
+- **dd-pixi** — `.claude/skills/dd-pixi/SKILL.md` — rendering/input (`client/src/pixi`): GameApp bridge, reactive-query `WorldRenderer`, entity views, camera, sprites/assets, pointer, bus/store adapters.
+- **dd-react** — `.claude/skills/dd-react/SKILL.md` — HUD/state (`client/src/ui/**`, `client/src/store`): store snapshots/DTOs, command queue, control flags→engine, selectors, screens/hud/hotkeys.
 
 ## Project-wide conventions (tsconfig is strict)
 
@@ -44,3 +44,4 @@ Detailed, per-layer knowledge lives in `.claude/skills/` and auto-activates by t
 ## Reference
 
 - Engine internals: `.docs/engine-ecs.md` (ECS/miniplex), `.docs/movement.md` (pathfinding + movement), `.docs/zustand.md` (store rationale).
+- Online multiplayer: `.docs/multiplayer.md` (lockstep design, tick loop, determinism), `.docs/server-relay.md` (the relay Worker + `Room` Durable Object), `.docs/deployment.md` (CI deploy of both halves).

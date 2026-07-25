@@ -43,16 +43,21 @@ Built with **React 19 · PixiJS 8 · TypeScript · Vite · Zustand**.
 - **4 languages** — English, Russian, Ukrainian, Polish.
 - **Pause**, **sound effects** (synthesized, no assets), and a full
   **menu → match → victory/defeat → replay** loop.
-- **Online 2-player** — host or join a room by code and play head-to-head over a
-  WebSocket relay (deterministic lockstep). See [.docs/multiplayer.md](.docs/multiplayer.md).
+- **Online 2-player** — host or join a room by a 4-character code and play
+  head-to-head over a WebSocket relay. The match runs in **deterministic
+  lockstep**: only each player's per-tick orders cross the network, and both
+  clients simulate the identical world from one shared seed. Each side pilots its
+  own observer drone, has its own fog of war, and sees itself in the friendly
+  colour. Design: [.docs/multiplayer.md](.docs/multiplayer.md) · backend:
+  [.docs/server-relay.md](.docs/server-relay.md).
 
 ## Getting started
 
 Requires a recent Node.js (Vite 8 needs Node 20.19+ or 22.12+).
 
 This is an **npm-workspaces monorepo** — the game lives in the `client`
-workspace and a placeholder `server` workspace is reserved for future online
-multiplayer. Run everything from the repo root: `npm install` installs all
+workspace, the online relay in `server`, and the wire types they share in
+`protocol`. Run everything from the repo root: `npm install` installs all
 workspaces, and the root scripts delegate to `client`.
 
 ```bash
@@ -73,6 +78,15 @@ All run from the repo root and delegate to the `client` workspace.
 | `npm test`           | Run the Vitest engine test suite.                             |
 | `npm run test:watch` | Run the test suite in watch mode.                             |
 
+The relay Worker has its own scripts (it is **not** covered by the root
+`build`/`test`/`lint`):
+
+| Command                        | Description                                           |
+| ------------------------------ | ----------------------------------------------------- |
+| `npm run dev -w server`        | Run the relay locally (wrangler/miniflare, no login). |
+| `npm run type-check -w server` | Type-check the Worker (`tsc --noEmit`).               |
+| `npm run deploy -w server`     | Deploy to Cloudflare (needs `npx wrangler login`).    |
+
 ### Online multiplayer (dev)
 
 Solo vs. the bot by default; **Online (2P)** in the menu plays head-to-head. Run
@@ -83,9 +97,13 @@ npm run dev -w server   # relay on ws://localhost:8787 (wrangler dev, no login)
 npm run dev             # client; VITE_MULTIPLAYER_URL defaults to that relay
 ```
 
-Open two tabs, host in one, join with the code in the other. For a deployed build,
-set `VITE_MULTIPLAYER_URL=wss://<your-worker-host>` at build time — the relay
-deploys separately (see [server/README.md](server/README.md)).
+Open two tabs, host in one, join with the code in the other. Both tabs simulate
+the same match — the host plays one side, the guest the other.
+
+For a deployed build, set `VITE_MULTIPLAYER_URL=wss://<your-worker-host>` at build
+time; the relay deploys separately (`npm run deploy -w server`). How the backend
+works is documented in [.docs/server-relay.md](.docs/server-relay.md), the CI setup
+for both halves in [.docs/deployment.md](.docs/deployment.md).
 
 ## Controls
 
@@ -124,9 +142,15 @@ continuous auto-build loop).
 
 ## Architecture
 
-The repo is an **npm-workspaces monorepo**: the game is the `client` workspace;
-a `server` workspace is reserved for planned online multiplayer over WebSocket
-(see [`.docs/multiplayer.md`](.docs/multiplayer.md)) and is not yet implemented.
+The repo is an **npm-workspaces monorepo** with three workspaces:
+
+- **`client/`** — the game itself (everything below).
+- **`server/`** — the online-multiplayer relay: a Cloudflare Worker whose
+  `Room` Durable Object pairs two player sockets, mints the shared RNG seed, and
+  forwards lockstep tick messages. It runs no game logic and stores nothing —
+  see [`.docs/server-relay.md`](.docs/server-relay.md).
+- **`protocol/`** — the types-only wire protocol the other two share, so neither
+  imports the other's source.
 
 Within `client/`, the game is three layers with strict boundaries, plus a
 **Scene-based ECS** game core:
@@ -155,14 +179,27 @@ client/           # @drone-directive/client — the game (app code, configs, ind
       game/     #   engine (facade), scene + scenes/, eventBus, events, context
       (helpers) #   pathfinding, obstacles, economy, tasks/
     pixi/       # GameApp (bridge), GameLoop, Camera, layers, assets, input/, render/
+      net/      #   LockstepSession (WebSocket transport) + relay URL config
     ui/         # React: App, GameCanvas, hud/, screens/, common/, hooks/
     store/      # gameStore (Zustand) + selectors (shared with the Pixi bridge)
     config/     # gameConfig, palette, sprites
     types/      # enums, entities (value types), tasks, commands
     i18n/       # locale dictionaries (en/ru/uk/pl)
   public/       # static assets + placeholder sprites
-server/           # @drone-directive/server — planned multiplayer backend (not yet implemented)
+protocol/         # @drone-directive/protocol — shared wire types (no runtime deps)
+server/           # @drone-directive/server — relay Worker: index.ts (router) + Room.ts (Durable Object)
 ```
+
+### Documentation
+
+| Doc                                              | Covers                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------- |
+| [`.docs/engine-ecs.md`](.docs/engine-ecs.md)     | The ECS model (miniplex) and the fixed-step system pipeline.  |
+| [`.docs/movement.md`](.docs/movement.md)         | Pathfinding (A\*) and movement.                               |
+| [`.docs/zustand.md`](.docs/zustand.md)           | Store rationale, snapshots, and the UI↔engine seam.           |
+| [`.docs/multiplayer.md`](.docs/multiplayer.md)   | Online design: why lockstep, the tick loop, determinism.      |
+| [`.docs/server-relay.md`](.docs/server-relay.md) | How the relay Worker + `Room` Durable Object are implemented. |
+| [`.docs/deployment.md`](.docs/deployment.md)     | Deploying the UI (Pages) and the relay (Cloudflare) from CI.  |
 
 ### Sprites
 
@@ -173,4 +210,4 @@ and add one registry entry.
 
 ## Credits
 
-This is an independent, educational RTS-inspired reimplementation.
+An independent, educational RTS built as a personal project.
