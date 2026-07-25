@@ -5,7 +5,9 @@ import type { MapSize } from '../../types/enums';
  * WebSocket URL of the relay Worker. Baked at build time (the UI is a static site)
  * via `VITE_MULTIPLAYER_URL`; falls back to a local `wrangler dev` for development.
  */
-export const MULTIPLAYER_URL: string = import.meta.env.VITE_MULTIPLAYER_URL ?? 'ws://localhost:8787';
+// `||` (not `??`): CI expands an unset `${{ vars.VITE_MULTIPLAYER_URL }}` to an
+// empty string, which must also fall back — otherwise `new URL('')` throws.
+export const MULTIPLAYER_URL: string = import.meta.env.VITE_MULTIPLAYER_URL?.trim() || 'ws://localhost:8787';
 
 /**
  * Ticks of input delay before a locally-issued command/drone input is applied
