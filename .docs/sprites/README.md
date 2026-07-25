@@ -1,6 +1,6 @@
 # Sprite generation prompts
 
-Prompts for generating unit/base art for the Drone Directive web remake, tuned
+Prompts for generating unit/base art for Drone Directive, tuned
 for **Gemini** and **ChatGPT** image generation. Keep these in sync when new
 robot chassis or base types are added, so art can be regenerated consistently.
 

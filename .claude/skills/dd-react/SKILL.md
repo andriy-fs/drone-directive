@@ -1,5 +1,5 @@
 ---
-name: nether-react
+name: dd-react
 description: >-
   Knowledge for the Drone Directive REACT UI + STATE layer (client/src/ui/** and
   client/src/store/**). Use whenever a task changes the HUD, screens/menus/overlays,

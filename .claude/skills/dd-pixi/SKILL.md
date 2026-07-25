@@ -1,5 +1,5 @@
 ---
-name: nether-pixi
+name: dd-pixi
 description: >-
   Knowledge for the Drone Directive PixiJS RENDERING + bridge layer (client/src/pixi/**).
   Use whenever a task changes how the world is drawn or how pointer/camera input
@@ -16,7 +16,7 @@ Owns the canvas and bridges the `GameEngine` to the store. **No React imports.**
 
 ## Files
 
-- `GameApp.ts` — the boundary object React mounts (via `useGameApp`). Owns the `GameEngine`, `WorldRenderer`, camera, obstacle graphic. `init()`: `app.init` → `loadGameAssets` → build layers/camera → `new GameEngine()` → `WorldRenderer(layers, engine.world)` → `wireBus()` → pointer → loop. The loop `update` = `step(dt)`; `render` = `worldRenderer.sync(selectedIds, isVisibleToPlayer)`. `isVisibleToPlayer(e)` is the fog-of-war gate: player/neutral entities are always visible; an AI robot/base is only visible once `engine.context.intel.player` (see nether-engine's `TeamIntel`) has it in `visibleRobotIds`/`knownBaseIds`.
+- `GameApp.ts` — the boundary object React mounts (via `useGameApp`). Owns the `GameEngine`, `WorldRenderer`, camera, obstacle graphic. `init()`: `app.init` → `loadGameAssets` → build layers/camera → `new GameEngine()` → `WorldRenderer(layers, engine.world)` → `wireBus()` → pointer → loop. The loop `update` = `step(dt)`; `render` = `worldRenderer.sync(selectedIds, isVisibleToPlayer)`. `isVisibleToPlayer(e)` is the fog-of-war gate: player/neutral entities are always visible; an AI robot/base is only visible once `engine.context.intel.player` (see dd-engine's `TeamIntel`) has it in `visibleRobotIds`/`knownBaseIds`.
   - **step(dt):** apply store control flags (`restartRequested`→`engine.startMatch(config)`, `menuRequested`→`engine.toMenu()`, then `clearRequests()`); `engine.setPaused`; forward `drainCommands()`→`engine.enqueueCommand`; `engine.tick(dt)`; throttled `pushSnapshot`.
   - **wireBus():** `projectileFired`→`sfx.shot`, `entityDestroyed`→`sfx.explosion`+snapshot, `entitySpawned`→snapshot, `sceneChanged`→status + rebuild/clear obstacles + snapshot, `gameOver`→status won/lost.
   - **pushSnapshot():** projects `world.with('base'/'robot').entities` into store `BaseSnapshot`/`RobotSnapshot` DTOs + resources from `engine.context`.
