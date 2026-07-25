@@ -2,6 +2,7 @@
   "name": "drone-directive",
   "private": true,
   "version": "0.0.2",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "workspaces": [
     "client",
