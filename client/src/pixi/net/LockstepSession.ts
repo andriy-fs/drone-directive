@@ -62,15 +62,23 @@ export class LockstepSession {
   }
 
   connectHost(roomCode: string, mapSize: MapSize): void {
-    this.open(connectUrl({ room: roomCode, create: true, mapSize }));
+    this.open(() => connectUrl({ room: roomCode, create: true, mapSize }));
   }
 
   connectGuest(roomCode: string): void {
-    this.open(connectUrl({ room: roomCode }));
+    this.open(() => connectUrl({ room: roomCode }));
   }
 
-  private open(url: string): void {
-    const ws = new WebSocket(url);
+  private open(buildUrl: () => string): void {
+    let ws: WebSocket;
+    try {
+      // Both `connectUrl` (new URL) and `new WebSocket` throw on a malformed URL —
+      // surface it as a lobby error instead of letting it kill the game loop.
+      ws = new WebSocket(buildUrl());
+    } catch {
+      this.handlers.onError?.('bad-message', 'Invalid multiplayer server URL — check VITE_MULTIPLAYER_URL.');
+      return;
+    }
     this.ws = ws;
     ws.addEventListener('message', (e) => this.onMessage(e));
     ws.addEventListener('close', () => this.handlers.onClose?.());
