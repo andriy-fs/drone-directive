@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useT } from '../../i18n';
-import { selectPlayerBase, selectResources } from '../../store/selectors';
+import { selectLocalSide, selectPlayerBase, selectResources } from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
+import { Owner } from '../../types/enums';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
 import { BuildRobotModal } from './BuildRobotModal';
@@ -15,9 +16,14 @@ import { programLabel } from './programOptions';
 export function StatusPanel() {
   const t = useT();
   const resources = useGameStore(selectResources);
+  const localSide = useGameStore(selectLocalSide);
   const playerBase = useGameStore(selectPlayerBase);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   const [buildOpen, setBuildOpen] = useState(false);
+
+  // Show the local side's resources first (the online guest plays Owner.AI).
+  const myResources = localSide === Owner.Player ? resources.player : resources.ai;
+  const foeResources = localSide === Owner.Player ? resources.ai : resources.player;
 
   const queueLength = playerBase?.queueLength ?? 0;
   const auto = playerBase?.autoBuild ?? null;
@@ -31,12 +37,12 @@ export function StatusPanel() {
         <li className="hud__row">
           <span className="dot dot--player" />
           <span className="hud__row-label">{t('statusPanel', 'resources')}</span>
-          <span className="hud__row-value">{Math.floor(resources.player)}</span>
+          <span className="hud__row-value">{Math.floor(myResources)}</span>
         </li>
         <li className="hud__row">
           <span className="dot dot--ai" />
           <span className="hud__row-label">{t('statusPanel', 'ai')}</span>
-          <span className="hud__row-value">{Math.floor(resources.ai)}</span>
+          <span className="hud__row-value">{Math.floor(foeResources)}</span>
         </li>
       </ul>
 

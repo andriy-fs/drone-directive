@@ -1,8 +1,8 @@
 import { Container, Graphics } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
-import { palette } from '../../config/palette';
 import type { Entity } from '../../engine/ecs/entity';
-import { Owner, WeaponType } from '../../types/enums';
+import { WeaponType } from '../../types/enums';
+import { ownerColor } from './ownerColor';
 
 /**
  * Projectile view: cannon fire is a bright tracer dot with a short streak;
@@ -18,7 +18,7 @@ export class ProjectileView {
     this.container = new Container();
     this.container.label = `proj:${projectile.id}`;
 
-    const color = projectile.owner === Owner.Player ? palette.owner.player : palette.owner.ai;
+    const color = ownerColor(projectile.owner);
     const v = projectile.velocity;
     this.container.rotation = v ? Math.atan2(v.y, v.x) : 0;
 

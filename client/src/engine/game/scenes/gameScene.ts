@@ -1,8 +1,9 @@
 import { gameConfig } from '../../../config/gameConfig';
 import type { Vec2 } from '../../../types/entities';
-import { ChassisType, Owner, WeaponType } from '../../../types/enums';
+import { ChassisType, Difficulty, Owner, WeaponType } from '../../../types/enums';
 import { spawnBase, spawnDrone, spawnRobot } from '../../ecs/factory';
 import { clearWorld } from '../../ecs/world';
+import { resetIds } from '../../../utils/id';
 import { aiSystem } from '../../systems/ai';
 import { combatSystem } from '../../systems/combat';
 import { commandsSystem } from '../../systems/commands';
@@ -40,25 +41,36 @@ export class GameScene implements Scene {
   enter(): void {
     const { world } = this.ctx;
     clearWorld(world);
+    // Restart entity ids from 0 so both networked peers assign identical ids.
+    resetIds();
 
     for (const p of gameConfig.bases.placements) spawnBase(world, p.owner, p.tx, p.ty);
 
-    const counts = gameConfig.difficulty[this.ctx.difficulty];
+    // Online matches ignore the asymmetric Easy/Hard presets (those only make sense
+    // against the bot) and give both human sides the symmetric Normal player count.
+    const counts = gameConfig.difficulty[this.ctx.online ? Difficulty.Normal : this.ctx.difficulty];
     spawnStarters(this.ctx, Owner.Player, counts.player, 1);
-    spawnStarters(this.ctx, Owner.AI, counts.ai, -1);
+    spawnStarters(this.ctx, Owner.AI, this.ctx.online ? counts.player : counts.ai, -1);
 
     // Bases are impassable: stamp their footprints into the pathfinding grid.
     refreshNavObstacles(this.ctx);
 
-    // Apply pre-game base setup to the player base.
+    // Apply pre-game base setup to the player base. Skipped online: both peers must
+    // build an identical world, and each client only knows its own local settings —
+    // online players configure their base in-match via the (networked) command queue.
     const playerBase = world.with('base', 'production').entities.find((e) => e.owner === Owner.Player);
-    if (playerBase?.production) {
+    if (!this.ctx.online && playerBase?.production) {
       playerBase.production.autoBuild = this.ctx.settings.base.autoBuild;
       playerBase.production.defaultTask = this.ctx.settings.base.defaultProgram;
     }
 
-    // The observer drone starts docked on the player base "roof" (its centre).
-    if (playerBase?.position) spawnDrone(world, Owner.Player, playerBase.position);
+    // Observer drone(s): the player's alone offline; online each side gets one so
+    // both players can pilot their own drone through the lockstep channel.
+    if (this.ctx.online) {
+      for (const b of world.with('base', 'position').entities) spawnDrone(world, b.owner!, b.position);
+    } else if (playerBase?.position) {
+      spawnDrone(world, Owner.Player, playerBase.position);
+    }
 
     this.ctx.bus.emit('sceneChanged', { scene: 'game' });
   }
@@ -69,7 +81,8 @@ export class GameScene implements Scene {
 
     commandsSystem(ctx);
     economySystem(ctx, dt);
-    aiSystem(ctx, dt);
+    // Networked matches have a real opponent on `Owner.AI` — never run the bot.
+    if (!ctx.online) aiSystem(ctx, dt);
     productionSystem(ctx, dt);
     visionSystem(ctx);
     taskSystem(ctx, dt);

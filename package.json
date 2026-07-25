@@ -5,6 +5,7 @@
   "type": "module",
   "workspaces": [
     "client",
+    "protocol",
     "server"
   ],
   "scripts": {

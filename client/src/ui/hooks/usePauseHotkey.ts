@@ -8,8 +8,9 @@ export function usePauseHotkey(): void {
       // Use physical keys (e.code) so a non-Latin keyboard layout still works.
       const isPauseKey = e.code === 'Space' || e.code === 'Escape' || e.code === 'KeyP';
       if (!isPauseKey) return;
-      const { status, togglePause } = useGameStore.getState();
+      const { status, togglePause, online } = useGameStore.getState();
       if (status !== 'playing') return;
+      if (online.status === 'inMatch') return; // no pause in networked matches
       e.preventDefault(); // stop Space from scrolling the page
       togglePause();
     };

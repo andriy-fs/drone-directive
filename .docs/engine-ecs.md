@@ -1,6 +1,6 @@
 # Engine Core — Why ECS, and What We Use From `miniplex`
 
-`src/engine/**` is the pure game core: no React, no Pixi, no store imports
+`client/src/engine/**` is the pure game core: no React, no Pixi, no store imports
 (see `CLAUDE.md`). It is organised as **ECS (entities + components) +
 systems**, driven by **scenes**, behind a `GameEngine` facade, with a typed
 **EventBus** as a side-channel for discrete events.
@@ -20,14 +20,14 @@ certain data (only entities with `movement` path through the pathfinder).
 ECS fits this directly:
 
 - **Entities** are just an `id` plus whichever optional components they carry
-  (`src/engine/ecs/entity.ts`'s `Entity` interface — a flat bag of optional
+  (`client/src/engine/ecs/entity.ts`'s `Entity` interface — a flat bag of optional
   fields, no subclassing). A robot is `{ robot: true, position, movement,
 weapon, script, threat, ... }`; a projectile is `{ projectile: true,
 position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
   component + a system, not touching a class hierarchy.
-- **Systems** are plain functions over the world (`src/engine/systems/*.ts`,
+- **Systems** are plain functions over the world (`client/src/engine/systems/*.ts`,
   each one `fooSystem(ctx, dt)`), run in a fixed order each tick by
-  `GameScene.update` (`src/engine/game/scenes/gameScene.ts`). Order encodes
+  `GameScene.update` (`client/src/engine/game/scenes/gameScene.ts`). Order encodes
   real dependencies — e.g. `droneSystem` runs after `taskSystem` so it can
   override a possessed robot's target and steering, and `fogSystem` runs last
   so it reveals from this tick's _settled_ positions.
@@ -45,7 +45,7 @@ edits to existing types.
 
 `miniplex` (`^2.0.0`) supplies the actual ECS storage/query engine; we don't
 hand-roll archetype indexing ourselves. Concretely, from
-`src/engine/ecs/world.ts`:
+`client/src/engine/ecs/world.ts`:
 
 ```ts
 import { World } from 'miniplex';
@@ -62,7 +62,7 @@ What's used, and where:
   (`clearWorld`) and re-populate it, rather than recreating the store.
 - **`world.add(entity)`** — inserts a new entity and returns it (with an
   auto-generated identity miniplex tracks internally). Used by every spawn
-  function in `src/engine/ecs/factory.ts` (`spawnBase`, `spawnRobot`,
+  function in `client/src/engine/ecs/factory.ts` (`spawnBase`, `spawnRobot`,
   `spawnDrone`, `spawnProjectile`, `spawnExplosion`) — each just builds a
   plain object literal with the relevant components and hands it to `add`.
 - **`world.with(...tags)`** — archetype queries. This is the main way systems
@@ -79,7 +79,7 @@ What's used, and where:
   `clearWorld(world)`).
 - **Reactive queries — `query.onEntityAdded` / `query.onEntityRemoved`** —
   used _outside_ the engine, in the Pixi bridge
-  (`src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds five `world.with(...)`
+  (`client/src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds five `world.with(...)`
   queries (bases/robots/projectiles/explosions/drones) and subscribes to their
   add/remove events to create/destroy the matching Pixi view object
   (`BaseView`/`RobotView`/etc.) exactly when an entity enters/leaves that
@@ -96,10 +96,10 @@ query by component presence, notify on membership change."
 
 ## Why the EventBus, alongside the store
 
-The EventBus (`src/engine/game/eventBus.ts`, `GameEngine.bus`) is a small,
+The EventBus (`client/src/engine/game/eventBus.ts`, `GameEngine.bus`) is a small,
 dependency-free typed pub/sub: engine code `emit`s discrete moments
 (`spawn`, `destroy`, `fire`, `gameOver`, `sceneChanged` — see
-`src/engine/game/events.ts`), and app-layer adapters `on` them. It exists
+`client/src/engine/game/events.ts`), and app-layer adapters `on` them. It exists
 because those moments are **events, not state** — a projectile firing, a
 scene transition, a game-over — and don't fit naturally into the
 throttled, snapshot-based Zustand store that drives React's re-renders.
@@ -113,7 +113,7 @@ diff store snapshots to infer that something instantaneous happened.
 
 ## The `GameEngine` facade
 
-`src/engine/game/engine.ts`'s `GameEngine` is the single object the app layer
+`client/src/engine/game/engine.ts`'s `GameEngine` is the single object the app layer
 (Pixi bridge) holds. It owns the persistent `world`, the `bus`, a
 `SceneManager`, and the UI→engine command queue, and exposes only:
 `tick(dt)`, `startMatch(settings)`, `toMenu()`, `setPaused(paused)`,

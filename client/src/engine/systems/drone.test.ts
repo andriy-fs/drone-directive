@@ -12,7 +12,7 @@ function fillNav(ctx: GameContext, blocked: boolean): void {
 }
 
 function setControl(ctx: GameContext, dir = { x: 0, y: 0 }, possessPulse = false, firePulse = false): void {
-  ctx.droneControl = { dir, possessPulse, firePulse };
+  ctx.droneControl[Owner.Player] = { dir, possessPulse, firePulse };
 }
 
 describe('droneSystem — free flight', () => {
@@ -42,8 +42,8 @@ describe('droneSystem — free flight', () => {
     spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
     setControl(ctx, { x: 0, y: 0 }, true, true);
     droneSystem(ctx, 1);
-    expect(ctx.droneControl.possessPulse).toBe(false);
-    expect(ctx.droneControl.firePulse).toBe(false);
+    expect(ctx.droneControl[Owner.Player].possessPulse).toBe(false);
+    expect(ctx.droneControl[Owner.Player].firePulse).toBe(false);
   });
 });
 

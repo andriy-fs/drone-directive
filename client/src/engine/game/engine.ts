@@ -1,6 +1,7 @@
 import { applyMapSize } from '../../config/gameConfig';
 import type { GameSettings } from '../../config/gameSettings';
 import type { Command } from '../../types/commands';
+import type { Owner } from '../../types/enums';
 import { createEcsWorld, type EcsWorld } from '../ecs/world';
 import { createGameContext, type DroneControl, type GameContext } from './context';
 import { EventBus, type GameBus } from './eventBus';
@@ -27,11 +28,15 @@ export class GameEngine {
     this.manager.change(new MenuScene(this.world, this.bus));
   }
 
-  /** (Re)start a match with the given player settings. */
-  startMatch(settings: GameSettings): void {
+  /**
+   * (Re)start a match with the given player settings. `seed` (from the online
+   * `start` handshake) makes both peers simulate the identical world; omit it for
+   * solo play and the context seeds its RNG from the clock.
+   */
+  startMatch(settings: GameSettings, seed?: number): void {
     applyMapSize(settings.match.mapSize);
     this.commands.length = 0;
-    this.ctx = createGameContext(this.world, this.bus, this.commands, settings);
+    this.ctx = createGameContext(this.world, this.bus, this.commands, settings, seed);
     this.manager.change(new GameScene(this.ctx));
   }
 
@@ -45,9 +50,14 @@ export class GameEngine {
     this.paused = paused;
   }
 
-  /** Feed the player's observer-drone input for the next step (no-op on the menu). */
-  setDroneControl(input: DroneControl): void {
-    if (this.ctx) this.ctx.droneControl = input;
+  /** Feed a side's observer-drone input for the next step (no-op on the menu). */
+  setDroneControl(owner: Owner, input: DroneControl): void {
+    if (this.ctx) this.ctx.droneControl[owner] = input;
+  }
+
+  /** Which side this client controls/views (host = Player, guest = AI); presentation only. */
+  setLocalSide(side: Owner): void {
+    if (this.ctx) this.ctx.localSide = side;
   }
 
   enqueueCommand(command: Command): void {

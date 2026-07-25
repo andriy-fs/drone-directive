@@ -3,9 +3,10 @@ import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { Entity } from '../../engine/ecs/entity';
 import { useGameStore } from '../../store/gameStore';
-import { ChassisType, Owner, WeaponType } from '../../types/enums';
+import { ChassisType, WeaponType } from '../../types/enums';
 import { getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
 import { HealthBar } from './HealthBar';
+import { ownerColor } from './ownerColor';
 
 /** Max gap (ms) between two clicks on the same robot to count as a double-click. */
 const DOUBLE_CLICK_MS = 350;
@@ -27,7 +28,8 @@ export class RobotView {
 
   constructor(robot: Entity) {
     const r = gameConfig.robots.radius;
-    this.isEnemy = robot.owner !== Owner.Player;
+    const local = useGameStore.getState().localSide;
+    this.isEnemy = robot.owner !== local;
     this.container = new Container();
     this.container.label = `robot:${robot.id}`;
     // Only the player's own robots are interactive (for click-select). Enemy
@@ -103,7 +105,7 @@ export class RobotView {
         if (!e.shiftKey && now - this.lastClickAt < DOUBLE_CLICK_MS) {
           this.lastClickAt = 0; // consume so a third click starts a fresh pair
           store.selectRobots(
-            store.robots.filter((r) => r.owner === Owner.Player && r.weapon === robot.weaponType).map((r) => r.id),
+            store.robots.filter((r) => r.owner === local && r.weapon === robot.weaponType).map((r) => r.id),
           );
           return;
         }
@@ -146,7 +148,7 @@ function weaponModule(sprite: ResolvedSprite): Sprite {
 /** Placeholder chassis body; `drawWeapon` draws the weapon marker (skipped when a module sprite covers it). */
 function drawBody(robot: Entity, r: number, drawWeapon: boolean): Graphics {
   const g = new Graphics();
-  const color = robot.owner === Owner.Player ? palette.owner.player : palette.owner.ai;
+  const color = ownerColor(robot.owner);
   const stroke = { width: 2, color: 0x0b0e13 } as const;
 
   switch (robot.chassis) {

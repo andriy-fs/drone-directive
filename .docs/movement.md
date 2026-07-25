@@ -8,15 +8,15 @@ around obstacles is computed.
 ## Position is continuous, not grid-snapped
 
 `Entity.position` is a `Vec2` — "a point in continuous world space (pixels)"
-(`src/types/entities.ts`). There is no grid-index position component; a robot's
+(`client/src/types/entities.ts`). There is no grid-index position component; a robot's
 `x`/`y` can be any float, at any time, including mid-tile.
 
 ## Pathfinding: 8-directional A* over a tile grid
 
-`findPath` (`src/engine/pathfinding.ts`) does the grid part:
+`findPath` (`client/src/engine/pathfinding.ts`) does the grid part:
 
 1. Converts the start/goal pixel positions to tile coordinates via
-   `tileOf` (`src/engine/obstacles.ts`) — `Math.floor(pos.x / tilePx)`.
+   `tileOf` (`client/src/engine/obstacles.ts`) — `Math.floor(pos.x / tilePx)`.
 2. Runs A* over `ObstacleGrid` (a `boolean[][]`, tile-indexed), 8-directional,
    with no corner-cutting (a diagonal step is blocked if either flanking
    orthogonal tile is blocked).
@@ -30,14 +30,14 @@ around obstacles is computed.
    the path is prefixed with a straight "escape" hop to the nearest free tile
    (`nearestFreeTile`, outward BFS) — otherwise A* has no legal first move.
 
-`setGoal` (`src/engine/systems/movement.ts`) calls `findPath` only when the
+`setGoal` (`client/src/engine/systems/movement.ts`) calls `findPath` only when the
 new goal lands in a different tile than the previous one, since tasks
 re-issue a goal every tick — this avoids recomputing A* every frame for a
 stationary order.
 
 ## Motion: continuous interpolation toward waypoints
 
-`movementSystem` → `moveEntity` (`src/engine/systems/movement.ts`) runs every
+`movementSystem` → `moveEntity` (`client/src/engine/systems/movement.ts`) runs every
 fixed step for each entity with `robot`, `position`, `movement`:
 
 - Computes the vector to `movement.destination` (the current waypoint).
@@ -67,7 +67,7 @@ continuous `pos += direction * speed * dt` stepping as normal movement
 
 ## Obstacle/grid helpers used by all of this
 
-`src/engine/obstacles.ts`:
+`client/src/engine/obstacles.ts`:
 
 - `tileOf(pos)` — pixel → tile index (floor).
 - `tileCentre(tx, ty)` — tile → pixel (centre of cell).

@@ -1,9 +1,19 @@
 {
   "name": "@drone-directive/server",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "type": "module",
+  "main": "src/index.ts",
   "scripts": {
-    "dev": "echo \"@drone-directive/server: not implemented yet\" && exit 0"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@drone-directive/protocol": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240909.0",
+    "wrangler": "^4.0.0"
   }
 }

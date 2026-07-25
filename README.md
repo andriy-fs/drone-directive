@@ -43,6 +43,8 @@ Built with **React 19 · PixiJS 8 · TypeScript · Vite · Zustand**.
 - **4 languages** — English, Russian, Ukrainian, Polish.
 - **Pause**, **sound effects** (synthesized, no assets), and a full
   **menu → match → victory/defeat → replay** loop.
+- **Online 2-player** — host or join a room by code and play head-to-head over a
+  WebSocket relay (deterministic lockstep). See [.docs/multiplayer.md](.docs/multiplayer.md).
 
 ## Getting started
 
@@ -70,6 +72,20 @@ All run from the repo root and delegate to the `client` workspace.
 | `npm run lint`       | Run ESLint.                                                   |
 | `npm test`           | Run the Vitest engine test suite.                             |
 | `npm run test:watch` | Run the test suite in watch mode.                             |
+
+### Online multiplayer (dev)
+
+Solo vs. the bot by default; **Online (2P)** in the menu plays head-to-head. Run
+the relay Worker locally and point the client at it:
+
+```bash
+npm run dev -w server   # relay on ws://localhost:8787 (wrangler dev, no login)
+npm run dev             # client; VITE_MULTIPLAYER_URL defaults to that relay
+```
+
+Open two tabs, host in one, join with the code in the other. For a deployed build,
+set `VITE_MULTIPLAYER_URL=wss://<your-worker-host>` at build time — the relay
+deploys separately (see [server/README.md](server/README.md)).
 
 ## Controls
 
