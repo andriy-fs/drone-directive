@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore';
 
-/** Ctrl/Cmd + A selects all of the player's robots while a match is running. */
+/** Ctrl/Cmd + A selects all of the local side's robots while a match is running. */
 export function useSelectAllHotkey(): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -9,10 +9,12 @@ export function useSelectAllHotkey(): void {
       // layout (e.g. Cyrillic) still triggers Ctrl/Cmd+A instead of the browser
       // selecting all page text.
       if (!(e.ctrlKey || e.metaKey) || e.code !== 'KeyA') return;
-      const { status, robots, selectRobots } = useGameStore.getState();
+      const { status, robots, selectRobots, localSide } = useGameStore.getState();
       if (status !== 'playing') return;
       e.preventDefault(); // don't select page text
-      selectRobots(robots.filter((r) => r.owner === 'player').map((r) => r.id));
+      // Own units are `localSide`, never a hardcoded Owner.Player — the online
+      // guest plays Owner.AI, and matching 'player' would select the opponent's army.
+      selectRobots(robots.filter((r) => r.owner === localSide).map((r) => r.id));
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

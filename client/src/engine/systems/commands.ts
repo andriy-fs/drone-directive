@@ -1,6 +1,7 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Command } from '../../types/commands';
 import type { Vec2 } from '../../types/entities';
+import type { Owner } from '../../types/enums';
 import { clamp } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import { buildCost, canAfford, spend } from '../economy';
@@ -9,6 +10,29 @@ import { isTaskBlockedForWeapon, makeAttackTarget, makeIdle, scriptForTask } fro
 import { setGoal } from './movement';
 import { atRobotCap } from './production';
 import { findById } from './targeting';
+
+/**
+ * True when every entity a command *acts on* belongs to `side`. Commands are
+ * applied by raw entity id (identically on both peers, which is what keeps a
+ * networked match in sync), so nothing in `applyCommand` stops one client from
+ * ordering the other's units around. The app layer screens each side's input
+ * through this so a HUD bug can't turn into control of the opponent's army.
+ *
+ * `AttackTarget.targetId` is deliberately unchecked — that one names the enemy.
+ */
+export function isCommandFrom(ctx: GameContext, command: Command, side: Owner): boolean {
+  const ownedBySide = (id: string) => findById(ctx, id)?.owner === side;
+  switch (command.kind) {
+    case 'AssignTask':
+      return ownedBySide(command.robotId);
+    case 'BuildRobot':
+    case 'SetAutoBuild':
+      return ownedBySide(command.baseId);
+    case 'MoveRobots':
+    case 'AttackTarget':
+      return command.robotIds.every(ownedBySide);
+  }
+}
 
 /** Drains and applies queued UI intents (task/build/move/attack). */
 export function commandsSystem(ctx: GameContext): void {

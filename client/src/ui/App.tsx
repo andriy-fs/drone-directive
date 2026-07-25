@@ -11,7 +11,8 @@ import { usePauseHotkey } from './hooks/usePauseHotkey';
 import { useSelectAllHotkey } from './hooks/useSelectAllHotkey';
 import { useT } from '../i18n';
 import { useGameStore } from '../store/gameStore';
-import { selectBases, selectRobots, selectStatus } from '../store/selectors';
+import { selectBases, selectLocalSide, selectRobots, selectStatus } from '../store/selectors';
+import { Owner } from '../types/enums';
 
 import './App.css';
 
@@ -41,12 +42,16 @@ function App() {
   const paused = useGameStore((s) => s.paused);
   const difficulty = useGameStore((s) => s.settings.match.difficulty);
   const droneStatus = useGameStore((s) => s.droneStatus);
+  const localSide = useGameStore(selectLocalSide);
   usePauseHotkey();
   useSelectAllHotkey();
   useControlGroupHotkeys();
 
-  const playerCount = robots.filter((r) => r.owner === 'player').length;
-  const aiCount = robots.filter((r) => r.owner === 'ai').length;
+  // Label every side from the local client's point of view — the online guest
+  // plays Owner.AI but is "player" to itself (same rule as the canvas ownerColor).
+  const sideOf = (owner: Owner) => (owner === Owner.Neutral ? 'neutral' : owner === localSide ? 'player' : 'ai');
+  const playerCount = robots.filter((r) => sideOf(r.owner) === 'player').length;
+  const aiCount = robots.filter((r) => sideOf(r.owner) === 'ai').length;
 
   return (
     <div className="app-shell">
@@ -72,8 +77,8 @@ function App() {
           <ul className="hud__list">
             {bases.map((base) => (
               <li key={base.id} className="hud__row">
-                <span className={`dot dot--${base.owner}`} />
-                <span className="hud__row-label">{t('hud', OWNER_KEYS[base.owner])}</span>
+                <span className={`dot dot--${sideOf(base.owner)}`} />
+                <span className="hud__row-label">{t('hud', OWNER_KEYS[sideOf(base.owner)])}</span>
                 {base.queueLength > 0 && (
                   <span className="hud__build" title={t('statusPanel', 'building')}>
                     <Settings2Icon size={14} /> {base.queueLength}

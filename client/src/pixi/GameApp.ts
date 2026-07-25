@@ -3,8 +3,10 @@ import { gameConfig } from '../config/gameConfig';
 import { palette } from '../config/palette';
 import type { Entity } from '../engine/ecs/entity';
 import { GameEngine } from '../engine/game/engine';
+import { isCommandFrom } from '../engine/systems/commands';
 import { playerAutoBuildSuppressed } from '../engine/systems/production';
 import { useGameStore, type BaseSnapshot, type GameState, type PendingOnline, type RobotSnapshot } from '../store/gameStore';
+import type { Command } from '../types/commands';
 import { Owner, TaskType, WeaponType, type MapSize } from '../types/enums';
 import type { DroneControl } from '../engine/game/context';
 import { loadGameAssets } from './assets';
@@ -178,7 +180,7 @@ export class GameApp {
 
     // Solo / offline live loop.
     this.engine.setPaused(store.paused);
-    for (const command of store.drainCommands()) this.engine.enqueueCommand(command);
+    this.enqueueFrom(Owner.Player, store.drainCommands());
     this.engine.setDroneControl(Owner.Player, {
       dir: store.droneInput,
       possessPulse: store.dronePossessRequested,
@@ -197,9 +199,12 @@ export class GameApp {
     const side = store.localSide;
     const { local, peer } = session.take(this.netTick);
     // Every command applies by entity id on both peers (no relabeling) — that keeps
-    // the shared world identical; only presentation differs by `localSide`.
-    for (const command of local.commands) this.engine.enqueueCommand(command);
-    for (const command of peer.commands) this.engine.enqueueCommand(command);
+    // the shared world identical; only presentation differs by `localSide`. Each
+    // batch is screened against the side that sent it, so neither client can order
+    // the other's units (see isCommandFrom). Both peers screen the same batches
+    // against the same pre-tick world, so the filter stays deterministic.
+    this.enqueueFrom(side, local.commands);
+    this.enqueueFrom(otherSide(side), peer.commands);
     this.engine.setDroneControl(side, local.drone);
     this.engine.setDroneControl(otherSide(side), peer.drone);
     this.engine.tick(dt);
@@ -208,6 +213,15 @@ export class GameApp {
     session.scheduleLocal(this.netTick + session.inputDelay, this.captureLocalInput(store));
     this.netTick += 1;
     this.snapshotAfterTick();
+  }
+
+  /** Forward `side`'s commands to the engine, dropping any that act on units it doesn't own. */
+  private enqueueFrom(side: Owner, commands: Command[]): void {
+    const ctx = this.engine.context;
+    if (!ctx) return; // no match running — nothing these could act on
+    for (const command of commands) {
+      if (isCommandFrom(ctx, command, side)) this.engine.enqueueCommand(command);
+    }
   }
 
   private captureLocalInput(store: GameState): TickInput {
