@@ -1,4 +1,3 @@
-import { Owner } from '../types/enums';
 import type { GameState } from './gameStore';
 
 /**
@@ -11,6 +10,9 @@ export const selectBases = (s: GameState) => s.bases;
 export const selectRobots = (s: GameState) => s.robots;
 export const selectResources = (s: GameState) => s.resources;
 export const selectSelectedIds = (s: GameState) => s.selectedRobotIds;
+/** Which side this client plays (Player offline/host, AI for the online guest). */
+export const selectLocalSide = (s: GameState) => s.localSide;
+export const selectOnline = (s: GameState) => s.online;
 
-/** The player's (first) base, or undefined if it has been destroyed. */
-export const selectPlayerBase = (s: GameState) => s.bases.find((b) => b.owner === Owner.Player);
+/** The local side's (first) base, or undefined if it has been destroyed. */
+export const selectPlayerBase = (s: GameState) => s.bases.find((b) => b.owner === s.localSide);

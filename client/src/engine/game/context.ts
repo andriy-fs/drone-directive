@@ -2,7 +2,7 @@ import { gameConfig } from '../../config/gameConfig';
 import type { GameSettings } from '../../config/gameSettings';
 import type { Command } from '../../types/commands';
 import type { ResourcePool, Vec2 } from '../../types/entities';
-import type { Difficulty } from '../../types/enums';
+import { Owner, type Difficulty } from '../../types/enums';
 import { generateObstacles, type ObstacleGrid } from '../obstacles';
 import type { EcsWorld } from '../ecs/world';
 import type { GameBus } from './eventBus';
@@ -32,6 +32,10 @@ export interface TeamIntel {
 
 function emptyIntel(): TeamIntel {
   return { visibleRobotIds: new Set(), knownBaseIds: new Set() };
+}
+
+function emptyDroneControl(): DroneControl {
+  return { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false };
 }
 
 /**
@@ -81,12 +85,16 @@ export interface GameContext {
   rng: Rng;
   difficulty: Difficulty;
   settings: GameSettings;
+  /** True for networked matches: the bot AI is disabled and the opponent is a real peer. */
+  online: boolean;
   commands: Command[];
   ai: AiState;
   /** Per-side detection state — see `TeamIntel`. */
   intel: { player: TeamIntel; ai: TeamIntel };
-  /** Player observer-drone input for this step (set by the app bridge). */
-  droneControl: DroneControl;
+  /** Per-side observer-drone input for this step (set by the app bridge / lockstep). */
+  droneControl: Record<Owner, DroneControl>;
+  /** Which side this client views as "theirs" (fog/camera/HUD). Presentation only — never networked. */
+  localSide: Owner;
   /** Player fog-of-war tile mask (recomputed by `fogSystem`). */
   fog: FogState;
 }
@@ -97,8 +105,10 @@ export function createGameContext(
   bus: GameBus,
   commands: Command[],
   settings: GameSettings,
+  /** Shared RNG seed for networked matches; falls back to the clock for solo play. */
+  seed?: number,
 ): GameContext {
-  const rng = createRng((Date.now() & 0xffffffff) >>> 0);
+  const rng = createRng(seed !== undefined ? seed >>> 0 : (Date.now() & 0xffffffff) >>> 0);
   const { startingResources } = gameConfig.economy;
   const obstacles = generateObstacles(rng);
   return {
@@ -111,6 +121,7 @@ export function createGameContext(
     rng,
     difficulty: settings.match.difficulty,
     settings,
+    online: settings.match.online,
     commands,
     ai: {
       timer: 0,
@@ -120,7 +131,12 @@ export function createGameContext(
       groupTarget: 0,
     },
     intel: { player: emptyIntel(), ai: emptyIntel() },
-    droneControl: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false },
+    droneControl: {
+      [Owner.Player]: emptyDroneControl(),
+      [Owner.AI]: emptyDroneControl(),
+      [Owner.Neutral]: emptyDroneControl(),
+    },
+    localSide: Owner.Player,
     fog: { explored: emptyGrid(), visible: emptyGrid(), version: 0 },
   };
 }

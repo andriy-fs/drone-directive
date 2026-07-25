@@ -4,7 +4,8 @@ import { createDefaultSettings, type GameSettings, type SettingsPatch } from '..
 import { Locale } from '../i18n/locale';
 import type { Command } from '../types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '../types/entities';
-import type { ChassisType, Owner, TaskType, WeaponType } from '../types/enums';
+import { Owner } from '../types/enums';
+import type { ChassisType, MapSize, TaskType, WeaponType } from '../types/enums';
 
 /** HUD-facing observer-drone status (projected from the ECS world). */
 export interface DroneStatus {
@@ -46,6 +47,28 @@ export interface BaseSnapshot {
  */
 export type GameStatus = 'menu' | 'playing' | 'won' | 'lost';
 
+/**
+ * Online lobby/connection status. `offline` = solo/menu; `connecting` = socket
+ * opening; `hosting` = host created a room, waiting for a guest (shows the code);
+ * `inMatch` = both connected, simulating; `ended` = the peer left / match over;
+ * `error` = connection or join failure (`error` message set).
+ */
+export type OnlineStatus = 'offline' | 'connecting' | 'hosting' | 'inMatch' | 'ended' | 'error';
+
+export interface OnlineState {
+  status: OnlineStatus;
+  /** The room code (host: generated; guest: the one they entered). */
+  roomCode: string | null;
+  /** Human-readable message for the `ended` / `error` states. */
+  error: string | null;
+}
+
+/** One-shot online request the UI raises and the app bridge (GameApp) consumes. */
+export type PendingOnline =
+  | { kind: 'host'; mapSize: MapSize }
+  | { kind: 'join'; roomCode: string }
+  | { kind: 'leave' };
+
 export interface GameState {
   status: GameStatus;
   bases: BaseSnapshot[];
@@ -70,6 +93,12 @@ export interface GameState {
   settings: GameSettings;
   /** Active UI language. */
   locale: Locale;
+  /** Which side this client plays/views (host = Player, guest = AI). Presentation only. */
+  localSide: Owner;
+  /** Online lobby/connection status (see OnlineState). */
+  online: OnlineState;
+  /** One-shot online request the bridge consumes (connect/leave). */
+  pendingOnline: PendingOnline | null;
   setStatus: (status: GameStatus) => void;
   setBases: (bases: BaseSnapshot[]) => void;
   setRobots: (robots: RobotSnapshot[]) => void;
@@ -92,6 +121,16 @@ export interface GameState {
   clearDroneRequests: () => void;
   setDroneStatus: (status: DroneStatus) => void;
   setLocale: (locale: Locale) => void;
+  /** Host a room with the given map size (bridge generates the code, echoes it back). */
+  hostMatch: (mapSize: MapSize) => void;
+  /** Join an existing room by code. */
+  joinMatch: (roomCode: string) => void;
+  /** Leave the lobby / online match and return to solo menu. */
+  leaveOnline: () => void;
+  /** Bridge-only: take and clear the pending online request. */
+  consumePendingOnline: () => PendingOnline | null;
+  /** Bridge-only: merge a patch into the online connection state. */
+  setOnline: (patch: Partial<OnlineState>) => void;
 }
 
 const initialState = {
@@ -117,6 +156,9 @@ const initialState = {
   } as DroneStatus,
   settings: createDefaultSettings(),
   locale: Locale.En,
+  localSide: Owner.Player as Owner,
+  online: { status: 'offline', roomCode: null, error: null } as OnlineState,
+  pendingOnline: null as PendingOnline | null,
 };
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -157,6 +199,32 @@ export const useGameStore = create<GameState>((set, get) => ({
   clearDroneRequests: () => set({ dronePossessRequested: false, droneFireRequested: false }),
   setDroneStatus: (status) => set({ droneStatus: status }),
   setLocale: (locale) => set({ locale }),
+  hostMatch: (mapSize) =>
+    set({
+      localSide: Owner.Player,
+      pendingOnline: { kind: 'host', mapSize },
+      online: { status: 'connecting', roomCode: null, error: null },
+    }),
+  joinMatch: (roomCode) => {
+    const code = roomCode.toUpperCase();
+    set({
+      localSide: Owner.AI,
+      pendingOnline: { kind: 'join', roomCode: code },
+      online: { status: 'connecting', roomCode: code, error: null },
+    });
+  },
+  leaveOnline: () =>
+    set({
+      localSide: Owner.Player,
+      pendingOnline: { kind: 'leave' },
+      online: { status: 'offline', roomCode: null, error: null },
+    }),
+  consumePendingOnline: () => {
+    const { pendingOnline } = get();
+    if (pendingOnline) set({ pendingOnline: null });
+    return pendingOnline;
+  },
+  setOnline: (patch) => set((s) => ({ online: { ...s.online, ...patch } })),
 }));
 
 /** Non-reactive handle for the app bridge (outside React). */

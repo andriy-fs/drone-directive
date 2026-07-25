@@ -1,15 +1,15 @@
 # Why Zustand
 
-`src/store/**` holds the Zustand store (`useGameStore`, `src/store/gameStore.ts`).
+`client/src/store/**` holds the Zustand store (`useGameStore`, `client/src/store/gameStore.ts`).
 Per `CLAUDE.md`, it's the one **render-state channel** between the Pixi/engine
-world and the React UI, and it deliberately sits outside `src/ui/**` — "the
+world and the React UI, and it deliberately sits outside `client/src/ui/**` — "the
 Pixi bridge reads it too."
 
 ## The problem it solves: React and Pixi are two separate worlds
 
-The engine (`src/engine/**`) and its Pixi-driven loop (`src/pixi/**`) run
+The engine (`client/src/engine/**`) and its Pixi-driven loop (`client/src/pixi/**`) run
 their own fixed-step simulation and know nothing about React. React
-(`src/ui/**`) renders the HUD/menus and knows nothing about ECS entities or
+(`client/src/ui/**`) renders the HUD/menus and knows nothing about ECS entities or
 Pixi objects (enforced by `CLAUDE.md`'s layering rules — UI never imports
 Pixi objects or ECS entities). Something has to be the seam where:
 
@@ -25,7 +25,7 @@ non-React code can read and write imperatively too.
 ## What this buys, concretely
 
 **1. Callable from outside React, subscribable from inside it.**
-`src/pixi/GameApp.ts` (no React import) calls `useGameStore.getState()` every
+`client/src/pixi/GameApp.ts` (no React import) calls `useGameStore.getState()` every
 fixed step to read control flags (`paused`, `droneInput`, restart/menu
 requests) and to write projected results back (`setBases`, `setRobots`,
 `setResources`, `setDroneStatus`) — see `GameApp.step()` /
@@ -35,7 +35,7 @@ completely different call conventions, no context provider needed to bridge
 them.
 
 **2. Selector-based subscriptions avoid blanket re-renders.**
-`src/store/selectors.ts` exports narrow selectors (`selectRobots`,
+`client/src/store/selectors.ts` exports narrow selectors (`selectRobots`,
 `selectResources`, `selectSelectedIds`, ...) — "so components subscribe to
 the smallest slice they need (zustand re-renders a component only when its
 selected value changes)." Without this, any store update (and the engine
@@ -73,7 +73,7 @@ UI↔engine boundary.
 ## What deliberately does _not_ go through the store
 
 Discrete one-shot moments (a shot fired, an entity destroyed, a scene change,
-game over) go through the **EventBus** (`src/engine/game/eventBus.ts`)
+game over) go through the **EventBus** (`client/src/engine/game/eventBus.ts`)
 instead — see `.docs/engine-ecs.md`. The store models continuous
 render _state_ (what the HUD currently shows); the bus models _events_ app-layer
 adapters react to once (playing a sound, triggering a snapshot push, flipping

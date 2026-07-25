@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
 import { useT, Locale } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
-import { selectStatus } from '../../store/selectors';
+import { selectOnline, selectStatus } from '../../store/selectors';
 import { Difficulty, MapSize } from '../../types/enums';
 import { Button } from '../common/Button';
 import { BaseSetupModal } from './BaseSetupModal';
+import { OnlineLobby } from './OnlineLobby';
 
 const DIFFICULTIES: {
   value: Difficulty;
@@ -50,8 +51,10 @@ export function MainMenu() {
   const requestRestart = useGameStore((s) => s.requestRestart);
   const locale = useGameStore((s) => s.locale);
   const setLocale = useGameStore((s) => s.setLocale);
+  const online = useGameStore(selectOnline);
   const [setupOpen, setSetupOpen] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [onlineOpen, setOnlineOpen] = useState(false);
 
   if (status !== 'menu') return null;
 
@@ -129,6 +132,11 @@ export function MainMenu() {
             </Button>
           </div>
 
+          <div className="picker-group">
+            <span className="picker__label">{t('online', 'multiplayer')}</span>
+            <Button onClick={() => setOnlineOpen(true)}>{t('online', 'online2p')}</Button>
+          </div>
+
           <Button className="modal__action" onClick={start}>
             {t('mainMenu', 'start')}
           </Button>
@@ -136,6 +144,8 @@ export function MainMenu() {
       </div>
 
       {setupOpen && <BaseSetupModal onClose={() => setSetupOpen(false)} />}
+
+      {(onlineOpen || online.status !== 'offline') && <OnlineLobby onClose={() => setOnlineOpen(false)} />}
 
       {controlsOpen && (
         <Dialog open onClose={() => setControlsOpen(false)}>

@@ -1,8 +1,8 @@
 import { gameConfig } from '../../config/gameConfig';
-import { Owner } from '../../types/enums';
 import { distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
+import { isEnemy } from './targeting';
 
 /**
  * Player fog-of-war. Each tick, recomputes which tiles are currently within
@@ -11,23 +11,25 @@ import type { GameContext } from '../game/context';
  * (AI) `ew` robot jams a scout that sits inside its `jamRadius`, halving that
  * scout's effective sight for this pass (see `gameConfig.combat.jamMultiplier`).
  * Bumps `fog.version` whenever the mask changes so the renderer can skip
- * redraws. Player-only — the AI has no fog to draw.
+ * redraws. Computed for `ctx.localSide` — the side this client is playing (Player
+ * offline and for the host; AI for the online guest).
  */
 export function fogSystem(ctx: GameContext): void {
   const { width, height, tilePx } = gameConfig.grid;
   const fog = ctx.fog;
+  const side = ctx.localSide;
 
-  const alive = (e: Entity): boolean => e.owner === Owner.Player && (e.hp ?? 0) > 0;
+  const alive = (e: Entity): boolean => e.owner === side && (e.hp ?? 0) > 0;
   const scouts = [
     ...ctx.world.with('robot', 'position').entities.filter(alive),
     ...ctx.world.with('base', 'position').entities.filter(alive),
     // The drone has no hp; include it on owner + sight range only.
-    ...ctx.world.with('drone', 'position').entities.filter((e) => e.owner === Owner.Player && (e.sightRange ?? 0) > 0),
+    ...ctx.world.with('drone', 'position').entities.filter((e) => e.owner === side && (e.sightRange ?? 0) > 0),
   ].filter((s) => (s.sightRange ?? 0) > 0);
 
   const jammers = ctx.world
     .with('robot', 'position', 'weapon')
-    .entities.filter((e) => e.owner === Owner.AI && (e.hp ?? 0) > 0 && e.weapon!.jamRadius > 0);
+    .entities.filter((e) => isEnemy(side, e.owner) && (e.hp ?? 0) > 0 && e.weapon!.jamRadius > 0);
 
   // Jammed status only depends on the scout's own position, so resolve it once
   // per scout instead of re-checking it for every tile below.

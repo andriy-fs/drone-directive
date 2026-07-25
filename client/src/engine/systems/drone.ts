@@ -1,6 +1,6 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '../../types/entities';
-import { TaskType } from '../../types/enums';
+import { Owner, TaskType } from '../../types/enums';
 import { clamp, distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import { spawnProjectile } from '../ecs/factory';
@@ -16,14 +16,19 @@ import { enemyBases, enemyRobots, findById, nearest } from './targeting';
  * walls) and fires/detonates its weapon on demand (fully manual — no auto-fire).
  *
  * Runs after `taskSystem` so it can override the target the Idle resolver set,
- * keeping a possessed robot's fire strictly manual. Driven entirely by
- * `ctx.droneControl`, which the app bridge fills from player input each step.
+ * keeping a possessed robot's fire strictly manual. Each drone is driven by its
+ * owner's slot in `ctx.droneControl`, which the app bridge fills from local input
+ * (and, online, the peer's networked input) each step. Offline there is one drone
+ * (the player's); online each side has its own.
  */
 export function droneSystem(ctx: GameContext, dt: number): void {
-  const drone = ctx.world.with('drone', 'position').entities[0];
-  if (!drone?.drone || !drone.position) return;
+  for (const drone of [...ctx.world.with('drone', 'position').entities]) driveDrone(ctx, dt, drone);
+}
 
-  const control = ctx.droneControl;
+function driveDrone(ctx: GameContext, dt: number, drone: Entity): void {
+  if (!drone.drone || !drone.position) return;
+
+  const control = ctx.droneControl[drone.owner ?? Owner.Neutral];
   const dir = normalize(control.dir);
 
   const possessed = drone.drone.possessedId ? findById(ctx, drone.drone.possessedId) : undefined;

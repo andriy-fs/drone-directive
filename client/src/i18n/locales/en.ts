@@ -146,6 +146,22 @@ export interface Dict {
     unmute: string;
     mute: string;
   };
+  online: {
+    multiplayer: string;
+    online2p: string;
+    title: string;
+    connecting: string;
+    shareCode: string;
+    waitingOpponent: string;
+    matchEnded: string;
+    hostGame: string;
+    createRoom: string;
+    joinGame: string;
+    roomCodePlaceholder: string;
+    joinRoom: string;
+    cancel: string;
+    back: string;
+  };
 }
 
 /** Canonical (English) UI dictionary. */
@@ -295,5 +311,21 @@ export const en: Dict = {
     pause: 'Pause',
     unmute: 'Unmute',
     mute: 'Mute',
+  },
+  online: {
+    multiplayer: 'Multiplayer',
+    online2p: 'Online (2P)',
+    title: 'Online 2-player',
+    connecting: 'Connecting…',
+    shareCode: 'Share this room code with your opponent:',
+    waitingOpponent: 'Waiting for an opponent to join…',
+    matchEnded: 'The match ended.',
+    hostGame: 'Host a game',
+    createRoom: 'Create room',
+    joinGame: 'Join a game',
+    roomCodePlaceholder: 'ROOM CODE',
+    joinRoom: 'Join room',
+    cancel: 'Cancel',
+    back: 'Back',
   },
 };

@@ -2,9 +2,9 @@ import { Container, Graphics, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { Entity } from '../../engine/ecs/entity';
-import { Owner } from '../../types/enums';
 import { getBaseTexture } from '../assets';
 import { HealthBar } from './HealthBar';
+import { ownerColor } from './ownerColor';
 
 /**
  * View for a base entity: its faction sprite (or an owner-tinted square + cross
@@ -56,7 +56,7 @@ export class BaseView {
 /** Owner-tinted square + cross placeholder, used when no base sprite is loaded. */
 function drawBody(base: Entity, size: number, half: number): Graphics {
   const inset = 4;
-  const color = base.owner === Owner.Player ? palette.owner.player : palette.owner.ai;
+  const color = ownerColor(base.owner);
   const body = new Graphics();
   body
     .rect(-half + inset, -half + inset, size - inset * 2, size - inset * 2)

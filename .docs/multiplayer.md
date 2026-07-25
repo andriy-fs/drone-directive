@@ -1,8 +1,7 @@
-# Multiplayer over WebSocket (plan)
+# Multiplayer over WebSocket
 
-Forward-looking implementation plan for 2-player online matches. Not yet
-built — this documents the design so it can be picked up later without
-re-deriving it. Constraints fixed going in:
+2-player online matches over a thin WebSocket relay. **Implemented** — this
+documents how it works. Constraints fixed going in:
 
 - **UI stays on GitHub Pages** (static) — the backend is a separate service.
 - **Backend: Cloudflare Workers + Durable Objects.**
@@ -24,67 +23,77 @@ simulation is fully deterministic, which this engine already mostly is:
   `Math.random()` calls in the repo are cosmetic, in `client/src/pixi/render/
 ProjectileView.ts`'s flame flicker and `client/src/pixi/audio/sfx.ts`'s noise
   burst — both outside `client/src/engine/**` and outside the simulation).
-- **All world mutation already flows through one queue** — UI never touches
-  the ECS world directly; it pushes `Command`s (`types/commands.ts`) that
-  `commandsSystem.ts` drains and applies once per tick. That queue is exactly
-  the seam a network layer needs to intercept.
+- **All world mutation flows through one command queue** — the UI pushes
+  `Command`s (`client/src/types/commands.ts`) that `commandsSystem.ts` drains and
+  applies once per tick; that queue is exactly the seam the network layer
+  intercepts. (Right-click move/attack originally mutated entities directly — they
+  were converted to `MoveRobots` / `AttackTarget` commands so every order is
+  networked and deterministic.)
 
-The one non-deterministic piece is `createGameContext` seeding its RNG from
-`Date.now()` (`client/src/engine/game/context.ts`) — see [Determinism
+Two things were _not_ deterministic and had to be fixed — RNG seeding from
+`Date.now()` and a process-global entity-id counter; see [Determinism
 prerequisites](#determinism-prerequisites).
 
-## The core trick: both clients play as `Owner.Player`
+## Perspective: one shared world, `localSide` for the view
 
-The engine has exactly two non-neutral sides baked in everywhere — base
-placement, fog of war (`fogSystem` is explicitly _player-only_), camera
-follow, HUD labels, starter counts. Rather than teach all of that about a
-third `Owner.Player2`, **each client simulates itself as `Owner.Player` and
-the opponent as `Owner.AI`**, symmetrically. Concretely: when relaying a
-command the _peer_ issued locally as their own `Owner.Player`, the receiving
-client re-tags it to `Owner.AI` before enqueueing it into its own engine. Both
-ends do this same relabeling, so both ends run the identical simulation
-under the identical seed, each just looking at it from their own side.
+The plan originally proposed "both clients play as `Owner.Player` and re-tag the
+peer's commands to `Owner.AI`". That does **not** work: commands reference shared
+entity ids (both clients build the identical world from the seed, so `robot_10` is
+the same entity/owner on both), and the random map is asymmetric — a mirror
+approach desyncs. The implemented design keeps **one identical world** on both
+peers and separates simulation from presentation:
 
-This is the single biggest simplification in this plan — it means the
-following need **zero changes**:
+- **Ownership is fixed and shared.** `Owner.Player` is one corner, `Owner.AI` the
+  other, on both clients (base placements unchanged). The **host controls
+  `Owner.Player`, the guest controls `Owner.AI`.**
+- **Every command applies by entity id on both peers, with no relabeling.** The
+  host's orders target its `Player` units, the guest's its `AI` units; both clients
+  apply both players' commands to the referenced entities, so the world stays
+  byte-identical.
+- **`ctx.localSide` / `store.localSide` drives presentation only** (never
+  networked, never touches the sim): fog of war (`fogSystem` computes for
+  `localSide`), the fog/visibility render gate, camera-follow, unit colours
+  (`ownerColor` paints the local side in the "player" colour so the guest still
+  sees itself as blue), box-selection (you can only select your own side), and the
+  HUD's "your resources / your base". Host = `Player`, guest = `AI`.
 
-- `gameConfig.bases.placements`, `spawnStarters` — corners stay fixed.
-- `fogSystem` / fog-of-war rendering — already player-only, already correct
-  per-client.
-- HUD, camera-follows-your-drone, selection/build UI — already assume "you
-  are Player".
+The one sim change: `aiSystem(ctx, dt)` (the bot) is **skipped** when `ctx.online`
+— `Owner.AI` is a real opponent. Online matches also use symmetric Normal starter
+counts for both sides (the asymmetric Easy/Hard presets only make sense vs a bot).
 
-What genuinely needs a change: `aiSystem(ctx, dt)` (the bot) must **not**
-run in a networked match — `Owner.AI` is a real opponent now. Gate that one
-call in `GameScene.update()` behind a new flag (e.g. `ctx.online: boolean`,
-set from `GameSettings.match`).
-
-**Known limitation, accepted for now:** because both clients simulate the
-_entire_ world (including the fog-hidden opponent), a client could in
-principle inspect it via devtools — the same class of issue classic lockstep
-RTS games (StarCraft, Age of Empires) have always had. Fixing that requires
-server-authoritative simulation, which is explicitly the heavier alternative
-this plan opts out of. Not addressed here.
+**Known limitation, accepted:** each client simulates the entire world (including
+the fog-hidden opponent), so a client could inspect it via devtools — the classic
+lockstep-RTS issue. Fixing it needs server-authoritative simulation, the heavier
+alternative this design opts out of.
 
 ## Wire protocol
 
-Kept intentionally thin — the Durable Object should not need to understand
-game rules at all, just pair two sockets and relay bytes. Define the message
-shapes once in a shared **`@drone-directive/protocol`** workspace (types-only) importable by both the
-client and the Worker (Workers support TypeScript, so no duplication):
+Kept intentionally thin — the Durable Object understands no game rules, it just
+pairs two sockets and relays bytes. The message + connection types live in the
+shared **`@drone-directive/protocol`** workspace (`protocol/src/index.ts`),
+imported by both the client and the Worker.
 
-| Direction                      | Message                                               | Purpose                                                                                                                     |
-| ------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Client → Worker                | `{ type: 'create' }`                                  | Host opens a room, gets a room code back.                                                                                   |
-| Client → Worker                | `{ type: 'join', roomCode }`                          | Guest joins an existing room.                                                                                               |
-| Worker → both                  | `{ type: 'start', seed: number, mapSize: MapSize }`   | Sent once the room has exactly 2 sockets — shared RNG seed + match settings. Fires `GameEngine.startMatch`.                 |
-| Client → Worker → other client | `{ type: 'tick', tick: number, commands: Command[] }` | Sent every local sim tick (see [Lockstep tick loop](#lockstep-tick-loop)); the DO just rebroadcasts it to the other socket. |
-| Worker → remaining client      | `{ type: 'opponentLeft' }`                            | On disconnect — the match ends (no reconnection support, see [Out of scope](#explicitly-out-of-scope)).                     |
+A WebSocket must target its room before it opens, so create/join intent travels
+as **URL query params**, not messages (the host generates the room code
+client-side, from an unambiguous alphabet):
 
-The Durable Object's entire job: hold up to 2 WebSocket connections per room,
-generate the seed once the second one connects, and forward every `tick`
-message it receives to the _other_ socket in the room. No game logic, no
-persistence beyond the room's lifetime.
+- host: `?room=<CODE>&create=1&v=<PROTOCOL_VERSION>&mapSize=<small|medium|large>`
+- guest: `?room=<CODE>&v=<PROTOCOL_VERSION>`
+
+The Worker routes each upgrade to the Durable Object `idFromName(room)`. Messages
+after that:
+
+| Direction                     | Message                                      | Purpose                                                                                    |
+| ----------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Relay → host                  | `{ type: 'created', roomCode }`              | Room open, waiting for a guest.                                                             |
+| Relay → both                  | `{ type: 'start', seed, mapSize }`           | Sent once the room has 2 sockets — shared seed + map size; fires `startMatch`.             |
+| Client → relay → other client | `{ type: 'tick', tick, commands, drone }`    | One sim tick's commands **+ the sender's drone input**; the DO rebroadcasts it verbatim.   |
+| Relay → remaining client      | `{ type: 'opponentLeft' }`                   | On disconnect — the match ends (no reconnection).                                          |
+| Relay → client                | `{ type: 'error', code, message }`           | Join/version failures (`room-not-found` / `room-full` / `room-taken` / `version-mismatch`). |
+
+The `Room` Durable Object's whole job: hold up to 2 sockets, generate the seed
+(`crypto.getRandomValues`) once the second connects, forward each `tick` to the
+other socket, and send `opponentLeft` on disconnect. No game logic, no persistence.
 
 ## Lockstep tick loop
 
@@ -99,44 +108,40 @@ them before simulating that tick:
    case). `INPUT_DELAY_TICKS = 6` (~200ms at 30Hz) is a reasonable starting
    point — higher tolerates more jitter before stalling, at the cost of
    input feeling laggier.
-2. A new `LockstepSession` (proposed: `client/src/pixi/net/LockstepSession.ts`,
-   sibling to `client/src/pixi/audio/`) buffers both the local and the peer's
-   incoming `tick` messages by tick number.
-3. Before `GameApp.step()` calls `engine.tick(dt)`, it asks the session: do I
-   have _both_ sides' commands for `currentTick` yet? If not, skip ticking
-   this frame (stall) — both clients stall the same way when the network
-   lags, which is the standard, simple lockstep behavior. If yes, enqueue
-   both sides' commands (peer's re-tagged to `Owner.AI` per the trick above)
-   into `engine`, tick, advance `currentTick`.
-4. `GameLoop.ts` itself needs **no changes** — it just keeps calling
-   `update(dt)`; `GameApp.step()` deciding to no-op on a stalled tick is
-   invisible to it. Minor known rough edge: `GameLoop`'s accumulator still
-   counts a stalled call as "consumed", so its render-interpolation `alpha`
-   isn't perfectly meaningful during a stall. Cosmetic only, not a
-   correctness issue — not worth fixing for v1.
+2. `LockstepSession` (`client/src/pixi/net/LockstepSession.ts`) buffers both the
+   local and the peer's incoming `tick` inputs (commands + drone) by tick number.
+   Ticks below the delay have no scheduled input on either side (implicitly empty),
+   so the sim self-bootstraps.
+3. Each `GameApp.step()`, if the session has _both_ sides' input for the current
+   net tick, it enqueues both players' commands (by entity id, no relabeling), sets
+   each side's drone input (`local` → `localSide`, `peer` → the other side), ticks,
+   then schedules fresh local input for `netTick + INPUT_DELAY_TICKS`. If not, it
+   stalls (no-op) — both clients stall the same way under lag.
+4. `GameLoop.ts` needs **no changes**: its fixed-step accumulator already calls
+   `step()` as many times per frame as wall-clock demands, so the online path
+   advances ≤1 net tick per call and catches up naturally after a stall.
 
 ## Determinism prerequisites
 
-- `createGameContext` (`client/src/engine/game/context.ts`) must take the seed as a
-  parameter instead of deriving it from `Date.now()` — the `start` message's
-  `seed` becomes `GameEngine.startMatch`'s source of truth for online
-  matches (keep the `Date.now()` fallback for solo/offline play).
-- Keep the existing invariant: no `Math.random()` / `Date.now()` /
-  `performance.now()` anywhere under `client/src/engine/**`. This already holds
-  today; it just needs to stay true as the engine grows.
-- **Recommended, not required for a first cut:** a cheap per-N-ticks state
-  checksum (e.g. hash of every entity's rounded position + hp) included in
-  the `tick` message. If a client ever receives a mismatched checksum for a
-  tick it already simulated, that's an unambiguous desync — surface it as an
-  error and end the match, rather than let two clients silently play
-  different games. A few lines of code, high debugging value; can land after
-  the core loop works.
+- `createGameContext` (`client/src/engine/game/context.ts`) takes the seed as a
+  parameter instead of deriving it from `Date.now()` — the `start` message's `seed`
+  is `GameEngine.startMatch`'s source of truth online (the `Date.now()` fallback is
+  kept for solo play).
+- **Entity ids reset per match.** `utils/id.ts` used a process-global counter that
+  never reset, so a client that had played a solo match first would assign
+  different ids than a fresh peer — an instant desync. `resetIds()` now runs at the
+  start of every match (after the world is cleared).
+- Invariant, still holds: no `Math.random()` / `Date.now()` / `performance.now()`
+  anywhere under `client/src/engine/**`.
+- A determinism test (`client/src/engine/game/determinism.test.ts`) asserts two
+  engines with the same seed produce bit-identical worlds after 150 ticks.
+- **Still TODO (not built):** a per-N-ticks state checksum in the `tick` message to
+  catch a desync and end the match cleanly instead of silently drifting.
 
 ## Explicitly out of scope
 
-- **Pause** — per the stated requirement, not synchronized; the in-match
-  pause hotkey/button should simply be disabled while online
-  (`usePauseHotkey.ts` gated behind `!online`).
+- **Pause** — not synchronized; the in-match pause hotkey and button are disabled
+  online (`usePauseHotkey.ts` + `PauseButton`, gated on `online.status`).
 - **Reconnection** — a dropped socket ends the match (`opponentLeft`); no
   resume/rejoin flow.
 - **Anti-cheat / hiding fog-of-war state from the client** — accepted
@@ -157,29 +162,37 @@ a placeholder). Client paths below are workspace-relative (`client/src/…`).
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `server/` (workspace scaffolded)               | The `@drone-directive/server` npm workspace already exists as a placeholder. Implement the Cloudflare Worker + Durable Object here with its own `wrangler.toml`; deploy separately via `wrangler deploy`, outside the Vite build.                       |
 | `protocol/` (new workspace)                    | New `@drone-directive/protocol` workspace holding the shared wire-message types; both `@drone-directive/client` and `@drone-directive/server` depend on it (avoids cross-workspace source imports).                                                     |
-| `client/src/pixi/net/LockstepSession.ts` (new) | WebSocket connection, per-tick command buffering/stall logic, owner relabeling.                                                                                                                                                                         |
+| `client/src/pixi/net/LockstepSession.ts` (new) | WebSocket transport: per-tick command + drone buffering, stall/ready logic, connect host/guest.                                                                                                                                                                         |
 | `client/src/pixi/GameApp.ts`                   | `step()` consults `LockstepSession` (when online) before calling `engine.tick()`.                                                                                                                                                                       |
 | `client/src/engine/game/scenes/gameScene.ts`   | Gate the `aiSystem(ctx, dt)` call behind `ctx.online`.                                                                                                                                                                                                  |
 | `client/src/engine/game/engine.ts`             | `startMatch` accepts an optional external seed.                                                                                                                                                                                                         |
 | `client/src/engine/game/context.ts`            | `createGameContext` takes the seed as a parameter instead of calling `Date.now()` internally.                                                                                                                                                           |
 | `client/src/config/gameSettings.ts`            | Add an online/match-mode flag to `MatchSettings`. For online matches, force symmetric starter counts (reuse `gameConfig.difficulty.normal` for both sides) rather than exposing the asymmetric Easy/Hard presets — those only make sense against a bot. |
-| `client/src/store/gameStore.ts`                | Connection/lobby status state (`connecting` / `waitingForOpponent` / `inMatch` / `opponentLeft`).                                                                                                                                                       |
+| `client/src/store/gameStore.ts`                | `localSide`, connection/lobby status (`connecting`/`hosting`/`inMatch`/`ended`/`error`) + lobby actions.                                                                                                                                                       |
 | `client/src/ui/screens/OnlineLobby.tsx` (new)  | Create/join-room screen, wired from `MainMenu.tsx`.                                                                                                                                                                                                     |
 | `client/src/ui/hooks/usePauseHotkey.ts`        | Disabled while `online`.                                                                                                                                                                                                                                |
 
-## Suggested phases
+## How to run (dev)
 
-1. **Core loop, no UI polish.** Worker + Durable Object relay, seed handoff,
-   `LockstepSession`, owner relabeling, `aiSystem` gating. Verify by running
-   two browser tabs against the same local Worker (`wrangler dev`) and
-   confirming both simulate identically.
-2. **Lobby UI.** Create/join screen, room codes, connecting/waiting states,
-   disconnect handling.
-3. **Desync detection.** Per-tick checksum + error surfacing.
-4. **Polish.** "AI" HUD labels reading "Opponent" in online matches, latency
-   indicator, `INPUT_DELAY_TICKS` tuning.
+1. Start the relay locally: `npm run dev -w server` (wrangler/miniflare on
+   `ws://localhost:8787`, no Cloudflare login needed).
+2. Run the client: `npm run dev` — `VITE_MULTIPLAYER_URL` defaults to
+   `ws://localhost:8787` in dev.
+3. Open two browser tabs → **Online (2P)** in the menu. Host in one (share the room
+   code), join with it in the other. Both simulate the same match; each player sees
+   their own side in the friendly colour.
 
-Before committing to Durable Objects, double-check Cloudflare's current
-Workers/Durable Objects free-tier limits (WebSocket connection duration,
-request counts) against this game's needs — pricing/limits pages change over
-time and this plan doesn't re-verify them.
+Deploy: `npm run deploy -w server` (after `npx wrangler login`), then build the
+client with `VITE_MULTIPLAYER_URL=wss://<your-worker-host>` so the static GitHub
+Pages build talks to the deployed relay. Re-check Cloudflare's current free-tier
+Durable Objects / WebSocket limits before relying on it.
+
+The relay has an end-to-end check (two `WebSocket` clients against `wrangler dev`):
+create → `created`, join → matching `start` seed on both, `tick` relay,
+`opponentLeft` on disconnect, plus the `room-not-found` / `version-mismatch` paths.
+
+## Remaining / not built
+
+- **Desync detection** — per-tick state checksum (see determinism prerequisites).
+- **Reconnection**, **spectating / replay**, **>2 players** — out of scope.
+- **i18n** — the lobby strings are English-only for now.

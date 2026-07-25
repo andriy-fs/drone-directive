@@ -1,15 +1,13 @@
 import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js';
-import { gameConfig, worldPixelSize } from '../../config/gameConfig';
+import { gameConfig } from '../../config/gameConfig';
 import type { Entity } from '../../engine/ecs/entity';
 import type { GameEngine } from '../../engine/game/engine';
-import { setGoal } from '../../engine/systems/movement';
 import { findById, isEnemy } from '../../engine/systems/targeting';
-import { makeAttackTarget, makeIdle } from '../../engine/tasks/taskDefinitions';
 import type { GameContext } from '../../engine/game/context';
 import type { Vec2 } from '../../types/entities';
+import type { Owner } from '../../types/enums';
 import { useGameStore } from '../../store/gameStore';
-import { Owner } from '../../types/enums';
-import { clamp, distance } from '../../utils/math';
+import { distance } from '../../utils/math';
 import type { Camera } from '../Camera';
 
 /** Below this drag distance (px) a press is treated as a click, not a drag. */
@@ -179,11 +177,13 @@ function selectInBox(
   const a = camera.screenToWorld(Math.min(sx0, sx1), Math.min(sy0, sy1));
   const b = camera.screenToWorld(Math.max(sx0, sx1), Math.max(sy0, sy1));
 
+  const store = useGameStore.getState();
+  const side = store.localSide;
   const inBox = engine.world
     .with('robot', 'position')
     .entities.filter(
       (e) =>
-        e.owner === Owner.Player &&
+        e.owner === side &&
         e.position!.x >= a.x &&
         e.position!.x <= b.x &&
         e.position!.y >= a.y &&
@@ -191,7 +191,6 @@ function selectInBox(
     )
     .map((e) => e.id);
 
-  const store = useGameStore.getState();
   store.selectRobots(additive ? [...new Set([...store.selectedRobotIds, ...inBox])] : inBox);
 }
 
@@ -199,58 +198,37 @@ function selectInBox(
 function issueRightClick(camera: Camera, engine: GameEngine, globalX: number, globalY: number): void {
   const ctx = engine.context;
   if (!ctx) return;
-  const robots = useGameStore
-    .getState()
-    .selectedRobotIds.map((id) => findById(ctx, id))
-    .filter((e): e is Entity => e?.robot === true && e.owner === Owner.Player && !!e.position);
-  if (robots.length === 0) return;
+  const store = useGameStore.getState();
+  const side = store.localSide;
+  const robotIds = store.selectedRobotIds
+    .map((id) => findById(ctx, id))
+    .filter((e): e is Entity => e?.robot === true && e.owner === side && (e.hp ?? 0) > 0 && !!e.position)
+    .map((e) => e.id);
+  if (robotIds.length === 0) return;
 
   const point = camera.screenToWorld(globalX, globalY);
-  const target = enemyAt(ctx, point);
-  if (target) attackTarget(robots, target);
-  else moveTo(ctx, robots, point);
+  const target = enemyAt(ctx, point, side);
+  // Route through the command queue (not direct entity mutation) so both peers
+  // apply the order on the same tick in networked matches.
+  if (target) store.enqueueCommand({ kind: 'AttackTarget', robotIds, targetId: target.id });
+  else store.enqueueCommand({ kind: 'MoveRobots', robotIds, point });
 }
 
-/** Orders each selected robot to focus-fire the given enemy target (robot or base). */
-function attackTarget(robots: Entity[], target: Entity): void {
-  for (const robot of robots) {
-    robot.script = makeAttackTarget(target.id);
-    robot.targetId = undefined;
-  }
-}
-
-/** Moves the selection to `point` in a compact grid formation. */
-function moveTo(ctx: GameContext, robots: Entity[], point: Vec2): void {
-  const cols = Math.ceil(Math.sqrt(robots.length));
-  const rows = Math.ceil(robots.length / cols);
-  const spacing = gameConfig.grid.tilePx * 1.2;
-
-  robots.forEach((robot, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const ox = (col - (cols - 1) / 2) * spacing;
-    const oy = (row - (rows - 1) / 2) * spacing;
-    robot.script = makeIdle();
-    robot.targetId = undefined;
-    setGoal(ctx, robot, clamp(point.x + ox, 0, worldPixelSize.width), clamp(point.y + oy, 0, worldPixelSize.height));
-  });
-}
-
-/** The living enemy robot or base under a world point (player's perspective), or undefined. */
-function enemyAt(ctx: GameContext, p: Vec2): Entity | undefined {
+/** The living enemy robot or base under a world point (from `side`'s perspective), or undefined. */
+function enemyAt(ctx: GameContext, p: Vec2, side: Owner): Entity | undefined {
   const robot = ctx.world
     .with('robot', 'position')
     .entities.find(
       (e) =>
         (e.hp ?? 0) > 0 &&
-        isEnemy(Owner.Player, e.owner) &&
+        isEnemy(side, e.owner) &&
         distance(p.x, p.y, e.position!.x, e.position!.y) <= gameConfig.robots.radius + 4,
     );
   if (robot) return robot;
 
   const { tilePx } = gameConfig.grid;
   return ctx.world.with('base', 'position').entities.find((e) => {
-    if ((e.hp ?? 0) <= 0 || !isEnemy(Owner.Player, e.owner)) return false;
+    if ((e.hp ?? 0) <= 0 || !isEnemy(side, e.owner)) return false;
     const half = ((e.footprint ?? gameConfig.bases.footprintTiles) * tilePx) / 2;
     return Math.abs(p.x - e.position!.x) <= half && Math.abs(p.y - e.position!.y) <= half;
   });

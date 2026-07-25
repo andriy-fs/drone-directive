@@ -15,6 +15,8 @@ import { ChassisType, Difficulty, MapSize, TaskType, WeaponType } from '../types
 export interface MatchSettings {
   difficulty: Difficulty;
   mapSize: MapSize;
+  /** True only for networked matches — disables the bot AI and forces symmetric starters. */
+  online: boolean;
 }
 
 /** Player base configuration applied at match start. */
@@ -44,7 +46,7 @@ export const defaultBuildOrder: BuildOrder = {
 /** Fresh copy of the default settings (never share the object — it's mutated per game). */
 export function createDefaultSettings(): GameSettings {
   return {
-    match: { difficulty: Difficulty.Normal, mapSize: MapSize.Medium },
+    match: { difficulty: Difficulty.Normal, mapSize: MapSize.Medium, online: false },
     // Auto-produce tracked robots by default, set to Guard.
     base: { autoBuild: { ...defaultBuildOrder }, defaultProgram: TaskType.Guard },
   };

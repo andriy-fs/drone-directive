@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@drone-directive/protocol": "*",
     "@headlessui/react": "^2.2.10",
     "lucide-react": "^1.25.0",
     "miniplex": "^2.0.0",
