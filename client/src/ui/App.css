@@ -482,3 +482,34 @@
   display: block;
   margin: 16px 0 6px;
 }
+
+.unit-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.unit-guide__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.unit-guide__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  text-transform: capitalize;
+}
+
+.unit-guide__stats {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.unit-guide__heading {
+  display: block;
+  margin: 4px 0 2px;
+}

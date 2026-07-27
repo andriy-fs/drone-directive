@@ -1,5 +1,5 @@
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
-import { Settings2Icon, HelpCircleIcon } from '../common/icons';
+import { Settings2Icon, HelpCircleIcon, BotIcon } from '../common/icons';
 import { useState } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
 import { useT, Locale } from '../../i18n';
@@ -9,6 +9,7 @@ import { Difficulty, MapSize } from '../../types/enums';
 import { Button } from '../common/Button';
 import { BaseSetupModal } from './BaseSetupModal';
 import { OnlineLobby } from './OnlineLobby';
+import { UnitsGuideModal } from './UnitsGuideModal';
 
 const DIFFICULTIES: {
   value: Difficulty;
@@ -54,6 +55,7 @@ export function MainMenu() {
   const online = useGameStore(selectOnline);
   const [setupOpen, setSetupOpen] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [unitsOpen, setUnitsOpen] = useState(false);
   const [onlineOpen, setOnlineOpen] = useState(false);
 
   if (status !== 'menu') return null;
@@ -133,6 +135,13 @@ export function MainMenu() {
           </div>
 
           <div className="picker-group">
+            <span className="picker__label">{t('mainMenu', 'units')}</span>
+            <Button onClick={() => setUnitsOpen(true)}>
+              <BotIcon size={16} /> {t('mainMenu', 'unitGuide')}
+            </Button>
+          </div>
+
+          <div className="picker-group">
             <span className="picker__label">{t('online', 'multiplayer')}</span>
             <Button onClick={() => setOnlineOpen(true)}>{t('online', 'online2p')}</Button>
           </div>
@@ -144,6 +153,8 @@ export function MainMenu() {
       </div>
 
       {setupOpen && <BaseSetupModal onClose={() => setSetupOpen(false)} />}
+
+      {unitsOpen && <UnitsGuideModal onClose={() => setUnitsOpen(false)} />}
 
       {(onlineOpen || online.status !== 'offline') && <OnlineLobby onClose={() => setOnlineOpen(false)} />}
 

@@ -21,6 +21,8 @@ export interface Dict {
     flyDrone: string;
     landRelease: string;
     fireWeapon: string;
+    units: string;
+    unitGuide: string;
   };
   difficulty: {
     easy: string;
@@ -126,6 +128,9 @@ export interface Dict {
     statsHp: string;
     statsSpeed: string;
     statsSight: string;
+    tracksNote: string;
+    wheelsNote: string;
+    legsNote: string;
   };
   weapons: {
     none: string;
@@ -139,6 +144,8 @@ export interface Dict {
     radarNote: string;
     ewNote: string;
     bombNote: string;
+    cannonNote: string;
+    missilesNote: string;
   };
   aria: {
     resume: string;
@@ -161,6 +168,12 @@ export interface Dict {
     joinRoom: string;
     cancel: string;
     back: string;
+  };
+  unitsGuide: {
+    title: string;
+    intro: string;
+    chassisHeading: string;
+    weaponsHeading: string;
   };
 }
 
@@ -187,6 +200,8 @@ export const en: Dict = {
     flyDrone: 'Fly the drone',
     landRelease: 'Land on / release an idle robot',
     fireWeapon: "Fire the possessed robot's weapon",
+    units: 'Units',
+    unitGuide: 'Unit Guide',
   },
   difficulty: {
     easy: 'Easy',
@@ -292,6 +307,9 @@ export const en: Dict = {
     statsHp: 'HP',
     statsSpeed: 'Speed',
     statsSight: 'Sight',
+    tracksNote: 'Tough and steady — good for holding ground and soaking damage',
+    wheelsNote: 'Fast but fragile — ideal for scouting and quick strikes',
+    legsNote: 'Slow but the toughest chassis — built for prolonged fights',
   },
   weapons: {
     none: 'None',
@@ -305,6 +323,8 @@ export const en: Dict = {
     radarNote: 'No weapon — doubles sight radius',
     ewNote: 'No weapon — jams enemy sight within',
     bombNote: 'Self-destructs on impact, blast radius',
+    cannonNote: 'Balanced rate of fire and range — a reliable all-rounder',
+    missilesNote: 'Longer range and heavier damage, at the cost of a slower reload',
   },
   aria: {
     resume: 'Resume',
@@ -327,5 +347,11 @@ export const en: Dict = {
     joinRoom: 'Join room',
     cancel: 'Cancel',
     back: 'Back',
+  },
+  unitsGuide: {
+    title: 'Unit Guide',
+    intro: 'Robots are assembled from a chassis (mobility) and a weapon (firepower).',
+    chassisHeading: 'Chassis',
+    weaponsHeading: 'Weapons',
   },
 };
