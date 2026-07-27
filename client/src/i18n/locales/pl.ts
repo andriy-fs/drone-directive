@@ -22,6 +22,8 @@ export const pl: Dict = {
     flyDrone: 'Lot dronem',
     landRelease: 'Wsiądź na robota / wystartuj',
     fireWeapon: 'Strzał z broni opanowanego robota',
+    units: 'Jednostki',
+    unitGuide: 'Przewodnik po jednostkach',
   },
   difficulty: {
     easy: 'Łatwy',
@@ -127,6 +129,9 @@ export const pl: Dict = {
     statsHp: 'HP',
     statsSpeed: 'Prędkość',
     statsSight: 'Zasięg wzroku',
+    tracksNote: 'Wytrzymałe i stabilne — dobre do utrzymywania pozycji i znoszenia obrażeń',
+    wheelsNote: 'Szybkie, ale kruche — idealne do zwiadu i szybkich uderzeń',
+    legsNote: 'Wolne, ale najbardziej wytrzymałe — stworzone do długich starć',
   },
   weapons: {
     none: 'Brak',
@@ -140,6 +145,8 @@ export const pl: Dict = {
     radarNote: 'Brak broni — podwaja zasięg wzroku',
     ewNote: 'Brak broni — zagłusza wzrok wrogów w promieniu',
     bombNote: 'Wybucha przy kontakcie, promień wybuchu',
+    cannonNote: 'Zbalansowana szybkostrzelność i zasięg — solidny wybór uniwersalny',
+    missilesNote: 'Większy zasięg i obrażenia kosztem wolniejszego przeładowania',
   },
   aria: {
     resume: 'Wznów',
@@ -162,5 +169,11 @@ export const pl: Dict = {
     joinRoom: 'Dołącz do pokoju',
     cancel: 'Anuluj',
     back: 'Wstecz',
+  },
+  unitsGuide: {
+    title: 'Przewodnik po jednostkach',
+    intro: 'Robot składa się z podwozia (mobilność) i broni (siła ognia).',
+    chassisHeading: 'Podwozie',
+    weaponsHeading: 'Broń',
   },
 };

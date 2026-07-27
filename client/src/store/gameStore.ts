@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { gameConfig } from '../config/gameConfig';
 import { createDefaultSettings, type GameSettings, type SettingsPatch } from '../config/gameSettings';
-import { Locale } from '../i18n/locale';
+import { Locale, resolveInitialLocale, saveLocale } from '../i18n/locale';
 import type { Command } from '../types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '../types/entities';
 import { Owner } from '../types/enums';
@@ -155,7 +155,7 @@ const initialState = {
     autoBuildSuppressed: false,
   } as DroneStatus,
   settings: createDefaultSettings(),
-  locale: Locale.En,
+  locale: resolveInitialLocale(),
   localSide: Owner.Player as Owner,
   online: { status: 'offline', roomCode: null, error: null } as OnlineState,
   pendingOnline: null as PendingOnline | null,
@@ -198,7 +198,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   requestDroneFire: () => set({ droneFireRequested: true }),
   clearDroneRequests: () => set({ dronePossessRequested: false, droneFireRequested: false }),
   setDroneStatus: (status) => set({ droneStatus: status }),
-  setLocale: (locale) => set({ locale }),
+  setLocale: (locale) => {
+    saveLocale(locale);
+    set({ locale });
+  },
   hostMatch: (mapSize) =>
     set({
       localSide: Owner.Player,
