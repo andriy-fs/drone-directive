@@ -1,19 +1,23 @@
-import { Container, Graphics, Sprite } from 'pixi.js';
+import { Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { Entity } from '../../engine/ecs/entity';
+import { useGameStore } from '../../store/gameStore';
 import { getBaseTexture } from '../assets';
+import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
 import { ownerColor } from './ownerColor';
 
 /**
  * View for a base entity: its faction sprite (or an owner-tinted square + cross
  * placeholder if no art is loaded) and an HP bar above it, positioned at the
- * base's world-space centre.
+ * base's world-space centre. Double-clicking your own base opens the build &
+ * program dialog (same one as the HUD button).
  */
 export class BaseView {
   readonly container: Container;
   private readonly healthBar: HealthBar;
+  private lastClickAt = 0;
 
   constructor(base: Entity) {
     this.container = new Container();
@@ -40,6 +44,31 @@ export class BaseView {
 
     this.container.addChild(this.healthBar.container);
     if (base.position) this.container.position.set(base.position.x, base.position.y);
+
+    // Only the local side's base is interactive. The enemy base stays
+    // pointer-transparent so a right-click on it still reaches the stage handler
+    // (→ attack order); otherwise the view would swallow the event.
+    if (base.owner === useGameStore.getState().localSide) {
+      this.container.eventMode = 'static';
+      this.container.cursor = 'pointer';
+      // Pin hit-testing to the footprint so the HP bar above it doesn't extend
+      // the clickable area over open ground.
+      this.container.hitArea = new Rectangle(-half, -half, size, size);
+      this.container.on('pointerdown', (e) => {
+        if (e.button !== 0) return; // right-click falls through to the stage (move order)
+        const now = performance.now();
+        if (now - this.lastClickAt < DOUBLE_CLICK_MS) {
+          this.lastClickAt = 0; // consume so a third click starts a fresh pair
+          e.stopPropagation(); // don't start a marquee underneath the dialog
+          useGameStore.getState().setBuildDialogOpen(true);
+          return;
+        }
+        this.lastClickAt = now;
+        // A single click deliberately bubbles: box-select and deselect keep
+        // working when a drag starts on top of the base.
+      });
+    }
+
     this.update(base, true);
   }
 

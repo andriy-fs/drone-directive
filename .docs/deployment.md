@@ -40,6 +40,7 @@ Repo → **Settings → Secrets and variables → Actions**:
 | Secret       | `CLOUDFLARE_API_TOKEN`   | the token from step 1.2                                     |
 | Secret       | `CLOUDFLARE_ACCOUNT_ID`  | the account id from step 1.3                                |
 | **Variable** | `VITE_MULTIPLAYER_URL`   | `wss://drone-directive-relay.<SUBDOMAIN>.workers.dev`       |
+| **Variable** | `VITE_CF_BEACON_TOKEN`   | Web Analytics site token (optional — see below)             |
 
 The URL is not secret, so it lives under *Variables*. Note the `wss://` scheme and
 no trailing path.
@@ -84,6 +85,18 @@ deploy only; the Worker uses the Cloudflare API token).
 Push to `main` → two green paths in Actions (Pages + worker). Open the deployed UI,
 **Online (2P)** → Host, then Join by code in a second tab — it should connect
 through the production relay.
+
+## Web Analytics (optional)
+
+Cloudflare dashboard → **Analytics & Logs → Web Analytics** → *Add a site* with
+hostname `andriy-fs.github.io`. Copy the `token` out of the snippet it shows and
+store it as the `VITE_CF_BEACON_TOKEN` **Variable** (not a secret — the token is
+public in the page source anyway).
+
+The build injects the beacon into `index.html` only when that variable is set
+(`cloudflareWebAnalytics` in `client/vite.config.ts`), so local builds and the dev
+server never report. The beacon uses no cookies, no `localStorage` and no
+fingerprinting, so it needs no consent banner — keep it that way if you extend it.
 
 ## Optional
 

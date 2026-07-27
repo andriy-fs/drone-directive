@@ -113,6 +113,7 @@ for both halves in [.docs/deployment.md](.docs/deployment.md).
 | **Left-click** a robot           | Select it                                       |
 | **Shift+click** / **Shift+drag** | Add to the current selection                    |
 | **Double-click** a robot         | Select all your robots carrying the same weapon |
+| **Double-click** your base       | Open the **Build & Program** dialog             |
 | **Ctrl/Cmd + A**                 | Select all your robots                          |
 | **Ctrl/Cmd + 1-9**               | Save the current selection as control group N   |
 | **1-9**                          | Recall control group N                          |
@@ -120,7 +121,7 @@ for both halves in [.docs/deployment.md](.docs/deployment.md).
 | **Right-click**                  | Move the selection to that point (in formation) |
 | **Middle-mouse drag**            | Pan the camera                                  |
 | **Esc** / **Space** / **P**      | Pause / resume                                  |
-| **W A S D**                      | Fly the observer drone                          |
+| **W A S D** / **arrow keys**     | Fly the observer drone                          |
 | **F**                            | Land the drone on / release an idle robot       |
 | **E**                            | Fire the possessed robot's weapon               |
 

@@ -49,8 +49,8 @@ export class GameScene implements Scene {
     // Online matches ignore the asymmetric Easy/Hard presets (those only make sense
     // against the bot) and give both human sides the symmetric Normal player count.
     const counts = gameConfig.difficulty[this.ctx.online ? Difficulty.Normal : this.ctx.difficulty];
-    spawnStarters(this.ctx, Owner.Player, counts.player, 1);
-    spawnStarters(this.ctx, Owner.AI, this.ctx.online ? counts.player : counts.ai, -1);
+    spawnStarters(this.ctx, Owner.Player, counts.player);
+    spawnStarters(this.ctx, Owner.AI, this.ctx.online ? counts.player : counts.ai);
 
     // Bases are impassable: stamp their footprints into the pathfinding grid.
     refreshNavObstacles(this.ctx);
@@ -117,12 +117,15 @@ export class GameScene implements Scene {
 }
 
 /** Places `count` starter robots just outside a base, toward the field. */
-function spawnStarters(ctx: GameContext, owner: Owner, count: number, dirX: number): void {
+function spawnStarters(ctx: GameContext, owner: Owner, count: number): void {
   const fp = gameConfig.bases.footprintTiles;
   const placement = gameConfig.bases.placements.find((p) => p.owner === owner) ?? gameConfig.bases.placements[0];
   const bcx = placement.tx + Math.floor(fp / 2);
   const bcy = placement.ty + Math.floor(fp / 2);
   const { tilePx } = gameConfig.grid;
+  // Line them up on the inward side of the base — the enemy corner varies per
+  // match, so this is derived rather than passed in.
+  const dirX = bcx < gameConfig.grid.width / 2 ? 1 : -1;
 
   for (let i = 0; i < count; i++) {
     const tx = bcx + dirX * (2 + i);

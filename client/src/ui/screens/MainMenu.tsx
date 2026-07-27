@@ -179,6 +179,10 @@ export function MainMenu() {
                     <span>{t('mainMenu', 'dblClick')}</span>
                   </div>
                   <div className="control-item">
+                    <kbd>Double-click</kbd>
+                    <span>{t('mainMenu', 'dblClickBase')}</span>
+                  </div>
+                  <div className="control-item">
                     <kbd>Ctrl + 1-9</kbd>
                     <span>{t('mainMenu', 'groupAssign')}</span>
                   </div>
@@ -192,6 +196,7 @@ export function MainMenu() {
                 <div className="controls-list">
                   <div className="control-item">
                     <kbd>W A S D</kbd>
+                    <kbd>↑ ← ↓ →</kbd>
                     <span>{t('mainMenu', 'flyDrone')}</span>
                   </div>
                   <div className="control-item">

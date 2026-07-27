@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useT } from '../../i18n';
 import { selectLocalSide, selectPlayerBase, selectResources } from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
@@ -19,7 +18,10 @@ export function StatusPanel() {
   const localSide = useGameStore(selectLocalSide);
   const playerBase = useGameStore(selectPlayerBase);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
-  const [buildOpen, setBuildOpen] = useState(false);
+  // Dialog visibility lives in the store so a double-click on the base (canvas
+  // side) opens the very same dialog as this panel's button.
+  const buildOpen = useGameStore((s) => s.buildDialogOpen);
+  const setBuildOpen = useGameStore((s) => s.setBuildDialogOpen);
 
   // Show the local side's resources first (the online guest plays Owner.AI).
   const myResources = localSide === Owner.Player ? resources.player : resources.ai;

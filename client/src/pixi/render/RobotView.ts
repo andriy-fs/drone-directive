@@ -5,11 +5,9 @@ import type { Entity } from '../../engine/ecs/entity';
 import { useGameStore } from '../../store/gameStore';
 import { ChassisType, WeaponType } from '../../types/enums';
 import { getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
+import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
 import { ownerColor } from './ownerColor';
-
-/** Max gap (ms) between two clicks on the same robot to count as a double-click. */
-const DOUBLE_CLICK_MS = 350;
 
 /**
  * View for a robot entity. If its chassis has a registered sprite it is drawn as

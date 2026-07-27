@@ -2,7 +2,7 @@ import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { getBuildPreset } from '../../config/buildPresets';
 import type { BuildOrder, Vec2 } from '../../types/entities';
 import { Owner } from '../../types/enums';
-import { clamp, distance } from '../../utils/math';
+import { clamp } from '../../utils/math';
 import type { Rng } from '../../utils/rng';
 import { spawnRobot } from '../ecs/factory';
 import type { Entity } from '../ecs/entity';
@@ -29,7 +29,8 @@ export function atRobotCap(ctx: GameContext, owner: Owner): boolean {
  * queue empties: `autoBuild` repeats a single fixed order (player's chosen
  * model), else `autoBuildPreset` cycles a named series (AI only). A produced
  * robot's program is its order's own `task` when set, else the base's
- * `production.defaultTask` (see `BuildOrder`). Owner-agnostic otherwise.
+ * `production.defaultTask` (see `BuildOrder`). Fully owner-agnostic: the only
+ * limits on a refill are affordability and the per-side robot cap.
  */
 export function productionSystem(ctx: GameContext, dt: number): void {
   for (const base of ctx.world.with('base', 'position', 'production')) {
@@ -38,9 +39,7 @@ export function productionSystem(ctx: GameContext, dt: number): void {
     // Auto-build: refill an empty queue if affordable and under the side cap.
     if (prod.queue.length === 0 && !atRobotCap(ctx, base.owner!)) {
       if (prod.autoBuild) {
-        // Balance: the player's continuous auto-build only runs while the observer
-        // drone is docked on the base; fly it away and only manual "build once" works.
-        if (base.owner !== Owner.Player || droneDocked(ctx, base)) tryEnqueue(ctx, base, prod.autoBuild);
+        tryEnqueue(ctx, base, prod.autoBuild);
       } else if (prod.autoBuildPreset) {
         // Preset series (AI): cycle one step forward on a successful enqueue.
         const sequence = getBuildPreset(prod.autoBuildPreset).sequence;
@@ -74,29 +73,6 @@ export function productionSystem(ctx: GameContext, dt: number): void {
       });
     }
   }
-}
-
-/**
- * Whether the player's observer drone is docked on/near `base` (auto-build gate).
- * With no drone present it can't be "away", so this reports docked — the gate
- * only bites once a drone exists and has flown clear of the base.
- */
-function droneDocked(ctx: GameContext, base: Entity): boolean {
-  const drone = ctx.world.with('drone', 'position').entities[0];
-  if (!drone?.position || !base.position) return true;
-  return distance(drone.position.x, drone.position.y, base.position.x, base.position.y) <= gameConfig.drone.dockRadius;
-}
-
-/**
- * HUD helper: true when the player base wants to auto-build but its drone is
- * away, so continuous production is currently suppressed (only manual builds run).
- */
-export function playerAutoBuildSuppressed(ctx: GameContext): boolean {
-  const base = ctx.world
-    .with('base', 'production', 'position')
-    .entities.find((b) => b.owner === Owner.Player && (b.hp ?? 0) > 0);
-  if (!base?.production?.autoBuild) return false;
-  return !droneDocked(ctx, base);
 }
 
 /** Queues one build order if the base's owner can afford it; returns whether it did. */
