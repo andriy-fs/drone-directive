@@ -43,8 +43,10 @@ the same entity/owner on both), and the random map is asymmetric — a mirror
 approach desyncs. The implemented design keeps **one identical world** on both
 peers and separates simulation from presentation:
 
-- **Ownership is fixed and shared.** `Owner.Player` is one corner, `Owner.AI` the
-  other, on both clients (base placements unchanged). The **host controls
+- **Ownership is fixed and shared.** `Owner.Player` holds the bottom-left corner;
+  `Owner.AI` starts in one of the other three, rolled from the shared seed inside
+  `createGameContext` (before `generateObstacles`, which carves the terrain around
+  the placements) — so both clients land on the same corner. The **host controls
   `Owner.Player`, the guest controls `Owner.AI`.**
 - **Every command applies by entity id on both peers, with no relabeling.** The
   host's orders target its `Player` units, the guest's its `AI` units; both clients

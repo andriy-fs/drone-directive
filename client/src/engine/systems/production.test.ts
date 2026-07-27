@@ -201,35 +201,13 @@ describe('per-side robot cap (shared by player and AI)', () => {
   });
 });
 
-describe('player auto-build gated by the observer drone (balance)', () => {
-  it('suppresses auto-build refill while the drone is away from the base', () => {
+describe('auto-build runs regardless of where the observer drone is', () => {
+  it('keeps refilling the queue while the drone is away from the base', () => {
     const ctx = makeCtx(1);
     const base = spawnBase(ctx.world, Owner.Player, 4, 33);
     base.production!.autoBuild = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
     spawnDrone(ctx.world, Owner.Player, { x: 1000, y: 1000 }); // flown clear of the base
     productionSystem(ctx, 0);
-    expect(base.production!.queue.length).toBe(0);
-  });
-
-  it('resumes auto-build refill once the drone is docked on the base', () => {
-    const ctx = makeCtx(1);
-    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
-    base.production!.autoBuild = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
-    spawnDrone(ctx.world, Owner.Player, { ...base.position! }); // docked on the roof
-    productionSystem(ctx, 0);
-    expect(base.production!.queue.length).toBe(1);
-  });
-
-  it('still allows a manual "build once" while the drone is away', () => {
-    const ctx = makeCtx(1);
-    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
-    spawnDrone(ctx.world, Owner.Player, { x: 1000, y: 1000 });
-    ctx.commands.push({
-      kind: 'BuildRobot',
-      baseId: base.id,
-      order: { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon },
-    });
-    commandsSystem(ctx);
     expect(base.production!.queue.length).toBe(1);
   });
 });

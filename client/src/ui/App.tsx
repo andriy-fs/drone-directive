@@ -118,7 +118,6 @@ function App() {
             <h2 className="hud__heading">{t('hud', 'drone')}</h2>
             <p className="hud__status">
               {droneStatus.mode === 'possessing' ? t('hud', 'piloting') : t('hud', 'observing')}
-              {droneStatus.autoBuildSuppressed && ` · ${t('hud', 'autoBuildPaused')}`}
             </p>
           </div>
         )}

@@ -12,8 +12,6 @@ export interface DroneStatus {
   mode: 'flying' | 'possessing';
   /** Id of the robot the drone is controlling, or null when free-flying. */
   possessedRobotId: string | null;
-  /** True while the drone is away so player auto-build is suppressed. */
-  autoBuildSuppressed: boolean;
 }
 
 /** HUD-facing view of a robot (projected from the ECS world by the app bridge). */
@@ -89,6 +87,8 @@ export interface GameState {
   droneFireRequested: boolean;
   /** HUD-facing drone status pushed from snapshots. */
   droneStatus: DroneStatus;
+  /** Build & program dialog visibility — opened by the HUD button or a double-click on your base. */
+  buildDialogOpen: boolean;
   /** Player-editable settings + their defaults (see config/gameSettings). */
   settings: GameSettings;
   /** Active UI language. */
@@ -120,6 +120,7 @@ export interface GameState {
   requestDroneFire: () => void;
   clearDroneRequests: () => void;
   setDroneStatus: (status: DroneStatus) => void;
+  setBuildDialogOpen: (open: boolean) => void;
   setLocale: (locale: Locale) => void;
   /** Host a room with the given map size (bridge generates the code, echoes it back). */
   hostMatch: (mapSize: MapSize) => void;
@@ -152,8 +153,8 @@ const initialState = {
   droneStatus: {
     mode: 'flying',
     possessedRobotId: null,
-    autoBuildSuppressed: false,
   } as DroneStatus,
+  buildDialogOpen: false,
   settings: createDefaultSettings(),
   locale: resolveInitialLocale(),
   localSide: Owner.Player as Owner,
@@ -198,6 +199,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   requestDroneFire: () => set({ droneFireRequested: true }),
   clearDroneRequests: () => set({ dronePossessRequested: false, droneFireRequested: false }),
   setDroneStatus: (status) => set({ droneStatus: status }),
+  setBuildDialogOpen: (open) => set({ buildDialogOpen: open }),
   setLocale: (locale) => {
     saveLocale(locale);
     set({ locale });

@@ -15,6 +15,7 @@ export interface Dict {
     ctrlA: string;
     esc: string;
     dblClick: string;
+    dblClickBase: string;
     groupAssign: string;
     groupSelect: string;
     droneHeading: string;
@@ -53,7 +54,6 @@ export interface Dict {
     ai: string;
     piloting: string;
     observing: string;
-    autoBuildPaused: string;
     hint: string;
     paused: string;
     ownerPlayer: string;
@@ -107,7 +107,6 @@ export interface Dict {
     selectUnits: string;
     enemyUnit: string;
     robotsSelected: string;
-    directive: string;
     weapon: string;
     health: string;
   };
@@ -193,7 +192,8 @@ export const en: Dict = {
     close: 'Close',
     ctrlA: 'Select all robots',
     esc: 'Pause game',
-    dblClick: 'Select all robots with this weapon',
+    dblClick: 'On a robot — select all with this weapon',
+    dblClickBase: 'On your base — open Build & Program',
     groupAssign: 'Save the current selection as a group',
     groupSelect: 'Select a saved group',
     droneHeading: 'Observer drone',
@@ -232,7 +232,6 @@ export const en: Dict = {
     ai: 'AI',
     piloting: 'Piloting a robot',
     observing: 'Observing',
-    autoBuildPaused: 'auto-build paused (drone away)',
     hint: 'Drag to box-select · click a robot to select · Shift+click/drag to add · Ctrl+A all · right-click to move · WASD/arrows fly the drone · F land/take off · E fire/detonate · Esc/Space to pause.',
     paused: 'Paused',
     ownerPlayer: 'player',
@@ -286,7 +285,6 @@ export const en: Dict = {
     selectUnits: 'Select unit(s) to program.',
     enemyUnit: 'Enemy unit — cannot program.',
     robotsSelected: 'robots selected',
-    directive: 'Directive',
     weapon: 'Weapon',
     health: 'Health',
   },

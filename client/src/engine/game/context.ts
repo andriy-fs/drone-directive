@@ -1,4 +1,4 @@
-import { gameConfig } from '../../config/gameConfig';
+import { applyEnemyCorner, ENEMY_CORNERS, gameConfig } from '../../config/gameConfig';
 import type { GameSettings } from '../../config/gameSettings';
 import type { Command } from '../../types/commands';
 import type { ResourcePool, Vec2 } from '../../types/entities';
@@ -109,6 +109,10 @@ export function createGameContext(
   seed?: number,
 ): GameContext {
   const rng = createRng(seed !== undefined ? seed >>> 0 : (Date.now() & 0xffffffff) >>> 0);
+  // Roll which corner the enemy starts in, so a match isn't always the same
+  // diagonal. Drawn from the (seeded) match rng, so networked peers agree, and
+  // before `generateObstacles` — the terrain is carved around the placements.
+  applyEnemyCorner(ENEMY_CORNERS[Math.floor(rng.next() * ENEMY_CORNERS.length)]);
   const { startingResources } = gameConfig.economy;
   const obstacles = generateObstacles(rng);
   return {

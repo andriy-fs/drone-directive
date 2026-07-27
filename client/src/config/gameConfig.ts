@@ -36,7 +36,11 @@ export const gameConfig = {
     maxHp: 600,
     /** Footprint side length, in tiles (occupies footprint x footprint cells). */
     footprintTiles: 3,
-    /** Starting placements, keyed by owner; tx/ty is the top-left tile. */
+    /**
+     * Starting placements, keyed by owner; tx/ty is the top-left tile. Rewritten
+     * per match by `applyMapSize` (grid size) + `applyEnemyCorner` (which corner
+     * the enemy drew) — read them live, never copy at module scope.
+     */
     placements: [
       { owner: 'player', tx: 4, ty: 33 },
       { owner: 'ai', tx: 33, ty: 4 },
@@ -53,8 +57,6 @@ export const gameConfig = {
     sightRange: 220,
     /** Max distance (px) to an idle robot to land on / possess it. */
     possessRadius: 40,
-    /** Within this distance (px) of the player base centre the drone counts as "docked" (auto-build stays on). */
-    dockRadius: 80,
   },
 
   /** Robots: per-chassis stats and shared draw/movement tunables. */
@@ -264,6 +266,21 @@ export const worldPixelSize = {
   height: gameConfig.grid.height * gameConfig.grid.tilePx,
 } as const;
 
+/** Tiles kept clear between a base footprint and the map corner it sits in. */
+const CORNER_MARGIN = 4;
+
+/**
+ * The three corners the enemy base can start in — every corner except the
+ * bottom-left one, which the player always keeps (so the camera, the HUD and the
+ * player's own opening never move).
+ */
+export const ENEMY_CORNERS = ['topLeft', 'topRight', 'bottomRight'] as const;
+export type EnemyCorner = (typeof ENEMY_CORNERS)[number];
+
+function mutablePlacements(): { owner: string; tx: number; ty: number }[] {
+  return gameConfig.bases.placements as unknown as { owner: string; tx: number; ty: number }[];
+}
+
 /**
  * Resizes the battlefield for a new match — call once from `GameEngine.startMatch`,
  * before `createGameContext`/`generateObstacles` run. Mutates `grid`/`worldPixelSize`/
@@ -282,13 +299,24 @@ export function applyMapSize(size: MapSize): void {
   wp.width = n * grid.tilePx;
   wp.height = n * grid.tilePx;
 
-  const margin = 4; // tiles kept clear from the corner (matches the original layout)
-  const fp = gameConfig.bases.footprintTiles;
-  const placements = gameConfig.bases.placements as unknown as { owner: string; tx: number; ty: number }[];
-  const player = placements.find((p) => p.owner === 'player')!;
-  const ai = placements.find((p) => p.owner === 'ai')!;
-  player.tx = margin;
-  player.ty = n - fp - margin;
-  ai.tx = n - fp - margin;
-  ai.ty = margin;
+  const player = mutablePlacements().find((p) => p.owner === 'player')!;
+  player.tx = CORNER_MARGIN;
+  player.ty = n - gameConfig.bases.footprintTiles - CORNER_MARGIN;
+  // Keep the historical diagonal as the resting value; `createGameContext` rolls
+  // the real corner per match right after (and before obstacles are generated).
+  applyEnemyCorner('topRight');
+}
+
+/**
+ * Moves the enemy base into `corner`. Must run **after** `applyMapSize` (it reads
+ * the grid size) and **before** `generateObstacles` — the terrain generator keeps a
+ * clear margin around whatever the placements say and carries base-to-base
+ * connectivity, so a corner picked later would leave the map carved for the wrong one.
+ */
+export function applyEnemyCorner(corner: EnemyCorner): void {
+  const n = gameConfig.grid.width;
+  const far = n - gameConfig.bases.footprintTiles - CORNER_MARGIN;
+  const ai = mutablePlacements().find((p) => p.owner === 'ai')!;
+  ai.tx = corner === 'topLeft' ? CORNER_MARGIN : far;
+  ai.ty = corner === 'bottomRight' ? far : CORNER_MARGIN;
 }

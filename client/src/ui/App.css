@@ -15,6 +15,10 @@
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  /* A box-select drag on the canvas that runs into the sidebar would otherwise
+     highlight the HUD labels. Nothing here is worth copying. */
+  user-select: none;
+  -webkit-user-select: none; /* Safari */
 }
 
 .hud__titlebar {
@@ -191,7 +195,7 @@
   gap: 8px;
 }
 
-/* Single-unit stat rows (program select / weapon / health) */
+/* Single-unit stat rows (weapon / health) */
 .unit-field {
   display: flex;
   align-items: center;
@@ -210,29 +214,16 @@
   text-transform: capitalize;
 }
 
-.unit-select {
-  flex: 1;
-  min-width: 0;
-  max-width: 62%;
-  border: 1px solid var(--panel-border);
-  background: #1a2130;
-  color: var(--text-h);
-  font: inherit;
-  font-size: 14px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.unit-select:hover {
-  border-color: #3a4a63;
-}
-
 .task-picker {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Directive chips stack vertically here, so opt out of the horizontal picker's
+   equal-width growth (`.chip { flex: 1 }`) — it would stretch them by height. */
+.task-picker .chip {
+  flex: none;
 }
 
 .btn {

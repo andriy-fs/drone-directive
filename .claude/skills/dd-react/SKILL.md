@@ -30,7 +30,7 @@ React renders only HUD/screens/overlays. **Never import Pixi objects or ECS enti
 
 ## Store (`client/src/store/`)
 
-- `gameStore.ts` — single store. Holds `status`, HUD snapshot DTOs (`bases: BaseSnapshot[]`, `robots: RobotSnapshot[]`, `resources`), `selectedRobotIds`, `commands`, one-shot control flags (`restartRequested`, `menuRequested`, `paused`), and persistent settings (`difficulty`, `baseAutoBuild`, `baseDefaultTask`). Snapshot DTOs are flat projections of ECS entities (`RobotSnapshot {id,owner,chassis,weapon,task}`, `BaseSnapshot {id,owner,hp,maxHp,queueLength,buildProgress,autoBuild}`) — NOT the engine entities.
+- `gameStore.ts` — single store. Holds `status`, HUD snapshot DTOs (`bases: BaseSnapshot[]`, `robots: RobotSnapshot[]`, `resources`), `selectedRobotIds`, `commands`, one-shot control flags (`restartRequested`, `menuRequested`, `paused`), shared UI state the canvas also drives (`buildDialogOpen` — the Build &amp; Program dialog, opened by `StatusPanel`'s button or a double-click on your base), and persistent settings (`difficulty`, `baseAutoBuild`, `baseDefaultTask`). Snapshot DTOs are flat projections of ECS entities (`RobotSnapshot {id,owner,chassis,weapon,task}`, `BaseSnapshot {id,owner,hp,maxHp,queueLength,buildProgress,autoBuild}`) — NOT the engine entities.
 - `selectors.ts` — `selectStatus/Bases/Robots/Resources/SelectedIds/PlayerBase`. Subscribe to the smallest slice.
 
 ## Contracts

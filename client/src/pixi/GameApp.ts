@@ -4,7 +4,6 @@ import { palette } from '../config/palette';
 import type { Entity } from '../engine/ecs/entity';
 import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
-import { playerAutoBuildSuppressed } from '../engine/systems/production';
 import { useGameStore, type BaseSnapshot, type GameState, type PendingOnline, type RobotSnapshot } from '../store/gameStore';
 import type { Command } from '../types/commands';
 import { Owner, TaskType, WeaponType, type MapSize } from '../types/enums';
@@ -120,6 +119,7 @@ export class GameApp {
     this.busUnsubs.push(
       bus.on('sceneChanged', ({ scene }) => {
         store().clearSelection();
+        store().setBuildDialogOpen(false); // never carry an open dialog across matches
         if (scene === 'menu') {
           store().setStatus('menu');
           this.clearObstacles();
@@ -137,6 +137,7 @@ export class GameApp {
     this.busUnsubs.push(
       bus.on('gameOver', ({ winner }) => {
         store().setStatus(winner === store().localSide ? 'won' : 'lost');
+        store().setBuildDialogOpen(false); // don't leave it stranded behind the game-over modal
         this.pushSnapshot();
       }),
     );
@@ -326,7 +327,6 @@ export class GameApp {
       store.setDroneStatus({
         mode: possessedRobotId ? 'possessing' : 'flying',
         possessedRobotId,
-        autoBuildSuppressed: playerAutoBuildSuppressed(ctx),
       });
     }
   }

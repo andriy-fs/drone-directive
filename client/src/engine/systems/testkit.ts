@@ -12,7 +12,9 @@ import { createRng } from '../../utils/rng';
  * real `createGameContext` seeds from `Date.now()`, which would flake tests.
  */
 export function makeCtx(seed?: number): GameContext {
-  const ctx = createGameContext(createEcsWorld(), new EventBus<GameEvents>(), [], createDefaultSettings());
+  // The seed also pins the per-match enemy-corner roll (it happens inside
+  // `createGameContext`), so a test's world layout can't drift between runs.
+  const ctx = createGameContext(createEcsWorld(), new EventBus<GameEvents>(), [], createDefaultSettings(), seed);
   ctx.resources.player = 100000;
   ctx.resources.ai = 100000;
   if (seed !== undefined) {
