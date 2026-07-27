@@ -71,7 +71,7 @@ export function MainMenu() {
       <div className="dialog-frame">
         <DialogPanel className="modal menu">
           <DialogTitle className="menu__title">{t('mainMenu', 'title')}</DialogTitle>
-          <p className="modal__body">{t('mainMenu', 'intro')}</p>
+          <p className="modal__body menu__intro">{t('mainMenu', 'intro')}</p>
 
           <div className="picker-group">
             <span className="picker__label">{t('mainMenu', 'language')}</span>

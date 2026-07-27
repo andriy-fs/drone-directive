@@ -77,6 +77,12 @@
   color: var(--text-h);
 }
 
+/* Reserves room for the longest translation (wraps to 3 lines in some languages, 2 in
+   others) so the menu doesn't change height when the player switches language. */
+.menu__intro {
+  min-height: 60px;
+}
+
 .hud__status {
   margin: 0;
   font-family: var(--mono);
@@ -328,6 +334,7 @@
 
 .picker {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -413,6 +420,14 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* Wider variant: for modals whose content needs more than one row of chips to fit (see
+   BaseSetupModal). Fixed `width` (not just `max-width`) so the modal doesn't change size
+   as the active language's chip labels grow or shrink. */
+.modal--wide {
+  width: min(92vw, 620px);
+  max-width: min(92vw, 620px);
 }
 
 .modal__title {

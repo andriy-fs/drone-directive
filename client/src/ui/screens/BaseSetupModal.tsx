@@ -33,7 +33,10 @@ export function BaseSetupModal({ onClose }: { onClose: () => void }) {
     <Dialog open={true} onClose={onClose}>
       <DialogBackdrop className="dialog-backdrop" />
       <div className="dialog-frame">
-        <DialogPanel className="modal" onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
+        <DialogPanel
+          className="modal modal--wide"
+          onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+        >
           <DialogTitle className="modal__title">{t('baseSetup', 'title')}</DialogTitle>
 
           <div className="picker-group">
