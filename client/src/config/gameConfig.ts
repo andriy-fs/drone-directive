@@ -188,12 +188,24 @@ export const gameConfig = {
 
   /** Randomly generated impassable terrain. */
   obstacles: {
-    /** Number of obstacle clusters to attempt to place (1.5× the original 16 — harder routes to the enemy base). */
-    blobCount: 24,
-    /** Max tiles per cluster (random walk length). */
-    maxBlobTiles: 5,
+    /**
+     * Clusters to attempt on a **small** (40×40) map; `generateObstacles` scales
+     * this by map area, so cover density stays constant instead of thinning out
+     * to nothing on the large map. This is the knob for "more/less terrain".
+     */
+    blobCount: 34,
+    /** Min tiles per cluster — a cluster below this is too small to be worth pathing around. */
+    minBlobTiles: 4,
+    /** Max tiles per cluster. Actual size is a random count of *distinct* tiles in `[min, max]`. */
+    maxBlobTiles: 16,
     /** Tiles kept clear around each base (Chebyshev) — covers spawns + starters. */
     baseClearMargin: 6,
+    /**
+     * Chance a cluster is a crater rather than a mountain. Both block driving;
+     * only a mountain blocks line of fire, so this is the share of cover that
+     * can be shot across (see `engine/obstacles.ts`).
+     */
+    craterChance: 0.35,
   },
 
   /** Robot production from a base's build queue. */

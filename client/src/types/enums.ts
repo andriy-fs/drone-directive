@@ -42,6 +42,15 @@ export const RobotState = {
 } as const;
 export type RobotState = (typeof RobotState)[keyof typeof RobotState];
 
+/**
+ * What occupies a terrain tile. Impassable kinds differ in whether they also
+ * block line of fire: a `Mountain` rises and stops shots, a `Crater` sinks —
+ * robots can't drive through it but they can shoot across it. See
+ * `engine/obstacles.ts` (`movementGrid`/`sightGrid`).
+ */
+export const TerrainKind = { Open: 'open', Mountain: 'mountain', Crater: 'crater' } as const;
+export type TerrainKind = (typeof TerrainKind)[keyof typeof TerrainKind];
+
 export const Difficulty = { Easy: 'easy', Normal: 'normal', Hard: 'hard' } as const;
 export type Difficulty = (typeof Difficulty)[keyof typeof Difficulty];
 

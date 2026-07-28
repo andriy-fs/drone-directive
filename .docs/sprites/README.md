@@ -9,8 +9,13 @@ robot chassis or base types are added, so art can be regenerated consistently.
 - **[bases.md](bases.md)** — player base + AI (enemy) base.
 - **[weapons.md](weapons.md)** — top-mounted weapon module overlays (radar, bomb
   kamikaze) × faction, rendered on the robot's central hardpoint.
-- **[obstacles.md](obstacles.md)** — the impassable-terrain tile (one 32 px cell,
-  seamlessly tileable) that replaces the flat gray obstacle cells.
+- **[obstacle-mountain.md](obstacle-mountain.md)** — impassable-terrain tile (one
+  32 px cell, seamlessly tileable): a **mountain** massif. Blocks movement *and*
+  line of fire.
+- **[obstacle-crater.md](obstacle-crater.md)** — the other impassable-terrain tile,
+  same spec and palette but a collapsed impact **crater** (sinks instead of rises).
+  Blocks movement but **not** line of fire — robots shoot across it. The kind is
+  rolled per cluster from the seeded match rng.
 - **[ground.md](ground.md)** — the walkable ground surface tile (seamless,
   full-field) that replaces the flat dark playfield fill.
 

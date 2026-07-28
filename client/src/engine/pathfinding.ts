@@ -4,7 +4,7 @@ import { inBounds, isBlockedGrid, tileCentre, tileOf, type ObstacleGrid } from '
 
 const SQRT2 = Math.SQRT2;
 
-interface Tile {
+export interface Tile {
   tx: number;
   ty: number;
 }

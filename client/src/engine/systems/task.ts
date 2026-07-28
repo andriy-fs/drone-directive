@@ -6,10 +6,18 @@ import type { BehaviorAction, BehaviorCondition } from '../../types/tasks';
 import { clamp, distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
-import { hasLineOfSight, tileCentre, tileOf } from '../obstacles';
-import { nearestFreeTile } from '../pathfinding';
+import { hasLineOfSight, isBlockedGrid, tileCentre, tileOf } from '../obstacles';
+import { nearestFreeTile, type Tile } from '../pathfinding';
 import { clearGoal, setGoal } from './movement';
 import { findById, isEnemy, knownEnemyBases, knownEnemyRobots, nearest, ownBase } from './targeting';
+
+/** Orthogonal steps for the patrol-ring flood fill — 4-directional, so it can't claim a tile A* would refuse to corner-cut into. */
+const NEIGHBOURS: readonly (readonly [number, number])[] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
 
 /** Directives that count as an advancing "vanguard" for Overwatch to trail behind. */
 const ADVANCING_TASKS = new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots, TaskType.AttackTarget]);
@@ -136,7 +144,7 @@ function engageOutcome(ctx: GameContext, e: Entity, target: Entity): Outcome {
     if (d > gameConfig.combat.unarmedStandoff) return { move: { kind: 'goal', x: tp.x, y: tp.y } };
     return { move: { kind: 'hold' } };
   }
-  if (d <= range && hasLineOfSight(ctx.obstacles, pos, tp)) {
+  if (d <= range && hasLineOfSight(ctx.sightBlockers, pos, tp)) {
     return { move: { kind: 'hold' }, fire: target.id };
   }
   return { move: { kind: 'goal', x: tp.x, y: tp.y }, fire: target.id };
@@ -215,15 +223,38 @@ function randomSearchPoint(ctx: GameContext): Vec2 {
   return tileCentre(free.tx, free.ty);
 }
 
-/** A random reachable point within `radius` px of `centre` (clamped to the map). */
+/**
+ * A random free tile reachable from `centre` **without ever leaving** `radius`.
+ * Drawing from the ring's own connected region — rather than any free tile that
+ * merely sits inside it — is what actually keeps a guard on station: a spot just
+ * across a rock is "within 240 px" yet only reachable by a long detour outside
+ * the ring, and the walk there, not the destination, is what abandons the post.
+ */
 function randomPointNear(ctx: GameContext, centre: Vec2, radius: number): Vec2 {
-  const angle = ctx.rng.next() * Math.PI * 2;
-  const dist = ctx.rng.next() * radius;
-  const x = clamp(centre.x + Math.cos(angle) * dist, 0, worldPixelSize.width);
-  const y = clamp(centre.y + Math.sin(angle) * dist, 0, worldPixelSize.height);
-  const tile = tileOf({ x, y });
-  const free = nearestFreeTile(ctx.obstacles, tile.tx, tile.ty);
-  return tileCentre(free.tx, free.ty);
+  const home = tileOf(centre);
+  const start = nearestFreeTile(ctx.obstacles, home.tx, home.ty);
+  const inRing = (t: Tile) => {
+    const c = tileCentre(t.tx, t.ty);
+    return distance(centre.x, centre.y, c.x, c.y) <= radius;
+  };
+
+  const seen = new Set<string>([`${start.tx},${start.ty}`]);
+  const reachable: Tile[] = [];
+  const queue: Tile[] = [start];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    reachable.push(cur);
+    for (const [dx, dy] of NEIGHBOURS) {
+      const next = { tx: cur.tx + dx, ty: cur.ty + dy };
+      const k = `${next.tx},${next.ty}`;
+      if (seen.has(k) || isBlockedGrid(ctx.obstacles, next.tx, next.ty) || !inRing(next)) continue;
+      seen.add(k);
+      queue.push(next);
+    }
+  }
+
+  const pick = reachable[ctx.rng.int(reachable.length)];
+  return tileCentre(pick.tx, pick.ty);
 }
 
 /**
@@ -241,7 +272,7 @@ function guardOutcome(ctx: GameContext, e: Entity): Outcome {
     if (
       foe?.position &&
       distance(pos.x, pos.y, foe.position.x, foe.position.y) <= range &&
-      hasLineOfSight(ctx.obstacles, pos, foe.position)
+      hasLineOfSight(ctx.sightBlockers, pos, foe.position)
     ) {
       return { move: { kind: 'hold' }, fire: foe.id };
     }

@@ -5,19 +5,16 @@
  */
 export const palette = {
   background: 0x0d1117,
-  grid: {
-    line: 0x1f2733,
-    lineMajor: 0x2e3a4a,
-    /** Every Nth line is drawn with the "major" colour. */
-    majorEvery: 5,
-  },
   owner: {
     player: 0x3b82f6,
     ai: 0xef4444,
     neutral: 0x9ca3af,
   },
   obstacle: {
+    /** Mountain placeholder (art missing) — raised rock, so the lighter of the two. */
     fill: 0x3a3f4a,
+    /** Crater placeholder — a pit, so darker than the mountain and than the ground. */
+    crater: 0x161c25,
     edge: 0x555c68,
   },
   vision: {

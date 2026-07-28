@@ -3,13 +3,13 @@ import {
   baseSprites,
   droneSprite,
   groundSprite,
-  obstacleSprite,
   robotSprites,
   spriteSources,
+  terrainSprites,
   weaponSprites,
   type SpriteDef,
 } from '../config/sprites';
-import type { ChassisType, Owner, WeaponType } from '../types/enums';
+import type { ChassisType, Owner, TerrainKind, WeaponType } from '../types/enums';
 
 /**
  * Preloads all sprite images. Resolves even on failure (a missing/failed image
@@ -75,9 +75,9 @@ export function getWeaponTexture(weapon: WeaponType, owner: Owner): ResolvedSpri
   return cached(`weapon:${owner}:${weapon}`, weaponSprites[owner]?.[weapon]);
 }
 
-/** Impassable-terrain tile, or null (→ flat Graphics fill) if missing/unloaded. */
-export function getObstacleTexture(): ResolvedSprite | null {
-  return cached('obstacle', obstacleSprite);
+/** Impassable-terrain tile for one terrain kind, or null (→ flat Graphics fill) if missing/unloaded. */
+export function getTerrainTexture(kind: TerrainKind): ResolvedSprite | null {
+  return cached(`terrain:${kind}`, terrainSprites[kind]);
 }
 
 /** Walkable-ground tile, or null (→ flat background fill) if missing/unloaded. */
