@@ -3,7 +3,7 @@ import type { GameSettings } from '../../config/gameSettings';
 import type { Command } from '../../types/commands';
 import type { ResourcePool, Vec2 } from '../../types/entities';
 import { Owner, type Difficulty } from '../../types/enums';
-import { generateObstacles, type ObstacleGrid } from '../obstacles';
+import { generateObstacles, movementGrid, sightGrid, type ObstacleGrid, type TerrainGrid } from '../obstacles';
 import type { EcsWorld } from '../ecs/world';
 import type { GameBus } from './eventBus';
 import { createRng, type Rng } from '../../utils/rng';
@@ -78,9 +78,16 @@ export interface GameContext {
   world: EcsWorld;
   bus: GameBus;
   resources: ResourcePool;
-  /** Terrain-only blocked grid (rendering + line of sight). */
+  /** Per-tile terrain kind — what the renderer draws, and what the two grids below derive from. */
+  terrain: TerrainGrid;
+  /** Terrain-only *impassable* grid (mountains + craters): pathfinding and roam-target picking. */
   obstacles: ObstacleGrid;
-  /** Pathfinding grid: terrain + living base footprints (see `navGrid.ts`). */
+  /**
+   * Terrain-only *sight/fire-blocking* grid (mountains only): line of sight and
+   * projectile collision. Craters are absent here — robots shoot across them.
+   */
+  sightBlockers: ObstacleGrid;
+  /** Pathfinding grid: `obstacles` + living base footprints (see `navGrid.ts`). */
   navObstacles: ObstacleGrid;
   rng: Rng;
   difficulty: Difficulty;
@@ -114,12 +121,15 @@ export function createGameContext(
   // before `generateObstacles` — the terrain is carved around the placements.
   applyEnemyCorner(ENEMY_CORNERS[Math.floor(rng.next() * ENEMY_CORNERS.length)]);
   const { startingResources } = gameConfig.economy;
-  const obstacles = generateObstacles(rng);
+  const terrain = generateObstacles(rng);
+  const obstacles = movementGrid(terrain);
   return {
     world,
     bus,
     resources: { player: startingResources, ai: startingResources },
+    terrain,
     obstacles,
+    sightBlockers: sightGrid(terrain),
     // Seeded with terrain only; GameScene.enter stamps base footprints once bases exist.
     navObstacles: obstacles,
     rng,

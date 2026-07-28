@@ -1,5 +1,5 @@
 import { createDefaultSettings } from '../../config/gameSettings';
-import { generateObstacles } from '../obstacles';
+import { generateObstacles, movementGrid, sightGrid } from '../obstacles';
 import { createEcsWorld } from '../ecs/world';
 import { createGameContext, type GameContext } from '../game/context';
 import type { GameEvents } from '../game/events';
@@ -19,7 +19,9 @@ export function makeCtx(seed?: number): GameContext {
   ctx.resources.ai = 100000;
   if (seed !== undefined) {
     ctx.rng = createRng(seed);
-    ctx.obstacles = generateObstacles(ctx.rng);
+    ctx.terrain = generateObstacles(ctx.rng);
+    ctx.obstacles = movementGrid(ctx.terrain);
+    ctx.sightBlockers = sightGrid(ctx.terrain);
     ctx.navObstacles = ctx.obstacles;
   }
   return ctx;

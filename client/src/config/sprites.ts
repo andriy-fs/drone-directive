@@ -1,4 +1,4 @@
-import { Owner } from '../types/enums';
+import { Owner, TerrainKind } from '../types/enums';
 import type { ChassisType, WeaponType } from '../types/enums';
 
 /**
@@ -78,12 +78,15 @@ export const baseSprites: Partial<Record<Owner, SpriteDef>> = {
 };
 
 /**
- * Seamless impassable-terrain tile drawn per blocked cell (one game tile wide;
- * `ObstaclesView` scales it to `gameConfig.grid.tilePx`). Undefined → the flat
- * Graphics fill placeholder.
+ * Seamless impassable-terrain tiles keyed by `TerrainKind`, drawn per blocked
+ * cell (one game tile wide; `ObstaclesView` scales each to
+ * `gameConfig.grid.tilePx`). A missing entry falls back to the flat Graphics
+ * fill. Add a terrain type by adding a key here plus one in `TerrainKind` — see
+ * `.docs/sprites/obstacle-mountain.md` / `obstacle-crater.md`.
  */
-export const obstacleSprite: SpriteDef | undefined = {
-  src: `${PUBLIC_BASE}obstacle-rock.png`,
+export const terrainSprites: Partial<Record<TerrainKind, SpriteDef>> = {
+  [TerrainKind.Mountain]: { src: `${PUBLIC_BASE}obstacle-mountain.png` },
+  [TerrainKind.Crater]: { src: `${PUBLIC_BASE}obstacle-crater.png` },
 };
 
 /**
@@ -146,7 +149,7 @@ export function spriteSources(): string[] {
     if (!byWeapon) continue;
     for (const def of Object.values(byWeapon)) if (def) srcs.push(def.src);
   }
-  if (obstacleSprite) srcs.push(obstacleSprite.src);
+  for (const def of Object.values(terrainSprites)) if (def) srcs.push(def.src);
   if (groundSprite) srcs.push(groundSprite.src);
   if (droneSprite) srcs.push(droneSprite.src);
   return [...new Set(srcs)];

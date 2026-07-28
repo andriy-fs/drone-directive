@@ -14,7 +14,7 @@ import { LockstepSession, type TickInput } from './net/LockstepSession';
 import { sfx } from './audio/sfx';
 import { Camera } from './Camera';
 import { GameLoop } from './GameLoop';
-import { createGrid, createGround } from './Grid';
+import { createGround } from './Grid';
 import { createLayers, type Layers } from './layers';
 import { attachPointerControls } from './input/pointer';
 import { FogView } from './render/FogView';
@@ -68,7 +68,7 @@ export class GameApp {
     await loadGameAssets();
 
     this.layers = createLayers();
-    this.layers.ground.addChild(createGround(), createGrid());
+    this.layers.ground.addChild(createGround());
     this.fogView = new FogView();
     this.layers.fog.addChild(this.fogView.container);
     this.camera = new Camera(this.layers.root);
@@ -331,10 +331,10 @@ export class GameApp {
     }
   }
 
-  /** Ground fill + grid lines are sized off `worldPixelSize`/`gameConfig.grid` — rebuild per match. */
+  /** The ground surface is sized off `worldPixelSize`/`gameConfig.grid` — rebuild per match. */
   private rebuildGround(): void {
     for (const child of this.layers.ground.removeChildren()) child.destroy({ children: true });
-    this.layers.ground.addChild(createGround(), createGrid());
+    this.layers.ground.addChild(createGround());
   }
 
   /** Fresh fog mask sized for the current match's grid, with its redraw cache reset. */
@@ -348,7 +348,7 @@ export class GameApp {
     this.clearObstacles();
     const ctx = this.engine.context;
     if (!ctx) return;
-    this.obstacleGfx = createObstaclesGraphic(ctx.obstacles);
+    this.obstacleGfx = createObstaclesGraphic(ctx.terrain);
     this.layers.ground.addChild(this.obstacleGfx);
   }
 

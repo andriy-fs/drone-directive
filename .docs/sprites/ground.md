@@ -1,14 +1,14 @@
 # Ground surface tile prompt
 
 A prompt for the **walkable ground** the robots move across — the base texture
-that replaces the flat dark fill the playfield uses today (`createGrid` fills the
-whole field with `palette.background` and draws grid lines on top).
+that carries the playfield surface (it replaced a flat `palette.background` fill
+plus a coordinate grid overlay, both now gone).
 
-The ground is the **bottom-most layer**, under the grid, obstacles, units and
-projectiles, so it must be the **darkest, flattest, lowest-contrast** thing on
-screen — everything else has to read on top of it. It should also look clearly
+The ground is the **bottom-most layer**, under obstacles, units and projectiles,
+so it must be the **darkest, flattest, lowest-contrast** thing on screen —
+everything else has to read on top of it. It should also look clearly
 **walkable and smooth**, visually distinct from the jagged impassable rubble in
-[obstacles.md](obstacles.md).
+[obstacle-mountain.md](obstacle-mountain.md).
 
 Like the obstacle tile, this is **terrain, not a unit**, so it overrides parts of
 the [Shared spec](README.md): **full-bleed and opaque** (no transparent margin, no
@@ -22,9 +22,12 @@ centering) and **seamlessly tileable** (opposite edges match).
 - **Seamless:** the **left edge matches the right, top matches bottom**
   (wrap-around tileable), with **no single focal feature** that would telegraph
   the repeat — favor an even, subtle surface.
-- **Tiles across the whole field:** the field is 40×40 tiles (one tile = **32 px**).
-  Author at **512×512**; it's repeated across the ~1280×1280 px field (as one
-  tiling layer), so keep detail sparse — it must look calm at a distance, not busy.
+- **Tiles across the whole field:** one grid cell is **32 px**; maps are 40/60/80
+  cells square (1280–2560 px). Author at **1024×1024** — the shipped tile's size.
+  It is drawn scaled down: `GROUND_REPEAT_TILES` (currently **8**) sets how many
+  cells one repeat covers, so 1024 px of art renders as 256 px on the field, a 4×
+  downscale. Author detail accordingly — fine gravel must still read as gravel next
+  to a 32 px robot, and the surface must look calm at a distance, not busy.
 - **Palette — deepest background layer:** very dark, muted, desaturated near-black
   (deep charcoal / dark blue-gray) matching the field background `#0d1117`. It
   should be **darker and flatter than the obstacle rock** so obstacles, and bright
@@ -48,23 +51,25 @@ impassable rubble. Fills the entire frame edge-to-edge with no border and no
 transparent margin, and is perfectly seamlessly tileable — the left edge continues
 into the right and the top into the bottom with no visible seam when repeated in a
 grid. Clean stylized semi-flat game art, very light cel shading, soft even top
-lighting, low detail and low contrast. Square image, 512x512.
+lighting, low detail and low contrast. Square image, 1024x1024.
 ```
 
-## Wiring the generated tile into the game
+## How the tile is wired up
 
-1. Export as `public/ground-tile.png` (opaque, seamless).
-2. Add a `groundSprite` entry to `src/config/sprites.ts` and include its `src` in
-   `spriteSources()` so it preloads; add a `getGroundTexture()` to
-   `src/pixi/assets.ts` (same cached pattern as the others).
-3. In `GameApp.init` (or `Grid.ts`), add a single `TilingSprite` sized to
-   `worldPixelSize` on `layers.ground` **beneath the grid**, replacing the flat
-   `palette.background` fill in `createGrid`. Keep the grid lines drawn on top (they
-   read as a coordinate overlay) or fade/drop them once the texture carries the
-   surface. Fall back to the current flat fill when the image isn't loaded.
-   - `tileScale` controls repeat density: `tilePx / texture.width` gives one tile
-     per grid cell; a larger value repeats over several cells for a broader, less
-     obviously-tiled surface — tune to taste.
+Already done — this is the shape of it, for when the tile gets regenerated.
 
-Generate the tile and I'll wire this up, same as the robot/base/weapon/obstacle
-sprites.
+1. Exported as `public/ground-tile.png` (opaque, seamless, 1024×1024).
+2. `groundSprite` in `src/config/sprites.ts` (its `src` is in `spriteSources()` so
+   it preloads) and `getGroundTexture()` in `src/pixi/assets.ts` (same cached
+   pattern as the other sprites).
+3. `createGround()` in `src/pixi/Grid.ts` builds one `TilingSprite` sized to
+   `worldPixelSize` on `layers.ground`, added in `GameApp.init` and rebuilt per
+   match by `rebuildGround()`. It falls back to the flat `palette.background` fill
+   when the image isn't loaded.
+   - `GROUND_REPEAT_TILES` controls repeat density via `tileScale`: `1` gives one
+     repeat per grid cell (visibly regular), large values stretch the art until its
+     detail rivals unit size and the texture barely repeats across the map. **8** is
+     the tuned middle. Purely visual — change it freely, no re-export needed.
+
+There are no grid lines any more: the texture carries the surface on its own, so
+`createGrid()` and `palette.grid` were removed.

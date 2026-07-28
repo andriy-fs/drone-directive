@@ -12,7 +12,9 @@ import { findById, isEnemy } from './targeting';
  * post-movement positions. A robot fires at its current `targetId` (set by the
  * behaviour resolver) whenever it is in range, in line of sight, and off
  * cooldown — independent of movement, so it can fire while dodging or advancing.
- * Obstacles block line of fire and absorb projectiles. A `bomb` weapon
+ * Mountains block line of fire and absorb projectiles; craters do not (hence
+ * `ctx.sightBlockers`, not `ctx.obstacles` — shots cross a crater that robots
+ * still have to drive around). A `bomb` weapon
  * (`explosionRadius > 0`) detonates on contact instead of firing (see
  * `detonateBomb`); a `radar` weapon (range 0) never engages — it only spots.
  */
@@ -29,7 +31,7 @@ export function combatSystem(ctx: GameContext, dt: number): void {
     if (!target?.position) continue;
     const pos = e.position!;
     if (distance(pos.x, pos.y, target.position.x, target.position.y) > w.range) continue;
-    if (!hasLineOfSight(ctx.obstacles, pos, target.position)) continue;
+    if (!hasLineOfSight(ctx.sightBlockers, pos, target.position)) continue;
 
     if (w.explosionRadius > 0) {
       detonateBomb(ctx, e); // kamikaze: AOE blast + self-destruct, no projectile
@@ -109,8 +111,8 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     }
 
     const cell = tileOf(pos);
-    if (isBlockedGrid(ctx.obstacles, cell.tx, cell.ty)) {
-      world.remove(p); // absorbed by terrain
+    if (isBlockedGrid(ctx.sightBlockers, cell.tx, cell.ty)) {
+      world.remove(p); // absorbed by a mountain (a crater is a depression — shots fly over)
       continue;
     }
 
