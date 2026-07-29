@@ -50,7 +50,7 @@ export class WorldRenderer {
   }
 
   /**
-   * Per-frame transform/HP/selection update. `isVisible` gates robot/base
+   * Per-frame transform/HP/selection update. `isVisible` gates robot/base/drone
    * views for fog of war — an enemy view stays created (so it snaps back
    * instantly once known again) but is hidden while not detected.
    */
@@ -59,7 +59,7 @@ export class WorldRenderer {
     for (const e of this.bases) this.baseViews.get(e.id)?.update(e, isVisible(e));
     for (const e of this.projectiles) this.projectileViews.get(e.id)?.update(e);
     for (const e of this.explosions) this.explosionViews.get(e.id)?.update(e);
-    for (const e of this.drones) this.droneViews.get(e.id)?.update(e);
+    for (const e of this.drones) this.droneViews.get(e.id)?.update(e, isVisible(e));
   }
 
   private bind<V extends View>(

@@ -8,6 +8,7 @@ import { aiSystem } from '../../systems/ai';
 import { combatSystem } from '../../systems/combat';
 import { commandsSystem } from '../../systems/commands';
 import { droneSystem } from '../../systems/drone';
+import { droneRespawnSystem } from '../../systems/droneRespawn';
 import { economySystem } from '../../systems/economy';
 import { explosionSystem } from '../../systems/explosion';
 import { fogSystem } from '../../systems/fog';
@@ -100,6 +101,9 @@ export class GameScene implements Scene {
     separationSystem(ctx);
     combatSystem(ctx, dt);
     reapSystem(ctx);
+    // After reap: a drone shot down this tick is already gone, so the respawn
+    // clock sees the side is missing its eye on the very tick it lost it.
+    droneRespawnSystem(ctx, dt);
     explosionSystem(ctx, dt);
     // Fog last: reveal from settled positions this tick.
     fogSystem(ctx);

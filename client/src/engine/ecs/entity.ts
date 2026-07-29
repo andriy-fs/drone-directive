@@ -29,6 +29,8 @@ export interface WeaponComp {
   explosionRadius: number;
   /** Jamming aura radius (px); >0 halves nearby enemy scouts' sightRange (ew). */
   jamRadius: number;
+  /** Surface-to-air: may engage an enemy observer drone as well as ground targets. */
+  canHitAir: boolean;
 }
 
 /** Base production component. */
@@ -63,6 +65,11 @@ export interface Threat {
  * Observer-drone component — doubles as the `drone` archetype tag (its presence,
  * an object, is what `world.with('drone', ...)` matches). The player's flying eye:
  * flies free of obstacles, and while `possessedId` is set it is steering that robot.
+ *
+ * A drone carries `hp` and can be shot down by surface-to-air fire — but only in
+ * free flight: while it possesses a robot it rides inside that hull and is
+ * untouchable (see `isTargetableDrone`). Losing one costs the side its eye for
+ * `gameConfig.drone.respawnTime` seconds (see `systems/droneRespawn.ts`).
  */
 export interface Drone {
   /** Id of the idle robot the drone is currently controlling, or undefined = free flight. */
@@ -125,4 +132,4 @@ export interface Entity {
   effect?: Effect;
 }
 
-export type EntityKind = 'base' | 'robot' | 'projectile' | 'explosion';
+export type EntityKind = 'base' | 'robot' | 'projectile' | 'explosion' | 'drone';

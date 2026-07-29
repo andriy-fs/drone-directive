@@ -5,7 +5,7 @@ import { spawnExplosion, spawnProjectile } from '../ecs/factory';
 import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
-import { findById, isEnemy } from './targeting';
+import { findById, isEnemy, isTargetableDrone } from './targeting';
 
 /**
  * Firing + projectile flight/collision. Runs after movement so shots use
@@ -17,6 +17,8 @@ import { findById, isEnemy } from './targeting';
  * still have to drive around). A `bomb` weapon
  * (`explosionRadius > 0`) detonates on contact instead of firing (see
  * `detonateBomb`); a `radar` weapon (range 0) never engages — it only spots.
+ * Observer drones are hit only by a deliberate surface-to-air shot — see
+ * `hitsAimedDrone`.
  */
 export function combatSystem(ctx: GameContext, dt: number): void {
   const world = ctx.world;
@@ -95,6 +97,27 @@ function hitsBase(p: Vec2, base: Entity): boolean {
   return distanceToBase(p, base) <= gameConfig.combat.projectileRadius;
 }
 
+/**
+ * Anti-air hit test: a shot damages the drone it was *aimed at*, and never one
+ * that merely drifts across its path. Stray hits would be unplayable — the
+ * camera keeps the drone in the middle of the fight, so it sits in every
+ * crossfire by design. Deliberately fire only, and only from a `canHitAir`
+ * weapon, so the rule holds even if some other code hands a cannon a drone id.
+ */
+function hitsAimedDrone(ctx: GameContext, p: Entity, pos: Vec2): boolean {
+  if (!p.targetId || !gameConfig.robots.weapons[p.weaponType!].canHitAir) return false;
+
+  for (const d of ctx.world.with('drone', 'position')) {
+    if (d.id !== p.targetId) continue;
+    if (!isEnemy(p.owner, d.owner) || !isTargetableDrone(d)) return false;
+    const reach = gameConfig.drone.hitRadius + gameConfig.combat.projectileRadius;
+    if (distance(pos.x, pos.y, d.position!.x, d.position!.y) > reach) return false;
+    d.hp = (d.hp ?? 0) - (p.damage ?? 0);
+    return true;
+  }
+  return false;
+}
+
 function stepProjectiles(ctx: GameContext, dt: number): void {
   const world = ctx.world;
   const radius = gameConfig.robots.radius;
@@ -139,6 +162,7 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
         }
       }
     }
+    if (!hit) hit = hitsAimedDrone(ctx, p, pos);
     if (hit) world.remove(p);
   }
 }

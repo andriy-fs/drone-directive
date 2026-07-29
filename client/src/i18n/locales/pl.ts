@@ -106,6 +106,8 @@ export const pl: Dict = {
     auto: 'Auto',
     stop: 'Stop',
     buildProgram: 'Budowa i dyrektywa',
+    drone: 'Dron obserwacyjny',
+    droneDown: 'Dron zestrzelony · odbudowa',
   },
   programming: {
     selectUnits: 'Wybierz jednostkę/i, aby wydać dyrektywę.',
@@ -148,7 +150,8 @@ export const pl: Dict = {
     ewNote: 'Brak broni — zagłusza wzrok wrogów w promieniu',
     bombNote: 'Wybucha przy kontakcie, promień wybuchu',
     cannonNote: 'Zbalansowana szybkostrzelność i zasięg — solidny wybór uniwersalny',
-    missilesNote: 'Większy zasięg i obrażenia kosztem wolniejszego przeładowania',
+    missilesNote:
+      'Większy zasięg i obrażenia kosztem wolniejszego przeładowania. Jedyna broń zdolna zestrzelić wrogiego drona obserwacyjnego',
   },
   aria: {
     resume: 'Wznów',

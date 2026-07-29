@@ -44,6 +44,7 @@ export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: Ch
       cooldownLeft: 0,
       explosionRadius: w.explosionRadius,
       jamRadius: w.jamRadius,
+      canHitAir: w.canHitAir,
     },
     // Radar (and any future spotter) scales the chassis sight radius; others = 1.
     sightRange: stats.sight * w.sightMultiplier,
@@ -52,7 +53,7 @@ export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: Ch
   });
 }
 
-/** Adds the player's observer drone at `pos` (the base "roof" at match start). */
+/** Adds the player's observer drone at `pos` (the base "roof" at match start, or on respawn). */
 export function spawnDrone(world: EcsWorld, owner: Owner, pos: Vec2): Entity {
   return world.add({
     id: nextId('drone'),
@@ -60,6 +61,8 @@ export function spawnDrone(world: EcsWorld, owner: Owner, pos: Vec2): Entity {
     owner,
     position: { x: pos.x, y: pos.y },
     heading: 0,
+    hp: gameConfig.drone.maxHp,
+    maxHp: gameConfig.drone.maxHp,
     sightRange: gameConfig.drone.sightRange,
   });
 }

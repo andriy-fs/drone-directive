@@ -4,6 +4,8 @@ import { ChassisType, Owner, TaskType, WeaponType } from '../../types/enums';
 import { spawnDrone, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { droneSystem } from './drone';
+import { reapSystem } from './reap';
+import { isTargetableDrone } from './targeting';
 import { makeCtx } from './testkit';
 
 function fillNav(ctx: GameContext, blocked: boolean): void {
@@ -186,5 +188,45 @@ describe('droneSystem — manual fire', () => {
 
     expect(ctx.world.with('projectile').entities.length).toBe(1);
     expect(gun.weapon!.cooldownLeft).toBeGreaterThan(0);
+  });
+});
+
+describe('drone exposure', () => {
+  it('is a valid target while free-flying', () => {
+    const ctx = makeCtx(1);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    expect(isTargetableDrone(drone)).toBe(true);
+    expect(drone.hp).toBe(gameConfig.drone.maxHp);
+  });
+
+  it('is untouchable while it possesses a robot — it rides inside the hull', () => {
+    const ctx = makeCtx(1);
+    const carrier = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone!.possessedId = carrier.id;
+
+    expect(isTargetableDrone(drone)).toBe(false);
+  });
+
+  it('becomes exposed again the moment it takes off', () => {
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const carrier = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone!.possessedId = carrier.id;
+    setControl(ctx, { x: 0, y: 0 }, true); // release pulse
+
+    droneSystem(ctx, 1);
+
+    expect(isTargetableDrone(drone)).toBe(true);
+  });
+
+  it('is reaped once shot down, leaving the side without an eye', () => {
+    const ctx = makeCtx(1);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.hp = 0;
+
+    expect(reapSystem(ctx)).toBe(true);
+    expect(ctx.world.with('drone').entities).toHaveLength(0);
   });
 });

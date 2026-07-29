@@ -291,6 +291,11 @@
   opacity: 0.45;
 }
 
+/* Drone shot down: the label reads as an alert, not as ordinary status. */
+.build-progress--down .hud__muted {
+  color: #f87171;
+}
+
 .auto-build {
   display: flex;
   align-items: center;

@@ -23,6 +23,21 @@ export function enemyBases(ctx: GameContext, owner: Owner): Entity[] {
   return ctx.world.with('base', 'position').entities.filter((e) => (e.hp ?? 0) > 0 && isEnemy(owner, e.owner));
 }
 
+/**
+ * Whether a drone can be engaged at all. A drone possessing a robot rides inside
+ * that hull: it shares the robot's position, so treating it as a target would
+ * mean every shot at the carrier incidentally killed the drone too. Free flight
+ * is the only exposure — that is the trade the possession mechanic buys.
+ */
+export function isTargetableDrone(e: Entity): boolean {
+  return !!e.drone && (e.hp ?? 0) > 0 && !e.drone.possessedId;
+}
+
+/** Enemy drones relative to `owner` that are currently exposed (see `isTargetableDrone`). */
+export function enemyDrones(ctx: GameContext, owner: Owner): Entity[] {
+  return ctx.world.with('drone', 'position').entities.filter((e) => isEnemy(owner, e.owner) && isTargetableDrone(e));
+}
+
 /** This owner's own living base, if it still stands. */
 export function ownBase(ctx: GameContext, owner: Owner): Entity | undefined {
   return ctx.world.with('base', 'position').entities.find((e) => e.owner === owner && (e.hp ?? 0) > 0);
@@ -38,6 +53,12 @@ export function knownEnemyRobots(ctx: GameContext, owner: Owner): Entity[] {
 export function knownEnemyBases(ctx: GameContext, owner: Owner): Entity[] {
   const known = ctx.intel[owner].knownBaseIds;
   return enemyBases(ctx, owner).filter((e) => known.has(e.id));
+}
+
+/** Exposed enemy drones `owner`'s team currently has in sight (see `visionSystem`). */
+export function knownEnemyDrones(ctx: GameContext, owner: Owner): Entity[] {
+  const visible = ctx.intel[owner].visibleDroneIds;
+  return enemyDrones(ctx, owner).filter((e) => visible.has(e.id));
 }
 
 /** Nearest entity (by position) to `from`, or undefined. */

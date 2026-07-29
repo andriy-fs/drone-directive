@@ -4,10 +4,17 @@ import { palette } from '../config/palette';
 import type { Entity } from '../engine/ecs/entity';
 import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
-import { useGameStore, type BaseSnapshot, type GameState, type PendingOnline, type RobotSnapshot } from '../store/gameStore';
+import {
+  useGameStore,
+  type BaseSnapshot,
+  type DroneStatus,
+  type GameState,
+  type PendingOnline,
+  type RobotSnapshot,
+} from '../store/gameStore';
 import type { Command } from '../types/commands';
 import { Controller, Owner, TaskType, WeaponType, type MapSize } from '../types/enums';
-import type { DroneControl } from '../engine/game/context';
+import type { DroneControl, GameContext } from '../engine/game/context';
 import { loadGameAssets } from './assets';
 import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
 import { randomRoomCode } from './net/config';
@@ -91,18 +98,34 @@ export class GameApp {
     this.loop.start(this.app.ticker);
   }
 
-  /** Render pass: follow the drone with the camera, sync views, redraw fog. */
+  /** Render pass: move the camera, sync views, redraw fog. */
   private render(): void {
-    this.followDrone();
+    this.updateCamera();
     this.worldRenderer.sync(new Set(useGameStore.getState().selectedRobotIds), (e) => this.isVisibleToLocalSide(e));
     this.fogView?.update(this.engine.context?.fog);
   }
 
-  /** Keep the viewport centred on the local side's observer drone (this player's eye). */
-  private followDrone(): void {
-    const drones = this.engine.world.with('drone', 'position').entities;
-    const drone = drones.find((d) => d.owner === this.localSide) ?? drones[0];
-    if (drone?.position) this.camera.centerOn(drone.position.x, drone.position.y);
+  /**
+   * Centre the viewport on the local side's observer drone (this player's eye).
+   * While that drone is shot down, the same keys pan the camera freely instead
+   * of leaving the view frozen — the player loses the drone's vision, not the
+   * ability to look around. Never falls back to *another* side's drone: online
+   * that would hand this client a live view of the opponent's scout.
+   */
+  private updateCamera(): void {
+    const drone = this.engine.world.with('drone', 'position').entities.find((d) => d.owner === this.localSide);
+    if (drone?.position) {
+      this.camera.centerOn(drone.position.x, drone.position.y);
+      return;
+    }
+
+    const dir = useGameStore.getState().droneInput;
+    if (dir.x === 0 && dir.y === 0) return;
+    // Camera-only, so a real frame delta is fine here — nothing about panning
+    // feeds the simulation, which keeps running on its own fixed step.
+    const frameDt = Math.min(this.app.ticker.deltaMS / 1000, gameConfig.maxFrameDt);
+    const step = gameConfig.camera.keyboardPanSpeed * frameDt;
+    this.camera.panByWorld(dir.x * step, dir.y * step);
   }
 
   /** Subscribe app-layer observers (audio + store sync) to discrete engine events. */
@@ -376,6 +399,7 @@ export class GameApp {
     if (!intel) return true;
     if (e.robot) return intel.visibleRobotIds.has(e.id);
     if (e.base) return intel.knownBaseIds.has(e.id);
+    if (e.drone) return intel.visibleDroneIds.has(e.id);
     return true;
   }
 
@@ -396,13 +420,7 @@ export class GameApp {
         })),
       );
       store.setResources({ ...ctx.resources });
-      const drones = world.with('drone').entities;
-      const drone = drones.find((d) => d.owner === store.localSide) ?? drones[0];
-      const possessedRobotId = drone?.drone?.possessedId ?? null;
-      store.setDroneStatus({
-        mode: possessedRobotId ? 'possessing' : 'flying',
-        possessedRobotId,
-      });
+      store.setDroneStatus(droneStatusOf(world.with('drone').entities, ctx, store.localSide));
     }
   }
 
@@ -448,6 +466,34 @@ export class GameApp {
     this.app.renderer?.off('resize', this.onResize);
     this.app.destroy({ removeView: true }, { children: true });
   }
+}
+
+/**
+ * HUD view of the local side's eye: its health while it flies, or how far along
+ * its replacement is once it has been shot down.
+ */
+function droneStatusOf(drones: Entity[], ctx: GameContext, side: Owner): DroneStatus {
+  const { maxHp, respawnTime } = gameConfig.drone;
+  const drone = drones.find((d) => d.owner === side);
+  if (!drone) {
+    const left = ctx.droneRespawn[side];
+    return {
+      mode: 'down',
+      possessedRobotId: null,
+      hp: 0,
+      maxHp,
+      respawnProgress: respawnTime > 0 ? 1 - left / respawnTime : 1,
+    };
+  }
+
+  const possessedRobotId = drone.drone?.possessedId ?? null;
+  return {
+    mode: possessedRobotId ? 'possessing' : 'flying',
+    possessedRobotId,
+    hp: drone.hp ?? 0,
+    maxHp: drone.maxHp ?? maxHp,
+    respawnProgress: 0,
+  };
 }
 
 function toBaseSnapshot(e: Entity): BaseSnapshot {

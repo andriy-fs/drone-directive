@@ -47,18 +47,21 @@ export interface AiState {
 }
 
 /**
- * A team's shared battlefield knowledge. `visibleRobotIds` is recomputed fresh
- * every tick (an enemy robot is "known" only while some ally currently has it
- * in sight — it moves, so this is not persisted); `knownBaseIds` only grows
- * (a base doesn't move, so once discovered it stays discovered).
+ * A team's shared battlefield knowledge. `visibleRobotIds`/`visibleDroneIds` are
+ * recomputed fresh every tick (an enemy robot or drone is "known" only while some
+ * ally currently has it in sight — it moves, so this is not persisted);
+ * `knownBaseIds` only grows (a base doesn't move, so once discovered it stays
+ * discovered).
  */
 export interface TeamIntel {
   visibleRobotIds: Set<string>;
+  /** Enemy observer drones in sight right now — what anti-air fire may engage. */
+  visibleDroneIds: Set<string>;
   knownBaseIds: Set<string>;
 }
 
 function emptyIntel(): TeamIntel {
-  return { visibleRobotIds: new Set(), knownBaseIds: new Set() };
+  return { visibleRobotIds: new Set(), visibleDroneIds: new Set(), knownBaseIds: new Set() };
 }
 
 function emptyDroneControl(): DroneControl {
@@ -155,6 +158,12 @@ export interface GameContext {
   intel: Record<Owner, TeamIntel>;
   /** Per-side observer-drone input for this step (set by the app bridge / lockstep). */
   droneControl: Record<Owner, DroneControl>;
+  /**
+   * Seconds left until a shot-down drone is replaced, per side; `0` means the
+   * side has its drone (or has no base left to build one). See
+   * `systems/droneRespawn.ts` — the HUD reads it for the readiness bar.
+   */
+  droneRespawn: Record<Owner, number>;
   /** Which side this client views as "theirs" (fog/camera/HUD). Presentation only — never networked. */
   localSide: Owner;
   /** Player fog-of-war tile mask (recomputed by `fogSystem`). */
@@ -201,6 +210,7 @@ export function createGameContext(
     ) as Partial<Record<Owner, AiState>>,
     intel: byOwner(emptyIntel),
     droneControl: byOwner(emptyDroneControl),
+    droneRespawn: byOwner(() => 0),
     localSide: Owner.Player,
     fog: { explored: emptyGrid(), visible: emptyGrid(), version: 0 },
   };

@@ -1,5 +1,11 @@
 import { useT } from '../../i18n';
-import { selectLocalSide, selectPlayerBase, selectResources, selectSides } from '../../store/selectors';
+import {
+  selectDroneStatus,
+  selectLocalSide,
+  selectPlayerBase,
+  selectResources,
+  selectSides,
+} from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
@@ -12,12 +18,17 @@ import { sideLabel, sideTone } from './sides';
  * build flow. Subscribes only to resources + the player base slice to avoid
  * re-rendering on unrelated world changes.
  */
+function droneHealth(hp: number, maxHp: number): number {
+  return maxHp > 0 ? hp / maxHp : 0;
+}
+
 export function StatusPanel() {
   const t = useT();
   const resources = useGameStore(selectResources);
   const localSide = useGameStore(selectLocalSide);
   const sides = useGameStore(selectSides);
   const playerBase = useGameStore(selectPlayerBase);
+  const drone = useGameStore(selectDroneStatus);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   // Dialog visibility lives in the store so a double-click on the base (canvas
   // side) opens the very same dialog as this panel's button.
@@ -54,6 +65,14 @@ export function StatusPanel() {
             : t('statusPanel', 'idle')}
         </span>
         <Bar value={playerBase?.buildProgress ?? 0} />
+      </div>
+
+      {/* The eye: its hull while it flies, its replacement's readiness once it's down. */}
+      <div className={`build-progress ${drone.mode === 'down' ? 'build-progress--down' : ''}`.trim()}>
+        <span className="hud__muted">
+          {drone.mode === 'down' ? t('statusPanel', 'droneDown') : t('statusPanel', 'drone')}
+        </span>
+        <Bar value={drone.mode === 'down' ? drone.respawnProgress : droneHealth(drone.hp, drone.maxHp)} />
       </div>
 
       {auto && (

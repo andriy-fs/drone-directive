@@ -9,9 +9,14 @@ import type { ChassisType, MapSize, TaskType, WeaponType } from '../types/enums'
 
 /** HUD-facing observer-drone status (projected from the ECS world). */
 export interface DroneStatus {
-  mode: 'flying' | 'possessing';
+  /** `down` = shot down, a replacement is being built (see `respawnProgress`). */
+  mode: 'flying' | 'possessing' | 'down';
   /** Id of the robot the drone is controlling, or null when free-flying. */
   possessedRobotId: string | null;
+  hp: number;
+  maxHp: number;
+  /** Readiness of the replacement drone, 0..1. Only meaningful while `down`. */
+  respawnProgress: number;
 }
 
 /** HUD-facing view of a robot (projected from the ECS world by the app bridge). */
@@ -168,6 +173,9 @@ const initialState = {
   droneStatus: {
     mode: 'flying',
     possessedRobotId: null,
+    hp: gameConfig.drone.maxHp,
+    maxHp: gameConfig.drone.maxHp,
+    respawnProgress: 0,
   } as DroneStatus,
   buildDialogOpen: false,
   settings: createDefaultSettings(),
