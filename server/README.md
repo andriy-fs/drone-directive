@@ -15,6 +15,9 @@ npm run type-check -w server  # tsc --noEmit against @cloudflare/workers-types
 npm run deploy -w server      # wrangler deploy (requires `npx wrangler login` first)
 ```
 
+`npm run dev:relay` from the repo root is an alias for the first one — the root
+`npm run dev` starts the game alone, so online play needs both running.
+
 Point the client at the relay with `VITE_MULTIPLAYER_URL` (see the client README);
 `wrangler dev` serves on `ws://localhost:8787` by default.
 

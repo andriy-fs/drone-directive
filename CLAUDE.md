@@ -4,13 +4,14 @@ Top-down RTS game built with **React 19 + PixiJS 8 + TypeScript + Vite + Zustand
 
 ## Monorepo (npm workspaces)
 
-Three workspaces: **`client/`** (`@drone-directive/client` — the web game; all app code, configs, `index.html`, and `public/` live here, source under `client/src/**`, build output `client/dist/`), **`protocol/`** (`@drone-directive/protocol` — types-only wire protocol shared by the other two), and **`server/`** (`@drone-directive/server` — the online-multiplayer relay: a Cloudflare Worker + Durable Object; see `.docs/server-relay.md`). The root `package.json` only wires the workspaces; its `dev`/`build`/`lint`/`test` scripts delegate to `client` — the server has its own `dev`/`type-check`/`deploy` (`npm run <script> -w server`) and is **not** covered by the root build/test/lint.
+Three workspaces: **`client/`** (`@drone-directive/client` — the web game; all app code, configs, `index.html`, and `public/` live here, source under `client/src/**`, build output `client/dist/`), **`protocol/`** (`@drone-directive/protocol` — types-only wire protocol shared by the other two), and **`server/`** (`@drone-directive/server` — the online-multiplayer relay: a Cloudflare Worker + Durable Object; see `.docs/server-relay.md`). The root `package.json` only wires the workspaces; its `dev`/`build`/`lint`/`test` scripts delegate to `client` — the server has its own `dev`/`type-check`/`deploy` (`npm run <script> -w server`) and is **not** covered by the root build/test/lint. The one exception is `npm run dev:relay`, a root alias for `npm run dev -w server`.
 
 ## Commands
 
 Run from the repo root (they delegate to the `client` workspace):
 
-- `npm run dev` — Vite dev server.
+- `npm run dev` — Vite dev server (the game only; online play also needs `npm run dev:relay`).
+- `npm run dev:relay` — the multiplayer relay Worker on `ws://localhost:8787`, which the client defaults to.
 - `npm test` — Vitest engine tests (must pass). `npm run test:watch` (inside `client/`) to iterate. Tests live next to the systems as `client/src/engine/systems/*.test.ts`.
 - `npm run build` — production build (`tsc -b && vite build`, emits `client/dist`).
 - `npm run lint` — ESLint.

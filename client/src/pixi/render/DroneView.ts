@@ -3,15 +3,22 @@ import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { Entity } from '../../engine/ecs/entity';
 import { getDroneTexture } from '../assets';
+import { HealthBar } from './HealthBar';
+
+/** Bar width (px) and how far above the drone it floats. */
+const HP_BAR_WIDTH = 22;
+const HP_BAR_OFFSET = 18;
 
 /**
  * View for the player's observer drone: a small diamond marker (so it reads as
  * a flyer, not a ground unit). Lives on the `overlay` layer so it draws above
- * fog and units. `body` rotates with heading.
+ * fog and units. `body` rotates with heading; an HP bar appears only once the
+ * drone has taken anti-air damage, so an untouched one stays uncluttered.
  */
 export class DroneView {
   readonly container: Container;
   private readonly body: Container;
+  private readonly hpBar: HealthBar;
 
   constructor(drone: Entity) {
     this.container = new Container();
@@ -42,12 +49,24 @@ export class DroneView {
     }
     this.container.addChild(this.body);
 
-    this.update(drone);
+    this.hpBar = new HealthBar(HP_BAR_WIDTH);
+    this.hpBar.container.position.set(0, -HP_BAR_OFFSET);
+    this.container.addChild(this.hpBar.container);
+
+    this.update(drone, true);
   }
 
-  update(drone: Entity): void {
+  update(drone: Entity, visible: boolean): void {
+    // The overlay layer draws above the fog, so a drone the local side hasn't
+    // detected has to be hidden outright — the fog can't cover it.
+    this.container.visible = visible;
     if (drone.position) this.container.position.set(drone.position.x, drone.position.y);
     this.body.rotation = drone.heading ?? 0;
+
+    const maxHp = drone.maxHp ?? 0;
+    const hp = drone.hp ?? 0;
+    this.hpBar.container.visible = maxHp > 0 && hp < maxHp;
+    if (this.hpBar.container.visible) this.hpBar.set(hp / maxHp);
   }
 
   destroy(): void {

@@ -3,13 +3,14 @@ import type { Owner } from '../../types/enums';
 import { distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext, TeamIntel } from '../game/context';
-import { enemyBases, enemyRobots, isEnemy } from './targeting';
+import { enemyBases, enemyDrones, enemyRobots, isEnemy } from './targeting';
 
 /**
- * Detection resolver. Each tick, recomputes which enemy robots are currently
- * within sight of some living allied robot or base (real-time — an enemy robot
- * drops out of `visibleRobotIds` the instant no ally can see it, since it
- * moves) and grows the set of enemy bases any ally has ever come within sight
+ * Detection resolver. Each tick, recomputes which enemy robots and observer
+ * drones are currently within sight of some living allied robot or base
+ * (real-time — an enemy unit drops out of `visibleRobotIds`/`visibleDroneIds`
+ * the instant no ally can see it, since it moves) and grows the set of enemy
+ * bases any ally has ever come within sight
  * of (bases don't move, so discovery is permanent). Both robots and bases have
  * their own `sightRange` (see `gameConfig.robots.chassis[*].sight` /
  * `gameConfig.bases.sightRange`) and contribute vision equally. Living enemy
@@ -30,9 +31,9 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   const scouts = [
     ...ctx.world.with('robot', 'position').entities.filter(isMine),
     ...ctx.world.with('base', 'position').entities.filter(isMine),
-    // The observer drone spots enemies too (additive); it has no hp, so match on
-    // owner + sight only. Bot sides have no drone, so this is empty for them.
-    ...ctx.world.with('drone', 'position').entities.filter((e) => e.owner === owner && (e.sightRange ?? 0) > 0),
+    // The observer drone spots enemies too (additive) — it isn't a robot, so it
+    // needs its own pass. Bot sides have no drone, so this is empty for them.
+    ...ctx.world.with('drone', 'position').entities.filter(isMine),
   ];
   // Enemy `ew` robots jamming this side's scouts.
   const jammers = ctx.world
@@ -44,6 +45,14 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
     if (isSpotted(scouts, jammers, foe.position!.x, foe.position!.y)) visible.add(foe.id);
   }
   intel.visibleRobotIds = visible;
+
+  // Enemy drones detect the same way ground units do — this is what anti-air
+  // fire shoots at, and what the renderer uses to keep one hidden in the fog.
+  const visibleDrones = new Set<string>();
+  for (const foe of enemyDrones(ctx, owner)) {
+    if (isSpotted(scouts, jammers, foe.position!.x, foe.position!.y)) visibleDrones.add(foe.id);
+  }
+  intel.visibleDroneIds = visibleDrones;
 
   for (const base of enemyBases(ctx, owner)) {
     if (intel.knownBaseIds.has(base.id)) continue;

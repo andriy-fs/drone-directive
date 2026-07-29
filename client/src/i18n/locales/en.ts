@@ -105,6 +105,10 @@ export interface Dict {
     auto: string;
     stop: string;
     buildProgram: string;
+    /** Label above the observer drone's hull bar. */
+    drone: string;
+    /** Label above the rebuild bar while the drone is shot down. */
+    droneDown: string;
   };
   programming: {
     selectUnits: string;
@@ -286,6 +290,8 @@ export const en: Dict = {
     auto: 'Auto',
     stop: 'Stop',
     buildProgram: 'Build & Program',
+    drone: 'Observer drone',
+    droneDown: 'Drone lost · rebuilding',
   },
   programming: {
     selectUnits: 'Select unit(s) to program.',
@@ -328,7 +334,8 @@ export const en: Dict = {
     ewNote: 'No weapon — jams enemy sight within',
     bombNote: 'Self-destructs on impact, blast radius',
     cannonNote: 'Balanced rate of fire and range — a reliable all-rounder',
-    missilesNote: 'Longer range and heavier damage, at the cost of a slower reload',
+    missilesNote:
+      'Longer range and heavier damage, at the cost of a slower reload. The only weapon that can shoot down an enemy observer drone',
   },
   aria: {
     resume: 'Resume',

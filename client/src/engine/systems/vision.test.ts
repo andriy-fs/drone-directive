@@ -86,6 +86,31 @@ describe('visionSystem — detection (no omniscience)', () => {
     expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(true);
   });
 
+  it('spots an enemy drone in range, and forgets it once it flies clear', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Missiles);
+    const foe = spawnDrone(ctx.world, Owner.AI, { x: 120, y: 50 });
+
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleDroneIds.has(foe.id)).toBe(true);
+
+    foe.position!.x = 5000;
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleDroneIds.has(foe.id)).toBe(false);
+  });
+
+  it('does not report an enemy drone that is riding inside a robot', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Missiles);
+    const carrier = spawnRobot(ctx.world, Owner.AI, { x: 120, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    const foe = spawnDrone(ctx.world, Owner.AI, { x: 120, y: 50 });
+    foe.drone!.possessedId = carrier.id;
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.visibleDroneIds.has(foe.id)).toBe(false);
+  });
+
   it('radar weapon doubles the chassis sight range', () => {
     const ctx = makeCtx(1);
     const plain = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Wheels, WeaponType.Cannon);

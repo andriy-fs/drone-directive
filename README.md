@@ -15,11 +15,18 @@ Built with **React 19 · PixiJS 8 · TypeScript · Vite · Zustand**.
 - **Top-down battlefield** on a tile grid, with a pannable/zoomable camera and
   three map-size presets (40×40 / 60×60 / 80×80).
 - **Bases** with production queues, health, and win/lose on destruction.
-- **Robots** — 3 chassis (tracks / wheels / legs) × 5 weapons: cannon and
-  missiles for direct combat, a kamikaze bomb, a radar module that doubles its
-  own sight radius, and an EW jammer that halves nearby enemies' sight.
+- **Robots** — 3 chassis (tracks / wheels / legs) × 5 weapons: a cannon, a
+  surface-to-air missile launcher (the only weapon that can engage a drone), a
+  kamikaze bomb, a radar module that doubles its own sight radius, and an EW
+  jammer that halves nearby enemies' sight.
 - **The observer drone** — a free-flying "eye" you pilot directly that reveals
-  the map and can land on an idle robot to fire its weapon manually.
+  the map and can land on an idle robot to fire its weapon manually. It is **not
+  invulnerable**: enemy missiles shoot it down in three hits, and the side that
+  loses one flies blind for 30 seconds while a replacement is built (the HUD
+  shows the readiness bar). Riding inside a robot makes it untouchable — so
+  scouting is the risk, and possession is the cover. Missile units engage a
+  drone only opportunistically: they never chase one, and never pick it over a
+  ground target they can already shoot.
 - **Selection & group control** — click, shift-click, drag-marquee, `Ctrl+A`,
   double-click to select every robot sharing a weapon, and classic RTS control
   groups (`Ctrl+1-9` to save a selection, `1-9` to recall it).
@@ -48,7 +55,9 @@ Built with **React 19 · PixiJS 8 · TypeScript · Vite · Zustand**.
   lockstep**: only each player's per-tick orders cross the network, and both
   clients simulate the identical world from one shared seed. Each side pilots its
   own observer drone, has its own fog of war, and sees itself in the friendly
-  colour. Design: [.docs/multiplayer.md](.docs/multiplayer.md) · backend:
+  colour — the rival's drone stays hidden until something of yours actually spots
+  it, which is also the moment your missiles can start shooting at it.
+  Design: [.docs/multiplayer.md](.docs/multiplayer.md) · backend:
   [.docs/server-relay.md](.docs/server-relay.md).
 
 ## Getting started
@@ -65,40 +74,51 @@ npm install
 npm run dev      # start the dev server (prints a local URL)
 ```
 
+That runs the game only. **Online multiplayer additionally needs the relay
+running** — `npm run dev:relay` in a second terminal (see below).
+
 ### Scripts
 
-All run from the repo root and delegate to the `client` workspace.
+All run from the repo root. Everything delegates to the `client` workspace
+except `dev:relay`, which starts the `server` one.
 
 | Command              | Description                                                   |
 | -------------------- | ------------------------------------------------------------- |
 | `npm run dev`        | Start the Vite dev server with HMR.                           |
+| `npm run dev:relay`  | Start the multiplayer relay locally on `ws://localhost:8787`. |
 | `npm run build`      | Type-check and build for production (`tsc -b && vite build`). |
 | `npm run preview`    | Serve the production build locally.                           |
 | `npm run lint`       | Run ESLint.                                                   |
 | `npm test`           | Run the Vitest engine test suite.                             |
 | `npm run test:watch` | Run the test suite in watch mode.                             |
 
-The relay Worker has its own scripts (it is **not** covered by the root
+The relay Worker has its own scripts too (it is **not** covered by the root
 `build`/`test`/`lint`):
 
-| Command                        | Description                                           |
-| ------------------------------ | ----------------------------------------------------- |
-| `npm run dev -w server`        | Run the relay locally (wrangler/miniflare, no login). |
-| `npm run type-check -w server` | Type-check the Worker (`tsc --noEmit`).               |
-| `npm run deploy -w server`     | Deploy to Cloudflare (needs `npx wrangler login`).    |
+| Command                        | Description                                          |
+| ------------------------------ | ---------------------------------------------------- |
+| `npm run dev -w server`        | What `npm run dev:relay` calls (wrangler/miniflare). |
+| `npm run type-check -w server` | Type-check the Worker (`tsc --noEmit`).              |
+| `npm run deploy -w server`     | Deploy to Cloudflare (needs `npx wrangler login`).   |
 
 ### Online multiplayer (dev)
 
-Solo vs. the bot by default; **Online (2P)** in the menu plays head-to-head. Run
-the relay Worker locally and point the client at it:
+Solo vs. the bot by default; **Online (2P)** in the menu plays head-to-head.
+This needs **two processes** — the root `dev` script starts the game only, so
+without the relay the lobby fails to open a room. Use two terminals:
 
 ```bash
-npm run dev -w server   # relay on ws://localhost:8787 (wrangler dev, no login)
-npm run dev             # client; VITE_MULTIPLAYER_URL defaults to that relay
+npm run dev:relay   # relay on ws://localhost:8787 (wrangler dev, no login needed)
+npm run dev         # client; VITE_MULTIPLAYER_URL defaults to that relay
 ```
 
 Open two tabs, host in one, join with the code in the other. Both tabs simulate
 the same match — the host plays one side, the guest the other.
+
+Two tabs of the **same** browser is the reliable setup. Two _different_ browsers
+also work, but the lockstep simulation leans on `Math.hypot`/`sin`/`cos`, whose
+results JS engines are not required to match bit for bit — a cross-engine match
+can therefore desync (it ends with a `[desync]` line in the console).
 
 For a deployed build, set `VITE_MULTIPLAYER_URL=wss://<your-worker-host>` at build
 time; the relay deploys separately (`npm run deploy -w server`). How the backend
@@ -107,23 +127,23 @@ for both halves in [.docs/deployment.md](.docs/deployment.md).
 
 ## Controls
 
-| Input                            | Action                                          |
-| -------------------------------- | ----------------------------------------------- |
-| **Left-drag** (empty ground)     | Box-select your robots (marquee)                |
-| **Left-click** a robot           | Select it                                       |
-| **Shift+click** / **Shift+drag** | Add to the current selection                    |
-| **Double-click** a robot         | Select all your robots carrying the same weapon |
-| **Double-click** your base       | Open the **Build & Program** dialog             |
-| **Ctrl/Cmd + A**                 | Select all your robots                          |
-| **Ctrl/Cmd + 1-9**               | Save the current selection as control group N   |
-| **1-9**                          | Recall control group N                          |
-| **Left-click** empty ground      | Clear selection                                 |
-| **Right-click**                  | Move the selection to that point (in formation) |
-| **Middle-mouse drag**            | Pan the camera                                  |
-| **Esc** / **Space** / **P**      | Pause / resume                                  |
-| **W A S D** / **arrow keys**     | Fly the observer drone                          |
-| **F**                            | Land the drone on / release an idle robot       |
-| **E**                            | Fire the possessed robot's weapon               |
+| Input                            | Action                                                        |
+| -------------------------------- | ------------------------------------------------------------- |
+| **Left-drag** (empty ground)     | Box-select your robots (marquee)                              |
+| **Left-click** a robot           | Select it                                                     |
+| **Shift+click** / **Shift+drag** | Add to the current selection                                  |
+| **Double-click** a robot         | Select all your robots carrying the same weapon               |
+| **Double-click** your base       | Open the **Build & Program** dialog                           |
+| **Ctrl/Cmd + A**                 | Select all your robots                                        |
+| **Ctrl/Cmd + 1-9**               | Save the current selection as control group N                 |
+| **1-9**                          | Recall control group N                                        |
+| **Left-click** empty ground      | Clear selection                                               |
+| **Right-click**                  | Move the selection to that point (in formation)               |
+| **Middle-mouse drag**            | Pan the camera                                                |
+| **Esc** / **Space** / **P**      | Pause / resume                                                |
+| **W A S D** / **arrow keys**     | Fly the observer drone (pan the camera while it is shot down) |
+| **F**                            | Land the drone on / release an idle robot                     |
+| **E**                            | Fire the possessed robot's weapon                             |
 
 Use the **Program** panel in the HUD to assign a directive to the selected
 unit(s), and the **Build Robot** dialog to produce units (once or on a
@@ -135,7 +155,8 @@ continuous auto-build loop).
    optionally configure the base (auto-produce a chosen robot, and/or a
    default directive for new robots).
 2. Earn resources over time; **build** and **program** robots, or fly the
-   observer drone yourself.
+   observer drone yourself — keeping it clear of enemy missile units, which
+   will shoot it down and leave you without an eye for 30 seconds.
 3. Send units to **attack the enemy base** while defending your own — the
    enemy AI adapts to how the fight is going.
 4. Destroy the enemy base to win (or lose if yours falls). Then **Play Again**

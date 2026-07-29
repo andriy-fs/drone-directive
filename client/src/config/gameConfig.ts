@@ -62,11 +62,17 @@ export const gameConfig = {
   /** Observer drone: the player's flying "eye" (see systems/drone.ts). */
   drone: {
     /** Flight speed, px/second (free flight — obstacles never block it). */
-    speed: 320,
+    speed: 280,
     /** Detection radius (px): reveals fog + spots enemies like any scout. */
     sightRange: 220,
     /** Max distance (px) to an idle robot to land on / possess it. */
     possessRadius: 40,
+    /** Hull strength. At `missiles` damage (22) that's three hits to bring one down. */
+    maxHp: 60,
+    /** Collision radius (px) for anti-air fire — see `systems/combat.ts`. */
+    hitRadius: 14,
+    /** Seconds a side spends without an eye after losing one, before a fresh drone rolls out. */
+    respawnTime: 30,
   },
 
   /** Robots: per-chassis stats and shared draw/movement tunables. */
@@ -87,6 +93,9 @@ export const gameConfig = {
      * radius on detonation. `sightMultiplier` scales the chassis's own `sight`
      * stat (see `chassis` above); only `radar` raises it, everything else is 1
      * (no-op). `jamRadius` (px) only matters for `ew` — see `combat.jamMultiplier`.
+     * `canHitAir` marks a surface-to-air weapon: only those can shoot an enemy
+     * observer drone down (a howitzer plainly can't). Today that's `missiles`
+     * alone — a dedicated AA weapon would just be another entry with the flag on.
      */
     weapons: {
       none: {
@@ -96,6 +105,7 @@ export const gameConfig = {
         explosionRadius: 0,
         sightMultiplier: 1,
         jamRadius: 0,
+        canHitAir: false,
       },
       cannon: {
         range: 120,
@@ -104,7 +114,9 @@ export const gameConfig = {
         explosionRadius: 0,
         sightMultiplier: 1,
         jamRadius: 0,
+        canHitAir: false,
       },
+      // The only surface-to-air weapon: doubles as this side's answer to an enemy drone.
       missiles: {
         range: 170,
         damage: 22,
@@ -112,6 +124,7 @@ export const gameConfig = {
         explosionRadius: 0,
         sightMultiplier: 1,
         jamRadius: 0,
+        canHitAir: true,
       },
       // Kamikaze: closes to `range` then detonates, dealing `damage` in `explosionRadius`, destroying itself.
       // range (60) must exceed a base's half-footprint (48px) so it can trigger at the base's edge, not only inside it.
@@ -123,6 +136,7 @@ export const gameConfig = {
         explosionRadius: 80,
         sightMultiplier: 1,
         jamRadius: 0,
+        canHitAir: false,
       },
       /** Unarmed spotter: no damage, but doubles detection radius. */
       radar: {
@@ -132,6 +146,7 @@ export const gameConfig = {
         explosionRadius: 0,
         sightMultiplier: 2,
         jamRadius: 0,
+        canHitAir: false,
       },
       /** Unarmed jammer: no damage, but halves the effective sight range of enemy scouts within `jamRadius`. */
       ew: {
@@ -141,6 +156,7 @@ export const gameConfig = {
         explosionRadius: 0,
         sightMultiplier: 1,
         jamRadius: 150,
+        canHitAir: false,
       },
     },
   },

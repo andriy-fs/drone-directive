@@ -23,8 +23,9 @@ export function fogSystem(ctx: GameContext): void {
   const scouts = [
     ...ctx.world.with('robot', 'position').entities.filter(alive),
     ...ctx.world.with('base', 'position').entities.filter(alive),
-    // The drone has no hp; include it on owner + sight range only.
-    ...ctx.world.with('drone', 'position').entities.filter((e) => e.owner === side && (e.sightRange ?? 0) > 0),
+    // The drone isn't a robot, so it needs its own pass; a shot-down one reveals
+    // nothing (it's reaped the same tick, but `alive` keeps that explicit).
+    ...ctx.world.with('drone', 'position').entities.filter(alive),
   ].filter((s) => (s.sightRange ?? 0) > 0);
 
   const jammers = ctx.world

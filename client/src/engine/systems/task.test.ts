@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, RobotState, TaskType, WeaponType } from '../../types/enums';
 import { distance } from '../../utils/math';
-import { spawnBase, spawnRobot } from '../ecs/factory';
+import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
+import type { GameContext } from '../game/context';
 import { makeAttackTarget, makeGuard, makeOverwatch } from '../tasks/taskDefinitions';
 import { makeCtx } from './testkit';
 import { taskSystem } from './task';
@@ -155,5 +156,95 @@ describe('taskSystem — Guard patrols its post', () => {
     expect(seen.size).toBeGreaterThan(3); // actually moves, not frozen
     expect(guard.movement!.state).not.toBe(RobotState.Dead);
     expect(maxDist).toBeLessThanOrEqual(gameConfig.behavior.guardPatrolRadius + gameConfig.grid.tilePx * 2);
+  });
+});
+
+describe('taskSystem — anti-air is a last resort', () => {
+  /** Clear the generated terrain so a mountain can't break line of sight. */
+  function openGround(ctx: GameContext): void {
+    const { width, height } = gameConfig.grid;
+    ctx.sightBlockers = Array.from({ length: height }, () => new Array<boolean>(width).fill(false));
+  }
+
+  it('a missile robot with nothing else to shoot engages an enemy drone in range', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const aa = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Missiles);
+    aa.script = { programId: TaskType.Idle, blackboard: {} };
+    const drone = spawnDrone(ctx.world, Owner.AI, { x: 480, y: 400 });
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(aa.targetId).toBe(drone.id);
+  });
+
+  it('never picks the drone over a ground target it can already engage', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const aa = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Missiles);
+    aa.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    spawnDrone(ctx.world, Owner.AI, { x: 420, y: 400 }); // closer, but still second in line
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(aa.targetId).toBe(foe.id);
+  });
+
+  it('does not chase the drone — it only fires if one strays into range', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const aa = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Missiles);
+    aa.script = { programId: TaskType.Idle, blackboard: {} };
+    spawnDrone(ctx.world, Owner.AI, { x: 480, y: 400 });
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(aa.movement!.goal).toBeUndefined();
+  });
+
+  it('leaves the drone alone when it is out of weapon range', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const aa = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Missiles);
+    aa.script = { programId: TaskType.Idle, blackboard: {} };
+    // Inside the wheels chassis's 230px sight, well beyond the 170px missile range.
+    spawnDrone(ctx.world, Owner.AI, { x: 600, y: 400 });
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(aa.targetId).toBeUndefined();
+  });
+
+  it('a cannon robot cannot engage a drone at all', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Cannon);
+    gun.script = { programId: TaskType.Idle, blackboard: {} };
+    spawnDrone(ctx.world, Owner.AI, { x: 440, y: 400 });
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBeUndefined();
+  });
+
+  it('ignores a drone that is riding inside a robot', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const aa = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Missiles);
+    aa.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    const carrier = spawnRobot(ctx.world, Owner.AI, { x: 480, y: 400 }, ChassisType.Tracks, WeaponType.None);
+    const drone = spawnDrone(ctx.world, Owner.AI, { x: 480, y: 400 });
+    drone.drone!.possessedId = carrier.id;
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(aa.targetId).toBe(carrier.id); // the hull, never the passenger
   });
 });

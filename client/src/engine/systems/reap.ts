@@ -4,15 +4,17 @@ import type { GameContext } from '../game/context';
 import { refreshNavObstacles } from '../navGrid';
 
 /**
- * Removes robots/bases with hp<=0, spawning an explosion and emitting events.
- * Clears dangling target references on survivors. Returns true if anything died.
+ * Removes robots/bases/drones with hp<=0, spawning an explosion and emitting
+ * events. Clears dangling target references on survivors. Returns true if
+ * anything died. A downed drone is replaced later by `droneRespawnSystem`,
+ * which notices the side has no eye rather than being told from here.
  */
 export function reapSystem(ctx: GameContext): boolean {
   const world = ctx.world;
   const dead: Entity[] = [];
 
   for (const e of world.with('position')) {
-    if ((e.robot || e.base) && (e.hp ?? 0) <= 0) dead.push(e);
+    if ((e.robot || e.base || e.drone) && (e.hp ?? 0) <= 0) dead.push(e);
   }
   if (dead.length === 0) return false;
 
@@ -20,7 +22,7 @@ export function reapSystem(ctx: GameContext): boolean {
   let baseDied = false;
 
   for (const e of dead) {
-    const kind: EntityKind = e.base ? 'base' : 'robot';
+    const kind: EntityKind = e.base ? 'base' : e.drone ? 'drone' : 'robot';
     spawnExplosion(world, e.position!);
     ctx.bus.emit('entityDestroyed', {
       id: e.id,

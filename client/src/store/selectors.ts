@@ -11,6 +11,8 @@ export const selectRobots = (s: GameState) => s.robots;
 export const selectResources = (s: GameState) => s.resources;
 export const selectSides = (s: GameState) => s.sides;
 export const selectSelectedIds = (s: GameState) => s.selectedRobotIds;
+/** Local side's observer drone: health while it flies, rebuild progress once it's down. */
+export const selectDroneStatus = (s: GameState) => s.droneStatus;
 /** Which side this client plays (Player offline/host, AI for the online guest). */
 export const selectLocalSide = (s: GameState) => s.localSide;
 export const selectOnline = (s: GameState) => s.online;

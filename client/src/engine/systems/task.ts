@@ -9,7 +9,15 @@ import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileCentre, tileOf } from '../obstacles';
 import { nearestFreeTile, type Tile } from '../pathfinding';
 import { clearGoal, setGoal } from './movement';
-import { findById, isEnemy, knownEnemyBases, knownEnemyRobots, nearest, ownBase } from './targeting';
+import {
+  findById,
+  isEnemy,
+  knownEnemyBases,
+  knownEnemyDrones,
+  knownEnemyRobots,
+  nearest,
+  ownBase,
+} from './targeting';
 
 /** Orthogonal steps for the patrol-ring flood fill — 4-directional, so it can't claim a tile A* would refuse to corner-cut into. */
 const NEIGHBOURS: readonly (readonly [number, number])[] = [
@@ -27,7 +35,8 @@ const ADVANCING_TASKS = new Set<TaskType>([TaskType.AttackBase, TaskType.AttackR
  * (see config/programs.ts). Every tick we walk its directives top-down and take
  * the first *move* intent and the first *fire* intent independently — so a robot
  * can dodge (move) while returning fire (fire) at the same time. Movement/combat
- * systems act on the resulting goal + `targetId` afterwards.
+ * systems act on the resulting goal + `targetId` afterwards. A surface-to-air
+ * robot left with no fire intent at all falls back to `airTarget` — see there.
  */
 export function taskSystem(ctx: GameContext, dt: number): void {
   for (const e of ctx.world.with('robot', 'position', 'script', 'movement')) {
@@ -62,6 +71,8 @@ function runProgram(ctx: GameContext, e: Entity): void {
     }
   }
 
+  if (!fireSet) fire = airTarget(ctx, e);
+
   if (move?.kind === 'goal') {
     setGoal(ctx, e, move.x, move.y); // movement system sets the Moving state
   } else if (move?.kind === 'hold') {
@@ -71,6 +82,26 @@ function runProgram(ctx: GameContext, e: Entity): void {
   // move === undefined → no autonomous move intent: leave the current goal
   // untouched so a manually issued destination (right-click) is obeyed.
   e.targetId = fire;
+}
+
+/**
+ * Last-resort anti-air: a surface-to-air robot with no ground target of its own
+ * takes a shot at an enemy observer drone that has strayed into range. It runs
+ * *after* the whole directive program, and never contributes a move intent —
+ * a drone outruns every chassis in the game, so chasing one would only pull the
+ * robot off its actual job, and always preferring the drone over ground targets
+ * would make flying one impossible. Opportunistic fire only.
+ */
+function airTarget(ctx: GameContext, e: Entity): string | undefined {
+  const w = e.weapon;
+  if (!w?.canHitAir || w.range <= 0 || w.damage <= 0) return undefined;
+
+  const pos = e.position!;
+  const drone = nearest(pos, knownEnemyDrones(ctx, e.owner!));
+  if (!drone?.position) return undefined;
+  if (distance(pos.x, pos.y, drone.position.x, drone.position.y) > w.range) return undefined;
+  if (!hasLineOfSight(ctx.sightBlockers, pos, drone.position)) return undefined;
+  return drone.id;
 }
 
 function conditionHolds(ctx: GameContext, e: Entity, cond: BehaviorCondition): boolean {
