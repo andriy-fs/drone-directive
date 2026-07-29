@@ -26,11 +26,13 @@ export function randomRoomCode(): string {
 }
 
 /** Builds the relay connection URL for a host (`create`) or guest, per the wire contract. */
-export function connectUrl(opts: { room: string; create?: boolean; mapSize?: MapSize }): string {
+export function connectUrl(opts: { room: string; create?: boolean; mapSize?: MapSize; aiCount?: number }): string {
   const url = new URL(MULTIPLAYER_URL);
   url.searchParams.set(QueryParam.Room, opts.room);
   url.searchParams.set(QueryParam.Version, String(PROTOCOL_VERSION));
   if (opts.create) url.searchParams.set(QueryParam.Create, '1');
   if (opts.mapSize) url.searchParams.set(QueryParam.MapSize, opts.mapSize);
+  // Host-only: the guest is told the roster in `start`, not by what it asked for.
+  if (opts.create) url.searchParams.set(QueryParam.Ai, String(opts.aiCount ?? 0));
   return url.toString();
 }

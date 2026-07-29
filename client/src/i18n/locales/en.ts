@@ -4,6 +4,8 @@ export interface Dict {
     title: string;
     intro: string;
     difficulty: string;
+    opponents: string;
+    opponentsHint: string;
     baseSetup: string;
     autoProduceProgram: string;
     help: string;
@@ -52,12 +54,14 @@ export interface Dict {
     drone: string;
     player: string;
     ai: string;
+    ai1: string;
+    ai2: string;
+    ai3: string;
+    opponent: string;
     piloting: string;
     observing: string;
     hint: string;
     paused: string;
-    ownerPlayer: string;
-    ownerAi: string;
     ownerNeutral: string;
     statusMenu: string;
     statusPlaying: string;
@@ -95,7 +99,6 @@ export interface Dict {
   };
   statusPanel: {
     resources: string;
-    ai: string;
     building: string;
     queued: string;
     idle: string;
@@ -180,8 +183,10 @@ export interface Dict {
 export const en: Dict = {
   mainMenu: {
     title: 'Drone Directive',
-    intro: 'Build robots, program their orders, and destroy the enemy base before it destroys yours.',
+    intro: 'Build robots, program their orders, and be the last base standing.',
     difficulty: 'Difficulty',
+    opponents: 'Opponents',
+    opponentsHint: 'Every side fights every other',
     baseSetup: 'Base setup',
     autoProduceProgram: 'Auto-produce & program',
     help: 'Help',
@@ -209,7 +214,7 @@ export const en: Dict = {
     normal: 'Normal',
     normalHint: 'Even start',
     hard: 'Hard',
-    hardHint: 'The AI starts with one extra robot',
+    hardHint: 'Each AI starts with one extra robot',
   },
   mapSize: {
     label: 'Map size',
@@ -230,12 +235,14 @@ export const en: Dict = {
     drone: 'Drone',
     player: 'Player',
     ai: 'AI',
+    ai1: 'AI 1',
+    ai2: 'AI 2',
+    ai3: 'AI 3',
+    opponent: 'Opponent',
     piloting: 'Piloting a robot',
     observing: 'Observing',
     hint: 'Drag to box-select · click a robot to select · Shift+click/drag to add · Ctrl+A all · right-click to move · WASD/arrows fly the drone · F land/take off · E fire/detonate · Esc/Space to pause.',
     paused: 'Paused',
-    ownerPlayer: 'player',
-    ownerAi: 'ai',
     ownerNeutral: 'neutral',
     statusMenu: 'menu',
     statusPlaying: 'playing',
@@ -273,7 +280,6 @@ export const en: Dict = {
   },
   statusPanel: {
     resources: 'Resources',
-    ai: 'AI',
     building: 'Building',
     queued: 'queued',
     idle: 'Nothing in queue',

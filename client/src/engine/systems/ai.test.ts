@@ -327,7 +327,7 @@ describe('aiSystem — group attacks', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0; // starve production so only assignment runs
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai.groupTarget = 3;
+    ctx.ai[Owner.AI]!.groupTarget = 3;
     const count = gameConfig.ai.guardQuota + 3;
     seedIdleAi(ctx, base, count);
     matchAiCount(ctx, count);
@@ -345,7 +345,7 @@ describe('aiSystem — group attacks', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai.groupTarget = 3;
+    ctx.ai[Owner.AI]!.groupTarget = 3;
     const count = gameConfig.ai.guardQuota + 2; // only 2 staged, below the wave size
     seedIdleAi(ctx, base, count);
     matchAiCount(ctx, count);
@@ -361,7 +361,7 @@ describe('aiSystem — group attacks', () => {
   it('sizes each wave within the configured group range', () => {
     const ctx = makeCtx(3);
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai.groupTarget = 0; // force a roll
+    ctx.ai[Owner.AI]!.groupTarget = 0; // force a roll
     const count = gameConfig.ai.guardQuota + gameConfig.ai.attackGroupMax;
     seedIdleAi(ctx, base, count);
     matchAiCount(ctx, count);
@@ -404,7 +404,7 @@ describe('aiSystem — force posture', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai.groupTarget = 10; // would normally hold back until 10 have gathered
+    ctx.ai[Owner.AI]!.groupTarget = 10; // would normally hold back until 10 have gathered
     seedIdleAi(ctx, base, gameConfig.ai.guardQuota + 1); // only 1 staged, no player robots at all
 
     aiSystem(ctx, 100);

@@ -6,11 +6,13 @@ import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
 import { useGameStore, type BaseSnapshot, type GameState, type PendingOnline, type RobotSnapshot } from '../store/gameStore';
 import type { Command } from '../types/commands';
-import { Owner, TaskType, WeaponType, type MapSize } from '../types/enums';
+import { Controller, Owner, TaskType, WeaponType, type MapSize } from '../types/enums';
 import type { DroneControl } from '../engine/game/context';
 import { loadGameAssets } from './assets';
+import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
 import { randomRoomCode } from './net/config';
 import { LockstepSession, type TickInput } from './net/LockstepSession';
+import { worldHash } from './net/worldHash';
 import { sfx } from './audio/sfx';
 import { Camera } from './Camera';
 import { GameLoop } from './GameLoop';
@@ -42,7 +44,7 @@ export class GameApp {
   /** Networked-match state (null when solo). */
   private session: LockstepSession | null = null;
   private netTick = 0;
-  private pendingOnlineStart: { seed: number; mapSize: MapSize } | null = null;
+  private pendingOnlineStart: { seed: number; mapSize: MapSize; aiCount: number } | null = null;
   private onlineEnded = false;
   private readonly onResize = (width: number, height: number) => this.camera.setViewport(width, height);
 
@@ -135,8 +137,21 @@ export class GameApp {
       }),
     );
     this.busUnsubs.push(
+      // Free-for-all: knocked out is a defeat right away, even though the sim
+      // plays on until one side is left (stopping it here would desync a peer).
+      bus.on('sideEliminated', ({ owner }) => {
+        if (owner !== store().localSide) return;
+        store().setStatus('lost');
+        store().setBuildDialogOpen(false);
+        this.pushSnapshot();
+      }),
+    );
+    this.busUnsubs.push(
       bus.on('gameOver', ({ winner }) => {
-        store().setStatus(winner === store().localSide ? 'won' : 'lost');
+        // A defeat may already be on screen from `sideEliminated` — only a win
+        // can still change the outcome at this point.
+        if (winner === store().localSide) store().setStatus('won');
+        else if (store().status !== 'lost') store().setStatus('lost');
         store().setBuildDialogOpen(false); // don't leave it stranded behind the game-over modal
         this.pushSnapshot();
       }),
@@ -155,7 +170,7 @@ export class GameApp {
     if (this.pendingOnlineStart) {
       const start = this.pendingOnlineStart;
       this.pendingOnlineStart = null;
-      this.beginOnlineMatch(start.seed, start.mapSize);
+      this.beginOnlineMatch(start.seed, start.mapSize, start.aiCount);
       return;
     }
 
@@ -197,23 +212,58 @@ export class GameApp {
     const session = this.session!;
     if (!session.ready(this.netTick)) return; // waiting on the peer — both stall the same way
 
+    // A networked match can't be paused, but `paused` survives a previous solo
+    // match (nothing clears it), and a stale `true` here would silently freeze
+    // this client's world while the peer's kept running.
+    this.engine.setPaused(false);
+
     const side = store.localSide;
+    const remote = this.remoteSide(side);
     const { local, peer } = session.take(this.netTick);
     // Every command applies by entity id on both peers (no relabeling) — that keeps
     // the shared world identical; only presentation differs by `localSide`. Each
     // batch is screened against the side that sent it, so neither client can order
     // the other's units (see isCommandFrom). Both peers screen the same batches
     // against the same pre-tick world, so the filter stays deterministic.
-    this.enqueueFrom(side, local.commands);
-    this.enqueueFrom(otherSide(side), peer.commands);
+    //
+    // Enqueue in *roster* order, not local-first: each peer holds a different
+    // side, so "mine then theirs" would queue the same two batches in opposite
+    // orders on the two clients. Commands only ever touch their own side's
+    // entities today, so that happens to commute — but relying on it is one
+    // refactor away from a desync nobody can reproduce.
+    const batches = [
+      { owner: side, input: local },
+      { owner: remote, input: peer },
+    ].sort((a, b) => this.seat(a.owner) - this.seat(b.owner));
+    for (const batch of batches) this.enqueueFrom(batch.owner, batch.input.commands);
     this.engine.setDroneControl(side, local.drone);
-    this.engine.setDroneControl(otherSide(side), peer.drone);
+    this.engine.setDroneControl(remote, peer.drone);
     this.engine.tick(dt);
+
+    // Desync probe: hash the world every so often so the peers can notice they
+    // have parted instead of quietly showing each other different battles.
+    if (this.netTick % DESYNC_CHECK_EVERY === 0) {
+      session.recordHash(this.netTick, worldHash(this.engine.world));
+    }
 
     // Sample fresh local input and schedule it INPUT_DELAY ticks ahead (heartbeat even if empty).
     session.scheduleLocal(this.netTick + session.inputDelay, this.captureLocalInput(store));
     this.netTick += 1;
     this.snapshotAfterTick();
+  }
+
+  /** A side's index in the roster — the same on every peer, so it orders anything canonically. */
+  private seat(owner: Owner): number {
+    return this.engine.context?.roster.findIndex((s) => s.owner === owner) ?? 0;
+  }
+
+  /**
+   * The side the peer is playing: the other human seat in the roster. Bots are
+   * simulated locally on both peers, so they never own an input stream.
+   */
+  private remoteSide(local: Owner): Owner {
+    const humans = this.engine.context?.roster.filter((s) => s.controller === Controller.Human) ?? [];
+    return humans.find((s) => s.owner !== local)?.owner ?? Owner.AI;
   }
 
   /** Forward `side`'s commands to the engine, dropping any that act on units it doesn't own. */
@@ -244,6 +294,20 @@ export class GameApp {
     }
   }
 
+  /**
+   * The two simulations have parted. Nothing can be salvaged — the peers are now
+   * playing different battles — so say so loudly rather than let the match drift
+   * on showing each player a different world.
+   */
+  private reportDesync(tick: number, mine: number, theirs: number): void {
+    const side = this.localSide;
+    console.error(
+      `[desync] world diverged at tick ${tick} — local (${side}) hash ${mine.toString(16)}, peer ${theirs.toString(16)}. ` +
+        `Everything after this tick differs between the two clients.`,
+    );
+    this.endOnline(`Desync at tick ${tick} — the two clients stopped simulating the same match.`, true);
+  }
+
   /** Act on a lobby request: open a host/guest session, or leave an active one. */
   private applyOnlineRequest(req: PendingOnline): void {
     if (req.kind === 'leave') {
@@ -255,21 +319,24 @@ export class GameApp {
     this.onlineEnded = false;
     this.session = new LockstepSession({
       onCreated: (roomCode) => useGameStore.getState().setOnline({ status: 'hosting', roomCode }),
-      onStart: (seed, mapSize) => {
-        this.pendingOnlineStart = { seed, mapSize };
+      onStart: (seed, mapSize, aiCount) => {
+        this.pendingOnlineStart = { seed, mapSize, aiCount };
       },
       onOpponentLeft: () => this.endOnline('Opponent left the match'),
       onError: (_code, message) => this.endOnline(message, true),
       onClose: () => this.endOnline('Connection closed'),
+      onDesync: (tick, mine, theirs) => this.reportDesync(tick, mine, theirs),
     });
-    if (req.kind === 'host') this.session.connectHost(randomRoomCode(), req.mapSize);
+    if (req.kind === 'host') this.session.connectHost(randomRoomCode(), req.mapSize, req.aiOpponents);
     else this.session.connectGuest(req.roomCode);
   }
 
   /** Start the shared simulation from the relay's seed + map size. */
-  private beginOnlineMatch(seed: number, mapSize: MapSize): void {
+  private beginOnlineMatch(seed: number, mapSize: MapSize, aiCount: number): void {
     const store = useGameStore.getState();
-    store.updateSettings({ match: { mapSize, online: true } });
+    // The host chose the roster; the guest adopts it wholesale, or the two peers
+    // would build different worlds from the same seed.
+    store.updateSettings({ match: { mapSize, aiOpponents: aiCount, online: true } });
     this.netTick = 0;
     this.engine.startMatch(useGameStore.getState().settings, seed);
     this.engine.setLocalSide(store.localSide);
@@ -301,11 +368,11 @@ export class GameApp {
     useGameStore.getState().setOnline({ status: 'offline', roomCode: null, error: null });
   }
 
-  /** Fog of war: the local side's own units are always visible; the enemy's only once detected. */
+  /** Fog of war: the local side's own units are always visible; every rival's only once detected. */
   private isVisibleToLocalSide(e: Entity): boolean {
     const side = this.localSide;
-    if (e.owner !== otherSide(side)) return true;
-    const intel = side === Owner.Player ? this.engine.context?.intel.player : this.engine.context?.intel.ai;
+    if (e.owner === side || e.owner === undefined || e.owner === Owner.Neutral) return true;
+    const intel = this.engine.context?.intel[side];
     if (!intel) return true;
     if (e.robot) return intel.visibleRobotIds.has(e.id);
     if (e.base) return intel.knownBaseIds.has(e.id);
@@ -316,10 +383,18 @@ export class GameApp {
   private pushSnapshot(): void {
     const store = useGameStore.getState();
     const world = this.engine.world;
-    store.setBases(world.with('base').entities.map(toBaseSnapshot));
+    const bases = world.with('base').entities;
+    store.setBases(bases.map(toBaseSnapshot));
     store.setRobots(world.with('robot').entities.map(toRobotSnapshot));
     const ctx = this.engine.context;
     if (ctx) {
+      store.setSides(
+        ctx.roster.map((s) => ({
+          owner: s.owner,
+          alive: bases.some((b) => b.owner === s.owner && (b.hp ?? 0) > 0),
+          bot: s.controller === Controller.Bot,
+        })),
+      );
       store.setResources({ ...ctx.resources });
       const drones = world.with('drone').entities;
       const drone = drones.find((d) => d.owner === store.localSide) ?? drones[0];
@@ -386,10 +461,6 @@ function toBaseSnapshot(e: Entity): BaseSnapshot {
     autoBuild: e.production?.autoBuild ?? null,
     defaultTask: e.production?.defaultTask ?? null,
   };
-}
-
-function otherSide(side: Owner): Owner {
-  return side === Owner.Player ? Owner.AI : Owner.Player;
 }
 
 function toRobotSnapshot(e: Entity): RobotSnapshot {

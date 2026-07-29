@@ -161,12 +161,26 @@
   background: #3b82f6;
 }
 
-.dot--ai {
+/* Opposing sides, in seating order — must match `palette.opponents`. */
+.dot--foe1 {
   background: #ef4444;
+}
+
+.dot--foe2 {
+  background: #f59e0b;
+}
+
+.dot--foe3 {
+  background: #a855f7;
 }
 
 .dot--neutral {
   background: #9ca3af;
+}
+
+/* A side that has been knocked out: its row stays for the tally, but greys out. */
+.hud__row--out {
+  opacity: 0.45;
 }
 
 .hud__selected {

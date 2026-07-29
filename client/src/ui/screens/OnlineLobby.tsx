@@ -3,6 +3,7 @@ import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
 import { useGameStore } from '../../store/gameStore';
 import { selectOnline } from '../../store/selectors';
+import { maxAiOpponents } from '../../config/gameSettings';
 import { MapSize } from '../../types/enums';
 import { Button } from '../common/Button';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
@@ -12,6 +13,9 @@ const MAP_SIZES: { value: MapSize; label: 'small' | 'medium' | 'large' }[] = [
   { value: MapSize.Medium, label: 'medium' },
   { value: MapSize.Large, label: 'large' },
 ];
+
+/** Bot counts a networked match can seat — the two humans already hold two corners. */
+const OPPONENT_COUNTS = Array.from({ length: maxAiOpponents(true) + 1 }, (_, i) => i);
 
 /**
  * Online 2-player lobby: host a room (and share the generated code) or join one
@@ -25,11 +29,12 @@ export function OnlineLobby({ onClose }: { onClose: () => void }) {
   const joinMatch = useGameStore((s) => s.joinMatch);
   const leaveOnline = useGameStore((s) => s.leaveOnline);
   const [mapSize, setMapSize] = useState<MapSize>(MapSize.Medium);
+  const [aiOpponents, setAiOpponents] = useState(0);
   const [code, setCode] = useState('');
 
   const host = () => {
     sfx.resume();
-    hostMatch(mapSize);
+    hostMatch(mapSize, aiOpponents);
   };
   const join = () => {
     if (code.trim().length === 0) return;
@@ -78,6 +83,21 @@ export function OnlineLobby({ onClose }: { onClose: () => void }) {
                         onClick={() => setMapSize(o.value)}
                       >
                         {t('mapSize', o.label)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="picker-group">
+                  <span className="picker__label">{t('mainMenu', 'opponents')}</span>
+                  <div className="picker">
+                    {OPPONENT_COUNTS.map((n) => (
+                      <Button
+                        key={n}
+                        className={`chip ${n === aiOpponents ? 'chip--on' : ''}`.trim()}
+                        onClick={() => setAiOpponents(n)}
+                        aria-label={t('mainMenu', 'opponentsHint')}
+                      >
+                        {n}
                       </Button>
                     ))}
                   </div>

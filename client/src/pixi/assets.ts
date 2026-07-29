@@ -9,7 +9,7 @@ import {
   weaponSprites,
   type SpriteDef,
 } from '../config/sprites';
-import type { ChassisType, Owner, TerrainKind, WeaponType } from '../types/enums';
+import { Owner, type ChassisType, type TerrainKind, type WeaponType } from '../types/enums';
 
 /**
  * Preloads all sprite images. Resolves even on failure (a missing/failed image
@@ -55,16 +55,28 @@ function cached(key: string, def: SpriteDef | undefined): ResolvedSprite | null 
 }
 
 /**
+ * Which art set a side wears. There are two on disk — the player's and the
+ * opponent's — and every side beyond the first opponent reuses the opponent art,
+ * told apart by the team tint the views apply (see `render/ownerColor.ts`). Also
+ * keeps the texture cache to two entries per lookup instead of one per side.
+ */
+function artOwner(owner: Owner): Owner {
+  return owner === Owner.Player ? Owner.Player : Owner.AI;
+}
+
+/**
  * Faction robot sprite for a chassis, or null (→ Graphics placeholder) if that
  * owner/chassis has no art or the image isn't loaded.
  */
 export function getRobotTexture(chassis: ChassisType, owner: Owner): ResolvedSprite | null {
-  return cached(`robot:${owner}:${chassis}`, robotSprites[owner]?.[chassis]);
+  const art = artOwner(owner);
+  return cached(`robot:${art}:${chassis}`, robotSprites[art]?.[chassis]);
 }
 
 /** Faction base sprite, or null (→ Graphics placeholder) if missing/unloaded. */
 export function getBaseTexture(owner: Owner): ResolvedSprite | null {
-  return cached(`base:${owner}`, baseSprites[owner]);
+  const art = artOwner(owner);
+  return cached(`base:${art}`, baseSprites[art]);
 }
 
 /**
@@ -72,7 +84,8 @@ export function getBaseTexture(owner: Owner): ResolvedSprite | null {
  * marker) if that owner/weapon has no art or the image isn't loaded.
  */
 export function getWeaponTexture(weapon: WeaponType, owner: Owner): ResolvedSprite | null {
-  return cached(`weapon:${owner}:${weapon}`, weaponSprites[owner]?.[weapon]);
+  const art = artOwner(owner);
+  return cached(`weapon:${art}:${weapon}`, weaponSprites[art]?.[weapon]);
 }
 
 /** Impassable-terrain tile for one terrain kind, or null (→ flat Graphics fill) if missing/unloaded. */

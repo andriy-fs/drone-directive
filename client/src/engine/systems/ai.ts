@@ -1,33 +1,47 @@
 import { getBuildPreset } from '../../config/buildPresets';
 import { gameConfig } from '../../config/gameConfig';
 import type { Vec2 } from '../../types/entities';
-import { BuildPresetType, ChassisType, Owner, TaskType, WeaponType } from '../../types/enums';
+import { BuildPresetType, ChassisType, Controller, TaskType, WeaponType, type Owner } from '../../types/enums';
 import { distance } from '../../utils/math';
 import type { Rng } from '../../utils/rng';
 import type { Entity } from '../ecs/entity';
 import { buildCost, canAfford, spend } from '../economy';
-import type { GameContext } from '../game/context';
+import type { AiState, GameContext } from '../game/context';
 import { makeAttackBase, makeAttackRobots, makeAttackTarget, makeGuard } from '../tasks/taskDefinitions';
-import { knownEnemyRobots } from './targeting';
+import { isEnemy, knownEnemyRobots } from './targeting';
 import { atRobotCap } from './production';
 
 /** The AI's production series (every 10th unit is a kamikaze, sent at a cluster or the base). */
 const AI_BUILD_PRESET = BuildPresetType.AiAssault;
 
 /**
- * Drives the AI: resource-gated escalating production off a build preset, plus
+ * Drives every bot side, each from its own `AiState` and in roster order (fixed
+ * across networked peers, which matters because the bots draw from the shared
+ * match rng). Bots are hostile to *everyone* they don't own, other bots
+ * included — this is a free-for-all, there are no alliances.
+ */
+export function aiSystem(ctx: GameContext, dt: number): void {
+  for (const side of ctx.roster) {
+    if (side.controller !== Controller.Bot) continue;
+    const state = ctx.ai[side.owner];
+    if (state) runBot(ctx, side.owner, state, dt);
+  }
+}
+
+/**
+ * One bot's turn: resource-gated escalating production off a build preset, plus
  * staged task assignment (guard quota → hold offensive units back → release them
  * in waves of 2–4 → intercept threats). Recomputed from live counts.
  */
-export function aiSystem(ctx: GameContext, dt: number): void {
+function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): void {
   const base = ctx.world
     .with('base', 'position', 'production')
-    .entities.find((e) => e.owner === Owner.AI && (e.hp ?? 0) > 0);
+    .entities.find((e) => e.owner === owner && (e.hp ?? 0) > 0);
   if (!base) return;
 
-  ensureEwRobot(ctx, base);
-  updateProduction(ctx, base, dt);
-  assignIdleUnits(ctx, base);
+  ensureEwRobot(ctx, owner, base);
+  updateProduction(ctx, owner, state, base, dt);
+  assignIdleUnits(ctx, owner, state, base);
 }
 
 /**
@@ -37,42 +51,42 @@ export function aiSystem(ctx: GameContext, dt: number): void {
  * (not gated by the normal production cadence) so a dead jammer gets replaced
  * as soon as the AI can afford one, independent of whatever else is queued.
  */
-function ensureEwRobot(ctx: GameContext, base: Entity): void {
-  if (atRobotCap(ctx, Owner.AI)) return;
+function ensureEwRobot(ctx: GameContext, owner: Owner, base: Entity): void {
+  if (atRobotCap(ctx, owner)) return;
   const hasEw = ctx.world
     .with('robot')
-    .entities.some((e) => e.owner === Owner.AI && (e.hp ?? 0) > 0 && e.weaponType === WeaponType.Ew);
+    .entities.some((e) => e.owner === owner && (e.hp ?? 0) > 0 && e.weaponType === WeaponType.Ew);
   if (hasEw) return;
   if (base.production!.queue.some((o) => o.weapon === WeaponType.Ew)) return;
 
   const order = { chassis: ChassisType.Wheels, weapon: WeaponType.Ew, task: TaskType.Guard };
   const cost = buildCost(order);
-  if (!canAfford(ctx.resources, Owner.AI, cost)) return;
+  if (!canAfford(ctx.resources, owner, cost)) return;
 
-  spend(ctx.resources, Owner.AI, cost);
+  spend(ctx.resources, owner, cost);
   base.production!.queue.push(order);
 }
 
-function updateProduction(ctx: GameContext, base: Entity, dt: number): void {
-  ctx.ai.timer += dt;
-  if (ctx.ai.timer < ctx.ai.nextIn) return;
+function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: Entity, dt: number): void {
+  state.timer += dt;
+  if (state.timer < state.nextIn) return;
 
-  if (atRobotCap(ctx, Owner.AI)) return; // shared per-side cap (same as the player)
+  if (atRobotCap(ctx, owner)) return; // shared per-side cap (same as the player)
 
   // Pull the next order from the preset sequence (cycling); the kamikaze bomb
   // lands as every 10th build (target picked later by `assignKamikaze`, once it
-  // exists). The AI keeps its own build cadence.
+  // exists). Each bot keeps its own build cadence.
   const sequence = getBuildPreset(AI_BUILD_PRESET).sequence;
-  const order = sequence[ctx.ai.buildStep % sequence.length];
+  const order = sequence[state.buildStep % sequence.length];
   const cost = buildCost(order);
-  if (!canAfford(ctx.resources, Owner.AI, cost)) return; // wait, retry next tick
+  if (!canAfford(ctx.resources, owner, cost)) return; // wait, retry next tick
 
-  spend(ctx.resources, Owner.AI, cost);
+  spend(ctx.resources, owner, cost);
   base.production!.queue.push({ ...order });
-  ctx.ai.buildStep += 1;
-  ctx.ai.timer = 0;
-  ctx.ai.nextIn = ctx.ai.interval;
-  ctx.ai.interval = Math.max(gameConfig.ai.minInterval, ctx.ai.interval * gameConfig.ai.intervalDecay);
+  state.buildStep += 1;
+  state.timer = 0;
+  state.nextIn = state.interval;
+  state.interval = Math.max(gameConfig.ai.minInterval, state.interval * gameConfig.ai.intervalDecay);
 }
 
 /**
@@ -86,18 +100,18 @@ function updateProduction(ctx: GameContext, base: Entity, dt: number): void {
  * release once a full wave (2–4) has gathered, so the AI attacks in groups
  * instead of trickling out one robot at a time.
  */
-function assignIdleUnits(ctx: GameContext, base: Entity): void {
-  const aiRobots = ctx.world.with('robot', 'position', 'script').entities.filter((e) => e.owner === Owner.AI);
+function assignIdleUnits(ctx: GameContext, owner: Owner, state: AiState, base: Entity): void {
+  const aiRobots = ctx.world.with('robot', 'position', 'script').entities.filter((e) => e.owner === owner);
 
-  if (isThreatened(ctx, base)) {
-    mobilizeDefense(ctx, base, aiRobots);
+  if (isThreatened(ctx, owner, base)) {
+    mobilizeDefense(ctx, owner, base, aiRobots);
     return;
   }
 
   const idle = aiRobots.filter((e) => e.script!.programId === TaskType.Idle);
   if (idle.length === 0) return;
 
-  const posture = forcePosture(ctx);
+  const posture = forcePosture(ctx, owner);
 
   const bombers = idle.filter((e) => e.weaponType === WeaponType.Bomb);
   for (const bomber of bombers) {
@@ -130,33 +144,47 @@ function assignIdleUnits(ctx: GameContext, base: Entity): void {
     return;
   }
 
-  if (ctx.ai.groupTarget <= 0) ctx.ai.groupTarget = rollAttackGroup(ctx.rng);
-  if (staged.length >= ctx.ai.groupTarget) {
-    for (const robot of staged.slice(0, ctx.ai.groupTarget)) robot.script = makeAttackBase();
-    ctx.ai.groupTarget = rollAttackGroup(ctx.rng); // size the next wave
+  if (state.groupTarget <= 0) state.groupTarget = rollAttackGroup(ctx.rng);
+  if (staged.length >= state.groupTarget) {
+    for (const robot of staged.slice(0, state.groupTarget)) robot.script = makeAttackBase();
+    state.groupTarget = rollAttackGroup(ctx.rng); // size the next wave
   }
 }
 
 type ForcePosture = 'offensive' | 'defensive' | 'balanced';
 
 /**
- * Compares living robot counts (both sides, whole map — same omniscience
- * `isThreatened` already uses) to decide whether the AI should press an
- * advantage, turtle up, or play its usual staged-wave game. Only a
+ * Compares this bot's living robots against its **strongest single** rival
+ * (whole map — same omniscience `isThreatened` already uses) to decide whether
+ * to press an advantage, turtle up, or play the usual staged-wave game. Only a
  * significant edge (`forceAdvantageMargin`) moves it off `balanced`, so small
  * fluctuations don't cause posture to flip-flop every tick.
+ *
+ * Strongest rival rather than *all* rivals combined: in a four-way match every
+ * side is outnumbered by the rest of the table, so summing would leave every
+ * bot permanently turtled and nobody would ever attack.
  */
-function forcePosture(ctx: GameContext): ForcePosture {
-  const aiCount = livingRobotCount(ctx, Owner.AI);
-  const playerCount = livingRobotCount(ctx, Owner.Player);
+function forcePosture(ctx: GameContext, owner: Owner): ForcePosture {
+  const mine = livingRobotCount(ctx, (e) => e.owner === owner);
+  const rival = strongestRivalCount(ctx, owner);
   const margin = gameConfig.ai.forceAdvantageMargin;
-  if (aiCount - playerCount >= margin) return 'offensive';
-  if (playerCount - aiCount >= margin) return 'defensive';
+  if (mine - rival >= margin) return 'offensive';
+  if (rival - mine >= margin) return 'defensive';
   return 'balanced';
 }
 
-function livingRobotCount(ctx: GameContext, owner: Owner): number {
-  return ctx.world.with('robot').entities.filter((e) => e.owner === owner && (e.hp ?? 0) > 0).length;
+/** Living robot count of whichever enemy side currently fields the most. */
+function strongestRivalCount(ctx: GameContext, owner: Owner): number {
+  let most = 0;
+  for (const side of ctx.roster) {
+    if (!isEnemy(owner, side.owner)) continue;
+    most = Math.max(most, livingRobotCount(ctx, (e) => e.owner === side.owner));
+  }
+  return most;
+}
+
+function livingRobotCount(ctx: GameContext, match: (e: Entity) => boolean): number {
+  return ctx.world.with('robot').entities.filter((e) => (e.hp ?? 0) > 0 && match(e)).length;
 }
 
 /**
@@ -214,8 +242,8 @@ function rollAttackGroup(rng: Rng): number {
  * everything it can fight with — including robots mid-attack — since losing the
  * base outright is worse than losing offensive tempo.
  */
-function mobilizeDefense(ctx: GameContext, base: Entity, aiRobots: Entity[]): void {
-  const massRush = nearbyPlayerCount(ctx, base) >= gameConfig.ai.massRushThreshold;
+function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots: Entity[]): void {
+  const massRush = nearbyEnemyCount(ctx, owner, base) >= gameConfig.ai.massRushThreshold;
   for (const robot of aiRobots) {
     if (robot.weaponType === WeaponType.Ew) continue; // unarmed — nothing to fight with, stays put
     const programId = robot.script!.programId;
@@ -225,17 +253,24 @@ function mobilizeDefense(ctx: GameContext, base: Entity, aiRobots: Entity[]): vo
   }
 }
 
-function isThreatened(ctx: GameContext, base: Entity): boolean {
-  return nearbyPlayerCount(ctx, base) > 0;
+function isThreatened(ctx: GameContext, owner: Owner, base: Entity): boolean {
+  return nearbyEnemyCount(ctx, owner, base) > 0;
 }
 
-/** Living player robots within `threatRange` of the base, right now. */
-function nearbyPlayerCount(ctx: GameContext, base: Entity): number {
+/**
+ * Living hostile robots within `threatRange` of the base, right now — from any
+ * side, so a bot defends itself against another bot just as it would against
+ * the player.
+ */
+function nearbyEnemyCount(ctx: GameContext, owner: Owner, base: Entity): number {
   const bp = base.position!;
   return ctx.world
     .with('robot', 'position')
     .entities.filter(
-      (r) => r.owner === Owner.Player && distance(r.position!.x, r.position!.y, bp.x, bp.y) < gameConfig.ai.threatRange,
+      (r) =>
+        isEnemy(owner, r.owner) &&
+        (r.hp ?? 0) > 0 &&
+        distance(r.position!.x, r.position!.y, bp.x, bp.y) < gameConfig.ai.threatRange,
     ).length;
 }
 

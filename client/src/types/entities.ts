@@ -1,4 +1,4 @@
-import type { ChassisType, TaskType, WeaponType } from './enums';
+import type { ChassisType, Owner, TaskType, WeaponType } from './enums';
 
 /** A point in continuous world space (pixels). */
 export interface Vec2 {
@@ -6,11 +6,8 @@ export interface Vec2 {
   y: number;
 }
 
-/** Per-side resource balances. */
-export interface ResourcePool {
-  player: number;
-  ai: number;
-}
+/** Per-side resource balances, keyed by owner (every side has an entry). */
+export type ResourcePool = Record<Owner, number>;
 
 /**
  * A queued robot to be produced by a base. `task` is the program to assign on

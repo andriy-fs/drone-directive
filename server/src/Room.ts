@@ -1,19 +1,31 @@
-import { PROTOCOL_VERSION, QueryParam } from '@drone-directive/protocol';
+import { MAX_AI_OPPONENTS, PROTOCOL_VERSION, QueryParam } from '@drone-directive/protocol';
 import type { ClientMessage, ErrorCode, ServerMessage, WireMapSize } from '@drone-directive/protocol';
 
 const MAP_SIZES: readonly WireMapSize[] = ['small', 'medium', 'large'];
+
+/** The host names the bot count; anything absent or out of range falls back to none. */
+function clampAiCount(raw: string | null): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) return 0;
+  return Math.min(MAX_AI_OPPONENTS, n);
+}
 
 /**
  * A single room: holds up to two player sockets, generates the shared seed once
  * both are present, and forwards every `tick` message to the peer. No game logic,
  * no persistence beyond the room's lifetime — state is intentionally in-memory,
  * and a disconnect ends the match (no reconnection).
+ *
+ * A match may also seat bots, but they are not sockets: both clients simulate
+ * them locally from the shared seed, so all the relay does is carry the host's
+ * chosen count to the guest in `start`.
  */
 export class Room implements DurableObject {
   private host: WebSocket | null = null;
   private guest: WebSocket | null = null;
   private roomCode = '';
   private mapSize: WireMapSize = 'medium';
+  private aiCount = 0;
 
   async fetch(request: Request): Promise<Response> {
     const params = new URL(request.url).searchParams;
@@ -27,7 +39,7 @@ export class Room implements DurableObject {
     if (version !== PROTOCOL_VERSION) {
       this.reject(server, 'version-mismatch', `Expected protocol v${PROTOCOL_VERSION}`);
     } else if (isHost) {
-      this.acceptHost(server, params.get(QueryParam.MapSize));
+      this.acceptHost(server, params.get(QueryParam.MapSize), params.get(QueryParam.Ai));
     } else {
       this.acceptGuest(server);
     }
@@ -35,13 +47,14 @@ export class Room implements DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  private acceptHost(ws: WebSocket, mapSize: string | null): void {
+  private acceptHost(ws: WebSocket, mapSize: string | null, aiCount: string | null): void {
     if (this.host) {
       this.reject(ws, 'room-taken', 'That room code is already in use');
       return;
     }
     this.host = ws;
     this.mapSize = MAP_SIZES.includes(mapSize as WireMapSize) ? (mapSize as WireMapSize) : 'medium';
+    this.aiCount = clampAiCount(aiCount);
     this.wire(ws);
     this.send(ws, { type: 'created', roomCode: this.roomCode });
   }
@@ -63,7 +76,7 @@ export class Room implements DurableObject {
   /** Both sockets present: pick the shared seed and start both simulations. */
   private start(): void {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-    const msg: ServerMessage = { type: 'start', seed, mapSize: this.mapSize };
+    const msg: ServerMessage = { type: 'start', seed, mapSize: this.mapSize, aiCount: this.aiCount };
     this.send(this.host, msg);
     this.send(this.guest, msg);
   }

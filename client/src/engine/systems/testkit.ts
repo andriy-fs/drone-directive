@@ -1,4 +1,5 @@
 import { createDefaultSettings } from '../../config/gameSettings';
+import { PLAYABLE_OWNERS } from '../../types/enums';
 import { generateObstacles, movementGrid, sightGrid } from '../obstacles';
 import { createEcsWorld } from '../ecs/world';
 import { createGameContext, type GameContext } from '../game/context';
@@ -15,8 +16,7 @@ export function makeCtx(seed?: number): GameContext {
   // The seed also pins the per-match enemy-corner roll (it happens inside
   // `createGameContext`), so a test's world layout can't drift between runs.
   const ctx = createGameContext(createEcsWorld(), new EventBus<GameEvents>(), [], createDefaultSettings(), seed);
-  ctx.resources.player = 100000;
-  ctx.resources.ai = 100000;
+  for (const owner of PLAYABLE_OWNERS) ctx.resources[owner] = 100000;
   if (seed !== undefined) {
     ctx.rng = createRng(seed);
     ctx.terrain = generateObstacles(ctx.rng);

@@ -1,64 +1,74 @@
 import { describe, expect, it } from 'vitest';
-import { applyEnemyCorner, applyMapSize, ENEMY_CORNERS, gameConfig } from '../../config/gameConfig';
+import { applyMapSize, applySidePlacements, ENEMY_CORNERS, gameConfig } from '../../config/gameConfig';
 import { createDefaultSettings, type GameSettings } from '../../config/gameSettings';
 import { MapSize, Owner } from '../../types/enums';
 import { GameEngine } from './engine';
 
 /**
- * The enemy base rotates between the three corners the player doesn't hold, so a
- * match isn't always the same diagonal. The roll comes from the match rng, which
- * keeps networked peers on the same map (see determinism.test.ts).
+ * The player keeps the bottom-left corner; every opponent draws one of the other
+ * three, so a match isn't always the same diagonal and a four-way match seats one
+ * side per corner. The draw comes from the match rng, which keeps networked peers
+ * on the same map (see determinism.test.ts).
  */
 
-function placement(owner: 'player' | 'ai') {
+function placement(owner: Owner) {
   return gameConfig.bases.placements.find((p) => p.owner === owner)!;
 }
 
-function settings(size: MapSize): GameSettings {
+function settings(size: MapSize, aiOpponents = 1): GameSettings {
   const s = createDefaultSettings();
-  s.match.online = true; // no bot, so `startMatch` stays cheap
   s.match.mapSize = size;
+  s.match.aiOpponents = aiOpponents;
   return s;
 }
 
-/** Top-left tile of the enemy base after starting a match with `seed`. */
+/** Top-left tile of the (single) enemy base after starting a match with `seed`. */
 function enemyCornerFor(seed: number, size: MapSize = MapSize.Small): { tx: number; ty: number } {
   new GameEngine().startMatch(settings(size), seed);
-  const { tx, ty } = placement('ai');
+  const { tx, ty } = placement(Owner.AI);
   return { tx, ty };
 }
 
-describe('base placement — enemy corner', () => {
-  it('puts the enemy in the named corner, never on top of the player', () => {
+describe('base placement — corners', () => {
+  it('seats each side in a corner of its own, never on top of the player', () => {
     applyMapSize(MapSize.Small);
     const n = gameConfig.mapSize.small;
     const near = 4;
     const far = n - gameConfig.bases.footprintTiles - 4;
 
-    expect(placement('player')).toMatchObject({ tx: near, ty: far });
+    applySidePlacements([Owner.Player, Owner.AI]);
+    expect(placement(Owner.Player)).toMatchObject({ tx: near, ty: far });
+    // Unshuffled, the first opponent takes the historical diagonal.
+    expect(placement(Owner.AI)).toMatchObject({ tx: far, ty: near });
 
-    applyEnemyCorner('topLeft');
-    expect(placement('ai')).toMatchObject({ tx: near, ty: near });
-    applyEnemyCorner('topRight');
-    expect(placement('ai')).toMatchObject({ tx: far, ty: near });
-    applyEnemyCorner('bottomRight');
-    expect(placement('ai')).toMatchObject({ tx: far, ty: far });
+    // A full table fills all four corners, one side each.
+    applySidePlacements([Owner.Player, Owner.AI, Owner.AI2, Owner.AI3]);
+    const tiles = gameConfig.bases.placements.map((p) => `${p.tx},${p.ty}`);
+    expect(tiles).toHaveLength(4);
+    expect(new Set(tiles).size).toBe(4);
+    expect(new Set(tiles)).toEqual(new Set([`${near},${far}`, `${near},${near}`, `${far},${near}`, `${far},${far}`]));
+    // The player's own corner is never dealt to an opponent.
+    expect(placement(Owner.Player)).toMatchObject({ tx: near, ty: far });
+  });
 
-    // The player's own corner is never one of the options.
-    for (const corner of ENEMY_CORNERS) {
-      applyEnemyCorner(corner);
-      expect(placement('ai')).not.toEqual(placement('player'));
-    }
+  it('drops sides that are sitting the match out', () => {
+    applyMapSize(MapSize.Small);
+    applySidePlacements([Owner.Player, Owner.AI, Owner.AI2]);
+    expect(gameConfig.bases.placements).toHaveLength(3);
+    applySidePlacements([Owner.Player, Owner.AI]);
+    expect(gameConfig.bases.placements.map((p) => p.owner)).toEqual([Owner.Player, Owner.AI]);
   });
 
   it('scales the corners with the map size', () => {
     applyMapSize(MapSize.Large);
-    applyEnemyCorner('bottomRight');
+    applySidePlacements([Owner.Player, Owner.AI, Owner.AI2, Owner.AI3]);
     const far = gameConfig.mapSize.large - gameConfig.bases.footprintTiles - 4;
-    expect(placement('ai')).toMatchObject({ tx: far, ty: far });
+    const corners = gameConfig.bases.placements.map((p) => `${p.tx},${p.ty}`);
+    expect(corners).toContain(`${far},${far}`);
+    expect(corners).toContain(`4,${far}`);
   });
 
-  it('reaches all three corners across matches, and repeats for a repeated seed', () => {
+  it('reaches all three enemy corners across matches, and repeats for a repeated seed', () => {
     const seen = new Set<string>();
     for (let seed = 1; seed <= 60; seed++) {
       const { tx, ty } = enemyCornerFor(seed);
@@ -69,15 +79,13 @@ describe('base placement — enemy corner', () => {
     expect(enemyCornerFor(0xbeef)).toEqual(enemyCornerFor(0xbeef));
   });
 
-  it('spawns each side\'s starter robots on the inward side of its own base', () => {
+  it("spawns each side's starter robots on the inward side of its own base", () => {
     const engine = new GameEngine();
-    engine.startMatch(settings(MapSize.Small), 7);
+    engine.startMatch(settings(MapSize.Small, 3), 7);
     const half = (gameConfig.grid.width * gameConfig.grid.tilePx) / 2;
 
     for (const base of engine.world.with('base', 'position').entities) {
-      const starters = engine.world
-        .with('robot', 'position')
-        .entities.filter((r) => r.owner === base.owner);
+      const starters = engine.world.with('robot', 'position').entities.filter((r) => r.owner === base.owner);
       expect(starters.length).toBeGreaterThan(0);
       // Robots sit between their base and the middle of the map, never outside it.
       for (const r of starters) {
@@ -85,8 +93,8 @@ describe('base placement — enemy corner', () => {
         expect(towardMiddle).toBe(true);
       }
     }
-    // Sanity: both sides really were placed (the AI side is the one that moves).
+    // Sanity: a four-way match really seats four distinct sides.
     const owners = engine.world.with('base').entities.map((b) => b.owner);
-    expect(new Set(owners)).toEqual(new Set([Owner.Player, Owner.AI]));
+    expect(new Set(owners)).toEqual(new Set([Owner.Player, Owner.AI, Owner.AI2, Owner.AI3]));
   });
 });

@@ -30,13 +30,13 @@ export function ownBase(ctx: GameContext, owner: Owner): Entity | undefined {
 
 /** Living enemy robots `owner`'s team currently has in sight (see `visionSystem`). */
 export function knownEnemyRobots(ctx: GameContext, owner: Owner): Entity[] {
-  const visible = (owner === Owner.AI ? ctx.intel.ai : ctx.intel.player).visibleRobotIds;
+  const visible = ctx.intel[owner].visibleRobotIds;
   return enemyRobots(ctx, owner).filter((e) => visible.has(e.id));
 }
 
 /** Living enemy bases `owner`'s team has ever discovered (see `visionSystem`). */
 export function knownEnemyBases(ctx: GameContext, owner: Owner): Entity[] {
-  const known = (owner === Owner.AI ? ctx.intel.ai : ctx.intel.player).knownBaseIds;
+  const known = ctx.intel[owner].knownBaseIds;
   return enemyBases(ctx, owner).filter((e) => known.has(e.id));
 }
 

@@ -6,10 +6,18 @@
 export const palette = {
   background: 0x0d1117,
   owner: {
+    /** The viewing client's own side, whichever `Owner` that happens to be. */
     player: 0x3b82f6,
+    /** The nearest thing to "the enemy colour" — first opponent, and the fallback. */
     ai: 0xef4444,
     neutral: 0x9ca3af,
   },
+  /**
+   * Colours dealt to opposing sides, in roster order. The local side always takes
+   * `owner.player`, so these only ever have to be distinct from each other and
+   * from blue — see `pixi/render/ownerColor.ts`.
+   */
+  opponents: [0xef4444, 0xf59e0b, 0xa855f7] as const,
   obstacle: {
     /** Mountain placeholder (art missing) — raised rock, so the lighter of the two. */
     fill: 0x3a3f4a,

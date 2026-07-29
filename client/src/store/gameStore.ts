@@ -63,14 +63,25 @@ export interface OnlineState {
 
 /** One-shot online request the UI raises and the app bridge (GameApp) consumes. */
 export type PendingOnline =
-  | { kind: 'host'; mapSize: MapSize }
+  | { kind: 'host'; mapSize: MapSize; aiOpponents: number }
   | { kind: 'join'; roomCode: string }
   | { kind: 'leave' };
+
+/** HUD-facing view of one side in the match (projected from the engine roster). */
+export interface SideSnapshot {
+  owner: Owner;
+  /** True while this side still holds a base. */
+  alive: boolean;
+  /** True for bot-controlled sides — the HUD labels them differently. */
+  bot: boolean;
+}
 
 export interface GameState {
   status: GameStatus;
   bases: BaseSnapshot[];
   robots: RobotSnapshot[];
+  /** Who's playing, in seating order — drives the per-side HUD rows. */
+  sides: SideSnapshot[];
   resources: ResourcePool;
   /** UI selection (entity ids); the renderer highlights these. */
   selectedRobotIds: string[];
@@ -102,6 +113,7 @@ export interface GameState {
   setStatus: (status: GameStatus) => void;
   setBases: (bases: BaseSnapshot[]) => void;
   setRobots: (robots: RobotSnapshot[]) => void;
+  setSides: (sides: SideSnapshot[]) => void;
   setResources: (resources: ResourcePool) => void;
   selectRobots: (ids: string[]) => void;
   toggleRobot: (id: string) => void;
@@ -122,8 +134,11 @@ export interface GameState {
   setDroneStatus: (status: DroneStatus) => void;
   setBuildDialogOpen: (open: boolean) => void;
   setLocale: (locale: Locale) => void;
-  /** Host a room with the given map size (bridge generates the code, echoes it back). */
-  hostMatch: (mapSize: MapSize) => void;
+  /**
+   * Host a room (bridge generates the code, echoes it back). The host picks the
+   * map and how many bots join both humans — the guest is told at match start.
+   */
+  hostMatch: (mapSize: MapSize, aiOpponents: number) => void;
   /** Join an existing room by code. */
   joinMatch: (roomCode: string) => void;
   /** Leave the lobby / online match and return to solo menu. */
@@ -138,10 +153,10 @@ const initialState = {
   status: 'menu' as GameStatus,
   bases: [] as BaseSnapshot[],
   robots: [] as RobotSnapshot[],
-  resources: {
-    player: gameConfig.economy.startingResources,
-    ai: gameConfig.economy.startingResources,
-  } as ResourcePool,
+  sides: [] as SideSnapshot[],
+  resources: Object.fromEntries(
+    Object.values(Owner).map((owner) => [owner, gameConfig.economy.startingResources]),
+  ) as ResourcePool,
   selectedRobotIds: [] as string[],
   commands: [] as Command[],
   restartRequested: false,
@@ -167,6 +182,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setStatus: (status) => set({ status }),
   setBases: (bases) => set({ bases }),
   setRobots: (robots) => set({ robots }),
+  setSides: (sides) => set({ sides }),
   setResources: (resources) => set({ resources }),
   selectRobots: (ids) => set({ selectedRobotIds: ids }),
   toggleRobot: (id) =>
@@ -204,10 +220,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     saveLocale(locale);
     set({ locale });
   },
-  hostMatch: (mapSize) =>
+  hostMatch: (mapSize, aiOpponents) =>
     set({
       localSide: Owner.Player,
-      pendingOnline: { kind: 'host', mapSize },
+      pendingOnline: { kind: 'host', mapSize, aiOpponents },
       online: { status: 'connecting', roomCode: null, error: null },
     }),
   joinMatch: (roomCode) => {

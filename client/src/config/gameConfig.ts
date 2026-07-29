@@ -1,4 +1,12 @@
-import type { MapSize } from '../types/enums';
+import { Owner, type MapSize } from '../types/enums';
+import type { Rng } from '../utils/rng';
+
+/** Where one side's base starts; `tx`/`ty` is its top-left tile. */
+export interface BasePlacement {
+  owner: Owner;
+  tx: number;
+  ty: number;
+}
 
 /**
  * Central tunables for the game. Kept dependency-free so both the engine and the
@@ -37,14 +45,16 @@ export const gameConfig = {
     /** Footprint side length, in tiles (occupies footprint x footprint cells). */
     footprintTiles: 3,
     /**
-     * Starting placements, keyed by owner; tx/ty is the top-left tile. Rewritten
-     * per match by `applyMapSize` (grid size) + `applyEnemyCorner` (which corner
-     * the enemy drew) — read them live, never copy at module scope.
+     * Starting placements, one per side in the match; tx/ty is the top-left tile.
+     * Rewritten per match by `applyMapSize` (grid size) + `applySidePlacements`
+     * (which sides are playing and which corner each drew) — read them live,
+     * never copy at module scope. The two entries here are just the resting
+     * 1v1 layout before a match is configured.
      */
     placements: [
-      { owner: 'player', tx: 4, ty: 33 },
-      { owner: 'ai', tx: 33, ty: 4 },
-    ],
+      { owner: Owner.Player, tx: 4, ty: 33 },
+      { owner: Owner.AI, tx: 33, ty: 4 },
+    ] as BasePlacement[],
     /** Detection radius (px): a base's own "radar" — enemies within this become known. */
     sightRange: 260,
   },
@@ -282,15 +292,31 @@ export const worldPixelSize = {
 const CORNER_MARGIN = 4;
 
 /**
- * The three corners the enemy base can start in — every corner except the
- * bottom-left one, which the player always keeps (so the camera, the HUD and the
- * player's own opening never move).
+ * The corners a base can start in. The player always keeps `bottomLeft` (so the
+ * camera, the HUD and the player's own opening never move); the rest are dealt
+ * out to the opponents, which is what caps a match at four sides.
  */
-export const ENEMY_CORNERS = ['topLeft', 'topRight', 'bottomRight'] as const;
-export type EnemyCorner = (typeof ENEMY_CORNERS)[number];
+export const CORNERS = ['bottomLeft', 'topLeft', 'topRight', 'bottomRight'] as const;
+export type Corner = (typeof CORNERS)[number];
 
-function mutablePlacements(): { owner: string; tx: number; ty: number }[] {
-  return gameConfig.bases.placements as unknown as { owner: string; tx: number; ty: number }[];
+/**
+ * The corners available to opponents — every corner except the player's. The
+ * diagonal leads, so an unshuffled 1v1 seating reproduces the historical layout.
+ */
+export const ENEMY_CORNERS = ['topRight', 'topLeft', 'bottomRight'] as const satisfies readonly Corner[];
+
+function mutablePlacements(): BasePlacement[] {
+  return gameConfig.bases.placements;
+}
+
+/** Top-left tile of a base seated in `corner`, on the current grid. */
+function cornerTile(corner: Corner): { tx: number; ty: number } {
+  const n = gameConfig.grid.width;
+  const far = n - gameConfig.bases.footprintTiles - CORNER_MARGIN;
+  return {
+    tx: corner === 'bottomLeft' || corner === 'topLeft' ? CORNER_MARGIN : far,
+    ty: corner === 'bottomLeft' || corner === 'bottomRight' ? far : CORNER_MARGIN,
+  };
 }
 
 /**
@@ -311,24 +337,37 @@ export function applyMapSize(size: MapSize): void {
   wp.width = n * grid.tilePx;
   wp.height = n * grid.tilePx;
 
-  const player = mutablePlacements().find((p) => p.owner === 'player')!;
-  player.tx = CORNER_MARGIN;
-  player.ty = n - gameConfig.bases.footprintTiles - CORNER_MARGIN;
-  // Keep the historical diagonal as the resting value; `createGameContext` rolls
-  // the real corner per match right after (and before obstacles are generated).
-  applyEnemyCorner('topRight');
+  // Keep the historical 1v1 diagonal as the resting value; `createGameContext`
+  // seats the real roster right after (and before obstacles are generated).
+  applySidePlacements([Owner.Player, Owner.AI]);
 }
 
 /**
- * Moves the enemy base into `corner`. Must run **after** `applyMapSize` (it reads
- * the grid size) and **before** `generateObstacles` — the terrain generator keeps a
- * clear margin around whatever the placements say and carries base-to-base
- * connectivity, so a corner picked later would leave the map carved for the wrong one.
+ * Seats every playing side: the player keeps `bottomLeft`, the opponents draw
+ * from the remaining corners (shuffled with `rng` when one is supplied, so a
+ * match isn't always the same layout and networked peers still agree).
+ *
+ * Rewrites `gameConfig.bases.placements` wholesale, so it also decides *how many*
+ * bases the match has. Must run **after** `applyMapSize` (it reads the grid size)
+ * and **before** `generateObstacles` — the terrain generator keeps a clear margin
+ * around whatever the placements say and carries connectivity between them, so
+ * seating decided later would leave the map carved for the wrong sides.
  */
-export function applyEnemyCorner(corner: EnemyCorner): void {
-  const n = gameConfig.grid.width;
-  const far = n - gameConfig.bases.footprintTiles - CORNER_MARGIN;
-  const ai = mutablePlacements().find((p) => p.owner === 'ai')!;
-  ai.tx = corner === 'topLeft' ? CORNER_MARGIN : far;
-  ai.ty = corner === 'bottomRight' ? far : CORNER_MARGIN;
+export function applySidePlacements(owners: Owner[], rng?: Rng): void {
+  const corners: Corner[] = [...ENEMY_CORNERS];
+  if (rng) {
+    // Fisher-Yates over the non-player corners; `rng.int` keeps it seeded.
+    for (let i = corners.length - 1; i > 0; i--) {
+      const j = rng.int(i + 1);
+      [corners[i], corners[j]] = [corners[j], corners[i]];
+    }
+  }
+
+  const placements = mutablePlacements();
+  placements.length = 0;
+  let next = 0;
+  for (const owner of owners) {
+    const corner = owner === Owner.Player ? 'bottomLeft' : corners[next++];
+    placements.push({ owner, ...cornerTile(corner) });
+  }
 }

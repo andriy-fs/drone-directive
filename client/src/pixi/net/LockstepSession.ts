@@ -1,4 +1,4 @@
-import type { ErrorCode, ServerMessage, TickMessage, WireDroneControl } from '@drone-directive/protocol';
+import type { ErrorCode, ServerMessage, TickMessage, WireDroneControl, WorldCheck } from '@drone-directive/protocol';
 import type { DroneControl } from '../../engine/game/context';
 import type { Command } from '../../types/commands';
 import type { MapSize } from '../../types/enums';
@@ -14,12 +14,17 @@ export interface LockstepHandlers {
   /** Host only: the room is open and waiting for a guest. */
   onCreated?: (roomCode: string) => void;
   /** Both sockets present — start simulating from this seed + map size. */
-  onStart?: (seed: number, mapSize: MapSize) => void;
+  onStart?: (seed: number, mapSize: MapSize, aiCount: number) => void;
   /** The peer disconnected; the match is over. */
   onOpponentLeft?: () => void;
   onError?: (code: ErrorCode, message: string) => void;
   /** The socket closed (network drop or intentional disconnect). */
   onClose?: () => void;
+  /**
+   * The peer's world hash for `tick` disagreed with ours: the simulations have
+   * parted. Everything either client shows after this point is unreliable.
+   */
+  onDesync?: (tick: number, mine: number, theirs: number) => void;
 }
 
 function emptyInput(): TickInput {
@@ -52,6 +57,11 @@ export class LockstepSession {
   private readonly handlers: LockstepHandlers;
   private readonly localBuffer = new Map<number, TickInput>();
   private readonly peerBuffer = new Map<number, TickInput>();
+  /** Our own world hashes by tick, kept until the peer's probe for them arrives. */
+  private readonly localHashes = new Map<number, number>();
+  /** The next probe to piggyback on an outgoing tick message. */
+  private pendingCheck: WorldCheck | null = null;
+  private desyncReported = false;
 
   constructor(handlers: LockstepHandlers) {
     this.handlers = handlers;
@@ -61,8 +71,8 @@ export class LockstepSession {
     return this.started;
   }
 
-  connectHost(roomCode: string, mapSize: MapSize): void {
-    this.open(() => connectUrl({ room: roomCode, create: true, mapSize }));
+  connectHost(roomCode: string, mapSize: MapSize, aiCount: number): void {
+    this.open(() => connectUrl({ room: roomCode, create: true, mapSize, aiCount }));
   }
 
   connectGuest(roomCode: string): void {
@@ -99,10 +109,11 @@ export class LockstepSession {
         break;
       case 'start':
         this.started = true;
-        this.handlers.onStart?.(msg.seed >>> 0, msg.mapSize as MapSize);
+        this.handlers.onStart?.(msg.seed >>> 0, msg.mapSize as MapSize, msg.aiCount);
         break;
       case 'tick':
         this.peerBuffer.set(msg.tick, fromWire(msg));
+        if (msg.check) this.checkPeerHash(msg.check);
         break;
       case 'opponentLeft':
         this.handlers.onOpponentLeft?.();
@@ -128,10 +139,36 @@ export class LockstepSession {
     return { local, peer };
   }
 
+  /**
+   * Record our world hash for an already-simulated tick. It rides along on the
+   * next outgoing tick message, and is kept locally so the peer's matching probe
+   * has something to compare against whichever direction arrives first.
+   */
+  recordHash(tick: number, hash: number): void {
+    this.localHashes.set(tick, hash);
+    this.pendingCheck = { tick, hash };
+    // Bound the map: probes cross within a few ticks of each other, so anything
+    // much older than the input delay will never be asked about.
+    for (const t of this.localHashes.keys()) {
+      if (t < tick - this.inputDelay * 20) this.localHashes.delete(t);
+    }
+  }
+
   /** Buffer local input for `tick` and send it to the peer (a heartbeat even when empty). */
   scheduleLocal(tick: number, input: TickInput): void {
     this.localBuffer.set(tick, input);
-    this.send({ type: 'tick', tick, commands: input.commands, drone: toWire(input.drone) });
+    const check = this.pendingCheck ?? undefined;
+    this.pendingCheck = null;
+    this.send({ type: 'tick', tick, commands: input.commands, drone: toWire(input.drone), check });
+  }
+
+  /** Compare a peer probe against our own hash for that tick (once — the first is the real one). */
+  private checkPeerHash(check: WorldCheck): void {
+    if (this.desyncReported) return;
+    const mine = this.localHashes.get(check.tick);
+    if (mine === undefined || mine === check.hash) return;
+    this.desyncReported = true;
+    this.handlers.onDesync?.(check.tick, mine, check.hash);
   }
 
   private send(msg: TickMessage): void {
@@ -142,6 +179,9 @@ export class LockstepSession {
     this.started = false;
     this.localBuffer.clear();
     this.peerBuffer.clear();
+    this.localHashes.clear();
+    this.pendingCheck = null;
+    this.desyncReported = false;
     const ws = this.ws;
     this.ws = null;
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {

@@ -3,7 +3,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dial
 import { buildCost } from '../../engine/economy';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
-import { selectPlayerBase, selectResources } from '../../store/selectors';
+import { selectLocalSide, selectPlayerBase, selectResources } from '../../store/selectors';
 import { ChassisType, TaskType, WeaponType } from '../../types/enums';
 import { Button } from '../common/Button';
 import { ChassisPicker } from './ChassisPicker';
@@ -28,9 +28,13 @@ export function BuildRobotModal({ onClose }: { onClose: () => void }) {
   const [task, setTask] = useState<TaskType | null>(auto?.task ?? playerBase?.defaultTask ?? null);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   const resources = useGameStore(selectResources);
+  const localSide = useGameStore(selectLocalSide);
 
   const cost = buildCost({ chassis, weapon });
-  const affordable = !!playerBase && resources.player >= cost;
+  // The local side's own wallet — the online guest plays `Owner.AI`, so reading
+  // `resources.player` here would gate them on their opponent's balance.
+  const wallet = resources[localSide] ?? 0;
+  const affordable = !!playerBase && wallet >= cost;
 
   const build = () => {
     if (!playerBase || !affordable) return;
@@ -65,8 +69,7 @@ export function BuildRobotModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <p className="modal__body">
-            {t('buildRobot', 'cost')} <strong>{cost}</strong> · {t('buildRobot', 'available')}{' '}
-            {Math.floor(resources.player)}
+            {t('buildRobot', 'cost')} <strong>{cost}</strong> · {t('buildRobot', 'available')} {Math.floor(wallet)}
           </p>
 
           <div className="modal__buttons">

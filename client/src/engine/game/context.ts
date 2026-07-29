@@ -1,14 +1,41 @@
-import { applyEnemyCorner, ENEMY_CORNERS, gameConfig } from '../../config/gameConfig';
-import type { GameSettings } from '../../config/gameSettings';
+import { applySidePlacements, gameConfig } from '../../config/gameConfig';
+import { clampAiOpponents, type GameSettings } from '../../config/gameSettings';
 import type { Command } from '../../types/commands';
 import type { ResourcePool, Vec2 } from '../../types/entities';
-import { Owner, type Difficulty } from '../../types/enums';
+import { Controller, Owner, PLAYABLE_OWNERS, type Difficulty } from '../../types/enums';
 import { generateObstacles, movementGrid, sightGrid, type ObstacleGrid, type TerrainGrid } from '../obstacles';
 import type { EcsWorld } from '../ecs/world';
 import type { GameBus } from './eventBus';
 import { createRng, type Rng } from '../../utils/rng';
 
-/** Mutable AI production + attack-wave state (per match). */
+/** One side of the match: which owner it is, and who gives it orders. */
+export interface SideSetup {
+  owner: Owner;
+  controller: Controller;
+}
+
+/**
+ * Who's playing, in seating order. Built from `settings.match` by `buildRoster`,
+ * so every peer derives the same list from the same settings — the order drives
+ * spawn order and per-side iteration, both of which must match across peers.
+ */
+export type Roster = SideSetup[];
+
+/**
+ * Free-for-all seating. Offline: the local human plus `aiOpponents` bots.
+ * Online: host (`Player`) and guest (`AI`) are the two humans — matching the
+ * lobby's side assignment — and the bots fill the remaining corners.
+ */
+export function buildRoster(match: GameSettings['match']): Roster {
+  const humans = match.online ? 2 : 1;
+  const bots = clampAiOpponents(match.aiOpponents, match.online);
+  return PLAYABLE_OWNERS.slice(0, humans + bots).map((owner, i) => ({
+    owner,
+    controller: i < humans ? Controller.Human : Controller.Bot,
+  }));
+}
+
+/** Mutable bot production + attack-wave state (per bot side, per match). */
 export interface AiState {
   timer: number;
   nextIn: number;
@@ -36,6 +63,31 @@ function emptyIntel(): TeamIntel {
 
 function emptyDroneControl(): DroneControl {
   return { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false };
+}
+
+function emptyAiState(): AiState {
+  return {
+    timer: 0,
+    nextIn: gameConfig.ai.firstSpawnDelay,
+    interval: gameConfig.ai.spawnInterval,
+    buildStep: 0,
+    groupTarget: 0,
+  };
+}
+
+/**
+ * A fresh entry for every `Owner` — including `Neutral` and sides sitting this
+ * match out, so per-side lookups are total and never need a `?? fallback`.
+ */
+function byOwner<T>(make: () => T): Record<Owner, T> {
+  const out = {} as Record<Owner, T>;
+  for (const owner of Object.values(Owner)) out[owner] = make();
+  return out;
+}
+
+/** Every side starts with the same wallet; `Neutral` holds one it can never spend. */
+function emptyResources(): ResourcePool {
+  return byOwner(() => gameConfig.economy.startingResources);
 }
 
 /**
@@ -92,12 +144,15 @@ export interface GameContext {
   rng: Rng;
   difficulty: Difficulty;
   settings: GameSettings;
-  /** True for networked matches: the bot AI is disabled and the opponent is a real peer. */
+  /** True for networked matches: the second human side is a real peer, and starters are symmetric. */
   online: boolean;
   commands: Command[];
-  ai: AiState;
+  /** Who is playing this match, in seating order — see `buildRoster`. */
+  roster: Roster;
+  /** Bot state, one entry per `Controller.Bot` side; human sides have none. */
+  ai: Partial<Record<Owner, AiState>>;
   /** Per-side detection state — see `TeamIntel`. */
-  intel: { player: TeamIntel; ai: TeamIntel };
+  intel: Record<Owner, TeamIntel>;
   /** Per-side observer-drone input for this step (set by the app bridge / lockstep). */
   droneControl: Record<Owner, DroneControl>;
   /** Which side this client views as "theirs" (fog/camera/HUD). Presentation only — never networked. */
@@ -116,17 +171,20 @@ export function createGameContext(
   seed?: number,
 ): GameContext {
   const rng = createRng(seed !== undefined ? seed >>> 0 : (Date.now() & 0xffffffff) >>> 0);
-  // Roll which corner the enemy starts in, so a match isn't always the same
-  // diagonal. Drawn from the (seeded) match rng, so networked peers agree, and
-  // before `generateObstacles` — the terrain is carved around the placements.
-  applyEnemyCorner(ENEMY_CORNERS[Math.floor(rng.next() * ENEMY_CORNERS.length)]);
-  const { startingResources } = gameConfig.economy;
+  const roster = buildRoster(settings.match);
+  // Seat the sides before `generateObstacles` — the terrain is carved around the
+  // placements. The corners are drawn from the (seeded) match rng, so a match
+  // isn't always the same layout and networked peers still agree.
+  applySidePlacements(
+    roster.map((s) => s.owner),
+    rng,
+  );
   const terrain = generateObstacles(rng);
   const obstacles = movementGrid(terrain);
   return {
     world,
     bus,
-    resources: { player: startingResources, ai: startingResources },
+    resources: emptyResources(),
     terrain,
     obstacles,
     sightBlockers: sightGrid(terrain),
@@ -137,19 +195,12 @@ export function createGameContext(
     settings,
     online: settings.match.online,
     commands,
-    ai: {
-      timer: 0,
-      nextIn: gameConfig.ai.firstSpawnDelay,
-      interval: gameConfig.ai.spawnInterval,
-      buildStep: 0,
-      groupTarget: 0,
-    },
-    intel: { player: emptyIntel(), ai: emptyIntel() },
-    droneControl: {
-      [Owner.Player]: emptyDroneControl(),
-      [Owner.AI]: emptyDroneControl(),
-      [Owner.Neutral]: emptyDroneControl(),
-    },
+    roster,
+    ai: Object.fromEntries(
+      roster.filter((s) => s.controller === Controller.Bot).map((s) => [s.owner, emptyAiState()]),
+    ) as Partial<Record<Owner, AiState>>,
+    intel: byOwner(emptyIntel),
+    droneControl: byOwner(emptyDroneControl),
     localSide: Owner.Player,
     fog: { explored: emptyGrid(), visible: emptyGrid(), version: 0 },
   };
