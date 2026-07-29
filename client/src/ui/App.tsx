@@ -4,6 +4,7 @@ import { PauseButton } from './hud/PauseButton';
 import { SoundToggle } from './hud/SoundToggle';
 import { StatusPanel } from './hud/StatusPanel';
 import { ProgrammingPanel } from './hud/ProgrammingPanel';
+import { sideLabel, sideTone } from './hud/sides';
 import { GameOverModal } from './screens/GameOverModal';
 import { MainMenu } from './screens/MainMenu';
 import { useControlGroupHotkeys } from './hooks/useControlGroupHotkeys';
@@ -11,8 +12,7 @@ import { usePauseHotkey } from './hooks/usePauseHotkey';
 import { useSelectAllHotkey } from './hooks/useSelectAllHotkey';
 import { useT } from '../i18n';
 import { useGameStore } from '../store/gameStore';
-import { selectBases, selectLocalSide, selectRobots, selectStatus } from '../store/selectors';
-import { Owner } from '../types/enums';
+import { selectBases, selectLocalSide, selectRobots, selectSides, selectStatus } from '../store/selectors';
 
 import './App.css';
 
@@ -21,12 +21,6 @@ const STATUS_KEYS = {
   playing: 'statusPlaying',
   won: 'statusWon',
   lost: 'statusLost',
-} as const;
-
-const OWNER_KEYS = {
-  player: 'ownerPlayer',
-  ai: 'ownerAi',
-  neutral: 'ownerNeutral',
 } as const;
 
 /**
@@ -39,6 +33,7 @@ function App() {
   const status = useGameStore(selectStatus);
   const bases = useGameStore(selectBases);
   const robots = useGameStore(selectRobots);
+  const sides = useGameStore(selectSides);
   const paused = useGameStore((s) => s.paused);
   const difficulty = useGameStore((s) => s.settings.match.difficulty);
   const droneStatus = useGameStore((s) => s.droneStatus);
@@ -47,11 +42,10 @@ function App() {
   useSelectAllHotkey();
   useControlGroupHotkeys();
 
-  // Label every side from the local client's point of view — the online guest
-  // plays Owner.AI but is "player" to itself (same rule as the canvas ownerColor).
-  const sideOf = (owner: Owner) => (owner === Owner.Neutral ? 'neutral' : owner === localSide ? 'player' : 'ai');
-  const playerCount = robots.filter((r) => sideOf(r.owner) === 'player').length;
-  const aiCount = robots.filter((r) => sideOf(r.owner) === 'ai').length;
+  // Sides are labelled and coloured from the local client's point of view — the
+  // online guest plays Owner.AI but is "player" to itself (same rule as the
+  // canvas `ownerColor`), with the local side listed first.
+  const sideRows = [...sides].sort((a, b) => Number(b.owner === localSide) - Number(a.owner === localSide));
 
   return (
     <div className="app-shell">
@@ -77,8 +71,8 @@ function App() {
           <ul className="hud__list">
             {bases.map((base) => (
               <li key={base.id} className="hud__row">
-                <span className={`dot dot--${sideOf(base.owner)}`} />
-                <span className="hud__row-label">{t('hud', OWNER_KEYS[sideOf(base.owner)])}</span>
+                <span className={`dot dot--${sideTone(base.owner, localSide)}`} />
+                <span className="hud__row-label">{sideLabel(base.owner, sides, localSide, t)}</span>
                 {base.queueLength > 0 && (
                   <span className="hud__build" title={t('statusPanel', 'building')}>
                     <Settings2Icon size={14} /> {base.queueLength}
@@ -95,16 +89,13 @@ function App() {
         <div className="hud__section">
           <h2 className="hud__heading">{t('hud', 'units')}</h2>
           <ul className="hud__list">
-            <li className="hud__row">
-              <span className="dot dot--player" />
-              <span className="hud__row-label">{t('hud', 'player')}</span>
-              <span className="hud__row-value">{playerCount}</span>
-            </li>
-            <li className="hud__row">
-              <span className="dot dot--ai" />
-              <span className="hud__row-label">{t('hud', 'ai')}</span>
-              <span className="hud__row-value">{aiCount}</span>
-            </li>
+            {sideRows.map((side) => (
+              <li key={side.owner} className={`hud__row ${side.alive ? '' : 'hud__row--out'}`.trim()}>
+                <span className={`dot dot--${sideTone(side.owner, localSide)}`} />
+                <span className="hud__row-label">{sideLabel(side.owner, sides, localSide, t)}</span>
+                <span className="hud__row-value">{robots.filter((r) => r.owner === side.owner).length}</span>
+              </li>
+            ))}
           </ul>
         </div>
 

@@ -6,17 +6,22 @@ import { GameEngine } from './engine';
 /**
  * The lockstep networking premise: two peers that start from the same seed and
  * apply the same inputs must simulate bit-identical worlds. These tests run two
- * independent engines through the deterministic pipeline (online mode, so the bot
- * AI is gated off) and assert the resulting state matches for equal seeds and
- * diverges for different ones.
+ * independent engines through the deterministic pipeline and assert the resulting
+ * state matches for equal seeds and diverges for different ones.
+ *
+ * Bots are included on purpose: online matches can seat them alongside the two
+ * humans, and since no bot input crosses the wire, every peer runs them locally.
+ * They draw from the shared match rng, so a divergence in how many draws a bot
+ * makes would desync everything downstream of it.
  */
 
 const DT = 1 / 30;
 const SEED = 0x1234abcd;
 
-function onlineSettings(): GameSettings {
+function onlineSettings(aiOpponents = 0): GameSettings {
   const s = createDefaultSettings();
   s.match.online = true;
+  s.match.aiOpponents = aiOpponents;
   return s;
 }
 
@@ -45,9 +50,9 @@ function snapshot(engine: GameEngine): UnitSnap[] {
   return units.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function runMatch(seed: number, ticks: number): { units: UnitSnap[]; obstacles: ObstacleGrid } {
+function runMatch(seed: number, ticks: number, aiOpponents = 0): { units: UnitSnap[]; obstacles: ObstacleGrid } {
   const engine = new GameEngine();
-  engine.startMatch(onlineSettings(), seed);
+  engine.startMatch(onlineSettings(aiOpponents), seed);
   const obstacles = engine.context!.obstacles;
   for (let i = 0; i < ticks; i++) engine.tick(DT);
   return { units: snapshot(engine), obstacles };
@@ -59,6 +64,15 @@ describe('lockstep determinism', () => {
     const b = runMatch(SEED, 150);
     expect(b.units).toEqual(a.units);
     expect(b.obstacles).toEqual(a.obstacles);
+  });
+
+  it('stays identical with bots seated alongside the two humans', () => {
+    const a = runMatch(SEED, 150, 2);
+    const b = runMatch(SEED, 150, 2);
+    expect(b.units).toEqual(a.units);
+    expect(b.obstacles).toEqual(a.obstacles);
+    // The bots really did play — they build past the four starters each side gets.
+    expect(a.units.length).toBeGreaterThan(runMatch(SEED, 0, 2).units.length);
   });
 
   it('generates a different battlefield for a different seed', () => {

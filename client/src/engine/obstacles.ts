@@ -1,4 +1,4 @@
-import { gameConfig } from '../config/gameConfig';
+import { gameConfig, type BasePlacement } from '../config/gameConfig';
 import type { Vec2 } from '../types/entities';
 import { TerrainKind } from '../types/enums';
 import type { Rng } from '../utils/rng';
@@ -144,18 +144,27 @@ function stampBlob(
   }
 }
 
-function baseCentre(owner: string): { tx: number; ty: number } {
+function baseCentre(p: BasePlacement): { tx: number; ty: number } {
   const fp = gameConfig.bases.footprintTiles;
-  const p = gameConfig.bases.placements.find((b) => b.owner === owner) ?? gameConfig.bases.placements[0];
   return { tx: p.tx + Math.floor(fp / 2), ty: p.ty + Math.floor(fp / 2) };
 }
 
-/** Connectivity is about driving, so both kinds count as blocked here. */
+/**
+ * Guarantees every base can drive to every other one: each is checked against
+ * the first, carving a corridor where the map came out sealed. Reachability is
+ * transitive, so connecting all of them to one hub connects them to each other.
+ * Connectivity is about driving, so both terrain kinds count as blocked here.
+ */
 function ensureConnectivity(terrain: TerrainGrid): void {
-  const a = baseCentre('player');
-  const b = baseCentre('ai');
-  if (isReachable(movementGrid(terrain), a, b)) return;
-  carveCorridor(terrain, a, b);
+  const centres = gameConfig.bases.placements.map(baseCentre);
+  const hub = centres[0];
+  if (!hub) return;
+  for (const centre of centres.slice(1)) {
+    // Re-derive the grid each pass: a corridor carved for an earlier base may
+    // already have opened the route for this one.
+    if (isReachable(movementGrid(terrain), hub, centre)) continue;
+    carveCorridor(terrain, hub, centre);
+  }
 }
 
 /** BFS over free tiles, 8-directional with no corner-cutting (matches A*). */

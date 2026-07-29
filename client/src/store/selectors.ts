@@ -9,6 +9,7 @@ export const selectStatus = (s: GameState) => s.status;
 export const selectBases = (s: GameState) => s.bases;
 export const selectRobots = (s: GameState) => s.robots;
 export const selectResources = (s: GameState) => s.resources;
+export const selectSides = (s: GameState) => s.sides;
 export const selectSelectedIds = (s: GameState) => s.selectedRobotIds;
 /** Which side this client plays (Player offline/host, AI for the online guest). */
 export const selectLocalSide = (s: GameState) => s.localSide;

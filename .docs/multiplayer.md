@@ -1,7 +1,8 @@
 # Multiplayer over WebSocket
 
-2-player online matches over a thin WebSocket relay. **Implemented** — this
-documents how it works. Constraints fixed going in:
+Two-human online matches over a thin WebSocket relay (bots may fill the other
+seats — see "Bots online" below). **Implemented** — this documents how it works.
+Constraints fixed going in:
 
 - **UI stays on GitHub Pages** (static) — the backend is a separate service.
 - **Backend: Cloudflare Workers + Durable Objects.**
@@ -59,9 +60,22 @@ peers and separates simulation from presentation:
   sees itself as blue), box-selection (you can only select your own side), and the
   HUD's "your resources / your base". Host = `Player`, guest = `AI`.
 
-The one sim change: `aiSystem(ctx, dt)` (the bot) is **skipped** when `ctx.online`
-— `Owner.AI` is a real opponent. Online matches also use symmetric Normal starter
-counts for both sides (the asymmetric Easy/Hard presets only make sense vs a bot).
+Online matches use symmetric Normal starter counts for the human sides (the
+asymmetric Easy/Hard presets only make sense against a bot).
+
+### Bots online
+
+A networked match is a free-for-all seating two humans (`Owner.Player` = host,
+`Owner.AI` = guest) plus 0-2 bots on the remaining corners. **No bot input crosses
+the wire**: `aiSystem` reads only the world, the shared match rng and its own
+`ctx.ai[owner]` state, so every peer runs the same bots and reaches the same
+result. That is also why the roster must be derived identically on both peers —
+the host's chosen bot count rides in the `start` message (`aiCount`) rather than
+coming from either client's local settings.
+
+The practical constraint this creates: the bots consume draws from the *shared*
+`ctx.rng`, so any divergence in **how many** draws a bot makes desyncs everything
+downstream. `determinism.test.ts` covers this with bots seated.
 
 **Known limitation, accepted:** each client simulates the entire world (including
 the fog-hidden opponent), so a client could inspect it via devtools — the classic
@@ -137,8 +151,13 @@ them before simulating that tick:
   anywhere under `client/src/engine/**`.
 - A determinism test (`client/src/engine/game/determinism.test.ts`) asserts two
   engines with the same seed produce bit-identical worlds after 150 ticks.
-- **Still TODO (not built):** a per-N-ticks state checksum in the `tick` message to
-  catch a desync and end the match cleanly instead of silently drifting.
+- **Desync detection is live.** Every `DESYNC_CHECK_EVERY` ticks each peer hashes
+  its world (`client/src/pixi/net/worldHash.ts`) and piggybacks the result on its
+  next `tick` message as `check: { tick, hash }`. The receiver compares it against
+  its own hash for that tick; a mismatch ends the match with an explicit "desync at
+  tick N" instead of letting the two clients drift on showing different battles.
+  The probe covers simulation state only — never anything derived from `localSide`,
+  which legitimately differs per client.
 
 ## Explicitly out of scope
 
@@ -148,7 +167,7 @@ them before simulating that tick:
   resume/rejoin flow.
 - **Anti-cheat / hiding fog-of-war state from the client** — accepted
   limitation of lockstep, see above.
-- **More than 2 players.**
+- **More than 2 *humans***— the relay pairs exactly two sockets per room.
 - **Spectating / replay UI** — worth flagging as a _cheap future bonus_
   though: a match here is fully reconstructable from `seed + the ordered
 command log`, both of which already exist in this design, so recording one
@@ -166,7 +185,7 @@ a placeholder). Client paths below are workspace-relative (`client/src/…`).
 | `protocol/` (new workspace)                    | New `@drone-directive/protocol` workspace holding the shared wire-message types; both `@drone-directive/client` and `@drone-directive/server` depend on it (avoids cross-workspace source imports).                                                     |
 | `client/src/pixi/net/LockstepSession.ts` (new) | WebSocket transport: per-tick command + drone buffering, stall/ready logic, connect host/guest.                                                                                                                                                                         |
 | `client/src/pixi/GameApp.ts`                   | `step()` consults `LockstepSession` (when online) before calling `engine.tick()`.                                                                                                                                                                       |
-| `client/src/engine/game/scenes/gameScene.ts`   | Gate the `aiSystem(ctx, dt)` call behind `ctx.online`.                                                                                                                                                                                                  |
+| `client/src/engine/game/scenes/gameScene.ts`   | Build the world from `ctx.roster`; bot sides come from the roster, so `aiSystem` needs no online gate.                                                                                                                                                  |
 | `client/src/engine/game/engine.ts`             | `startMatch` accepts an optional external seed.                                                                                                                                                                                                         |
 | `client/src/engine/game/context.ts`            | `createGameContext` takes the seed as a parameter instead of calling `Date.now()` internally.                                                                                                                                                           |
 | `client/src/config/gameSettings.ts`            | Add an online/match-mode flag to `MatchSettings`. For online matches, force symmetric starter counts (reuse `gameConfig.difficulty.normal` for both sides) rather than exposing the asymmetric Easy/Hard presets — those only make sense against a bot. |
@@ -195,6 +214,5 @@ create → `created`, join → matching `start` seed on both, `tick` relay,
 
 ## Remaining / not built
 
-- **Desync detection** — per-tick state checksum (see determinism prerequisites).
-- **Reconnection**, **spectating / replay**, **>2 players** — out of scope.
+- **Reconnection**, **spectating / replay**, **>2 humans** — out of scope.
 - **i18n** — the lobby strings are English-only for now.

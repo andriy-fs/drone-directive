@@ -2,6 +2,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dial
 import { Settings2Icon, HelpCircleIcon, BotIcon } from '../common/icons';
 import { useState } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
+import { maxAiOpponents } from '../../config/gameSettings';
 import { useT, Locale } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectOnline, selectStatus } from '../../store/selectors';
@@ -31,6 +32,9 @@ const MAP_SIZES: {
   { value: MapSize.Large, label: 'large', hint: 'largeHint' },
 ];
 
+/** Bot counts a solo match can seat — one human already holds a corner. */
+const OPPONENT_COUNTS = Array.from({ length: maxAiOpponents(false) }, (_, i) => i + 1);
+
 const LANGUAGES: { value: Locale; label: string }[] = [
   { value: Locale.En, label: 'EN' },
   { value: Locale.Uk, label: 'UK' },
@@ -48,6 +52,7 @@ export function MainMenu() {
   const status = useGameStore(selectStatus);
   const difficulty = useGameStore((s) => s.settings.match.difficulty);
   const mapSize = useGameStore((s) => s.settings.match.mapSize);
+  const aiOpponents = useGameStore((s) => s.settings.match.aiOpponents);
   const updateSettings = useGameStore((s) => s.updateSettings);
   const requestRestart = useGameStore((s) => s.requestRestart);
   const locale = useGameStore((s) => s.locale);
@@ -99,6 +104,22 @@ export function MainMenu() {
                   aria-label={t('difficulty', o.hint)}
                 >
                   {t('difficulty', o.label)}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="picker-group">
+            <span className="picker__label">{t('mainMenu', 'opponents')}</span>
+            <div className="picker">
+              {OPPONENT_COUNTS.map((n) => (
+                <Button
+                  key={n}
+                  className={`chip ${n === aiOpponents ? 'chip--on' : ''}`.trim()}
+                  onClick={() => updateSettings({ match: { aiOpponents: n } })}
+                  aria-label={t('mainMenu', 'opponentsHint')}
+                >
+                  {n}
                 </Button>
               ))}
             </div>

@@ -6,7 +6,7 @@ import { useGameStore } from '../../store/gameStore';
 import { getBaseTexture } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
-import { ownerColor } from './ownerColor';
+import { ownerColor, teamTint } from './ownerColor';
 
 /**
  * View for a base entity: its faction sprite (or an owner-tinted square + cross
@@ -34,6 +34,8 @@ export class BaseView {
       const img = new Sprite(texture);
       img.anchor.set(0.5);
       img.scale.set(target / dim);
+      const tint = teamTint(base.owner);
+      if (tint !== undefined) img.tint = tint;
       this.container.addChild(img);
     } else {
       this.container.addChild(drawBody(base, size, half));

@@ -1,6 +1,6 @@
 import { gameConfig } from '../../../config/gameConfig';
 import type { Vec2 } from '../../../types/entities';
-import { ChassisType, Difficulty, Owner, WeaponType } from '../../../types/enums';
+import { ChassisType, Controller, Difficulty, Owner, WeaponType } from '../../../types/enums';
 import { spawnBase, spawnDrone, spawnRobot } from '../../ecs/factory';
 import { clearWorld } from '../../ecs/world';
 import { resetIds } from '../../../utils/id';
@@ -32,6 +32,8 @@ const STARTER_SPECS: { chassis: ChassisType; weapon: WeaponType }[] = [
 export class GameScene implements Scene {
   readonly name = 'game';
   private over = false;
+  /** Sides already announced as knocked out, so `sideEliminated` fires once each. */
+  private readonly eliminated = new Set<Owner>();
   private readonly ctx: GameContext;
 
   constructor(ctx: GameContext) {
@@ -47,10 +49,12 @@ export class GameScene implements Scene {
     for (const p of gameConfig.bases.placements) spawnBase(world, p.owner, p.tx, p.ty);
 
     // Online matches ignore the asymmetric Easy/Hard presets (those only make sense
-    // against the bot) and give both human sides the symmetric Normal player count.
+    // against the bots) and give both human sides the symmetric Normal player count.
     const counts = gameConfig.difficulty[this.ctx.online ? Difficulty.Normal : this.ctx.difficulty];
-    spawnStarters(this.ctx, Owner.Player, counts.player);
-    spawnStarters(this.ctx, Owner.AI, this.ctx.online ? counts.player : counts.ai);
+    for (const side of this.ctx.roster) {
+      const isBot = side.controller === Controller.Bot;
+      spawnStarters(this.ctx, side.owner, isBot ? counts.ai : counts.player);
+    }
 
     // Bases are impassable: stamp their footprints into the pathfinding grid.
     refreshNavObstacles(this.ctx);
@@ -64,12 +68,12 @@ export class GameScene implements Scene {
       playerBase.production.defaultTask = this.ctx.settings.base.defaultProgram;
     }
 
-    // Observer drone(s): the player's alone offline; online each side gets one so
-    // both players can pilot their own drone through the lockstep channel.
-    if (this.ctx.online) {
-      for (const b of world.with('base', 'position').entities) spawnDrone(world, b.owner!, b.position);
-    } else if (playerBase?.position) {
-      spawnDrone(world, Owner.Player, playerBase.position);
+    // Observer drones go to the human sides only — bots don't fly one, and
+    // online each human gets their own to pilot through the lockstep channel.
+    for (const side of this.ctx.roster) {
+      if (side.controller === Controller.Bot) continue;
+      const base = world.with('base', 'position').entities.find((b) => b.owner === side.owner);
+      if (base) spawnDrone(world, side.owner, base.position);
     }
 
     this.ctx.bus.emit('sceneChanged', { scene: 'game' });
@@ -81,8 +85,11 @@ export class GameScene implements Scene {
 
     commandsSystem(ctx);
     economySystem(ctx, dt);
-    // Networked matches have a real opponent on `Owner.AI` — never run the bot.
-    if (!ctx.online) aiSystem(ctx, dt);
+    // Bot sides come from the roster, so this is a no-op in a pure 1v1 online
+    // match. Bots run inside the deterministic pipeline on *every* peer — they
+    // read only the world, the shared rng and their own state, so no bot input
+    // ever crosses the wire.
+    aiSystem(ctx, dt);
     productionSystem(ctx, dt);
     visionSystem(ctx);
     taskSystem(ctx, dt);
@@ -104,15 +111,28 @@ export class GameScene implements Scene {
     /* nothing */
   }
 
+  /**
+   * Free-for-all: a side is out once its base falls, and the match ends when at
+   * most one is left standing. Elimination is announced per side (`sideEliminated`)
+   * so the UI can call a defeat the moment the local player is knocked out —
+   * the simulation deliberately keeps running until a winner exists, because
+   * stopping early on one peer would desync a networked match.
+   */
   private checkGameOver(): void {
     const bases = this.ctx.world.with('base').entities;
-    const aiAlive = bases.some((b) => b.owner === Owner.AI && (b.hp ?? 0) > 0);
-    const playerAlive = bases.some((b) => b.owner === Owner.Player && (b.hp ?? 0) > 0);
-    if (aiAlive && playerAlive) return;
+    const alive: Owner[] = [];
+    for (const side of this.ctx.roster) {
+      if (bases.some((b) => b.owner === side.owner && (b.hp ?? 0) > 0)) alive.push(side.owner);
+      else if (!this.eliminated.has(side.owner)) {
+        this.eliminated.add(side.owner);
+        this.ctx.bus.emit('sideEliminated', { owner: side.owner });
+      }
+    }
+    if (alive.length > 1) return;
 
     this.over = true;
-    const winner = !aiAlive ? Owner.Player : Owner.AI;
-    this.ctx.bus.emit('gameOver', { winner });
+    // No survivor at all (simultaneous last kills) → nobody wins.
+    this.ctx.bus.emit('gameOver', { winner: alive[0] ?? null });
   }
 }
 

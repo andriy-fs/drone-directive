@@ -1,11 +1,11 @@
 import { useT } from '../../i18n';
-import { selectLocalSide, selectPlayerBase, selectResources } from '../../store/selectors';
+import { selectLocalSide, selectPlayerBase, selectResources, selectSides } from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
-import { Owner } from '../../types/enums';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
 import { BuildRobotModal } from './BuildRobotModal';
 import { programLabel } from './programOptions';
+import { sideLabel, sideTone } from './sides';
 
 /**
  * Resources per side, player production progress, and the entry point to the
@@ -16,6 +16,7 @@ export function StatusPanel() {
   const t = useT();
   const resources = useGameStore(selectResources);
   const localSide = useGameStore(selectLocalSide);
+  const sides = useGameStore(selectSides);
   const playerBase = useGameStore(selectPlayerBase);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   // Dialog visibility lives in the store so a double-click on the base (canvas
@@ -23,9 +24,8 @@ export function StatusPanel() {
   const buildOpen = useGameStore((s) => s.buildDialogOpen);
   const setBuildOpen = useGameStore((s) => s.setBuildDialogOpen);
 
-  // Show the local side's resources first (the online guest plays Owner.AI).
-  const myResources = localSide === Owner.Player ? resources.player : resources.ai;
-  const foeResources = localSide === Owner.Player ? resources.ai : resources.player;
+  // One row per side, the local one first (the online guest plays Owner.AI).
+  const rows = [...sides].sort((a, b) => Number(b.owner === localSide) - Number(a.owner === localSide));
 
   const queueLength = playerBase?.queueLength ?? 0;
   const auto = playerBase?.autoBuild ?? null;
@@ -36,16 +36,15 @@ export function StatusPanel() {
   return (
     <div className="status-panel">
       <ul className="hud__list">
-        <li className="hud__row">
-          <span className="dot dot--player" />
-          <span className="hud__row-label">{t('statusPanel', 'resources')}</span>
-          <span className="hud__row-value">{Math.floor(myResources)}</span>
-        </li>
-        <li className="hud__row">
-          <span className="dot dot--ai" />
-          <span className="hud__row-label">{t('statusPanel', 'ai')}</span>
-          <span className="hud__row-value">{Math.floor(foeResources)}</span>
-        </li>
+        {rows.map((side) => (
+          <li key={side.owner} className={`hud__row ${side.alive ? '' : 'hud__row--out'}`.trim()}>
+            <span className={`dot dot--${sideTone(side.owner, localSide)}`} />
+            <span className="hud__row-label">
+              {side.owner === localSide ? t('statusPanel', 'resources') : sideLabel(side.owner, sides, localSide, t)}
+            </span>
+            <span className="hud__row-value">{Math.floor(resources[side.owner] ?? 0)}</span>
+          </li>
+        ))}
       </ul>
 
       <div className={`build-progress ${!queueLength ? 'build-progress--idle' : ''}`.trim()}>

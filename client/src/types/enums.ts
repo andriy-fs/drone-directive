@@ -4,8 +4,34 @@
  * derived from it. Import the const for values, the type for annotations.
  */
 
-export const Owner = { Player: 'player', AI: 'ai', Neutral: 'neutral' } as const;
+/**
+ * A side in the match — who owns a base, a wallet, an intel bucket and a colour.
+ * An `Owner` says nothing about *who steers* it: that's the side's `Controller`.
+ * `Player` is always the local human offline; `AI` is the bot offline and the
+ * remote human online; `AI2`/`AI3` are always bots. The historical `player`/`ai`
+ * strings are kept so sprite filenames, CSS classes and saved data still match.
+ */
+export const Owner = { Player: 'player', AI: 'ai', AI2: 'ai2', AI3: 'ai3', Neutral: 'neutral' } as const;
 export type Owner = (typeof Owner)[keyof typeof Owner];
+
+/**
+ * Every side that can hold a base, in seating order — index 0 is the local
+ * player, the rest fill up as opponents are added. The order is fixed because
+ * spawn order and per-side iteration must be identical on networked peers.
+ */
+export const PLAYABLE_OWNERS = [Owner.Player, Owner.AI, Owner.AI2, Owner.AI3] as const;
+
+/** Hard cap on sides in one match — one per map corner. */
+export const MAX_SIDES = PLAYABLE_OWNERS.length;
+
+/**
+ * Who issues a side's orders. Decoupled from `Owner` so any side can be a bot.
+ * Deliberately *not* split into local/remote: which human is local differs per
+ * client, and the roster must be byte-identical on networked peers. "Which side
+ * am I" lives in `ctx.localSide` instead.
+ */
+export const Controller = { Human: 'human', Bot: 'bot' } as const;
+export type Controller = (typeof Controller)[keyof typeof Controller];
 
 export const ChassisType = { Tracks: 'tracks', Wheels: 'wheels', Legs: 'legs' } as const;
 export type ChassisType = (typeof ChassisType)[keyof typeof ChassisType];

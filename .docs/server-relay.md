@@ -253,10 +253,12 @@ The relay does **not**, and is not meant to:
   server-authoritative simulation.
 - **Hide anything.** Each client simulates the full world including the fog-hidden
   opponent — the classic lockstep-RTS limitation, accepted by design.
-- **Detect desync.** Nothing checksums world state; peers that diverge just drift
-  apart silently. The known gap ([multiplayer.md](./multiplayer.md#determinism-prerequisites)):
-  add a periodic state hash to the `tick` message and end the match cleanly.
-- **Support reconnection, spectators, or more than 2 players.**
+- **Detect desync.** The clients do that themselves: a periodic world hash rides
+  on the `tick` message the relay already forwards verbatim, so the relay stays
+  ignorant of game state (see [multiplayer.md](./multiplayer.md)).
+- **Support reconnection, spectators, or more than 2 human players.** (Bots need
+  no socket — both clients simulate them from the shared seed; the relay only
+  carries the host's `aiCount` in `start`.)
 - **Authenticate, rate-limit, or match-make.** Anyone who guesses a 4-character
   code can join a room that's still waiting. Rooms are ephemeral and the code space
   is small by design (it has to be typeable) — acceptable for a hobby game, worth

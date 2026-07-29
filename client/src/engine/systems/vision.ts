@@ -1,5 +1,5 @@
 import { gameConfig } from '../../config/gameConfig';
-import { Owner } from '../../types/enums';
+import type { Owner } from '../../types/enums';
 import { distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext, TeamIntel } from '../game/context';
@@ -20,18 +20,18 @@ import { enemyBases, enemyRobots, isEnemy } from './targeting';
  * `knownEnemyRobots`/`knownEnemyBases`.
  */
 export function visionSystem(ctx: GameContext): void {
-  updateSideVision(ctx, Owner.Player);
-  updateSideVision(ctx, Owner.AI);
+  // Every side scouts independently, in roster order (fixed across peers).
+  for (const side of ctx.roster) updateSideVision(ctx, side.owner);
 }
 
 function updateSideVision(ctx: GameContext, owner: Owner): void {
-  const intel: TeamIntel = owner === Owner.AI ? ctx.intel.ai : ctx.intel.player;
+  const intel: TeamIntel = ctx.intel[owner];
   const isMine = (e: Entity): boolean => e.owner === owner && (e.hp ?? 0) > 0 && (e.sightRange ?? 0) > 0;
   const scouts = [
     ...ctx.world.with('robot', 'position').entities.filter(isMine),
     ...ctx.world.with('base', 'position').entities.filter(isMine),
     // The observer drone spots enemies too (additive); it has no hp, so match on
-    // owner + sight only. AI has no drone, so this is empty for that side.
+    // owner + sight only. Bot sides have no drone, so this is empty for them.
     ...ctx.world.with('drone', 'position').entities.filter((e) => e.owner === owner && (e.sightRange ?? 0) > 0),
   ];
   // Enemy `ew` robots jamming this side's scouts.

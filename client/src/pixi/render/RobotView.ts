@@ -7,7 +7,7 @@ import { ChassisType, WeaponType } from '../../types/enums';
 import { getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
-import { ownerColor } from './ownerColor';
+import { ownerColor, teamTint } from './ownerColor';
 
 /**
  * View for a robot entity. If its chassis has a registered sprite it is drawn as
@@ -56,6 +56,8 @@ export class RobotView {
     const weaponSprite = robot.weaponType && robot.owner ? getWeaponTexture(robot.weaponType, robot.owner) : null;
     let outerRadius = r;
 
+    const tint = teamTint(robot.owner);
+
     if (sprite) {
       const { texture, def } = sprite;
       const target = def.targetSize ?? gameConfig.grid.tilePx * 1.4;
@@ -64,6 +66,7 @@ export class RobotView {
       img.anchor.set(0.5);
       img.scale.set(target / dim);
       img.rotation = def.rotationOffset ?? 0;
+      if (tint !== undefined) img.tint = tint;
       this.body.addChild(img);
 
       outerRadius = target / 2;
@@ -71,7 +74,7 @@ export class RobotView {
       this.body.addChild(drawBody(robot, r, !weaponSprite));
     }
 
-    if (weaponSprite) this.body.addChild(weaponModule(weaponSprite));
+    if (weaponSprite) this.body.addChild(weaponModule(weaponSprite, tint));
 
     this.ring = new Graphics();
     this.ring.circle(0, 0, outerRadius + 5).stroke({ width: 2, color: 0xfde047 });
@@ -132,7 +135,7 @@ export class RobotView {
 }
 
 /** A weapon-module sprite centred on the robot's hardpoint (over the chassis). */
-function weaponModule(sprite: ResolvedSprite): Sprite {
+function weaponModule(sprite: ResolvedSprite, tint?: number): Sprite {
   const { texture, def } = sprite;
   const target = def.targetSize ?? gameConfig.grid.tilePx * 0.7;
   const dim = Math.max(texture.width, texture.height) || target;
@@ -140,6 +143,7 @@ function weaponModule(sprite: ResolvedSprite): Sprite {
   img.anchor.set(0.5);
   img.scale.set(target / dim);
   img.rotation = def.rotationOffset ?? 0;
+  if (tint !== undefined) img.tint = tint;
   return img;
 }
 

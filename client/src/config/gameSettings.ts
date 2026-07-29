@@ -1,5 +1,5 @@
 import type { BuildOrder } from '../types/entities';
-import { ChassisType, Difficulty, MapSize, TaskType, WeaponType } from '../types/enums';
+import { ChassisType, Difficulty, MapSize, MAX_SIDES, TaskType, WeaponType } from '../types/enums';
 
 /**
  * Player-editable settings (distinct from `gameConfig`, which is fixed balance /
@@ -15,8 +15,24 @@ import { ChassisType, Difficulty, MapSize, TaskType, WeaponType } from '../types
 export interface MatchSettings {
   difficulty: Difficulty;
   mapSize: MapSize;
-  /** True only for networked matches — disables the bot AI and forces symmetric starters. */
+  /**
+   * How many bot-controlled sides join, on top of the human side(s). Free-for-all:
+   * every side fights every other. Clamp with `maxAiOpponents(online)` — the map
+   * seats at most `MAX_SIDES`, and a networked match already spends two of them.
+   */
+  aiOpponents: number;
+  /** True only for networked matches — the second side is a remote human, and starters are symmetric. */
   online: boolean;
+}
+
+/** Largest bot count that still fits on the map, given how many humans are playing. */
+export function maxAiOpponents(online: boolean): number {
+  return MAX_SIDES - (online ? 2 : 1);
+}
+
+/** Clamps a requested bot count into what the map can actually seat. */
+export function clampAiOpponents(count: number, online: boolean): number {
+  return Math.max(0, Math.min(maxAiOpponents(online), Math.floor(count)));
 }
 
 /** Player base configuration applied at match start. */
@@ -46,7 +62,7 @@ export const defaultBuildOrder: BuildOrder = {
 /** Fresh copy of the default settings (never share the object — it's mutated per game). */
 export function createDefaultSettings(): GameSettings {
   return {
-    match: { difficulty: Difficulty.Normal, mapSize: MapSize.Medium, online: false },
+    match: { difficulty: Difficulty.Normal, mapSize: MapSize.Medium, aiOpponents: 1, online: false },
     // Auto-produce tracked robots by default, set to Guard.
     base: { autoBuild: { ...defaultBuildOrder }, defaultProgram: TaskType.Guard },
   };

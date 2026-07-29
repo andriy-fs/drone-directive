@@ -15,6 +15,9 @@ export interface GameEvents {
   entityDestroyed: { id: string; kind: EntityKind; owner?: Owner; pos: Vec2 };
   baseDestroyed: { owner: Owner };
   projectileFired: { owner: Owner; pos: Vec2; weapon: WeaponType };
-  gameOver: { winner: Owner };
+  /** A side lost its last base and is out of the match. Fires once per side. */
+  sideEliminated: { owner: Owner };
+  /** The match is decided; `winner` is null if the last sides fell together. */
+  gameOver: { winner: Owner | null };
   sceneChanged: { scene: SceneName };
 }
