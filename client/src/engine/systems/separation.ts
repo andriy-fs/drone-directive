@@ -1,5 +1,5 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
-import { clamp } from '../../utils/math';
+import { clamp, vecLength } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 
@@ -30,7 +30,7 @@ function separate(a: Entity, b: Entity, minDist: number): void {
   const bp = b.position!;
   let dx = bp.x - ap.x;
   let dy = bp.y - ap.y;
-  const trueDist = Math.hypot(dx, dy);
+  const trueDist = vecLength(dx, dy);
   if (trueDist >= minDist) return;
 
   // `dist` only normalizes the push direction; the push *magnitude* below always

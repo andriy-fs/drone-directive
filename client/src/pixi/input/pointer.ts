@@ -7,7 +7,7 @@ import type { GameContext } from '../../engine/game/context';
 import type { Vec2 } from '../../types/entities';
 import type { Owner } from '../../types/enums';
 import { useGameStore } from '../../store/gameStore';
-import { distance } from '../../utils/math';
+import { distance, vecLength } from '../../utils/math';
 import type { Camera } from '../Camera';
 
 /** Below this drag distance (px) a press is treated as a click, not a drag. */
@@ -107,7 +107,7 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
       dx += FLY_KEYS[code].x;
       dy += FLY_KEYS[code].y;
     }
-    const len = Math.hypot(dx, dy);
+    const len = vecLength(dx, dy);
     useGameStore.getState().setDroneInput(len > 0 ? { x: dx / len, y: dy / len } : { x: 0, y: 0 });
   };
 
