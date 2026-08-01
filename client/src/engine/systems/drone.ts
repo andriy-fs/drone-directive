@@ -1,7 +1,7 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '../../types/entities';
 import { Owner, TaskType } from '../../types/enums';
-import { clamp, distance } from '../../utils/math';
+import { clamp, distance, vecLength } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import { spawnProjectile } from '../ecs/factory';
 import type { GameContext } from '../game/context';
@@ -144,7 +144,7 @@ function fireManual(ctx: GameContext, robot: Entity): void {
 }
 
 function normalize(v: Vec2): Vec2 {
-  const len = Math.hypot(v.x, v.y);
+  const len = vecLength(v.x, v.y);
   if (len < 1e-6) return { x: 0, y: 0 };
   return { x: v.x / len, y: v.y / len };
 }

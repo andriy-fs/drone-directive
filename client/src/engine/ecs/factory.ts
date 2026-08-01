@@ -2,6 +2,7 @@ import { gameConfig } from '../../config/gameConfig';
 import type { Vec2 } from '../../types/entities';
 import { RobotState, TaskType, type ChassisType, type Owner, type WeaponType } from '../../types/enums';
 import { nextId } from '../../utils/id';
+import { vecLength } from '../../utils/math';
 import type { Entity } from './entity';
 import type { EcsWorld } from './world';
 
@@ -81,7 +82,7 @@ export function spawnProjectile(
   const { projectileSpeed, projectileTtl } = gameConfig.combat;
   const dx = targetPos.x - from.x;
   const dy = targetPos.y - from.y;
-  const d = Math.hypot(dx, dy) || 1;
+  const d = vecLength(dx, dy) || 1;
   return world.add({
     id: nextId('proj'),
     projectile: true,

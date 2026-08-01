@@ -1,7 +1,7 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '../../types/entities';
 import { RobotState, TaskType } from '../../types/enums';
-import { clamp } from '../../utils/math';
+import { clamp, vecLength } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { tileOf } from '../obstacles';
@@ -75,7 +75,7 @@ function maybeStartRetreat(ctx: GameContext, e: Entity, dt: number): void {
     return;
   }
 
-  const moved = m.prevX !== undefined ? Math.hypot(pos.x - m.prevX, pos.y - (m.prevY ?? pos.y)) : Infinity;
+  const moved = m.prevX !== undefined ? vecLength(pos.x - m.prevX, pos.y - (m.prevY ?? pos.y)) : Infinity;
   if (moved >= gameConfig.behavior.stuckEpsilon) {
     m.stuckTime = 0;
     return;
@@ -121,7 +121,7 @@ function moveEntity(e: Entity, dt: number): void {
 
   const dx = dest.x - pos.x;
   const dy = dest.y - pos.y;
-  const dist = Math.hypot(dx, dy);
+  const dist = vecLength(dx, dy);
   e.heading = Math.atan2(dy, dx);
 
   const step = m.speed * dt;

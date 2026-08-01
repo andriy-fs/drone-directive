@@ -3,7 +3,7 @@ import { getProgram } from '../../config/programs';
 import type { Vec2 } from '../../types/entities';
 import { RobotState, TaskType } from '../../types/enums';
 import type { BehaviorAction, BehaviorCondition } from '../../types/tasks';
-import { clamp, distance } from '../../utils/math';
+import { clamp, distance, vecLength } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileCentre, tileOf } from '../obstacles';
@@ -211,7 +211,7 @@ function evadeOutcome(ctx: GameContext, e: Entity): Outcome {
 
   const dx = pos.x - from.x;
   const dy = pos.y - from.y;
-  const len = Math.hypot(dx, dy) || 1;
+  const len = vecLength(dx, dy) || 1;
   // Perpendicular to the line of fire; side chosen deterministically per robot.
   let px = -dy / len;
   let py = dx / len;
@@ -340,7 +340,7 @@ function overwatchOutcome(ctx: GameContext, e: Entity): Outcome {
     const centroid = centroidOf(vanguard);
     const dx = home.position.x - centroid.x;
     const dy = home.position.y - centroid.y;
-    const len = Math.hypot(dx, dy) || 1;
+    const len = vecLength(dx, dy) || 1;
     const trail = gameConfig.behavior.overwatchTrailDistance;
     return {
       move: {
