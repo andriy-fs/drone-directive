@@ -184,7 +184,6 @@ export const uk: Dict = {
     roomCodePlaceholder: 'КОД КІМНАТИ',
     joinRoom: 'Увійти в кімнату',
     cancel: 'Скасувати',
-    back: 'Назад',
   },
   unitsGuide: {
     title: 'Довідник юнітів',

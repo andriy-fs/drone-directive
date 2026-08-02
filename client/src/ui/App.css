@@ -416,12 +416,17 @@
   z-index: 10;
 }
 
-.dialog-backdrop--splash {
+/* The title screen reuses the backdrop/frame geometry but is not a dialog (see
+   MainMenu) — it renders in place, below the portalled modals that open over it.
+   Its own lower layer states that outright instead of leaving the stacking to
+   document order, which is a far too subtle thing to depend on here. */
+.dialog-backdrop.dialog-backdrop--splash {
   background-color: transparent;
   background-image: var(--splash-image, none);
   background-position: center center;
   background-repeat: no-repeat;
   background-size: cover;
+  z-index: 8;
 }
 
 .dialog-frame {
@@ -431,6 +436,13 @@
   align-items: center;
   justify-content: center;
   z-index: 11;
+}
+
+/* Doubled selector on purpose: a lone `.dialog-frame--menu` ties `.dialog-frame`
+   on specificity and would silently lose to whichever rule sits lower in the
+   file. Two classes win outright, wherever this ends up. */
+.dialog-frame.dialog-frame--menu {
+  z-index: 9;
 }
 
 .modal {

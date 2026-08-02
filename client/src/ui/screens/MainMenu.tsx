@@ -1,4 +1,3 @@
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { Settings2Icon, HelpCircleIcon, BotIcon } from '../common/icons';
 import { useState, type CSSProperties } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
@@ -13,6 +12,9 @@ import { ControlsModal } from './ControlsModal';
 import { OnlineLobby } from './OnlineLobby';
 import { UnitsGuideModal } from './UnitsGuideModal';
 import { LANGUAGE_OPTIONS, difficultyOptions, mapSizeOptions, opponentOptions } from './menuOptions';
+
+/** Which overlay the title screen is showing, or `null` for the menu itself. */
+type MenuModal = 'setup' | 'controls' | 'units' | 'online' | null;
 
 /**
  * Title screen: pick language/difficulty/roster, open Base Setup (auto-produce +
@@ -33,10 +35,16 @@ export function MainMenu() {
   const locale = useGameStore((s) => s.locale);
   const setLocale = useGameStore((s) => s.setLocale);
   const online = useGameStore(selectOnline);
-  const [setupOpen, setSetupOpen] = useState(false);
-  const [controlsOpen, setControlsOpen] = useState(false);
-  const [unitsOpen, setUnitsOpen] = useState(false);
-  const [onlineOpen, setOnlineOpen] = useState(false);
+  // One slot, not four flags: the menu's modals are alternatives, and letting
+  // several be open at once means closing one reveals the next — with the lobby
+  // forced open by `online.status`, that turns into a loop with no way out.
+  const [modal, setModal] = useState<MenuModal>(null);
+  const closeModal = () => setModal(null);
+
+  // The lobby outranks the local toggle: a finished match leaves something to
+  // report (`ended`/`error`), and that has to reach the player even if they
+  // never opened the lobby themselves.
+  const showOnline = modal === 'online' || online.status !== 'offline';
 
   const start = () => {
     sfx.resume();
@@ -44,17 +52,23 @@ export function MainMenu() {
   };
 
   return (
-    <Dialog open onClose={() => undefined}>
-      {/* The title screen's backdrop *is* the splash art: nothing of the world is
-          built before Start, so this opaque, full-viewport layer is all there is
-          behind the menu (see .docs/sprites/menu-backdrop.md). */}
-      <DialogBackdrop
+    <>
+      {/* Deliberately NOT a Headless UI Dialog. The title screen can't be closed
+          (no Escape, no click-outside), so it gained nothing from one — while
+          being a dialog made every modal below a *nested* dialog. React runs a
+          child's effects before its parent's, so when the menu and a modal mount
+          in the same commit (returning here from a finished online match) the
+          modal registers in Headless UI's stack first and the menu ends up "on
+          top": the modal is painted but inert, and the menu behind it stays
+          clickable. As a plain panel the menu sits inside #root, so an open
+          modal inerts it the ordinary way. */}
+      <div
         className="dialog-backdrop dialog-backdrop--splash"
         style={{ '--splash-image': `url(${menuBackdropSrc})` } as CSSProperties}
       />
-      <div className="dialog-frame">
-        <DialogPanel className="modal menu">
-          <DialogTitle className="menu__title">{t('mainMenu', 'title')}</DialogTitle>
+      <div className="dialog-frame dialog-frame--menu">
+        <div className="modal menu">
+          <h1 className="menu__title">{t('mainMenu', 'title')}</h1>
           <p className="modal__body menu__intro">{t('mainMenu', 'intro')}</p>
 
           <PickerGroup label={t('mainMenu', 'language')}>
@@ -86,40 +100,43 @@ export function MainMenu() {
           </PickerGroup>
 
           <PickerGroup label={t('mainMenu', 'baseSetup')}>
-            <Button onClick={() => setSetupOpen(true)}>
+            <Button onClick={() => setModal('setup')}>
               <Settings2Icon size={16} /> {t('mainMenu', 'autoProduceProgram')}
             </Button>
           </PickerGroup>
 
           <PickerGroup label={t('mainMenu', 'help')}>
-            <Button onClick={() => setControlsOpen(true)}>
+            <Button onClick={() => setModal('controls')}>
               <HelpCircleIcon size={16} /> {t('mainMenu', 'controls')}
             </Button>
           </PickerGroup>
 
           <PickerGroup label={t('mainMenu', 'units')}>
-            <Button onClick={() => setUnitsOpen(true)}>
+            <Button onClick={() => setModal('units')}>
               <BotIcon size={16} /> {t('mainMenu', 'unitGuide')}
             </Button>
           </PickerGroup>
 
           <PickerGroup label={t('online', 'multiplayer')}>
-            <Button onClick={() => setOnlineOpen(true)}>{t('online', 'online2p')}</Button>
+            <Button onClick={() => setModal('online')}>{t('online', 'online2p')}</Button>
           </PickerGroup>
 
           <Button className="modal__action" onClick={start}>
             {t('mainMenu', 'start')}
           </Button>
-        </DialogPanel>
+        </div>
       </div>
 
-      {setupOpen && <BaseSetupModal onClose={() => setSetupOpen(false)} />}
-
-      {unitsOpen && <UnitsGuideModal onClose={() => setUnitsOpen(false)} />}
-
-      {(onlineOpen || online.status !== 'offline') && <OnlineLobby onClose={() => setOnlineOpen(false)} />}
-
-      {controlsOpen && <ControlsModal onClose={() => setControlsOpen(false)} />}
-    </Dialog>
+      {/* Exactly one of these, ever — see `modal` above. */}
+      {showOnline ? (
+        <OnlineLobby onClose={closeModal} />
+      ) : modal === 'setup' ? (
+        <BaseSetupModal onClose={closeModal} />
+      ) : modal === 'units' ? (
+        <UnitsGuideModal onClose={closeModal} />
+      ) : modal === 'controls' ? (
+        <ControlsModal onClose={closeModal} />
+      ) : null}
+    </>
   );
 }
