@@ -1,6 +1,6 @@
 import { palette } from '../../config/palette';
 import { useGameStore } from '../../store/gameStore';
-import { Owner, PLAYABLE_OWNERS } from '../../types/enums';
+import { Owner, PLAYABLE_OWNERS } from '@drone-directive/types/enums';
 
 /**
  * Display colour for an entity by side. The client's own side is always the

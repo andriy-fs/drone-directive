@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ChassisType, Owner, TaskType, WeaponType } from '../../types/enums';
+import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { spawnBase, spawnRobot } from '../ecs/factory';
 import { makeGuard } from '../tasks/taskDefinitions';
 import { commandsSystem, isCommandFrom } from './commands';

@@ -1,5 +1,5 @@
-import type { Vec2 } from '../../types/entities';
-import type { Owner, WeaponType } from '../../types/enums';
+import type { Vec2 } from '@drone-directive/types/entities';
+import type { Owner, WeaponType } from '@drone-directive/types/enums';
 import type { EntityKind } from '../ecs/entity';
 
 export type SceneName = 'menu' | 'game';

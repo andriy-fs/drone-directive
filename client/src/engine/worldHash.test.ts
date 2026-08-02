@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSettings, type GameSettings } from '../../config/gameSettings';
-import { GameEngine } from '../../engine/game/engine';
-import { MapSize, Owner } from '../../types/enums';
+import { createDefaultSettings, type GameSettings } from '../config/gameSettings';
+import { GameEngine } from './game/engine';
+import { MapSize, Owner } from '@drone-directive/types/enums';
 import { worldHash } from './worldHash';
 
 /**

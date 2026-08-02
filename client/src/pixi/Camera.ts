@@ -1,6 +1,6 @@
 import { Container, Point } from 'pixi.js';
 import { gameConfig, worldPixelSize } from '../config/gameConfig';
-import type { Vec2 } from '../types/entities';
+import type { Vec2 } from '@drone-directive/types/entities';
 import { clamp } from '../utils/math';
 
 /**

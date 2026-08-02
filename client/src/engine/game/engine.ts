@@ -1,7 +1,7 @@
 import { applyMapSize } from '../../config/gameConfig';
 import type { GameSettings } from '../../config/gameSettings';
-import type { Command } from '../../types/commands';
-import type { Owner } from '../../types/enums';
+import type { Command } from '@drone-directive/types/commands';
+import type { Owner } from '@drone-directive/types/enums';
 import { createEcsWorld, type EcsWorld } from '../ecs/world';
 import { createGameContext, type DroneControl, type GameContext } from './context';
 import { EventBus, type GameBus } from './eventBus';

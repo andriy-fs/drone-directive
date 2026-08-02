@@ -1,6 +1,6 @@
 import { gameConfig, type BasePlacement } from '../config/gameConfig';
-import type { Vec2 } from '../types/entities';
-import { TerrainKind } from '../types/enums';
+import type { Vec2 } from '@drone-directive/types/entities';
+import { TerrainKind } from '@drone-directive/types/enums';
 import type { Rng } from '../utils/rng';
 
 /** Blocked-tile grid: `grid[ty][tx]` is true where terrain blocks the queried thing. */

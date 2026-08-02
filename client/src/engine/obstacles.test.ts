@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../config/gameConfig';
-import { TerrainKind } from '../types/enums';
+import { TerrainKind } from '@drone-directive/types/enums';
 import { createRng } from '../utils/rng';
 import { generateObstacles, hasLineOfSight, isBlockedGrid, movementGrid, sightGrid, tileCentre } from './obstacles';
 

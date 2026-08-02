@@ -12,7 +12,7 @@ description: >-
 
 # Drone Directive — Pixi rendering + bridge (PixiJS v8, miniplex)
 
-Owns the canvas and bridges the `GameEngine` to the store. **No React imports.** May import `client/src/engine/**` and the store (vanilla `useGameStore.getState()`).
+Owns the canvas and bridges the `GameEngine` to the store. **No React imports.** May import `client/src/engine/**`, the store (vanilla `useGameStore.getState()`), and — in `GameApp` only — `@drone-directive/net`.
 
 ## Files
 
@@ -26,10 +26,12 @@ Owns the canvas and bridges the `GameEngine` to the store. **No React imports.**
 - `assets.ts` + `../config/sprites.ts` — `loadGameAssets`, `getRobotTexture(chassis)` (cached, optional crop frame) → placeholder fallback.
 - `audio/sfx.ts` — WebAudio SFX, driven by the bus (not by the renderer).
 - `Camera.ts`, `Grid.ts`, `layers.ts` (ground→units→projectiles→fx→overlay), `GameLoop.ts` (fixed step), `input/pointer.ts` (left-drag marquee, Shift add, middle-drag pan, right-click formation move via `engine.context` + `setGoal`).
+- **Networking is not in this layer.** It lives in the `@drone-directive/net` workspace (transport + wire codec + validation) — see `net/README.md` and `.docs/multiplayer.md`. `GameApp` is the only file here that touches it: it builds a `LockstepSession` with `client/src/config/multiplayer.ts`'s `lockstepConfig`, and calls `worldHash` (now `client/src/engine/worldHash.ts`) for the desync probe. Don't add socket, codec, or schema code under `pixi/`.
 
 ## Rules & gotchas
 
 - **Snapshot throttling:** never push per-frame HP to the store (React re-render storm). Push on bus spawn/destroy + every `gameConfig.hud.snapshotEveryTicks`. Live HP shows via Pixi views reading the ECS world each frame.
 - **Teardown:** unsubscribe bus + reactive queries, destroy views/graphics, on `useGameApp` unmount + `GameApp.destroy` (idempotent; StrictMode double-mounts).
 - The persistent ECS `world` survives restarts (entities cleared/respawned) so the renderer subscribes once.
-- tsconfig: no `enum` / no ctor param props; `import type`; no unused symbols.
+- **Online input filters must be symmetric.** `GameApp.stepOnline` screens both sides' batches with `isCommandFrom`, and `net` does the same with its schemas — a filter only one side applies is a desync. See **dd-net** before touching anything online.
+- tsconfig: prefer const-map unions over `enum` and explicit fields over ctor param props; `import type`; no unused symbols.

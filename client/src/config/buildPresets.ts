@@ -1,5 +1,5 @@
-import type { BuildOrder } from '../types/entities';
-import { BuildPresetType, ChassisType, TaskType, WeaponType } from '../types/enums';
+import type { BuildOrder } from '@drone-directive/types/entities';
+import { BuildPresetType, ChassisType, TaskType, WeaponType } from '@drone-directive/types/enums';
 
 /**
  * Named auto-production sequences — the base cycles through `sequence`

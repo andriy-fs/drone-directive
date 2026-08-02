@@ -53,11 +53,13 @@ Built with **React 19 · PixiJS 8 · TypeScript · Vite · Zustand**.
 - **Online 2-player** — host or join a room by a 4-character code and play
   head-to-head over a WebSocket relay. The match runs in **deterministic
   lockstep**: only each player's per-tick orders cross the network, and both
-  clients simulate the identical world from one shared seed. Each side pilots its
-  own observer drone, has its own fog of war, and sees itself in the friendly
-  colour — the rival's drone stays hidden until something of yours actually spots
-  it, which is also the moment your missiles can start shooting at it.
-  Design: [.docs/multiplayer.md](.docs/multiplayer.md) · backend:
+  clients simulate the identical world from one shared seed. Orders travel as
+  **binary [BARE](https://baremessages.org/) frames** generated from a schema, and
+  are validated at the network boundary before they reach the engine. Each side
+  pilots its own observer drone, has its own fog of war, and sees itself in the
+  friendly colour — the rival's drone stays hidden until something of yours
+  actually spots it, which is also the moment your missiles can start shooting at
+  it. Design: [.docs/multiplayer.md](.docs/multiplayer.md) · backend:
   [.docs/server-relay.md](.docs/server-relay.md).
 
 ## Getting started
@@ -65,9 +67,9 @@ Built with **React 19 · PixiJS 8 · TypeScript · Vite · Zustand**.
 Requires a recent Node.js (Vite 8 needs Node 20.19+ or 22.12+).
 
 This is an **npm-workspaces monorepo** — the game lives in the `client`
-workspace, the online relay in `server`, and the wire types they share in
-`protocol`. Run everything from the repo root: `npm install` installs all
-workspaces, and the root scripts delegate to `client`.
+workspace, the online relay in `server`, and three shared packages sit under
+them (`types`, `protocol`, `net`). Run everything from the repo root:
+`npm install` installs all workspaces, and the root scripts cover them all.
 
 ```bash
 npm install
@@ -79,27 +81,26 @@ running** — `npm run dev:relay` in a second terminal (see below).
 
 ### Scripts
 
-All run from the repo root. Everything delegates to the `client` workspace
-except `dev:relay`, which starts the `server` one.
+All run from the repo root.
 
-| Command              | Description                                                   |
-| -------------------- | ------------------------------------------------------------- |
-| `npm run dev`        | Start the Vite dev server with HMR.                           |
-| `npm run dev:relay`  | Start the multiplayer relay locally on `ws://localhost:8787`. |
-| `npm run build`      | Type-check and build for production (`tsc -b && vite build`). |
-| `npm run preview`    | Serve the production build locally.                           |
-| `npm run lint`       | Run ESLint.                                                   |
-| `npm test`           | Run the Vitest engine test suite.                             |
-| `npm run test:watch` | Run the test suite in watch mode.                             |
+| Command              | Description                                                      |
+| -------------------- | ---------------------------------------------------------------- |
+| `npm run dev`        | Start the Vite dev server with HMR.                              |
+| `npm run dev:relay`  | Start the multiplayer relay locally on `ws://localhost:8787`.    |
+| `npm run build`      | Type-check and build for production (`tsc -b && vite build`).    |
+| `npm run preview`    | Serve the production build locally.                              |
+| `npm run lint`       | ESLint across **every** workspace.                               |
+| `npm test`           | Vitest: the `net` suite, then the engine suite.                  |
+| `npm run type-check` | `tsc --noEmit` for `types`, `net` and `server` (not in `build`). |
+| `npm run test:watch` | Run the client test suite in watch mode.                         |
 
-The relay Worker has its own scripts too (it is **not** covered by the root
-`build`/`test`/`lint`):
+Workspace-specific extras:
 
-| Command                        | Description                                          |
-| ------------------------------ | ---------------------------------------------------- |
-| `npm run dev -w server`        | What `npm run dev:relay` calls (wrangler/miniflare). |
-| `npm run type-check -w server` | Type-check the Worker (`tsc --noEmit`).              |
-| `npm run deploy -w server`     | Deploy to Cloudflare (needs `npx wrangler login`).   |
+| Command                       | Description                                                           |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `npm run e2e -w server`       | Frame-level end-to-end check against a running relay.                 |
+| `npm run deploy -w server`    | Deploy to Cloudflare (needs `npx wrangler login`).                    |
+| `npm run codegen -w protocol` | Recompile the BARE schema; commit the result (see `protocol/README`). |
 
 ### Online multiplayer (dev)
 
@@ -164,15 +165,23 @@ continuous auto-build loop).
 
 ## Architecture
 
-The repo is an **npm-workspaces monorepo** with three workspaces:
+The repo is an **npm-workspaces monorepo** with five workspaces. The dependency
+direction is one-way — each may only import from the ones above it:
 
+- **`types/`** — value types shared across workspaces (`enums`, `commands`,
+  `entities`, `tasks`). Zero dependencies; see [`types/README.md`](types/README.md).
+- **`protocol/`** — the wire contract. `schema/messages.bare` is the source of
+  truth; `src/generated/messages.ts` is its committed BARE codegen; `src/index.ts`
+  holds the handshake and framing constants, dependency-free so the relay can
+  route a frame without linking a decoder. See [`protocol/README.md`](protocol/README.md).
+- **`net/`** — the online boundary: transport, wire codec, and command validation.
+  Depends on the two above and nothing else — no renderer, no React, no game
+  config. See [`net/README.md`](net/README.md).
 - **`client/`** — the game itself (everything below).
 - **`server/`** — the online-multiplayer relay: a Cloudflare Worker whose
   `Room` Durable Object pairs two player sockets, mints the shared RNG seed, and
-  forwards lockstep tick messages. It runs no game logic and stores nothing —
-  see [`.docs/server-relay.md`](.docs/server-relay.md).
-- **`protocol/`** — the types-only wire protocol the other two share, so neither
-  imports the other's source.
+  forwards lockstep tick frames. It runs no game logic, stores nothing, and never
+  decodes a payload — see [`.docs/server-relay.md`](.docs/server-relay.md).
 
 Within `client/`, the game is three layers with strict boundaries, plus a
 **Scene-based ECS** game core:
@@ -183,7 +192,9 @@ Within `client/`, the game is three layers with strict boundaries, plus a
   React, Pixi, or store imports.
 - **Pixi** (`client/src/pixi`) — canvas rendering and input (fixed-step loop,
   reactive-query renderer, entity views, camera, sprites) + the engine↔store
-  bridge.
+  bridge. Networking is deliberately **not** here: `GameApp` drives a
+  `LockstepSession` from the `net` workspace, and that is the whole of its
+  involvement.
 - **React/UI** (`client/src/ui`, backed by `client/src/store`) — the HUD, screens, and
   overlays, using a Zustand store.
 
@@ -201,27 +212,32 @@ client/           # @drone-directive/client — the game (app code, configs, ind
       game/     #   engine (facade), scene + scenes/, eventBus, events, context
       (helpers) #   pathfinding, obstacles, economy, tasks/
     pixi/       # GameApp (bridge), GameLoop, Camera, layers, assets, input/, render/
-      net/      #   LockstepSession (WebSocket transport) + relay URL config
     ui/         # React: App, GameCanvas, hud/, screens/, common/, hooks/
     store/      # gameStore (Zustand) + selectors (shared with the Pixi bridge)
-    config/     # gameConfig, palette, sprites
-    types/      # enums, entities (value types), tasks, commands
+    config/     # gameConfig, palette, sprites, multiplayer (injects net's config)
     i18n/       # locale dictionaries (en/ru/uk/pl)
   public/       # static assets + placeholder sprites
-protocol/         # @drone-directive/protocol — shared wire types (no runtime deps)
+types/            # @drone-directive/types — enums, commands, entities, tasks (no deps)
+protocol/         # @drone-directive/protocol — schema/messages.bare + committed codegen + framing
+net/              # @drone-directive/net — lockstep/ (transport) + wire/{codec,validation}
 server/           # @drone-directive/server — relay Worker: index.ts (router) + Room.ts (Durable Object)
 ```
 
 ### Documentation
 
-| Doc                                              | Covers                                                        |
-| ------------------------------------------------ | ------------------------------------------------------------- |
-| [`.docs/engine-ecs.md`](.docs/engine-ecs.md)     | The ECS model (miniplex) and the fixed-step system pipeline.  |
-| [`.docs/movement.md`](.docs/movement.md)         | Pathfinding (A\*) and movement.                               |
-| [`.docs/zustand.md`](.docs/zustand.md)           | Store rationale, snapshots, and the UI↔engine seam.           |
-| [`.docs/multiplayer.md`](.docs/multiplayer.md)   | Online design: why lockstep, the tick loop, determinism.      |
-| [`.docs/server-relay.md`](.docs/server-relay.md) | How the relay Worker + `Room` Durable Object are implemented. |
-| [`.docs/deployment.md`](.docs/deployment.md)     | Deploying the UI (Pages) and the relay (Cloudflare) from CI.  |
+| Doc                                              | Covers                                                           |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| [`.docs/engine-ecs.md`](.docs/engine-ecs.md)     | The ECS model (miniplex) and the fixed-step system pipeline.     |
+| [`.docs/movement.md`](.docs/movement.md)         | Pathfinding (A\*) and movement.                                  |
+| [`.docs/zustand.md`](.docs/zustand.md)           | Store rationale, snapshots, and the UI↔engine seam.              |
+| [`.docs/multiplayer.md`](.docs/multiplayer.md)   | Online design: lockstep, the tick loop, determinism, validation. |
+| [`.docs/server-relay.md`](.docs/server-relay.md) | How the relay Worker + `Room` Durable Object are implemented.    |
+| [`.docs/bare.md`](.docs/bare.md)                 | Why BARE over protobuf, and how it keeps the relay dumb.         |
+| [`.docs/valibot.md`](.docs/valibot.md)           | Why peer input is validated with a schema library.               |
+| [`protocol/README.md`](protocol/README.md)       | The BARE schema, codegen, and frame layout.                      |
+| [`net/README.md`](net/README.md)                 | Transport, codec, validation, and the config injected into them. |
+| [`types/README.md`](types/README.md)             | What earns a place in the shared types package.                  |
+| [`.docs/deployment.md`](.docs/deployment.md)     | Deploying the UI (Pages) and the relay (Cloudflare) from CI.     |
 
 ### Sprites
 

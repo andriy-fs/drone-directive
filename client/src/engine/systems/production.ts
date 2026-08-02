@@ -1,7 +1,7 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { getBuildPreset } from '../../config/buildPresets';
-import type { BuildOrder, Vec2 } from '../../types/entities';
-import { Owner } from '../../types/enums';
+import type { BuildOrder, Vec2 } from '@drone-directive/types/entities';
+import { Owner } from '@drone-directive/types/enums';
 import { clamp } from '../../utils/math';
 import type { Rng } from '../../utils/rng';
 import { spawnRobot } from '../ecs/factory';

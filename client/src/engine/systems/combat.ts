@@ -1,5 +1,5 @@
 import { gameConfig } from '../../config/gameConfig';
-import type { Vec2 } from '../../types/entities';
+import type { Vec2 } from '@drone-directive/types/entities';
 import { distance } from '../../utils/math';
 import { spawnExplosion, spawnProjectile } from '../ecs/factory';
 import type { Entity } from '../ecs/entity';

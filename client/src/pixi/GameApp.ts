@@ -12,14 +12,14 @@ import {
   type PendingOnline,
   type RobotSnapshot,
 } from '../store/gameStore';
-import type { Command } from '../types/commands';
-import { Controller, Owner, TaskType, WeaponType, type MapSize } from '../types/enums';
+import type { Command } from '@drone-directive/types/commands';
+import { Controller, Owner, TaskType, WeaponType, type MapSize } from '@drone-directive/types/enums';
 import type { DroneControl, GameContext } from '../engine/game/context';
 import { loadGameAssets } from './assets';
 import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
-import { randomRoomCode } from './net/config';
-import { LockstepSession, type TickInput } from './net/LockstepSession';
-import { worldHash } from './net/worldHash';
+import { LockstepSession, randomRoomCode, setNetDebug, type TickInput } from '@drone-directive/net';
+import { lockstepConfig } from '../config/multiplayer';
+import { worldHash } from '../engine/worldHash';
 import { sfx } from './audio/sfx';
 import { Camera } from './Camera';
 import { GameLoop } from './GameLoop';
@@ -65,6 +65,10 @@ export class GameApp {
   }
 
   async init(host: HTMLElement): Promise<void> {
+    // The net package reads no bundler globals of its own, so tell it whether to
+    // narrate the input it drops.
+    setNetDebug(import.meta.env.DEV);
+
     await this.app.init({
       resizeTo: host,
       background: palette.background,
@@ -340,16 +344,19 @@ export class GameApp {
     }
     this.session?.disconnect();
     this.onlineEnded = false;
-    this.session = new LockstepSession({
-      onCreated: (roomCode) => useGameStore.getState().setOnline({ status: 'hosting', roomCode }),
-      onStart: (seed, mapSize, aiCount) => {
-        this.pendingOnlineStart = { seed, mapSize, aiCount };
+    this.session = new LockstepSession(
+      {
+        onCreated: (roomCode) => useGameStore.getState().setOnline({ status: 'hosting', roomCode }),
+        onStart: (seed, mapSize, aiCount) => {
+          this.pendingOnlineStart = { seed, mapSize, aiCount };
+        },
+        onOpponentLeft: () => this.endOnline('Opponent left the match'),
+        onError: (_code, message) => this.endOnline(message, true),
+        onClose: () => this.endOnline('Connection closed'),
+        onDesync: (tick, mine, theirs) => this.reportDesync(tick, mine, theirs),
       },
-      onOpponentLeft: () => this.endOnline('Opponent left the match'),
-      onError: (_code, message) => this.endOnline(message, true),
-      onClose: () => this.endOnline('Connection closed'),
-      onDesync: (tick, mine, theirs) => this.reportDesync(tick, mine, theirs),
-    });
+      lockstepConfig,
+    );
     if (req.kind === 'host') this.session.connectHost(randomRoomCode(), req.mapSize, req.aiOpponents);
     else this.session.connectGuest(req.roomCode);
   }

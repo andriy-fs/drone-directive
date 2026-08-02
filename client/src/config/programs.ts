@@ -1,5 +1,5 @@
-import { TaskType } from '../types/enums';
-import type { Program } from '../types/tasks';
+import { TaskType } from '@drone-directive/types/enums';
+import type { Program } from '@drone-directive/types/tasks';
 
 /**
  * Built-in robot behaviour programs — each a priority-ordered directive list

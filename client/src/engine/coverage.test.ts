@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { applyMapSize, gameConfig } from '../config/gameConfig';
-import { MapSize, TerrainKind } from '../types/enums';
+import { MapSize, TerrainKind } from '@drone-directive/types/enums';
 import { createRng } from '../utils/rng';
 import { generateObstacles } from './obstacles';
 

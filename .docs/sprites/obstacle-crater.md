@@ -111,7 +111,7 @@ the detail.
 
 The crater is not just a reskin of the mountain — it is a distinct terrain kind:
 
-- `TerrainKind` (`src/types/enums.ts`) — `open | mountain | crater`.
+- `TerrainKind` (`types/src/enums.ts`) — `open | mountain | crater`.
 - `generateObstacles()` rolls the kind **per cluster** (`gameConfig.obstacles.craterChance`),
   never per tile, so a blob is all crater or all mountain.
 - The engine derives two boolean grids from it (`src/engine/obstacles.ts`):

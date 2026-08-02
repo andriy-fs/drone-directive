@@ -1,6 +1,6 @@
 import type { T } from '../../i18n';
 import type { SideSnapshot } from '../../store/gameStore';
-import { Owner, PLAYABLE_OWNERS } from '../../types/enums';
+import { Owner, PLAYABLE_OWNERS } from '@drone-directive/types/enums';
 
 /**
  * How the HUD names and colours the sides of a match. Both helpers rank sides

@@ -1,7 +1,30 @@
-import { MAX_AI_OPPONENTS, PROTOCOL_VERSION, QueryParam } from '@drone-directive/protocol';
-import type { ClientMessage, ErrorCode, ServerMessage, WireMapSize } from '@drone-directive/protocol';
+import {
+  frame,
+  MAX_AI_OPPONENTS,
+  MessageTag,
+  PROTOCOL_VERSION,
+  QueryParam,
+  WIRE_MAP_SIZES,
+} from '@drone-directive/protocol';
+import type { WireMapSize } from '@drone-directive/protocol';
+import {
+  encodeCreatedMessage,
+  encodeErrorMessage,
+  encodeStartMessage,
+  ErrorCode,
+  MapSize,
+} from '@drone-directive/protocol/codec';
 
-const MAP_SIZES: readonly WireMapSize[] = ['small', 'medium', 'large'];
+/**
+ * The `mapSize` query param is text (it precedes any message), so the one piece of
+ * input validation the relay does is still a string lookup — but what it forwards
+ * is the schema's tag.
+ */
+const MAP_SIZES: Record<WireMapSize, MapSize> = {
+  small: MapSize.Small,
+  medium: MapSize.Medium,
+  large: MapSize.Large,
+};
 
 /** The host names the bot count; anything absent or out of range falls back to none. */
 function clampAiCount(raw: string | null): number {
@@ -24,7 +47,7 @@ export class Room implements DurableObject {
   private host: WebSocket | null = null;
   private guest: WebSocket | null = null;
   private roomCode = '';
-  private mapSize: WireMapSize = 'medium';
+  private mapSize: MapSize = MapSize.Medium;
   private aiCount = 0;
 
   async fetch(request: Request): Promise<Response> {
@@ -37,7 +60,7 @@ export class Room implements DurableObject {
     server.accept();
 
     if (version !== PROTOCOL_VERSION) {
-      this.reject(server, 'version-mismatch', `Expected protocol v${PROTOCOL_VERSION}`);
+      this.reject(server, ErrorCode.VersionMismatch, `Expected protocol v${PROTOCOL_VERSION}`);
     } else if (isHost) {
       this.acceptHost(server, params.get(QueryParam.MapSize), params.get(QueryParam.Ai));
     } else {
@@ -49,23 +72,23 @@ export class Room implements DurableObject {
 
   private acceptHost(ws: WebSocket, mapSize: string | null, aiCount: string | null): void {
     if (this.host) {
-      this.reject(ws, 'room-taken', 'That room code is already in use');
+      this.reject(ws, ErrorCode.RoomTaken, 'That room code is already in use');
       return;
     }
     this.host = ws;
-    this.mapSize = MAP_SIZES.includes(mapSize as WireMapSize) ? (mapSize as WireMapSize) : 'medium';
+    this.mapSize = WIRE_MAP_SIZES.includes(mapSize as WireMapSize) ? MAP_SIZES[mapSize as WireMapSize] : MapSize.Medium;
     this.aiCount = clampAiCount(aiCount);
     this.wire(ws);
-    this.send(ws, { type: 'created', roomCode: this.roomCode });
+    this.send(ws, frame(MessageTag.Created, encodeCreatedMessage({ roomCode: this.roomCode })));
   }
 
   private acceptGuest(ws: WebSocket): void {
     if (!this.host) {
-      this.reject(ws, 'room-not-found', 'No open room with that code');
+      this.reject(ws, ErrorCode.RoomNotFound, 'No open room with that code');
       return;
     }
     if (this.guest) {
-      this.reject(ws, 'room-full', 'That room is already full');
+      this.reject(ws, ErrorCode.RoomFull, 'That room is already full');
       return;
     }
     this.guest = ws;
@@ -76,9 +99,9 @@ export class Room implements DurableObject {
   /** Both sockets present: pick the shared seed and start both simulations. */
   private start(): void {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-    const msg: ServerMessage = { type: 'start', seed, mapSize: this.mapSize, aiCount: this.aiCount };
-    this.send(this.host, msg);
-    this.send(this.guest, msg);
+    const bytes = frame(MessageTag.Start, encodeStartMessage({ seed, mapSize: this.mapSize, aiCount: this.aiCount }));
+    this.send(this.host, bytes);
+    this.send(this.guest, bytes);
   }
 
   private wire(ws: WebSocket): void {
@@ -87,16 +110,17 @@ export class Room implements DurableObject {
     ws.addEventListener('error', () => this.onClose(ws));
   }
 
-  /** Forward a peer's `tick` verbatim; ignore anything else (the relay is dumb). */
+  /**
+   * Forward a peer's `tick` verbatim; ignore anything else (the relay is dumb).
+   *
+   * The message tag rides in the frame's leading octet, outside the BARE payload,
+   * precisely so this can be a one-byte read: the relay decides what to do with a
+   * frame without ever decoding one. `data` goes out exactly as it came in — the
+   * relay has no opinion about what a command is and no way to form one.
+   */
   private relay(from: WebSocket, data: unknown): void {
-    if (typeof data !== 'string') return;
-    let msg: ClientMessage;
-    try {
-      msg = JSON.parse(data) as ClientMessage;
-    } catch {
-      return;
-    }
-    if (msg.type !== 'tick') return;
+    if (!(data instanceof ArrayBuffer) || data.byteLength === 0) return;
+    if (new Uint8Array(data, 0, 1)[0] !== MessageTag.Tick) return;
     const peer = from === this.host ? this.guest : this.host;
     peer?.send(data);
   }
@@ -104,7 +128,8 @@ export class Room implements DurableObject {
   private onClose(ws: WebSocket): void {
     const peer = ws === this.host ? this.guest : this.host;
     if (peer) {
-      this.send(peer, { type: 'opponentLeft' });
+      // Carries nothing, so the frame is the tag byte alone.
+      this.send(peer, frame(MessageTag.OpponentLeft));
       try {
         peer.close(1000, 'opponent-left');
       } catch {
@@ -116,7 +141,7 @@ export class Room implements DurableObject {
   }
 
   private reject(ws: WebSocket, code: ErrorCode, message: string): void {
-    this.send(ws, { type: 'error', code, message });
+    this.send(ws, frame(MessageTag.Error, encodeErrorMessage({ code, message })));
     try {
       ws.close(1008, code);
     } catch {
@@ -124,7 +149,7 @@ export class Room implements DurableObject {
     }
   }
 
-  private send(ws: WebSocket | null, msg: ServerMessage): void {
-    ws?.send(JSON.stringify(msg));
+  private send(ws: WebSocket | null, frameBytes: Uint8Array): void {
+    ws?.send(frameBytes);
   }
 }

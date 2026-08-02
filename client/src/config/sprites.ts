@@ -1,5 +1,5 @@
-import { Owner, TerrainKind } from '../types/enums';
-import type { ChassisType, WeaponType } from '../types/enums';
+import { Owner, TerrainKind } from '@drone-directive/types/enums';
+import type { ChassisType, WeaponType } from '@drone-directive/types/enums';
 
 /**
  * Describes how to draw a unit from a PNG. `frame` is an optional crop (for a

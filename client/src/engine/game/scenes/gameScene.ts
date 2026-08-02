@@ -1,6 +1,6 @@
 import { gameConfig } from '../../../config/gameConfig';
-import type { Vec2 } from '../../../types/entities';
-import { ChassisType, Controller, Difficulty, Owner, WeaponType } from '../../../types/enums';
+import type { Vec2 } from '@drone-directive/types/entities';
+import { ChassisType, Controller, Difficulty, Owner, WeaponType } from '@drone-directive/types/enums';
 import { spawnBase, spawnDrone, spawnRobot } from '../../ecs/factory';
 import { clearWorld } from '../../ecs/world';
 import { resetIds } from '../../../utils/id';

@@ -2,7 +2,7 @@ import { Container, Graphics, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { TerrainGrid } from '../../engine/obstacles';
-import { TerrainKind } from '../../types/enums';
+import { TerrainKind } from '@drone-directive/types/enums';
 import { getTerrainTexture } from '../assets';
 
 /**

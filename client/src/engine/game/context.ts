@@ -1,12 +1,20 @@
 import { applySidePlacements, gameConfig } from '../../config/gameConfig';
 import { clampAiOpponents, type GameSettings } from '../../config/gameSettings';
-import type { Command } from '../../types/commands';
-import type { ResourcePool, Vec2 } from '../../types/entities';
-import { Controller, Owner, PLAYABLE_OWNERS, type Difficulty } from '../../types/enums';
+import type { Command } from '@drone-directive/types/commands';
+import type { DroneControl, ResourcePool } from '@drone-directive/types/entities';
+import { Controller, Owner, PLAYABLE_OWNERS, type Difficulty } from '@drone-directive/types/enums';
 import { generateObstacles, movementGrid, sightGrid, type ObstacleGrid, type TerrainGrid } from '../obstacles';
 import type { EcsWorld } from '../ecs/world';
 import type { GameBus } from './eventBus';
 import { createRng, type Rng } from '../../utils/rng';
+
+/**
+ * The observer-drone input for one fixed step, set by the app bridge (mirrors the
+ * `paused` control flag) and consumed by `droneSystem`. Re-exported rather than
+ * declared here: it also crosses the wire, so the type itself lives in the shared
+ * package where both the engine and `@drone-directive/net` can reach it.
+ */
+export type { DroneControl };
 
 /** One side of the match: which owner it is, and who gives it orders. */
 export interface SideSetup {
@@ -91,20 +99,6 @@ function byOwner<T>(make: () => T): Record<Owner, T> {
 /** Every side starts with the same wallet; `Neutral` holds one it can never spend. */
 function emptyResources(): ResourcePool {
   return byOwner(() => gameConfig.economy.startingResources);
-}
-
-/**
- * The player's observer-drone input for one fixed step, set by the app bridge
- * (mirrors the `paused` control flag). `dir` is a continuous flight direction;
- * the pulses are one-shot edges consumed by `droneSystem`.
- */
-export interface DroneControl {
-  /** Continuous flight/steer direction; `{0,0}` = hold position. */
-  dir: Vec2;
-  /** One-shot: land on / take off from a robot this tick. */
-  possessPulse: boolean;
-  /** One-shot: fire / detonate the possessed robot this tick. */
-  firePulse: boolean;
 }
 
 /**

@@ -22,7 +22,22 @@ export interface BuildOrder {
 }
 
 /**
+ * The observer drone's input for one tick: a continuous flight direction plus two
+ * one-shot pulses. Lives here rather than in the engine because it crosses the
+ * network — both the engine and `@drone-directive/net` need it, and neither may
+ * depend on the other.
+ */
+export interface DroneControl {
+  /** Continuous flight/steer direction; `{0,0}` = hold position. */
+  dir: Vec2;
+  /** One-shot: land on / take off from a robot this tick. */
+  possessPulse: boolean;
+  /** One-shot: fire / detonate the possessed robot this tick. */
+  firePulse: boolean;
+}
+
+/**
  * NOTE: live entities (robots, bases, projectiles, explosions) are ECS entities
- * with optional components — see `src/engine/ecs/entity.ts`. This file only holds
- * shared value types used across layers.
+ * with optional components — see `client/src/engine/ecs/entity.ts`. This package
+ * only holds value types shared across layers and workspaces.
  */

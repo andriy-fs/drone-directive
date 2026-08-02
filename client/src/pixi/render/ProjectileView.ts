@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import type { Entity } from '../../engine/ecs/entity';
-import { WeaponType } from '../../types/enums';
+import { WeaponType } from '@drone-directive/types/enums';
 import { ownerColor } from './ownerColor';
 
 /**

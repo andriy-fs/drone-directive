@@ -1,6 +1,6 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
-import type { Vec2 } from '../../types/entities';
-import { Owner, TaskType } from '../../types/enums';
+import type { Vec2 } from '@drone-directive/types/entities';
+import { Owner, TaskType } from '@drone-directive/types/enums';
 import { clamp, distance, vecLength } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import { spawnProjectile } from '../ecs/factory';

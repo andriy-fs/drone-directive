@@ -1,0 +1,16 @@
+{
+  "name": "@drone-directive/types",
+  "version": "0.0.0",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./enums": "./src/enums.ts",
+    "./commands": "./src/commands.ts",
+    "./entities": "./src/entities.ts",
+    "./tasks": "./src/tasks.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  }
+}

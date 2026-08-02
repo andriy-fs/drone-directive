@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
 import { createDefaultSettings, type GameSettings } from '../../config/gameSettings';
 import { movementGrid } from '../obstacles';
-import { ChassisType, Controller, MapSize, Owner, TaskType, WeaponType } from '../../types/enums';
+import { ChassisType, Controller, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { spawnRobot } from '../ecs/factory';
 import { aiSystem } from '../systems/ai';
 import { visionSystem } from '../systems/vision';

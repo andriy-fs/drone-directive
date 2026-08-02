@@ -1,6 +1,6 @@
 import { gameConfig } from '../../config/gameConfig';
-import type { Vec2 } from '../../types/entities';
-import { RobotState, TaskType, type ChassisType, type Owner, type WeaponType } from '../../types/enums';
+import type { Vec2 } from '@drone-directive/types/entities';
+import { RobotState, TaskType, type ChassisType, type Owner, type WeaponType } from '@drone-directive/types/enums';
 import { nextId } from '../../utils/id';
 import { vecLength } from '../../utils/math';
 import type { Entity } from './entity';

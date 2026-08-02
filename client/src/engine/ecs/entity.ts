@@ -1,6 +1,13 @@
-import type { BuildOrder, Vec2 } from '../../types/entities';
-import type { BuildPresetType, ChassisType, Owner, RobotState, TaskType, WeaponType } from '../../types/enums';
-import type { RobotScript } from '../../types/tasks';
+import type { BuildOrder, Vec2 } from '@drone-directive/types/entities';
+import type {
+  BuildPresetType,
+  ChassisType,
+  Owner,
+  RobotState,
+  TaskType,
+  WeaponType,
+} from '@drone-directive/types/enums';
+import type { RobotScript } from '@drone-directive/types/tasks';
 
 /** Robot navigation component. */
 export interface Movement {

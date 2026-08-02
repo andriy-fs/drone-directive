@@ -3,7 +3,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dial
 import { defaultBuildOrder } from '../../config/gameSettings';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
-import { ChassisType, WeaponType } from '../../types/enums';
+import { ChassisType, WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { ChassisPicker } from '../hud/ChassisPicker';
 import { ProgramPicker } from '../hud/ProgramPicker';

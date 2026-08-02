@@ -1,5 +1,5 @@
 import type { T } from '../../i18n';
-import { TaskType } from '../../types/enums';
+import { TaskType } from '@drone-directive/types/enums';
 
 /** Programs a player can actively assign to a live unit (Idle is engine-internal). */
 export const ASSIGNABLE_TASKS: TaskType[] = [
