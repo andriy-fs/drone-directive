@@ -184,7 +184,6 @@ export const pl: Dict = {
     roomCodePlaceholder: 'KOD POKOJU',
     joinRoom: 'Dołącz do pokoju',
     cancel: 'Anuluj',
-    back: 'Wstecz',
   },
   unitsGuide: {
     title: 'Przewodnik po jednostkach',

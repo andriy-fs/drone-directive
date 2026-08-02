@@ -158,14 +158,14 @@ export function OnlineLobby({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
+          {/* Cancel is only offered mid-connection, where it differs from Close:
+              it drops the attempt but keeps you in the lobby to try again. Once
+              a match has ended there is nothing left to cancel — Close both
+              clears the reported outcome and dismisses, so a second button
+              beside it would just be the same action twice. */}
           {busy && (
             <Button className="modal__action" onClick={back}>
               {t('online', 'cancel')}
-            </Button>
-          )}
-          {failed && (
-            <Button className="modal__action" onClick={back}>
-              {t('online', 'back')}
             </Button>
           )}
           <Button onClick={close}>{t('mainMenu', 'close')}</Button>

@@ -184,7 +184,6 @@ export const ru: Dict = {
     roomCodePlaceholder: 'КОД КОМНАТЫ',
     joinRoom: 'Войти в комнату',
     cancel: 'Отмена',
-    back: 'Назад',
   },
   unitsGuide: {
     title: 'Справочник юнитов',

@@ -183,7 +183,6 @@ export interface Dict {
     roomCodePlaceholder: string;
     joinRoom: string;
     cancel: string;
-    back: string;
   };
   unitsGuide: {
     title: string;
@@ -377,7 +376,6 @@ export const en: Dict = {
     roomCodePlaceholder: 'ROOM CODE',
     joinRoom: 'Join room',
     cancel: 'Cancel',
-    back: 'Back',
   },
   unitsGuide: {
     title: 'Unit Guide',
