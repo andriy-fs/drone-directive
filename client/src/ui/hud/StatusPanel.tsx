@@ -78,7 +78,7 @@ export function StatusPanel() {
       {auto && (
         <div className="auto-build">
           <span className="hud__muted">
-            {t('statusPanel', 'auto')}: {auto.chassis}/{auto.weapon}
+            {t('statusPanel', 'auto')}: {t('chassis', auto.chassis)}/{t('weapons', auto.weapon)}
             {auto.task !== undefined ? ` · ${programLabel(auto.task, t)}` : ''}
           </span>
           <Button className="auto-build__stop" onClick={stopAuto}>

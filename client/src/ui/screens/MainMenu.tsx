@@ -2,51 +2,25 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dial
 import { Settings2Icon, HelpCircleIcon, BotIcon } from '../common/icons';
 import { useState, type CSSProperties } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
-import { maxAiOpponents } from '../../config/gameSettings';
-import { menuBackdropSrc } from '../../config/sprites';
-import { useT, Locale } from '../../i18n';
+import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectOnline, selectStatus } from '../../store/selectors';
-import { Difficulty, MapSize } from '@drone-directive/types/enums';
+import { menuBackdropSrc } from '../../config/sprites';
 import { Button } from '../common/Button';
+import { ChipPicker, PickerGroup } from '../common/Picker';
 import { BaseSetupModal } from './BaseSetupModal';
+import { ControlsModal } from './ControlsModal';
 import { OnlineLobby } from './OnlineLobby';
 import { UnitsGuideModal } from './UnitsGuideModal';
-
-const DIFFICULTIES: {
-  value: Difficulty;
-  label: 'easy' | 'normal' | 'hard';
-  hint: 'easyHint' | 'normalHint' | 'hardHint';
-}[] = [
-  { value: Difficulty.Easy, label: 'easy', hint: 'easyHint' },
-  { value: Difficulty.Normal, label: 'normal', hint: 'normalHint' },
-  { value: Difficulty.Hard, label: 'hard', hint: 'hardHint' },
-];
-
-const MAP_SIZES: {
-  value: MapSize;
-  label: 'small' | 'medium' | 'large';
-  hint: 'smallHint' | 'mediumHint' | 'largeHint';
-}[] = [
-  { value: MapSize.Small, label: 'small', hint: 'smallHint' },
-  { value: MapSize.Medium, label: 'medium', hint: 'mediumHint' },
-  { value: MapSize.Large, label: 'large', hint: 'largeHint' },
-];
-
-/** Bot counts a solo match can seat — one human already holds a corner. */
-const OPPONENT_COUNTS = Array.from({ length: maxAiOpponents(false) }, (_, i) => i + 1);
-
-const LANGUAGES: { value: Locale; label: string }[] = [
-  { value: Locale.En, label: 'EN' },
-  { value: Locale.Uk, label: 'UK' },
-  { value: Locale.Pl, label: 'PL' },
-  { value: Locale.Ru, label: 'RU' },
-];
+import { LANGUAGE_OPTIONS, difficultyOptions, mapSizeOptions, opponentOptions } from './menuOptions';
 
 /**
- * Title screen (shown while status is `menu`): pick difficulty, open Base Setup
- * (auto-produce + robot program, and future base options) via the gear button,
- * then Start rebuilds the world with the chosen settings.
+ * Title screen (shown while status is `menu`): pick language/difficulty/roster,
+ * open Base Setup (auto-produce + robot program) or the guides, then Start
+ * rebuilds the world with the chosen settings.
+ *
+ * Start does nothing here but raise the store's one-shot `restartRequested`;
+ * consuming it — and beginning the match — is `GameApp.step()`'s job.
  */
 export function MainMenu() {
   const t = useT();
@@ -85,94 +59,55 @@ export function MainMenu() {
           <DialogTitle className="menu__title">{t('mainMenu', 'title')}</DialogTitle>
           <p className="modal__body menu__intro">{t('mainMenu', 'intro')}</p>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('mainMenu', 'language')}</span>
-            <div className="picker">
-              {LANGUAGES.map((o) => (
-                <Button
-                  key={o.value}
-                  className={`chip ${o.value === locale ? 'chip--on' : ''}`.trim()}
-                  onClick={() => setLocale(o.value)}
-                >
-                  {o.label}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <PickerGroup label={t('mainMenu', 'language')}>
+            <ChipPicker options={LANGUAGE_OPTIONS} value={locale} onChange={setLocale} />
+          </PickerGroup>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('mainMenu', 'difficulty')}</span>
-            <div className="picker">
-              {DIFFICULTIES.map((o) => (
-                <Button
-                  key={o.value}
-                  className={`chip ${o.value === difficulty ? 'chip--on' : ''}`.trim()}
-                  onClick={() => updateSettings({ match: { difficulty: o.value } })}
-                  aria-label={t('difficulty', o.hint)}
-                >
-                  {t('difficulty', o.label)}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <PickerGroup label={t('mainMenu', 'difficulty')}>
+            <ChipPicker
+              options={difficultyOptions(t)}
+              value={difficulty}
+              onChange={(value) => updateSettings({ match: { difficulty: value } })}
+            />
+          </PickerGroup>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('mainMenu', 'opponents')}</span>
-            <div className="picker">
-              {OPPONENT_COUNTS.map((n) => (
-                <Button
-                  key={n}
-                  className={`chip ${n === aiOpponents ? 'chip--on' : ''}`.trim()}
-                  onClick={() => updateSettings({ match: { aiOpponents: n } })}
-                  aria-label={t('mainMenu', 'opponentsHint')}
-                >
-                  {n}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <PickerGroup label={t('mainMenu', 'opponents')}>
+            <ChipPicker
+              options={opponentOptions(t)}
+              value={aiOpponents}
+              onChange={(value) => updateSettings({ match: { aiOpponents: value } })}
+            />
+          </PickerGroup>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('mapSize', 'label')}</span>
-            <div className="picker">
-              {MAP_SIZES.map((o) => (
-                <Button
-                  key={o.value}
-                  className={`chip ${o.value === mapSize ? 'chip--on' : ''}`.trim()}
-                  onClick={() => updateSettings({ match: { mapSize: o.value } })}
-                  aria-label={t('mapSize', o.hint)}
-                >
-                  {t('mapSize', o.label)}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <PickerGroup label={t('mapSize', 'label')}>
+            <ChipPicker
+              options={mapSizeOptions(t)}
+              value={mapSize}
+              onChange={(value) => updateSettings({ match: { mapSize: value } })}
+            />
+          </PickerGroup>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('mainMenu', 'baseSetup')}</span>
+          <PickerGroup label={t('mainMenu', 'baseSetup')}>
             <Button onClick={() => setSetupOpen(true)}>
               <Settings2Icon size={16} /> {t('mainMenu', 'autoProduceProgram')}
             </Button>
-          </div>
+          </PickerGroup>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('mainMenu', 'help')}</span>
+          <PickerGroup label={t('mainMenu', 'help')}>
             <Button onClick={() => setControlsOpen(true)}>
               <HelpCircleIcon size={16} /> {t('mainMenu', 'controls')}
             </Button>
-          </div>
+          </PickerGroup>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('mainMenu', 'units')}</span>
+          <PickerGroup label={t('mainMenu', 'units')}>
             <Button onClick={() => setUnitsOpen(true)}>
               <BotIcon size={16} /> {t('mainMenu', 'unitGuide')}
             </Button>
-          </div>
+          </PickerGroup>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('online', 'multiplayer')}</span>
+          <PickerGroup label={t('online', 'multiplayer')}>
             <Button onClick={() => setOnlineOpen(true)}>{t('online', 'online2p')}</Button>
-          </div>
+          </PickerGroup>
 
           <Button className="modal__action" onClick={start}>
             {t('mainMenu', 'start')}
@@ -186,64 +121,7 @@ export function MainMenu() {
 
       {(onlineOpen || online.status !== 'offline') && <OnlineLobby onClose={() => setOnlineOpen(false)} />}
 
-      {controlsOpen && (
-        <Dialog open onClose={() => setControlsOpen(false)}>
-          <DialogBackdrop className="dialog-backdrop" />
-          <div className="dialog-frame">
-            <DialogPanel className="modal">
-              <DialogTitle className="modal__title">{t('mainMenu', 'controlsTitle')}</DialogTitle>
-              <div className="modal__body">
-                <div className="controls-list">
-                  <div className="control-item">
-                    <kbd>Ctrl + A</kbd>
-                    <span>{t('mainMenu', 'ctrlA')}</span>
-                  </div>
-                  <div className="control-item">
-                    <kbd>Esc</kbd>
-                    <span>{t('mainMenu', 'esc')}</span>
-                  </div>
-                  <div className="control-item">
-                    <kbd>Double-click</kbd>
-                    <span>{t('mainMenu', 'dblClick')}</span>
-                  </div>
-                  <div className="control-item">
-                    <kbd>Double-click</kbd>
-                    <span>{t('mainMenu', 'dblClickBase')}</span>
-                  </div>
-                  <div className="control-item">
-                    <kbd>Ctrl + 1-9</kbd>
-                    <span>{t('mainMenu', 'groupAssign')}</span>
-                  </div>
-                  <div className="control-item">
-                    <kbd>1-9</kbd>
-                    <span>{t('mainMenu', 'groupSelect')}</span>
-                  </div>
-                </div>
-
-                <span className="picker__label controls-list__heading">{t('mainMenu', 'droneHeading')}</span>
-                <div className="controls-list">
-                  <div className="control-item">
-                    <kbd>W A S D</kbd>
-                    <kbd>↑ ← ↓ →</kbd>
-                    <span>{t('mainMenu', 'flyDrone')}</span>
-                  </div>
-                  <div className="control-item">
-                    <kbd>F</kbd>
-                    <span>{t('mainMenu', 'landRelease')}</span>
-                  </div>
-                  <div className="control-item">
-                    <kbd>E</kbd>
-                    <span>{t('mainMenu', 'fireWeapon')}</span>
-                  </div>
-                </div>
-              </div>
-              <Button className="modal__action" onClick={() => setControlsOpen(false)}>
-                {t('mainMenu', 'close')}
-              </Button>
-            </DialogPanel>
-          </div>
-        </Dialog>
-      )}
+      {controlsOpen && <ControlsModal onClose={() => setControlsOpen(false)} />}
     </Dialog>
   );
 }
