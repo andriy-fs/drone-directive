@@ -2,10 +2,10 @@ import { create } from 'zustand';
 import { gameConfig } from '../config/gameConfig';
 import { createDefaultSettings, type GameSettings, type SettingsPatch } from '../config/gameSettings';
 import { Locale, resolveInitialLocale, saveLocale } from '../i18n/locale';
-import type { Command } from '../types/commands';
-import type { BuildOrder, ResourcePool, Vec2 } from '../types/entities';
-import { Owner } from '../types/enums';
-import type { ChassisType, MapSize, TaskType, WeaponType } from '../types/enums';
+import type { Command } from '@drone-directive/types/commands';
+import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
+import { Owner } from '@drone-directive/types/enums';
+import type { ChassisType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
 
 /** HUD-facing observer-drone status (projected from the ECS world). */
 export interface DroneStatus {

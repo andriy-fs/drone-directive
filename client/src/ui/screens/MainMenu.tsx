@@ -6,7 +6,7 @@ import { maxAiOpponents } from '../../config/gameSettings';
 import { useT, Locale } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectOnline, selectStatus } from '../../store/selectors';
-import { Difficulty, MapSize } from '../../types/enums';
+import { Difficulty, MapSize } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { BaseSetupModal } from './BaseSetupModal';
 import { OnlineLobby } from './OnlineLobby';

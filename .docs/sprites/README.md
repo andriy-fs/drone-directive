@@ -10,7 +10,7 @@ robot chassis or base types are added, so art can be regenerated consistently.
 - **[weapons.md](weapons.md)** — top-mounted weapon module overlays (radar, bomb
   kamikaze) × faction, rendered on the robot's central hardpoint.
 - **[obstacle-mountain.md](obstacle-mountain.md)** — impassable-terrain tile (one
-  32 px cell, seamlessly tileable): a **mountain** massif. Blocks movement *and*
+  32 px cell, seamlessly tileable): a **mountain** massif. Blocks movement _and_
   line of fire.
 - **[obstacle-crater.md](obstacle-crater.md)** — the other impassable-terrain tile,
   same spec and palette but a collapsed impact **crater** (sinks instead of rises).
@@ -21,7 +21,7 @@ robot chassis or base types are added, so art can be regenerated consistently.
 
 ## What exists today (regenerate against this list)
 
-Robots are keyed by **chassis** (`src/types/enums.ts` → `ChassisType`); weapons
+Robots are keyed by **chassis** (`types/src/enums.ts` → `ChassisType`); weapons
 are drawn as a small marker _on top_ of the chassis by the engine, so a sprite is
 **per chassis, not per weapon**:
 

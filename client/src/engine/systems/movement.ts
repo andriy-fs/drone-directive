@@ -1,6 +1,6 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
-import type { Vec2 } from '../../types/entities';
-import { RobotState, TaskType } from '../../types/enums';
+import type { Vec2 } from '@drone-directive/types/entities';
+import { RobotState, TaskType } from '@drone-directive/types/enums';
 import { clamp, vecLength } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';

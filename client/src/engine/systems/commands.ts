@@ -1,7 +1,7 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
-import type { Command } from '../../types/commands';
-import type { Vec2 } from '../../types/entities';
-import type { Owner } from '../../types/enums';
+import type { Command } from '@drone-directive/types/commands';
+import type { Vec2 } from '@drone-directive/types/entities';
+import type { Owner } from '@drone-directive/types/enums';
 import { clamp } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import { buildCost, canAfford, spend } from '../economy';

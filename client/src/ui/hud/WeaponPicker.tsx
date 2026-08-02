@@ -1,5 +1,5 @@
 import { useT } from '../../i18n';
-import { WeaponType } from '../../types/enums';
+import { WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { weaponHint } from './unitHints';
 

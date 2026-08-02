@@ -1,5 +1,5 @@
 import { useT } from '../../i18n';
-import { ChassisType } from '../../types/enums';
+import { ChassisType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { chassisHint } from './unitHints';
 

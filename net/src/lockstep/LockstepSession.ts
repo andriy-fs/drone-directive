@@ -1,46 +1,9 @@
-import type { ErrorCode, ServerMessage, TickMessage, WireDroneControl, WorldCheck } from '@drone-directive/protocol';
-import type { DroneControl } from '../../engine/game/context';
-import type { Command } from '../../types/commands';
-import type { MapSize } from '../../types/enums';
-import { connectUrl, INPUT_DELAY_TICKS } from './config';
-
-/** One tick's worth of a single side's input (buffered locally, sent over the wire). */
-export interface TickInput {
-  commands: Command[];
-  drone: DroneControl;
-}
-
-export interface LockstepHandlers {
-  /** Host only: the room is open and waiting for a guest. */
-  onCreated?: (roomCode: string) => void;
-  /** Both sockets present — start simulating from this seed + map size. */
-  onStart?: (seed: number, mapSize: MapSize, aiCount: number) => void;
-  /** The peer disconnected; the match is over. */
-  onOpponentLeft?: () => void;
-  onError?: (code: ErrorCode, message: string) => void;
-  /** The socket closed (network drop or intentional disconnect). */
-  onClose?: () => void;
-  /**
-   * The peer's world hash for `tick` disagreed with ours: the simulations have
-   * parted. Everything either client shows after this point is unreliable.
-   */
-  onDesync?: (tick: number, mine: number, theirs: number) => void;
-}
-
-function emptyInput(): TickInput {
-  return { commands: [], drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false } };
-}
-
-function toWire(d: DroneControl): WireDroneControl {
-  return { dir: { x: d.dir.x, y: d.dir.y }, possess: d.possessPulse, fire: d.firePulse };
-}
-
-function fromWire(msg: TickMessage): TickInput {
-  return {
-    commands: msg.commands as Command[],
-    drone: { dir: { x: msg.drone.dir.x, y: msg.drone.dir.y }, possessPulse: msg.drone.possess, firePulse: msg.drone.fire },
-  };
-}
+import type { MapSize } from '@drone-directive/types/enums';
+import { connectUrl, INPUT_DELAY_TICKS } from '../config';
+import { decodeServerMessage, encodeTick, ErrorCode, type WorldCheck } from '../wire/codec';
+import { parseCommands } from '../wire/validation';
+import { emptyInput, screen } from './input';
+import type { LockstepConfig, LockstepHandlers, TickInput } from './types';
 
 /**
  * Client-side lockstep transport: owns the relay WebSocket, buffers both the local
@@ -55,6 +18,7 @@ export class LockstepSession {
   private ws: WebSocket | null = null;
   private started = false;
   private readonly handlers: LockstepHandlers;
+  private readonly config: LockstepConfig;
   private readonly localBuffer = new Map<number, TickInput>();
   private readonly peerBuffer = new Map<number, TickInput>();
   /** Our own world hashes by tick, kept until the peer's probe for them arrives. */
@@ -63,8 +27,9 @@ export class LockstepSession {
   private pendingCheck: WorldCheck | null = null;
   private desyncReported = false;
 
-  constructor(handlers: LockstepHandlers) {
+  constructor(handlers: LockstepHandlers, config: LockstepConfig) {
     this.handlers = handlers;
+    this.config = config;
   }
 
   get isStarted(): boolean {
@@ -72,11 +37,11 @@ export class LockstepSession {
   }
 
   connectHost(roomCode: string, mapSize: MapSize, aiCount: number): void {
-    this.open(() => connectUrl({ room: roomCode, create: true, mapSize, aiCount }));
+    this.open(() => connectUrl(this.config.relayUrl, { room: roomCode, create: true, mapSize, aiCount }));
   }
 
   connectGuest(roomCode: string): void {
-    this.open(() => connectUrl({ room: roomCode }));
+    this.open(() => connectUrl(this.config.relayUrl, { room: roomCode }));
   }
 
   private open(buildUrl: () => string): void {
@@ -86,10 +51,13 @@ export class LockstepSession {
       // surface it as a lobby error instead of letting it kill the game loop.
       ws = new WebSocket(buildUrl());
     } catch {
-      this.handlers.onError?.('bad-message', 'Invalid multiplayer server URL — check VITE_MULTIPLAYER_URL.');
+      this.handlers.onError?.(ErrorCode.BadMessage, 'Invalid multiplayer server URL.');
       return;
     }
     this.ws = ws;
+    // Frames are BARE, not text; without this they arrive as `Blob` and can only
+    // be read asynchronously, which the per-tick path has no room for.
+    ws.binaryType = 'arraybuffer';
     ws.addEventListener('message', (e) => this.onMessage(e));
     ws.addEventListener('close', () => this.handlers.onClose?.());
     // Connection failures surface through the subsequent `close` event.
@@ -97,22 +65,21 @@ export class LockstepSession {
   }
 
   private onMessage(e: MessageEvent): void {
-    let msg: ServerMessage;
-    try {
-      msg = JSON.parse(e.data as string) as ServerMessage;
-    } catch {
-      return;
-    }
+    if (!(e.data instanceof ArrayBuffer)) return; // text on a binary protocol — not ours
+    const msg = decodeServerMessage(e.data);
+    if (!msg) return; // not a well-formed protocol message — ignore it, don't die on it
     switch (msg.type) {
       case 'created':
         this.handlers.onCreated?.(msg.roomCode);
         break;
       case 'start':
         this.started = true;
-        this.handlers.onStart?.(msg.seed >>> 0, msg.mapSize as MapSize, msg.aiCount);
+        // No coercion left to do: the schema pinned `seed` to a u32 and `mapSize`
+        // to one of three tags, which the codec already turned into a `MapSize`.
+        this.handlers.onStart?.(msg.seed, msg.mapSize, msg.aiCount);
         break;
       case 'tick':
-        this.peerBuffer.set(msg.tick, fromWire(msg));
+        this.peerBuffer.set(msg.tick, screen(msg, this.config.limits()));
         if (msg.check) this.checkPeerHash(msg.check);
         break;
       case 'opponentLeft':
@@ -154,12 +121,22 @@ export class LockstepSession {
     }
   }
 
-  /** Buffer local input for `tick` and send it to the peer (a heartbeat even when empty). */
+  /**
+   * Buffer local input for `tick` and send it to the peer (a heartbeat even when
+   * empty).
+   *
+   * The local batch goes through the same validator as the peer's, and it has to:
+   * under lockstep an asymmetric filter is itself a desync source. A command this
+   * client applied but the peer's validator rejected would leave the two
+   * simulations running different worlds — so both sides screen both batches with
+   * the same rules, the same argument as `isCommandFrom` in `GameApp.stepOnline`.
+   */
   scheduleLocal(tick: number, input: TickInput): void {
-    this.localBuffer.set(tick, input);
-    const check = this.pendingCheck ?? undefined;
+    const commands = parseCommands(input.commands, 'local', this.config.limits());
+    this.localBuffer.set(tick, { commands, drone: input.drone });
+    const check = this.pendingCheck;
     this.pendingCheck = null;
-    this.send({ type: 'tick', tick, commands: input.commands, drone: toWire(input.drone), check });
+    this.send(encodeTick(tick, commands, input.drone, check));
   }
 
   /** Compare a peer probe against our own hash for that tick (once — the first is the real one). */
@@ -171,8 +148,8 @@ export class LockstepSession {
     this.handlers.onDesync?.(check.tick, mine, check.hash);
   }
 
-  private send(msg: TickMessage): void {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+  private send(frameBytes: Uint8Array<ArrayBuffer>): void {
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(frameBytes);
   }
 
   disconnect(): void {

@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "e2e": "node scripts/relay-e2e.mjs"
   },
   "dependencies": {
     "@drone-directive/protocol": "*"

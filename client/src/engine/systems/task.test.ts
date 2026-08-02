@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
-import { ChassisType, Owner, RobotState, TaskType, WeaponType } from '../../types/enums';
+import { ChassisType, Owner, RobotState, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
 import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';

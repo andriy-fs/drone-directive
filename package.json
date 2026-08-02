@@ -5,22 +5,31 @@
   "license": "GPL-3.0-or-later",
   "type": "module",
   "workspaces": [
-    "client",
+    "types",
     "protocol",
+    "net",
+    "client",
     "server"
   ],
   "scripts": {
     "dev": "npm run dev -w client",
     "dev:relay": "npm run dev -w server",
     "build": "npm run build -w client",
-    "lint": "npm run lint -w client",
+    "lint": "eslint .",
     "preview": "npm run preview -w client",
-    "test": "npm run test -w client",
+    "test": "npm run test -w net && npm run test -w client",
     "test:watch": "npm run test:watch -w client",
+    "type-check": "npm run type-check -w types && npm run type-check -w net && npm run type-check -w server",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "prettier": "^3.9.6"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.62.0"
   }
 }

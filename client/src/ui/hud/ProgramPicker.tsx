@@ -1,5 +1,5 @@
 import { useT } from '../../i18n';
-import type { TaskType } from '../../types/enums';
+import type { TaskType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { programOptions } from './programOptions';
 

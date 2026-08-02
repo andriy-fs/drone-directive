@@ -1,5 +1,5 @@
-import type { BuildOrder } from '../types/entities';
-import { ChassisType, Difficulty, MapSize, MAX_SIDES, TaskType, WeaponType } from '../types/enums';
+import type { BuildOrder } from '@drone-directive/types/entities';
+import { ChassisType, Difficulty, MapSize, MAX_SIDES, TaskType, WeaponType } from '@drone-directive/types/enums';
 
 /**
  * Player-editable settings (distinct from `gameConfig`, which is fixed balance /

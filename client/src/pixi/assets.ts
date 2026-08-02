@@ -9,7 +9,7 @@ import {
   weaponSprites,
   type SpriteDef,
 } from '../config/sprites';
-import { Owner, type ChassisType, type TerrainKind, type WeaponType } from '../types/enums';
+import { Owner, type ChassisType, type TerrainKind, type WeaponType } from '@drone-directive/types/enums';
 
 /**
  * Preloads all sprite images. Resolves even on failure (a missing/failed image

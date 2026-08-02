@@ -1,4 +1,4 @@
-import { Owner, type MapSize } from '../types/enums';
+import { Owner, type MapSize } from '@drone-directive/types/enums';
 import type { Rng } from '../utils/rng';
 
 /** Where one side's base starts; `tx`/`ty` is its top-left tile. */

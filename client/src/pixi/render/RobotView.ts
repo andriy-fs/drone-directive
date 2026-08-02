@@ -3,7 +3,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { Entity } from '../../engine/ecs/entity';
 import { useGameStore } from '../../store/gameStore';
-import { ChassisType, WeaponType } from '../../types/enums';
+import { ChassisType, WeaponType } from '@drone-directive/types/enums';
 import { getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';

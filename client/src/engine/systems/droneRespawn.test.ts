@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
-import { Controller, Owner } from '../../types/enums';
+import { Controller, Owner } from '@drone-directive/types/enums';
 import { spawnBase, spawnDrone } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { droneRespawnSystem } from './droneRespawn';

@@ -62,10 +62,10 @@ and all it does is pick which DO to talk to.
 `Room` holds four fields, all in memory, none persisted:
 
 ```ts
-private host: WebSocket | null = null;   // first socket, arrived with create=1
-private guest: WebSocket | null = null;  // second socket
-private roomCode = '';                   // echoed back in `created`
-private mapSize: WireMapSize = 'medium'; // the host's pick, forwarded in `start`
+private host: WebSocket | null = null;      // first socket, arrived with create=1
+private guest: WebSocket | null = null;     // second socket
+private roomCode = '';                      // echoed back in `created`
+private mapSize: MapSize = MapSize.Medium;  // the host's pick, forwarded in `start`
 ```
 
 ```
@@ -86,7 +86,7 @@ name→id mapping is permanent) — it's just back to zero sockets. There is no
 
 A WebSocket must choose its room _before_ it opens — there is no message channel
 yet — so create/join intent travels as query params. The client builds the URL in
-[`client/src/pixi/net/config.ts`](../client/src/pixi/net/config.ts) (`connectUrl`),
+[`net/src/config.ts`](../net/src/config.ts) (`connectUrl`),
 the constants are shared via `@drone-directive/protocol`:
 
 - host: `?room=<CODE>&create=1&v=<PROTOCOL_VERSION>&mapSize=<small|medium|large>`
@@ -109,9 +109,10 @@ client half with status **101**. Then, in order:
    `error: version-mismatch`. Checking before the create/join branch means an
    outdated client can never occupy a room slot.
 2. **`create=1` → `acceptHost`.** Refuses with `room-taken` if a host is already
-   there; otherwise stores the socket, validates `mapSize` against the allowed
-   three (falling back to `medium` on anything else — the only input validation in
-   the whole server), and replies `created` so the lobby can show the code.
+   there; otherwise stores the socket, maps the `mapSize` query param to its schema
+   tag (falling back to `medium` on anything else — the only input validation in
+   the whole server, and the only place it still handles text), and replies
+   `created` so the lobby can show the code.
 3. **no `create` → `acceptGuest`.** Refuses with `room-not-found` if no host is
    waiting, `room-full` if the room already has two, otherwise stores the socket
    and calls `start()`.
@@ -130,20 +131,25 @@ build byte-identical worlds — same obstacles, same base placement, same entity
 ### 4. Relaying
 
 ```ts
-if (msg.type !== 'tick') return;
+if (!(data instanceof ArrayBuffer) || data.byteLength === 0) return;
+if (new Uint8Array(data, 0, 1)[0] !== MessageTag.Tick) return;
 const peer = from === this.host ? this.guest : this.host;
 peer?.send(data);
 ```
 
-Note it forwards `data` — the **original string**, not a re-serialized `msg`. The
-parse exists only to read `type`; the payload crosses untouched. Anything that
-isn't a string, isn't valid JSON, or isn't a `tick` is dropped silently rather than
-answered with an error — a relay that argues with malformed input is just more
-surface area, and a correct client never sends any.
+Note it forwards `data` — the **original bytes**, not a re-encoded message. The
+frame's leading octet is the message tag, deliberately placed _outside_ the BARE
+payload so this can be a one-byte read: the relay decides what to do with a frame
+without ever decoding one. Anything that isn't binary, is empty, or isn't tagged
+`Tick` is dropped silently rather than answered with an error — a relay that
+argues with malformed input is just more surface area, and a correct client never
+sends any.
 
-The relay is entirely **content-blind**: `TickMessage.commands` is typed
-`WireCommand[] = unknown[]` in the protocol package precisely so the server can't
-develop an opinion about game commands. It never learns what a robot is.
+The relay is entirely **content-blind**. It does encode the four messages it
+originates (`created`/`start`/`opponentLeft`/`error`), so the generated codec is
+in its bundle — but only the writers for those four: tree-shaking leaves out every
+reader and the whole `Command` graph, which is checkable with
+`npx wrangler deploy --dry-run --outdir …`. It never learns what a robot is.
 
 ### 5. Teardown
 
@@ -159,19 +165,25 @@ normal endings with **1000**.
 
 ## Wire protocol reference
 
-Types: [`protocol/src/index.ts`](../protocol/src/index.ts), a types-only workspace
-both the client and the Worker depend on, so neither imports the other's source.
-`PROTOCOL_VERSION` is bumped on any breaking change and enforced at connect time.
+Messages: [`protocol/schema/messages.bare`](../protocol/schema/messages.bare),
+compiled to `protocol/src/generated/messages.ts` (committed — this workspace has
+no build step). Handshake constants and framing:
+[`protocol/src/index.ts`](../protocol/src/index.ts), which stays dependency-free
+so this Worker can route a frame without linking a decoder. `PROTOCOL_VERSION` is
+bumped on any change to the schema — BARE has no field numbers, so every change is
+breaking — and enforced at connect time.
 
-| Direction             | Message                                   | Sent when                                                                          |
-| --------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
-| Relay → host          | `{ type: 'created', roomCode }`           | Room opened, waiting for a guest.                                                  |
-| Relay → both          | `{ type: 'start', seed, mapSize }`        | Second socket joined. Triggers `startMatch`.                                       |
-| Client → relay → peer | `{ type: 'tick', tick, commands, drone }` | Every sim tick, forwarded verbatim (heartbeat even when empty).                    |
-| Relay → survivor      | `{ type: 'opponentLeft' }`                | Peer's socket closed or errored.                                                   |
-| Relay → client        | `{ type: 'error', code, message }`        | `room-not-found` · `room-full` · `room-taken` · `version-mismatch` · `bad-message` |
+Each frame is one `MessageTag` octet followed by that message's BARE payload:
 
-`bad-message` is declared in the protocol but never sent by the relay — the client
+| Tag | Direction             | Message                                         | Sent when                                                                          |
+| --- | --------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `1` | Relay → host          | `CreatedMessage { roomCode }`                   | Room opened, waiting for a guest.                                                  |
+| `2` | Relay → both          | `StartMessage { seed, mapSize, aiCount }`       | Second socket joined. Triggers `startMatch`.                                       |
+| `0` | Client → relay → peer | `TickMessage { tick, commands, drone, check? }` | Every sim tick, forwarded verbatim (heartbeat even when empty).                    |
+| `3` | Relay → survivor      | _(no payload — the tag byte alone)_             | Peer's socket closed or errored.                                                   |
+| `4` | Relay → client        | `ErrorMessage { code, message }`                | `ROOM_NOT_FOUND` · `ROOM_FULL` · `ROOM_TAKEN` · `VERSION_MISMATCH` · `BAD_MESSAGE` |
+
+`BAD_MESSAGE` is declared in the schema but never sent by the relay — the client
 uses it locally for a malformed `VITE_MULTIPLAYER_URL` (`LockstepSession.open`).
 
 ## Configuration
@@ -186,9 +198,9 @@ uses it locally for a malformed `VITE_MULTIPLAYER_URL` (`LockstepSession.open`).
   for Durable Objects, so the declaration is a formality.
 
 `server/tsconfig.json` type-checks against `@cloudflare/workers-types` and mirrors
-the client's strictness (`strict`, `verbatimModuleSyntax`, `erasableSyntaxOnly`,
-`noUnused*`) so the same conventions apply here — no TS `enum`, `import type` for
-type-only imports.
+the client's strictness (`strict`, `verbatimModuleSyntax`, `noUnused*`) so the same
+conventions apply here — `import type` for type-only imports, const-map unions
+preferred over TS `enum` in hand-written code.
 
 ## Operating it
 
@@ -198,10 +210,16 @@ npm run type-check -w server  # tsc --noEmit; NOT part of the root `npm run buil
 npm run deploy -w server      # wrangler deploy (needs `npx wrangler login` once)
 ```
 
-The root `build` / `test` / `lint` scripts only cover the `client` workspace — the
-server has **no build step** (wrangler bundles `src/index.ts` directly) and is not
-type-checked by `npx tsc -b` in `client/`. Run `type-check -w server` explicitly
-after editing `server/**` or `protocol/**`.
+The root `npm run lint` covers this workspace, and `npm run type-check` chains
+`types`/`net`/`server`. What it is **not** covered by is `npm run build`: the
+server has no build step (wrangler bundles `src/index.ts` directly) and nothing
+here is reached by `npx tsc -b` in `client/`. So after editing `server/**` or
+`protocol/**`, run `npm run type-check` — a green client build proves nothing
+about the relay.
+
+After editing `protocol/schema/messages.bare`, run `npm run codegen -w protocol`
+and commit the regenerated `protocol/src/generated/messages.ts` — nothing in CI
+does it for you.
 
 The client picks the relay at **build time** via `VITE_MULTIPLAYER_URL` (the UI is
 a static Pages site), defaulting to `ws://localhost:8787`. CI deploys the Worker
@@ -211,19 +229,29 @@ from `.github/workflows/deploy.yml` (`deploy-worker` job, authenticating from
 
 ### Testing
 
-There is **no automated test for the relay** — `npm test` is Vitest scoped to the
-`client` workspace, and nothing under `server/` runs at all. Until something does,
-verify by hand against `wrangler dev`:
+`npm test` runs Vitest in `net` and `client`; neither reaches the relay, so it has
+its own end-to-end script — two `WebSocket` clients driven through
+create → `created` → join → byte-identical `start` → `tick` relay → `opponentLeft`,
+plus the `room-not-found` and `version-mismatch` rejections. It needs a listening
+relay, which is why it is a separate command rather than part of `npm test`:
+
+```bash
+npm run dev -w server   # one terminal
+npm run e2e -w server   # another
+```
+
+[`server/scripts/relay-e2e.mjs`](../server/scripts/relay-e2e.mjs) imports nothing
+from the workspace and asserts on raw frame bytes, so it tests the wire rather
+than the client's idea of the wire — the message tags in it are pinned literals on
+purpose. Its one concession is reading `PROTOCOL_VERSION` out of the protocol
+source, since a stale copy would fail every connection and look like a relay bug.
+
+Then verify the game itself by hand:
 
 1. Two tabs on `npm run dev` → **Online (2P)**; host in one, join by code in the
    other. Both should start and stay in sync.
 2. Close one tab → the other reports the opponent left and returns to the menu.
 3. Join a code nobody is hosting → `room-not-found` in the lobby.
-4. `curl http://localhost:8787/health` → `ok`.
-
-A worthwhile addition: a script driving two `WebSocket` clients through
-create → `created` → join → matching `start` seed → `tick` relay → `opponentLeft`,
-plus the `room-not-found` and `version-mismatch` rejections.
 
 ## Why the DO stays resident
 
@@ -244,13 +272,19 @@ moving `host`/`guest` into DO storage or reconstructing them from
 
 The relay does **not**, and is not meant to:
 
-- **Validate game commands.** It cannot — `commands` is opaque `unknown[]`, and the
-  server has no world to check them against. Ownership is enforced **client-side**
-  by `isCommandFrom` in [`client/src/engine/systems/commands.ts`](../client/src/engine/systems/commands.ts),
-  applied to both the local and the peer's batch in `GameApp.stepOnline`. That
-  stops honest-client bugs (it was added after a HUD bug let the guest command the
-  host's units), **not** a modified client. Real enforcement would require a
-  server-authoritative simulation.
+- **Validate game commands.** It cannot — a tick's payload is bytes it never
+  decodes, and the server has no world to check them against. Validation happens
+  peer-side, in two layers inside [`@drone-directive/net`](../net): the generated
+  BARE codec rejects anything that isn't a well-formed message, and
+  `wire/validation/` (valibot) rejects anything whose _values_ make no sense in
+  this match. Ownership is a third check, `isCommandFrom` in
+  [`client/src/engine/systems/commands.ts`](../client/src/engine/systems/commands.ts),
+  applied to both the local and the peer's batch in `GameApp.stepOnline`. All
+  three run identically on both peers, which is required — an asymmetric filter
+  would itself desync the match. Together they stop honest-client bugs and
+  malformed input; they do **not** stop a modified client that sends
+  well-formed lies. Real enforcement would require a server-authoritative
+  simulation.
 - **Hide anything.** Each client simulates the full world including the fog-hidden
   opponent — the classic lockstep-RTS limitation, accepted by design.
 - **Detect desync.** The clients do that themselves: a periodic world hash rides

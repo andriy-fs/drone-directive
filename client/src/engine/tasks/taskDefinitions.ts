@@ -1,6 +1,6 @@
-import type { Vec2 } from '../../types/entities';
-import { TaskType, WeaponType } from '../../types/enums';
-import type { RobotScript } from '../../types/tasks';
+import type { Vec2 } from '@drone-directive/types/entities';
+import { TaskType, WeaponType } from '@drone-directive/types/enums';
+import type { RobotScript } from '@drone-directive/types/tasks';
 
 /** Attack-oriented directives that are pointless for a weaponless robot (radar: 0 range, 0 damage). */
 const FORBIDDEN_FOR_RADAR = new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots]);

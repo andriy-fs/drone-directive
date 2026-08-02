@@ -1,0 +1,205 @@
+import { frame, MessageTag, tagOf } from '@drone-directive/protocol';
+import {
+  encodeCreatedMessage,
+  encodeErrorMessage,
+  encodeStartMessage,
+  MapSize as WireMapSize,
+} from '@drone-directive/protocol/codec';
+import { describe, expect, it } from 'vitest';
+import type { DroneControl } from '@drone-directive/types/entities';
+import type { Command } from '@drone-directive/types/commands';
+import { ChassisType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { decodeServerMessage, encodeTick, ErrorCode, mapSizeToQueryParam } from './codec';
+
+/**
+ * A binary protocol fails silently when it fails at all: a field written in the
+ * wrong order still decodes, just into different values, and under lockstep that
+ * surfaces ten seconds later as an unexplained desync. So every message goes out
+ * and comes back here, and the assertion is on the *domain* object — the mapping
+ * layer is as much under test as the encoding.
+ */
+
+const IDLE_DRONE: DroneControl = { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false };
+
+/** Round-trips one tick's worth of input the way the two peers actually do. */
+function roundTrip(commands: Command[], drone: DroneControl = IDLE_DRONE, tick = 7) {
+  const bytes = encodeTick(tick, commands, drone, null);
+  const decoded = decodeServerMessage(toArrayBuffer(bytes));
+  if (decoded?.type !== 'tick') throw new Error(`expected a tick frame, got ${decoded?.type ?? 'null'}`);
+  return decoded;
+}
+
+/** The socket hands back an `ArrayBuffer`; encoders produce a view into a larger one. */
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.slice().buffer;
+}
+
+describe('command round-trip', () => {
+  it('carries every command kind there and back unchanged', () => {
+    const commands: Command[] = [
+      { kind: 'AssignTask', robotId: 'robot_1', task: TaskType.AttackRobots },
+      {
+        kind: 'BuildRobot',
+        baseId: 'base_1',
+        order: { chassis: ChassisType.Wheels, weapon: WeaponType.Missiles, task: TaskType.Guard },
+      },
+      {
+        kind: 'SetAutoBuild',
+        baseId: 'base_2',
+        order: { chassis: ChassisType.Legs, weapon: WeaponType.Ew, task: null },
+      },
+      { kind: 'SetAutoBuild', baseId: 'base_2', order: null },
+      { kind: 'MoveRobots', robotIds: ['robot_1', 'robot_2', 'robot_3'], point: { x: 512.25, y: 96.5 } },
+      { kind: 'AttackTarget', robotIds: ['robot_4'], targetId: 'base_1' },
+    ];
+    expect(roundTrip(commands).commands).toEqual(commands);
+  });
+
+  it('keeps the three states of a build order task distinct', () => {
+    const base = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
+    const commands: Command[] = [
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base } }, // unspecified
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: null } }, // explicitly none
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: TaskType.Overwatch } },
+    ];
+    const decoded = roundTrip(commands).commands;
+    expect(decoded).toEqual(commands);
+    // The distinction that matters to `production`: an absent key is not a null one.
+    expect('task' in (decoded[0] as { order: object }).order).toBe(false);
+    expect((decoded[1] as { order: { task: unknown } }).order.task).toBeNull();
+  });
+
+  it('covers every member of every game enum it maps', () => {
+    const commands: Command[] = Object.values(TaskType).map((task) => ({
+      kind: 'AssignTask',
+      robotId: 'robot_1',
+      task,
+    }));
+    for (const chassis of Object.values(ChassisType)) {
+      for (const weapon of Object.values(WeaponType)) {
+        commands.push({ kind: 'BuildRobot', baseId: 'base_1', order: { chassis, weapon } });
+      }
+    }
+    expect(roundTrip(commands).commands).toEqual(commands);
+  });
+
+  it('survives an empty batch — the per-tick heartbeat', () => {
+    expect(roundTrip([]).commands).toEqual([]);
+  });
+
+  it('preserves coordinates exactly (f64, not f32)', () => {
+    // A value that f32 cannot hold: rounding it would put the two peers on
+    // different worlds a few ticks later.
+    const point = { x: 1234.5678901234567, y: 0.1 + 0.2 };
+    const decoded = roundTrip([{ kind: 'MoveRobots', robotIds: ['robot_1'], point }]).commands[0];
+    expect((decoded as { point: { x: number; y: number } }).point).toEqual(point);
+  });
+});
+
+describe('tick frame round-trip', () => {
+  it('carries the tick number and drone input', () => {
+    const drone: DroneControl = { dir: { x: -0.6, y: 0.8 }, possessPulse: true, firePulse: false };
+    const decoded = roundTrip([], drone, 4242);
+    expect(decoded.tick).toBe(4242);
+    expect(decoded.drone).toEqual(drone);
+  });
+
+  it('carries the desync probe when one is attached, and null when not', () => {
+    const check = { tick: 120, hash: 0xdeadbeef };
+    const withCheck = encodeTick(130, [], IDLE_DRONE, check);
+    const decoded = decodeServerMessage(toArrayBuffer(withCheck));
+    expect(decoded).toMatchObject({ type: 'tick', check });
+    expect(roundTrip([]).check).toBeNull();
+  });
+});
+
+describe('relay messages', () => {
+  it('round-trips created', () => {
+    const bytes = frame(MessageTag.Created, encodeCreatedMessage({ roomCode: 'AB7K' }));
+    expect(decodeServerMessage(toArrayBuffer(bytes))).toEqual({ type: 'created', roomCode: 'AB7K' });
+  });
+
+  it('round-trips start, mapping the wire tag back to a MapSize', () => {
+    const bytes = frame(
+      MessageTag.Start,
+      encodeStartMessage({ seed: 0xfeedface, mapSize: WireMapSize.Large, aiCount: 2 }),
+    );
+    expect(decodeServerMessage(toArrayBuffer(bytes))).toEqual({
+      type: 'start',
+      seed: 0xfeedface,
+      mapSize: MapSize.Large,
+      aiCount: 2,
+    });
+  });
+
+  it('clamps a bot count the map has no corners for', () => {
+    const bytes = frame(MessageTag.Start, encodeStartMessage({ seed: 1, mapSize: WireMapSize.Small, aiCount: 200 }));
+    expect(decodeServerMessage(toArrayBuffer(bytes))).toMatchObject({ aiCount: 2 });
+  });
+
+  it('round-trips opponentLeft as a bare tag byte', () => {
+    const bytes = frame(MessageTag.OpponentLeft);
+    expect(bytes).toHaveLength(1);
+    expect(decodeServerMessage(toArrayBuffer(bytes))).toEqual({ type: 'opponentLeft' });
+  });
+
+  it('round-trips error', () => {
+    const payload = encodeErrorMessage({ code: ErrorCode.RoomNotFound, message: 'No open room with that code' });
+    const bytes = frame(MessageTag.Error, payload);
+    expect(decodeServerMessage(toArrayBuffer(bytes))).toEqual({
+      type: 'error',
+      code: ErrorCode.RoomNotFound,
+      message: 'No open room with that code',
+    });
+  });
+});
+
+describe('framing', () => {
+  it('puts the tag in the leading octet, where the relay reads it', () => {
+    const bytes = encodeTick(1, [], IDLE_DRONE, null);
+    expect(bytes[0]).toBe(MessageTag.Tick);
+    expect(tagOf(toArrayBuffer(bytes))).toBe(MessageTag.Tick);
+  });
+
+  it('leaves the payload untouched behind the tag', () => {
+    const payload = encodeCreatedMessage({ roomCode: 'ZZZZ' });
+    const bytes = frame(MessageTag.Created, payload);
+    expect(bytes.subarray(1)).toEqual(payload);
+  });
+
+  it('reports no tag for an empty or unknown frame', () => {
+    expect(tagOf(new ArrayBuffer(0))).toBeNull();
+    expect(tagOf(Uint8Array.of(99).buffer)).toBeNull();
+  });
+});
+
+describe('malformed input', () => {
+  it('returns null rather than throwing', () => {
+    const good = encodeTick(1, [{ kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_1' }], IDLE_DRONE, null);
+
+    expect(decodeServerMessage(new ArrayBuffer(0))).toBeNull(); // empty
+    expect(decodeServerMessage(Uint8Array.of(99, 1, 2, 3).buffer)).toBeNull(); // unknown tag
+    expect(decodeServerMessage(toArrayBuffer(good.subarray(0, 4)))).toBeNull(); // truncated
+    expect(decodeServerMessage(Uint8Array.of(MessageTag.Tick).buffer)).toBeNull(); // tag with no payload
+
+    // Trailing junk is refused too: the decoder insists it consumed every byte,
+    // which is what stops a smuggled second message from riding along.
+    const padded = new Uint8Array(good.length + 4);
+    padded.set(good);
+    expect(decodeServerMessage(toArrayBuffer(padded))).toBeNull();
+  });
+
+  it('refuses random bytes under every valid tag', () => {
+    for (const tag of Object.values(MessageTag)) {
+      const junk = new Uint8Array(24).fill(0xff);
+      junk[0] = tag;
+      expect(decodeServerMessage(toArrayBuffer(junk))).toBeNull();
+    }
+  });
+});
+
+describe('mapSizeToQueryParam', () => {
+  it('spells every map size the way the handshake URL expects', () => {
+    expect(Object.values(MapSize).map(mapSizeToQueryParam)).toEqual(['small', 'medium', 'large']);
+  });
+});

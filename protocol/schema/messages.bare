@@ -1,0 +1,180 @@
+# Wire protocol for online matches — the source of truth for what crosses the
+# socket between the two game clients and the relay Worker.
+#
+# Framing (not expressible in BARE, so it is stated here and implemented by
+# `frame`/`tagOf` in ../src/index.ts):
+#
+#     byte 0   MessageTag, one octet
+#     byte 1+  the BARE payload of that message
+#
+# The tag lives *outside* the payload so the relay can switch on `bytes[0]` and
+# forward a tick's bytes without decoding them — it never learns what a robot is.
+# `opponentLeft` carries no payload and is a single byte.
+#
+# There are no field numbers and no backward compatibility: any change here is a
+# breaking one, gated by bumping PROTOCOL_VERSION, which the relay enforces at
+# connect time. Regenerate with `npm run codegen -w protocol` and commit the
+# result — this workspace has no build step.
+
+# f64, never f32: the two peers simulate independently and compare world hashes,
+# so a coordinate that survives the wire with less precision than it had is a
+# desync waiting to happen.
+type Vec2 struct {
+    x: f64
+    y: f64
+}
+
+# ---------------------------------------------------------------------------
+# Game commands (client -> relay -> peer)
+# ---------------------------------------------------------------------------
+
+type ChassisType enum {
+    TRACKS = 0
+    WHEELS = 1
+    LEGS = 2
+}
+
+type WeaponType enum {
+    NONE = 0
+    CANNON = 1
+    MISSILES = 2
+    BOMB = 3
+    RADAR = 4
+    EW = 5
+}
+
+type TaskType enum {
+    IDLE = 0
+    GUARD = 1
+    ATTACK_BASE = 2
+    ATTACK_ROBOTS = 3
+    SCOUT = 4
+    ATTACK_TARGET = 5
+    OVERWATCH = 6
+}
+
+# A build order's task is tri-state in the domain (`task?: TaskType | null`):
+# absent means "fall back to the base's default", null means "explicitly no
+# program". Flattened into one enum here so the wire states which of the three it
+# means outright, instead of nesting an optional inside an optional.
+type BuildTask enum {
+    UNSPECIFIED = 0
+    NONE = 1
+    IDLE = 2
+    GUARD = 3
+    ATTACK_BASE = 4
+    ATTACK_ROBOTS = 5
+    SCOUT = 6
+    ATTACK_TARGET = 7
+    OVERWATCH = 8
+}
+
+type BuildOrder struct {
+    chassis: ChassisType
+    weapon: WeaponType
+    task: BuildTask
+}
+
+type AssignTask struct {
+    robotId: str
+    task: TaskType
+}
+
+type BuildRobot struct {
+    baseId: str
+    order: BuildOrder
+}
+
+type SetAutoBuild struct {
+    baseId: str
+    order: optional<BuildOrder>
+}
+
+type MoveRobots struct {
+    robotIds: list<str>
+    point: Vec2
+}
+
+type AttackTarget struct {
+    robotIds: list<str>
+    targetId: str
+}
+
+type Command union {
+    AssignTask |
+    BuildRobot |
+    SetAutoBuild |
+    MoveRobots |
+    AttackTarget
+}
+
+# ---------------------------------------------------------------------------
+# Client -> relay -> peer
+# ---------------------------------------------------------------------------
+
+# The observer drone's input for one tick: a continuous flight direction plus two
+# one-shot pulses.
+type DroneControl struct {
+    dir: Vec2
+    possess: bool
+    fire: bool
+}
+
+# "My world looked like this at tick N" — the desync probe. Both fields are u32
+# rather than uint so the generated code stays on `number` and never reaches for
+# bigint; a match will not run for four billion ticks.
+type WorldCheck struct {
+    tick: u32
+    hash: u32
+}
+
+# One simulation tick's worth of one side's input. Sent every tick, empty command
+# list included — a steady heartbeat is simpler to reason about than a "did the
+# peer skip this tick" case.
+type TickMessage struct {
+    tick: u32
+    commands: list<Command>
+    drone: DroneControl
+    check: optional<WorldCheck>
+}
+
+# ---------------------------------------------------------------------------
+# Relay -> client
+# ---------------------------------------------------------------------------
+
+# Mirrors the client's MapSize union; the wire carries the tag, not the string.
+type MapSize enum {
+    SMALL = 0
+    MEDIUM = 1
+    LARGE = 2
+}
+
+type ErrorCode enum {
+    ROOM_NOT_FOUND = 0
+    ROOM_FULL = 1
+    ROOM_TAKEN = 2
+    VERSION_MISMATCH = 3
+    BAD_MESSAGE = 4
+}
+
+# Host acknowledgement: the room is open and waiting for a guest.
+type CreatedMessage struct {
+    roomCode: str
+}
+
+# Both sockets present — begin simulating. Everything that shapes the world has to
+# be in here: the peers build it independently, so any setting only one of them
+# knows would desync them.
+type StartMessage struct {
+    seed: u32
+    mapSize: MapSize
+    aiCount: u8
+}
+
+type ErrorMessage struct {
+    code: ErrorCode
+    message: str
+}
+
+# There is no OpponentLeftMessage: it carries nothing, so its frame is the tag
+# byte alone.

@@ -1,6 +1,6 @@
 import { gameConfig } from '../config/gameConfig';
-import type { BuildOrder, ResourcePool } from '../types/entities';
-import { PLAYABLE_OWNERS, type Owner } from '../types/enums';
+import type { BuildOrder, ResourcePool } from '@drone-directive/types/entities';
+import { PLAYABLE_OWNERS, type Owner } from '@drone-directive/types/enums';
 
 /** Total resource cost of a build order (chassis + weapon). */
 export function buildCost(order: BuildOrder): number {

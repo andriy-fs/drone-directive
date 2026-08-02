@@ -8,7 +8,7 @@ around obstacles is computed.
 ## Position is continuous, not grid-snapped
 
 `Entity.position` is a `Vec2` — "a point in continuous world space (pixels)"
-(`client/src/types/entities.ts`). There is no grid-index position component; a robot's
+(`@drone-directive/types/entities`). There is no grid-index position component; a robot's
 `x`/`y` can be any float, at any time, including mid-tile.
 
 ## Pathfinding: 8-directional A* over a tile grid

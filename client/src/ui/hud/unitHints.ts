@@ -1,6 +1,6 @@
 import { gameConfig } from '../../config/gameConfig';
 import type { T } from '../../i18n';
-import { ChassisType, WeaponType } from '../../types/enums';
+import { ChassisType, WeaponType } from '@drone-directive/types/enums';
 
 const CHASSIS_NOTES: Record<ChassisType, 'tracksNote' | 'wheelsNote' | 'legsNote'> = {
   tracks: 'tracksNote',

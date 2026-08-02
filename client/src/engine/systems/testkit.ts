@@ -1,5 +1,5 @@
 import { createDefaultSettings } from '../../config/gameSettings';
-import { PLAYABLE_OWNERS } from '../../types/enums';
+import { PLAYABLE_OWNERS } from '@drone-directive/types/enums';
 import { generateObstacles, movementGrid, sightGrid } from '../obstacles';
 import { createEcsWorld } from '../ecs/world';
 import { createGameContext, type GameContext } from '../game/context';

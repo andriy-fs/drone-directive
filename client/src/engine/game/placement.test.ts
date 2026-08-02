@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyMapSize, applySidePlacements, ENEMY_CORNERS, gameConfig } from '../../config/gameConfig';
 import { createDefaultSettings, type GameSettings } from '../../config/gameSettings';
-import { MapSize, Owner } from '../../types/enums';
+import { MapSize, Owner } from '@drone-directive/types/enums';
 import { GameEngine } from './engine';
 
 /**

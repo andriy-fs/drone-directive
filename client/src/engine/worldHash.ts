@@ -1,4 +1,4 @@
-import type { EcsWorld } from '../../engine/ecs/world';
+import type { EcsWorld } from './ecs/world';
 
 /**
  * A cheap fingerprint of the simulated world, used to catch lockstep desyncs.

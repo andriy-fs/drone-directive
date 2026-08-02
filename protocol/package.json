@@ -6,6 +6,16 @@
   "type": "module",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./codec": "./src/generated/messages.ts"
+  },
+  "scripts": {
+    "codegen": "bare schema/messages.bare -o src/generated/messages.ts --use-struct-flat-union"
+  },
+  "dependencies": {
+    "@bare-ts/lib": "^0.7.0"
+  },
+  "devDependencies": {
+    "@bare-ts/tools": "^0.19.0"
   }
 }

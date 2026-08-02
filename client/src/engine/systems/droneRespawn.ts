@@ -1,5 +1,5 @@
 import { gameConfig } from '../../config/gameConfig';
-import { Controller, type Owner } from '../../types/enums';
+import { Controller, type Owner } from '@drone-directive/types/enums';
 import { spawnDrone } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { ownBase } from './targeting';

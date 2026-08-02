@@ -45,4 +45,5 @@ React renders only HUD/screens/overlays. **Never import Pixi objects or ECS enti
 - A just-spawned unit appears on the next snapshot (spawn triggers one).
 - When adding or changing buttons, switches, or modals under `client/src/ui`, update the Headless UI-backed primitive rather than introducing another hand-rolled HTML control.
 - If the UI needs an icon, choose the corresponding `lucide-react` component instead of Unicode emoji or custom CSS glyphs.
+- Enums and value types (`TaskType`, `Owner`, `Command`, `BuildOrder`…) come from the shared **`@drone-directive/types`** workspace, imported by subpath (`@drone-directive/types/enums`) — not from a path under `client/src/`.
 - tsconfig: `verbatimModuleSyntax` → `import type`; no unused symbols. React 19 + `react-jsx` (no `React` import needed).

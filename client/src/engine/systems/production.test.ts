@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getBuildPreset } from '../../config/buildPresets';
 import { gameConfig } from '../../config/gameConfig';
-import { BuildPresetType, ChassisType, Owner, TaskType, WeaponType } from '../../types/enums';
+import { BuildPresetType, ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import type { Entity } from '../ecs/entity';
 import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
 import { commandsSystem } from './commands';

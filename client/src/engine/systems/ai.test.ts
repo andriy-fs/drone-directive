@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
-import { ChassisType, Owner, TaskType, WeaponType } from '../../types/enums';
+import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { spawnBase, spawnRobot } from '../ecs/factory';
 import { createRng } from '../../utils/rng';
 import { aiSystem } from './ai';

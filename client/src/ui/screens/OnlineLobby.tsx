@@ -4,7 +4,7 @@ import { sfx } from '../../pixi/audio/sfx';
 import { useGameStore } from '../../store/gameStore';
 import { selectOnline } from '../../store/selectors';
 import { maxAiOpponents } from '../../config/gameSettings';
-import { MapSize } from '../../types/enums';
+import { MapSize } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 

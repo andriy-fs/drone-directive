@@ -35,14 +35,14 @@ in parallel — no ordering dependency.
 
 Repo → **Settings → Secrets and variables → Actions**:
 
-| Type         | Name                     | Value                                                       |
-| ------------ | ------------------------ | ----------------------------------------------------------- |
-| Secret       | `CLOUDFLARE_API_TOKEN`   | the token from step 1.2                                     |
-| Secret       | `CLOUDFLARE_ACCOUNT_ID`  | the account id from step 1.3                                |
-| **Variable** | `VITE_MULTIPLAYER_URL`   | `wss://drone-directive-relay.<SUBDOMAIN>.workers.dev`       |
-| **Variable** | `VITE_CF_BEACON_TOKEN`   | Web Analytics site token (optional — see below)             |
+| Type         | Name                    | Value                                                 |
+| ------------ | ----------------------- | ----------------------------------------------------- |
+| Secret       | `CLOUDFLARE_API_TOKEN`  | the token from step 1.2                               |
+| Secret       | `CLOUDFLARE_ACCOUNT_ID` | the account id from step 1.3                          |
+| **Variable** | `VITE_MULTIPLAYER_URL`  | `wss://drone-directive-relay.<SUBDOMAIN>.workers.dev` |
+| **Variable** | `VITE_CF_BEACON_TOKEN`  | Web Analytics site token (optional — see below)       |
 
-The URL is not secret, so it lives under *Variables*. Note the `wss://` scheme and
+The URL is not secret, so it lives under _Variables_. Note the `wss://` scheme and
 no trailing path.
 
 ## Step 3 — `.github/workflows/deploy.yml` changes
@@ -51,29 +51,29 @@ no trailing path.
 of the `build` job:
 
 ```yaml
-      - name: Build app
-        run: npm run build
-        env:
-          VITE_MULTIPLAYER_URL: ${{ vars.VITE_MULTIPLAYER_URL }}
+- name: Build app
+  run: npm run build
+  env:
+    VITE_MULTIPLAYER_URL: ${{ vars.VITE_MULTIPLAYER_URL }}
 ```
 
 **b)** Add a job that deploys the Worker (a sibling of `build` / `deploy`):
 
 ```yaml
-  deploy-worker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm install
-      - name: Deploy relay Worker
-        run: npm run deploy -w server
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+deploy-worker:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: npm
+    - run: npm install
+    - name: Deploy relay Worker
+      run: npm run deploy -w server
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 ```
 
 `wrangler deploy` authenticates non-interactively from those two env vars — no
@@ -88,7 +88,7 @@ through the production relay.
 
 ## Web Analytics (optional)
 
-Cloudflare dashboard → **Analytics & Logs → Web Analytics** → *Add a site* with
+Cloudflare dashboard → **Analytics & Logs → Web Analytics** → _Add a site_ with
 hostname `andriy-fs.github.io`. Copy the `token` out of the snippet it shows and
 store it as the `VITE_CF_BEACON_TOKEN` **Variable** (not a secret — the token is
 public in the page source anyway).
@@ -103,6 +103,8 @@ fingerprinting, so it needs no consent banner — keep it that way if you extend
 - **Deploy the Worker only when it changed.** Every push currently redeploys it
   (idempotent). To scope it, gate the `deploy-worker` job on paths — e.g. run the
   workflow with a `paths:` filter for `server/**` and `protocol/**`, or add an
-  `if:` guard using `dorny/paths-filter`.
+  `if:` guard using `dorny/paths-filter`. Those two paths are the whole of it:
+  the relay depends on `protocol` and nothing else — not `types`, not `net`, which
+  are client-side concerns.
 - **Custom domain / route** instead of `workers.dev`: add a `route`/`custom_domain`
   in `server/wrangler.toml` and set `VITE_MULTIPLAYER_URL` to `wss://<that-host>`.

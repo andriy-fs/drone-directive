@@ -1,6 +1,6 @@
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { useT } from '../../i18n';
-import { ChassisType, WeaponType } from '../../types/enums';
+import { ChassisType, WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { chassisHint, weaponHint } from '../hud/unitHints';
 

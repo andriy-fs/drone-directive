@@ -1,5 +1,5 @@
 import { gameConfig } from '../../config/gameConfig';
-import type { Owner } from '../../types/enums';
+import type { Owner } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext, TeamIntel } from '../game/context';

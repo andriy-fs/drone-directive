@@ -4,7 +4,7 @@ import { buildCost } from '../../engine/economy';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectLocalSide, selectPlayerBase, selectResources } from '../../store/selectors';
-import { ChassisType, TaskType, WeaponType } from '../../types/enums';
+import { ChassisType, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { ChassisPicker } from './ChassisPicker';
 import { ProgramPicker } from './ProgramPicker';

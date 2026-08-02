@@ -9,7 +9,7 @@ weapons are added.
 
 Covered here: **radar** and **bomb (kamikaze)** — the two weapons without art yet
 (`cannon`/`missiles` currently use simple drawn markers; add them the same way if
-you want sprite parity). The full weapon list is `src/types/enums.ts` →
+you want sprite parity). The full weapon list is `types/src/enums.ts` →
 `WeaponType`.
 
 ## Module-specific spec (in addition to the [Shared spec](README.md#shared-spec-applies-to-every-prompt--do-not-vary))

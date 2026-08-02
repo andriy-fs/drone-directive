@@ -1,7 +1,14 @@
 import { getBuildPreset } from '../../config/buildPresets';
 import { gameConfig } from '../../config/gameConfig';
-import type { Vec2 } from '../../types/entities';
-import { BuildPresetType, ChassisType, Controller, TaskType, WeaponType, type Owner } from '../../types/enums';
+import type { Vec2 } from '@drone-directive/types/entities';
+import {
+  BuildPresetType,
+  ChassisType,
+  Controller,
+  TaskType,
+  WeaponType,
+  type Owner,
+} from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
 import type { Rng } from '../../utils/rng';
 import type { Entity } from '../ecs/entity';
