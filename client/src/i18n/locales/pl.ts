@@ -174,6 +174,8 @@ export const pl: Dict = {
     title: 'Online dla dwóch graczy',
     connecting: 'Łączenie…',
     shareCode: 'Wyślij ten kod pokoju przeciwnikowi:',
+    copyCode: 'Kopiuj kod pokoju',
+    codeCopied: 'Skopiowano!',
     waitingOpponent: 'Oczekiwanie na przeciwnika…',
     matchEnded: 'Mecz zakończony.',
     hostGame: 'Utwórz grę',

@@ -174,6 +174,8 @@ export const uk: Dict = {
     title: 'Онлайн на двох',
     connecting: 'Підключення…',
     shareCode: 'Надішліть цей код кімнати суперникові:',
+    copyCode: 'Скопіювати код кімнати',
+    codeCopied: 'Скопійовано!',
     waitingOpponent: 'Очікування суперника…',
     matchEnded: 'Матч завершено.',
     hostGame: 'Створити гру',

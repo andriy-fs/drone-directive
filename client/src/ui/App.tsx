@@ -135,7 +135,10 @@ function App() {
           </div>
         )}
       </main>
-      <MainMenu />
+      {/* Mounted only on the title screen, so its dialog state (Base Setup, the
+          online lobby, …) starts fresh every time — rendering it always and
+          returning null inside would keep that state alive across a whole match. */}
+      {!inMatch && <MainMenu />}
       <GameOverModal />
     </div>
   );

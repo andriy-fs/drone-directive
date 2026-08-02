@@ -173,6 +173,8 @@ export interface Dict {
     title: string;
     connecting: string;
     shareCode: string;
+    copyCode: string;
+    codeCopied: string;
     waitingOpponent: string;
     matchEnded: string;
     hostGame: string;
@@ -365,6 +367,8 @@ export const en: Dict = {
     title: 'Online 2-player',
     connecting: 'Connecting…',
     shareCode: 'Share this room code with your opponent:',
+    copyCode: 'Copy room code',
+    codeCopied: 'Copied!',
     waitingOpponent: 'Waiting for an opponent to join…',
     matchEnded: 'The match ended.',
     hostGame: 'Host a game',

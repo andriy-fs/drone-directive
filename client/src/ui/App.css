@@ -496,6 +496,26 @@
   min-width: 140px;
 }
 
+/* Hosted room code + its copy button, centred as one unit. The button is padded
+   off the code so the wide letter-spacing doesn't crowd it. */
+.room-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.room-code__value {
+  letter-spacing: 0.25em;
+  /* The letter-spacing adds a trailing gap after the last glyph; pull it back so
+     the code still reads as centred next to the button. */
+  margin-inline-start: 0.25em;
+}
+
+.room-code__copy {
+  padding: 8px;
+}
+
 .controls-list {
   display: flex;
   flex-direction: column;
