@@ -1,7 +1,7 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { getBuildPreset } from '../../config/buildPresets';
 import type { BuildOrder, Vec2 } from '@drone-directive/types/entities';
-import { Owner } from '@drone-directive/types/enums';
+import { Owner, TaskType } from '@drone-directive/types/enums';
 import { clamp } from '../../utils/math';
 import type { Rng } from '../../utils/rng';
 import { spawnRobot } from '../ecs/factory';
@@ -9,6 +9,7 @@ import type { Entity } from '../ecs/entity';
 import { buildCost, canAfford, spend } from '../economy';
 import type { GameContext } from '../game/context';
 import { isTaskBlockedForWeapon, scriptForTask } from '../tasks/taskDefinitions';
+import { setGoal } from './movement';
 
 /** Robots a side already has committed: living units + everything still queued. */
 export function sideRobotLoad(ctx: GameContext, owner: Owner): number {
@@ -29,8 +30,9 @@ export function atRobotCap(ctx: GameContext, owner: Owner): boolean {
  * queue empties: `autoBuild` repeats a single fixed order (player's chosen
  * model), else `autoBuildPreset` cycles a named series (AI only). A produced
  * robot's program is its order's own `task` when set, else the base's
- * `production.defaultTask` (see `BuildOrder`). Fully owner-agnostic: the only
- * limits on a refill are affordability and the per-side robot cap.
+ * `production.defaultTask` (see `BuildOrder`). A `production.rally` point sends
+ * the Idle and Guard units it produces to gather there. Fully owner-agnostic:
+ * the only limits on a refill are affordability and the per-side robot cap.
  */
 export function productionSystem(ctx: GameContext, dt: number): void {
   for (const base of ctx.world.with('base', 'position', 'production')) {
@@ -65,7 +67,22 @@ export function productionSystem(ctx: GameContext, dt: number): void {
       const task = order.task !== undefined ? order.task : prod.defaultTask;
       // A radar has no weapon — an attack-oriented task/default is refused, so it
       // spawns on the factory default (Idle) instead of marching off pointlessly.
-      if (task && !isTaskBlockedForWeapon(order.weapon, task)) robot.script = scriptForTask(robot.position!, task);
+      if (task && !isTaskBlockedForWeapon(order.weapon, task)) {
+        // A rally point *is* the guard's post: it patrols the flag rather than
+        // the factory door, and walks there on its own to take up station.
+        const post = prod.rally && task === TaskType.Guard ? prod.rally : robot.position!;
+        robot.script = scriptForTask(post, task);
+      }
+      // Idle has no objective of its own, so it needs an explicit walk order —
+      // its `idle` action leaves the goal untouched, the same mechanism that
+      // makes a right-click move stick. Guard is already covered by its post
+      // above; every other program overwrites the goal on this very tick
+      // (taskSystem runs after productionSystem), so a rally point is moot.
+      // Keyed on the *resolved* program: a radar refused an attack task falls
+      // back to Idle and should rally like any other Idle unit.
+      if (prod.rally && robot.script?.programId === TaskType.Idle) {
+        setGoal(ctx, robot, prod.rally.x, prod.rally.y);
+      }
       ctx.bus.emit('entitySpawned', {
         id: robot.id,
         kind: 'robot',

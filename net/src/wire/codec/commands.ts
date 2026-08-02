@@ -53,6 +53,12 @@ export function commandToWire(command: Command): wire.Command {
       return { tag: 'MoveRobots', robotIds: command.robotIds, point: { x: command.point.x, y: command.point.y } };
     case 'AttackTarget':
       return { tag: 'AttackTarget', robotIds: command.robotIds, targetId: command.targetId };
+    case 'SetRallyPoint':
+      return {
+        tag: 'SetRallyPoint',
+        baseId: command.baseId,
+        point: command.point === null ? null : { x: command.point.x, y: command.point.y },
+      };
   }
 }
 
@@ -73,5 +79,12 @@ export function commandFromWire(command: wire.Command): Command {
       return { kind: 'MoveRobots', robotIds: [...command.robotIds], point: { ...command.point } };
     case 'AttackTarget':
       return { kind: 'AttackTarget', robotIds: [...command.robotIds], targetId: command.targetId };
+    case 'SetRallyPoint':
+      // The generated point is readonly; the engine keeps its own, so copy.
+      return {
+        kind: 'SetRallyPoint',
+        baseId: command.baseId,
+        point: command.point === null ? null : { ...command.point },
+      };
   }
 }

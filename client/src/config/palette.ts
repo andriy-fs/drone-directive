@@ -35,6 +35,13 @@ export const palette = {
     /** Kamikaze blast-radius ring, shown on every bomb-armed robot, both sides. */
     zone: 0xef4444,
   },
+  /** Selection + orders the local player has given (robots, base, rally point). */
+  selection: {
+    /** Outline around a selected robot or base. */
+    ring: 0xfde047,
+    /** The selected base's rally flag and its leader line. */
+    rally: 0xfde047,
+  },
   fog: {
     /** Overlay colour for both fog states (unexplored + remembered). */
     color: 0x0d1117,

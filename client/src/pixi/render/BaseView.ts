@@ -10,13 +10,15 @@ import { ownerColor, teamTint } from './ownerColor';
 
 /**
  * View for a base entity: its faction sprite (or an owner-tinted square + cross
- * placeholder if no art is loaded) and an HP bar above it, positioned at the
- * base's world-space centre. Double-clicking your own base opens the build &
- * program dialog (same one as the HUD button).
+ * placeholder if no art is loaded), an HP bar above it and a selection outline,
+ * positioned at the base's world-space centre. Double-clicking your own base
+ * opens the build & program dialog (same one as the HUD button); selecting it
+ * is handled by the stage handler in `input/pointer.ts`, not here.
  */
 export class BaseView {
   readonly container: Container;
   private readonly healthBar: HealthBar;
+  private readonly ring: Graphics;
   private lastClickAt = 0;
 
   constructor(base: Entity) {
@@ -25,6 +27,14 @@ export class BaseView {
 
     const size = (base.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx;
     const half = size / 2;
+
+    // Selection outline, under the body — same colour as a robot's ring.
+    this.ring = new Graphics();
+    this.ring
+      .rect(-half - 3, -half - 3, size + 6, size + 6)
+      .stroke({ width: 2, color: palette.selection.ring });
+    this.ring.visible = false;
+    this.container.addChild(this.ring);
 
     const sprite = base.owner ? getBaseTexture(base.owner) : null;
     if (sprite) {
@@ -71,11 +81,12 @@ export class BaseView {
       });
     }
 
-    this.update(base, true);
+    this.update(base, true, false);
   }
 
-  update(base: Entity, visible: boolean): void {
+  update(base: Entity, visible: boolean, selected: boolean): void {
     this.container.visible = visible;
+    this.ring.visible = selected;
     this.healthBar.set((base.hp ?? 0) / (base.maxHp ?? 1));
   }
 

@@ -27,6 +27,7 @@ import { createGround } from './Grid';
 import { createLayers, type Layers } from './layers';
 import { attachPointerControls } from './input/pointer';
 import { FogView } from './render/FogView';
+import { RallyView, type RallyMarker } from './render/RallyView';
 import { createObstaclesGraphic } from './render/ObstaclesView';
 import { WorldRenderer } from './render/WorldRenderer';
 
@@ -42,6 +43,7 @@ export class GameApp {
   private engine!: GameEngine;
   private worldRenderer!: WorldRenderer;
   private fogView: FogView | null = null;
+  private rallyView: RallyView | null = null;
   private obstacleGfx: Container | null = null;
   private loop!: GameLoop;
   private detachPointer: (() => void) | null = null;
@@ -88,6 +90,10 @@ export class GameApp {
     // full-viewport tiling every rAF while the player read the menu.
     this.fogView = new FogView();
     this.layers.fog.addChild(this.fogView.container);
+    // Above the fog: a rally point is the player's own order, not something the
+    // map has to reveal. No per-match state, so it is never rebuilt.
+    this.rallyView = new RallyView();
+    this.layers.overlay.addChild(this.rallyView.container);
     this.camera = new Camera(this.layers.root);
     this.app.stage.addChild(this.camera.view);
     this.camera.setViewport(this.app.screen.width, this.app.screen.height);
@@ -158,14 +164,34 @@ export class GameApp {
     if (parked) this.app.render();
   }
 
-  /** Render pass: move the camera, sync views, redraw fog. */
+  /** Render pass: move the camera, sync views, redraw fog and rally flags. */
   private render(): void {
     this.updateCamera();
-    this.worldRenderer.sync(new Set(useGameStore.getState().selectedRobotIds), (e) => this.isVisibleToLocalSide(e));
+    const { selectedRobotIds, selectedBaseId } = useGameStore.getState();
+    const selected = new Set(selectedRobotIds);
+    if (selectedBaseId) selected.add(selectedBaseId);
+    this.worldRenderer.sync(selected, (e) => this.isVisibleToLocalSide(e));
     this.fogView?.update(this.engine.context?.fog);
+    this.rallyView?.update(this.localRallyMarkers());
     // One check covers every way into the menu — first load, Esc, game over, a
     // peer disconnecting — so no transition has to remember to park the loop.
     if (this.idle) this.sleep();
+  }
+
+  /**
+   * Rally flags to draw — the local side's only. Both peers hold every base's
+   * `production.rally`, so this filter is what keeps the opponent's gathering
+   * point off this client's screen.
+   */
+  private localRallyMarkers(): RallyMarker[] {
+    const markers: RallyMarker[] = [];
+    for (const base of this.engine.world.with('base', 'position', 'production')) {
+      const rally = base.production!.rally;
+      if (rally && base.owner === this.localSide && (base.hp ?? 0) > 0) {
+        markers.push({ base: base.position!, rally });
+      }
+    }
+    return markers;
   }
 
   /**
@@ -202,6 +228,13 @@ export class GameApp {
       }),
     );
     this.busUnsubs.push(bus.on('entityDestroyed', () => sfx.explosion()));
+    // A stale base selection would keep aiming rally orders at a corpse instead
+    // of falling back to moving robots.
+    this.busUnsubs.push(
+      bus.on('entityDestroyed', ({ id }) => {
+        if (store().selectedBaseId === id) store().selectBase(null);
+      }),
+    );
     this.busUnsubs.push(bus.on('entitySpawned', () => this.pushSnapshot()));
     this.busUnsubs.push(bus.on('entityDestroyed', () => this.pushSnapshot()));
     this.busUnsubs.push(
@@ -537,6 +570,8 @@ export class GameApp {
     this.worldRenderer?.destroy();
     this.fogView?.destroy();
     this.fogView = null;
+    this.rallyView?.destroy();
+    this.rallyView = null;
     for (const unsub of this.busUnsubs) unsub();
     this.storeUnsub?.();
     this.storeUnsub = null;
@@ -588,6 +623,7 @@ function toBaseSnapshot(e: Entity): BaseSnapshot {
     buildProgress: e.production?.progress ?? 0,
     autoBuild: e.production?.autoBuild ?? null,
     defaultTask: e.production?.defaultTask ?? null,
+    rally: e.production?.rally ?? null,
   };
 }
 

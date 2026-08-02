@@ -15,4 +15,10 @@ export type Command =
   /** Move the given robots to `point` in a compact formation (right-click move). */
   | { kind: 'MoveRobots'; robotIds: string[]; point: Vec2 }
   /** Order the given robots to focus-fire a specific target — robot or base (right-click attack). */
-  | { kind: 'AttackTarget'; robotIds: string[]; targetId: string };
+  | { kind: 'AttackTarget'; robotIds: string[]; targetId: string }
+  /**
+   * Where a base's newly produced robots gather, or null = no rally point. Only
+   * Idle and Guard units obey it: every other program's own priority takes over
+   * on the tick they roll out, so a rally point would never survive it.
+   */
+  | { kind: 'SetRallyPoint'; baseId: string; point: Vec2 | null };

@@ -77,7 +77,7 @@ export class RobotView {
     if (weaponSprite) this.body.addChild(weaponModule(weaponSprite, tint));
 
     this.ring = new Graphics();
-    this.ring.circle(0, 0, outerRadius + 5).stroke({ width: 2, color: 0xfde047 });
+    this.ring.circle(0, 0, outerRadius + 5).stroke({ width: 2, color: palette.selection.ring });
     this.ring.visible = false;
 
     // Detection highlight: rings when this (enemy) robot is currently spotted.

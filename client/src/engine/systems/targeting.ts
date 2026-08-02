@@ -1,8 +1,21 @@
 import type { Vec2 } from '@drone-directive/types/entities';
 import { Owner } from '@drone-directive/types/enums';
+import { gameConfig } from '../../config/gameConfig';
 import { distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
+
+/**
+ * Whether `p` falls inside a base's footprint — the base hit-test, shared by
+ * jam detection, right-click targeting and base selection so the three cannot
+ * drift apart. Bases are square and axis-aligned, hence the AABB.
+ */
+export function baseFootprintContains(base: Entity, p: Vec2): boolean {
+  const pos = base.position;
+  if (!pos) return false;
+  const half = ((base.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx) / 2;
+  return Math.abs(p.x - pos.x) <= half && Math.abs(p.y - pos.y) <= half;
+}
 
 /** Two owners are enemies if they differ and neither party is neutral. */
 export function isEnemy(a: Owner | undefined, b: Owner | undefined): boolean {

@@ -19,6 +19,9 @@ export const pl: Dict = {
     esc: 'Pauza',
     dblClick: 'Na robocie — zaznacz wszystkie z tą samą bronią',
     dblClickBase: 'Na swojej bazie — otwórz „Budowa i dyrektywa”',
+    selectBase: 'Zaznacz swoją bazę',
+    setRally: 'Przy zaznaczonej bazie — ustaw punkt zbiórki',
+    clearRally: 'Na zaznaczonej bazie — usuń punkt zbiórki',
     groupAssign: 'Zapisz obecne zaznaczenie jako grupę',
     groupSelect: 'Wybierz zapisaną grupę',
     droneHeading: 'Dron obserwacyjny',
@@ -115,6 +118,12 @@ export const pl: Dict = {
     robotsSelected: 'robotów zaznaczonych',
     weapon: 'Broń',
     health: 'Zdrowie',
+    baseSelected: 'Baza',
+    baseProgram: 'Nowe jednostki',
+    rallyPoint: 'Punkt zbiórki',
+    rallyNone: 'nie ustawiony',
+    rallyHint:
+      'PPM na mapie — ustaw, gdzie zbierają się nowe jednostki z dyrektywami „Bezczynny” i „Obrona”; PPM na bazie — usuń punkt.',
   },
   programs: {
     idle: 'Bezczynny',

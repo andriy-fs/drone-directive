@@ -20,6 +20,9 @@ function commandControls(t: T): { keys: string[]; action: string }[] {
     { keys: ['Esc'], action: t('mainMenu', 'esc') },
     { keys: ['Double-click'], action: t('mainMenu', 'dblClick') },
     { keys: ['Double-click'], action: t('mainMenu', 'dblClickBase') },
+    { keys: ['Click'], action: t('mainMenu', 'selectBase') },
+    { keys: ['Right-click'], action: t('mainMenu', 'setRally') },
+    { keys: ['Right-click'], action: t('mainMenu', 'clearRally') },
     { keys: ['Ctrl + 1-9'], action: t('mainMenu', 'groupAssign') },
     { keys: ['1-9'], action: t('mainMenu', 'groupSelect') },
   ];

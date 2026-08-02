@@ -27,6 +27,7 @@ export function isCommandFrom(ctx: GameContext, command: Command, side: Owner): 
       return ownedBySide(command.robotId);
     case 'BuildRobot':
     case 'SetAutoBuild':
+    case 'SetRallyPoint':
       return ownedBySide(command.baseId);
     case 'MoveRobots':
     case 'AttackTarget':
@@ -82,6 +83,19 @@ function applyCommand(ctx: GameContext, command: Command): void {
           robot.targetId = undefined;
         }
       }
+      break;
+    }
+    case 'SetRallyPoint': {
+      const base = findById(ctx, command.baseId);
+      if (!base?.production) break;
+      // Clamped here rather than trusted: only the online path runs commands
+      // through the wire validator, so solo play has no bound on the point.
+      base.production.rally = command.point
+        ? {
+            x: clamp(command.point.x, 0, worldPixelSize.width),
+            y: clamp(command.point.y, 0, worldPixelSize.height),
+          }
+        : null;
       break;
     }
   }

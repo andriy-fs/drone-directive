@@ -92,6 +92,11 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
       robotIds: robotIdsSchema,
       targetId: idSchema,
     }),
+    SetRallyPoint: v.object({
+      kind: v.literal('SetRallyPoint'),
+      baseId: idSchema,
+      point: v.nullable(worldPointSchema),
+    }),
   } satisfies Record<Command['kind'], v.GenericSchema>;
 
   // The annotation is the other half of the guarantee: the parsed result must be
@@ -103,6 +108,7 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
     commandSchemas.SetAutoBuild,
     commandSchemas.MoveRobots,
     commandSchemas.AttackTarget,
+    commandSchemas.SetRallyPoint,
   ]);
 }
 

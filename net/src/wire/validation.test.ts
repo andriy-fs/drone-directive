@@ -31,6 +31,7 @@ const valid: Record<Command['kind'], Command> = {
   SetAutoBuild: { kind: 'SetAutoBuild', baseId: 'base_1', order: null },
   MoveRobots: { kind: 'MoveRobots', robotIds: ['robot_1', 'robot_2'], point: inBounds },
   AttackTarget: { kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_2' },
+  SetRallyPoint: { kind: 'SetRallyPoint', baseId: 'base_1', point: inBounds },
 };
 
 const parse = (raw: unknown, over: Partial<CommandLimits> = {}) => parseCommands(raw, 'peer', { ...limits, ...over });
@@ -115,6 +116,19 @@ describe('parseCommands', () => {
       point: { x: limits.worldWidth, y: limits.worldHeight },
     };
     expect(parse([corner])).toHaveLength(1);
+  });
+
+  it('holds a rally point to the same map bounds, and lets null through as "clear"', () => {
+    const clear = { kind: 'SetRallyPoint', baseId: 'base_1', point: null };
+    expect(parse([clear])).toEqual([clear]);
+
+    const offMap = [
+      { kind: 'SetRallyPoint', baseId: 'base_1', point: { x: limits.worldWidth + 1, y: 0 } },
+      { kind: 'SetRallyPoint', baseId: 'base_1', point: { x: 0, y: -1 } },
+      { kind: 'SetRallyPoint', baseId: 'base_1', point: { x: NaN, y: 0 } },
+      { kind: 'SetRallyPoint', baseId: '', point: inBounds },
+    ];
+    expect(parse(offMap)).toEqual([]);
   });
 
   it('validates against the limits it is handed, not a captured copy', () => {

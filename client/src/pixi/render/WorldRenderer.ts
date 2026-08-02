@@ -53,10 +53,13 @@ export class WorldRenderer {
    * Per-frame transform/HP/selection update. `isVisible` gates robot/base/drone
    * views for fog of war — an enemy view stays created (so it snaps back
    * instantly once known again) but is hidden while not detected.
+   *
+   * `selectedIds` mixes robots and the selected base: ids are namespaced by kind
+   * (`base_1` vs `robot_1`), so one set can carry both without colliding.
    */
   sync(selectedIds: Set<string>, isVisible: (e: Entity) => boolean): void {
     for (const e of this.robots) this.robotViews.get(e.id)?.update(e, selectedIds.has(e.id), isVisible(e));
-    for (const e of this.bases) this.baseViews.get(e.id)?.update(e, isVisible(e));
+    for (const e of this.bases) this.baseViews.get(e.id)?.update(e, isVisible(e), selectedIds.has(e.id));
     for (const e of this.projectiles) this.projectileViews.get(e.id)?.update(e);
     for (const e of this.explosions) this.explosionViews.get(e.id)?.update(e);
     for (const e of this.drones) this.droneViews.get(e.id)?.update(e, isVisible(e));

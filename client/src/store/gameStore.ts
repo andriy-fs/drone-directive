@@ -42,6 +42,8 @@ export interface BaseSnapshot {
   autoBuild: BuildOrder | null;
   /** Default program produced robots take when their build order doesn't set one. */
   defaultTask: TaskType | null;
+  /** Where newly produced Idle/Guard robots gather, or null = no rally point. */
+  rally: Vec2 | null;
 }
 
 /**
@@ -88,6 +90,11 @@ export interface GameState {
   resources: ResourcePool;
   /** UI selection (entity ids); the renderer highlights these. */
   selectedRobotIds: string[];
+  /**
+   * The selected base, or null. Mutually exclusive with `selectedRobotIds`:
+   * with a base selected, right-click sets its rally point instead of moving.
+   */
+  selectedBaseId: string | null;
   /** Command queue: UI enqueues, the bridge forwards to the engine each tick. */
   commands: Command[];
   /** One-shot control flags the bridge observes (→ engine.startMatch / toMenu). */
@@ -120,6 +127,8 @@ export interface GameState {
   setResources: (resources: ResourcePool) => void;
   selectRobots: (ids: string[]) => void;
   toggleRobot: (id: string) => void;
+  /** Select the local side's base (or null to drop it); clears any robot selection. */
+  selectBase: (id: string | null) => void;
   clearSelection: () => void;
   enqueueCommand: (command: Command) => void;
   drainCommands: () => Command[];
@@ -161,6 +170,7 @@ const initialState = {
     Object.values(Owner).map((owner) => [owner, gameConfig.economy.startingResources]),
   ) as ResourcePool,
   selectedRobotIds: [] as string[],
+  selectedBaseId: null as string | null,
   commands: [] as Command[],
   restartRequested: false,
   menuRequested: false,
@@ -190,14 +200,19 @@ export const useGameStore = create<GameState>((set, get) => ({
   setRobots: (robots) => set({ robots }),
   setSides: (sides) => set({ sides }),
   setResources: (resources) => set({ resources }),
-  selectRobots: (ids) => set({ selectedRobotIds: ids }),
+  // Robots and a base are mutually exclusive selections, and that is enforced
+  // here rather than at the call sites: marquee, robot click, select-all and
+  // control groups all write selection, and every one of them gets it for free.
+  selectRobots: (ids) => set({ selectedRobotIds: ids, selectedBaseId: null }),
   toggleRobot: (id) =>
     set((s) => ({
       selectedRobotIds: s.selectedRobotIds.includes(id)
         ? s.selectedRobotIds.filter((x) => x !== id)
         : [...s.selectedRobotIds, id],
+      selectedBaseId: null,
     })),
-  clearSelection: () => set({ selectedRobotIds: [] }),
+  selectBase: (id) => set({ selectedBaseId: id, selectedRobotIds: [] }),
+  clearSelection: () => set({ selectedRobotIds: [], selectedBaseId: null }),
   enqueueCommand: (command) => set((s) => ({ commands: [...s.commands, command] })),
   drainCommands: () => {
     const { commands } = get();

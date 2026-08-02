@@ -19,7 +19,15 @@ export function spawnBase(world: EcsWorld, owner: Owner, tx: number, ty: number)
     maxHp: gameConfig.bases.maxHp,
     footprint: size,
     sightRange: gameConfig.bases.sightRange,
-    production: { queue: [], progress: 0, autoBuild: null, autoBuildPreset: null, autoBuildStep: 0, defaultTask: null },
+    production: {
+      queue: [],
+      progress: 0,
+      autoBuild: null,
+      autoBuildPreset: null,
+      autoBuildStep: 0,
+      defaultTask: null,
+      rally: null,
+    },
   });
 }
 

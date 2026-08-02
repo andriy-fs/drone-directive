@@ -51,6 +51,11 @@ export interface Production {
   /** Index into the preset's sequence for the next auto-build refill (wraps around). */
   autoBuildStep: number;
   defaultTask: TaskType | null;
+  /**
+   * Gathering point for newly produced robots, or null = straight out the door.
+   * Only Idle and Guard units obey it — see `productionSystem`.
+   */
+  rally: Vec2 | null;
 }
 
 /** Transient effect component (explosions). */

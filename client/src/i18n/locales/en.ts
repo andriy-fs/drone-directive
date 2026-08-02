@@ -18,6 +18,9 @@ export interface Dict {
     esc: string;
     dblClick: string;
     dblClickBase: string;
+    selectBase: string;
+    setRally: string;
+    clearRally: string;
     groupAssign: string;
     groupSelect: string;
     droneHeading: string;
@@ -116,6 +119,11 @@ export interface Dict {
     robotsSelected: string;
     weapon: string;
     health: string;
+    baseSelected: string;
+    baseProgram: string;
+    rallyPoint: string;
+    rallyNone: string;
+    rallyHint: string;
   };
   programs: {
     idle: string;
@@ -203,6 +211,9 @@ export const en: Dict = {
     esc: 'Pause game',
     dblClick: 'On a robot — select all with this weapon',
     dblClickBase: 'On your base — open Build & Program',
+    selectBase: 'Select your base',
+    setRally: 'With your base selected — set the rally point',
+    clearRally: 'On your selected base — clear the rally point',
     groupAssign: 'Save the current selection as a group',
     groupSelect: 'Select a saved group',
     droneHeading: 'Observer drone',
@@ -299,6 +310,11 @@ export const en: Dict = {
     robotsSelected: 'robots selected',
     weapon: 'Weapon',
     health: 'Health',
+    baseSelected: 'Base',
+    baseProgram: 'New units',
+    rallyPoint: 'Rally point',
+    rallyNone: 'Not set',
+    rallyHint: 'Right-click the map to set where new Idle and Guard units gather; right-click the base to clear it.',
   },
   programs: {
     idle: 'Idle',

@@ -430,12 +430,46 @@ export function writeAttackTarget(bc: bare.ByteCursor, x: AttackTarget): void {
     bare.writeString(bc, x.targetId)
 }
 
+function read2(bc: bare.ByteCursor): Vec2 | null {
+    return bare.readBool(bc) ? readVec2(bc) : null
+}
+
+function write2(bc: bare.ByteCursor, x: Vec2 | null): void {
+    bare.writeBool(bc, x != null)
+    if (x != null) {
+        writeVec2(bc, x)
+    }
+}
+
+/**
+ * A base's gathering point for the robots it produces; absent = none.
+ */
+export type SetRallyPoint = {
+    readonly tag: "SetRallyPoint"
+    readonly baseId: string
+    readonly point: Vec2 | null
+}
+
+export function readSetRallyPoint(bc: bare.ByteCursor): SetRallyPoint {
+    return {
+        tag: "SetRallyPoint",
+        baseId: bare.readString(bc),
+        point: read2(bc),
+    }
+}
+
+export function writeSetRallyPoint(bc: bare.ByteCursor, x: SetRallyPoint): void {
+    bare.writeString(bc, x.baseId)
+    write2(bc, x.point)
+}
+
 export type Command =
     | AssignTask
     | BuildRobot
     | SetAutoBuild
     | MoveRobots
     | AttackTarget
+    | SetRallyPoint
 
 export function readCommand(bc: bare.ByteCursor): Command {
     const offset = bc.offset
@@ -451,6 +485,8 @@ export function readCommand(bc: bare.ByteCursor): Command {
             return readMoveRobots(bc)
         case 4:
             return readAttackTarget(bc)
+        case 5:
+            return readSetRallyPoint(bc)
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -483,6 +519,11 @@ export function writeCommand(bc: bare.ByteCursor, x: Command): void {
         case "AttackTarget": {
             bare.writeU8(bc, 4)
             writeAttackTarget(bc, x)
+            break
+        }
+        case "SetRallyPoint": {
+            bare.writeU8(bc, 5)
+            writeSetRallyPoint(bc, x)
             break
         }
     }
@@ -534,7 +575,7 @@ export function writeWorldCheck(bc: bare.ByteCursor, x: WorldCheck): void {
     bare.writeU32(bc, x.hash)
 }
 
-function read2(bc: bare.ByteCursor): readonly Command[] {
+function read3(bc: bare.ByteCursor): readonly Command[] {
     const len = bare.readUintSafe(bc)
     if (len === 0) {
         return []
@@ -546,18 +587,18 @@ function read2(bc: bare.ByteCursor): readonly Command[] {
     return result
 }
 
-function write2(bc: bare.ByteCursor, x: readonly Command[]): void {
+function write3(bc: bare.ByteCursor, x: readonly Command[]): void {
     bare.writeUintSafe(bc, x.length)
     for (let i = 0; i < x.length; i++) {
         writeCommand(bc, x[i])
     }
 }
 
-function read3(bc: bare.ByteCursor): WorldCheck | null {
+function read4(bc: bare.ByteCursor): WorldCheck | null {
     return bare.readBool(bc) ? readWorldCheck(bc) : null
 }
 
-function write3(bc: bare.ByteCursor, x: WorldCheck | null): void {
+function write4(bc: bare.ByteCursor, x: WorldCheck | null): void {
     bare.writeBool(bc, x != null)
     if (x != null) {
         writeWorldCheck(bc, x)
@@ -579,17 +620,17 @@ export type TickMessage = {
 export function readTickMessage(bc: bare.ByteCursor): TickMessage {
     return {
         tick: bare.readU32(bc),
-        commands: read2(bc),
+        commands: read3(bc),
         drone: readDroneControl(bc),
-        check: read3(bc),
+        check: read4(bc),
     }
 }
 
 export function writeTickMessage(bc: bare.ByteCursor, x: TickMessage): void {
     bare.writeU32(bc, x.tick)
-    write2(bc, x.commands)
+    write3(bc, x.commands)
     writeDroneControl(bc, x.drone)
-    write3(bc, x.check)
+    write4(bc, x.check)
 }
 
 export function encodeTickMessage(x: TickMessage, config?: Partial<bare.Config>): Uint8Array {

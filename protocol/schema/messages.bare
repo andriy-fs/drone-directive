@@ -100,12 +100,19 @@ type AttackTarget struct {
     targetId: str
 }
 
+# A base's gathering point for the robots it produces; absent = none.
+type SetRallyPoint struct {
+    baseId: str
+    point: optional<Vec2>
+}
+
 type Command union {
     AssignTask |
     BuildRobot |
     SetAutoBuild |
     MoveRobots |
-    AttackTarget
+    AttackTarget |
+    SetRallyPoint
 }
 
 # ---------------------------------------------------------------------------

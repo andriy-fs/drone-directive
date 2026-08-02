@@ -29,7 +29,9 @@ ProjectileView.ts`'s flame flicker and `client/src/pixi/audio/sfx.ts`'s noise
   applies once per tick; that queue is exactly the seam the network layer
   intercepts. (Right-click move/attack originally mutated entities directly — they
   were converted to `MoveRobots` / `AttackTarget` commands so every order is
-  networked and deterministic.)
+  networked and deterministic. A base's rally point goes the same way, as
+  `SetRallyPoint` — it is base state that changes what production does, so it has
+  to be applied on the same tick by both peers, not held locally in the HUD.)
 
 Two things were _not_ deterministic and had to be fixed — RNG seeding from
 `Date.now()` and a process-global entity-id counter; see [Determinism
