@@ -45,6 +45,7 @@ export class GameApp {
   private obstacleGfx: Container | null = null;
   private loop!: GameLoop;
   private detachPointer: (() => void) | null = null;
+  private storeUnsub: (() => void) | null = null;
   private readonly busUnsubs: (() => void)[] = [];
   private destroyed = false;
   private snapshotTick = 0;
@@ -81,7 +82,9 @@ export class GameApp {
     await loadGameAssets();
 
     this.layers = createLayers();
-    this.layers.ground.addChild(createGround());
+    // No ground until a match exists — it is sized off that match's grid, and
+    // drawing it under the title screen is what used to burn a frame's worth of
+    // full-viewport tiling every rAF while the player read the menu.
     this.fogView = new FogView();
     this.layers.fog.addChild(this.fogView.container);
     this.camera = new Camera(this.layers.root);
@@ -95,6 +98,13 @@ export class GameApp {
     this.detachPointer = attachPointerControls(this.app, this.camera, this.engine);
     this.app.renderer.on('resize', this.onResize);
 
+    // Everything `step()` has to consume while no match is running arrives as a
+    // store flag, so the parked loop can be woken from here instead of polled.
+    this.storeUnsub = useGameStore.subscribe((s, prev) => {
+      if (s.restartRequested !== prev.restartRequested || s.menuRequested !== prev.menuRequested) this.wake();
+      else if (s.pendingOnline !== prev.pendingOnline) this.wake();
+    });
+
     this.loop = new GameLoop(
       (dt) => this.step(dt),
       () => this.render(),
@@ -102,11 +112,39 @@ export class GameApp {
     this.loop.start(this.app.ticker);
   }
 
+  /** Menu/lobby: no match to simulate, and nothing queued that would start one. */
+  private get idle(): boolean {
+    return this.engine.context === null && this.pendingOnlineStart === null;
+  }
+
+  /**
+   * Park the render/simulation loop after one last frame. The title screen has no
+   * world to draw and nothing to advance, so an idle tab should cost nothing —
+   * `wake()` brings it back the moment something needs a tick.
+   */
+  private sleep(): void {
+    if (!this.app.ticker.started) return;
+    this.app.stop();
+    this.app.render();
+  }
+
+  private wake(): void {
+    if (this.destroyed || this.app.ticker.started) return;
+    this.app.start();
+  }
+
   /** Render pass: move the camera, sync views, redraw fog. */
   private render(): void {
+    const store = useGameStore.getState();
     this.updateCamera();
-    this.worldRenderer.sync(new Set(useGameStore.getState().selectedRobotIds), (e) => this.isVisibleToLocalSide(e));
+    this.worldRenderer.sync(new Set(store.selectedRobotIds), (e) => this.isVisibleToLocalSide(e));
     this.fogView?.update(this.engine.context?.fog);
+    // One check covers every way into the menu — first load, Esc, game over, a
+    // peer disconnecting — so no transition has to remember to park the loop.
+    // When a restart/menu request is pending, keep the ticker alive long enough
+    // for the next fixed step to process it; otherwise the first render frame can
+    // go straight back to sleep() before any update() ever accumulates.
+    if (this.idle && !store.restartRequested && !store.menuRequested) this.sleep();
   }
 
   /**
@@ -152,6 +190,12 @@ export class GameApp {
         if (scene === 'menu') {
           store().setStatus('menu');
           this.clearObstacles();
+          this.clearGround();
+          // Flush the emptied world to the canvas here rather than waiting for the
+          // next tick: this can arrive from a socket callback (peer left, error)
+          // while the loop is already parked, and the last frame of the finished
+          // match would otherwise stay frozen on screen.
+          this.render();
         } else {
           store().setStatus('playing');
           // Map size can change between matches — rebuild everything sized off
@@ -349,6 +393,7 @@ export class GameApp {
         onCreated: (roomCode) => useGameStore.getState().setOnline({ status: 'hosting', roomCode }),
         onStart: (seed, mapSize, aiCount) => {
           this.pendingOnlineStart = { seed, mapSize, aiCount };
+          this.wake(); // arrives over the socket, with the loop parked on the lobby
         },
         onOpponentLeft: () => this.endOnline('Opponent left the match'),
         onError: (_code, message) => this.endOnline(message, true),
@@ -433,8 +478,13 @@ export class GameApp {
 
   /** The ground surface is sized off `worldPixelSize`/`gameConfig.grid` — rebuild per match. */
   private rebuildGround(): void {
-    for (const child of this.layers.ground.removeChildren()) child.destroy({ children: true });
+    this.clearGround();
     this.layers.ground.addChild(createGround());
+  }
+
+  /** Drop the ground surface (and anything else on its layer) — no match, nothing to stand on. */
+  private clearGround(): void {
+    for (const child of this.layers.ground.removeChildren()) child.destroy({ children: true });
   }
 
   /** Fresh fog mask sized for the current match's grid, with its redraw cache reset. */
@@ -467,6 +517,8 @@ export class GameApp {
     this.fogView?.destroy();
     this.fogView = null;
     for (const unsub of this.busUnsubs) unsub();
+    this.storeUnsub?.();
+    this.storeUnsub = null;
     this.detachPointer?.();
     this.detachPointer = null;
     this.clearObstacles();

@@ -27,6 +27,11 @@ const STATUS_KEYS = {
  * Top-level layout: a fixed HUD sidebar (React) beside the game viewport that
  * hosts the Pixi canvas. The HUD reads store snapshots via narrowed selectors;
  * all gameplay lives in the Pixi/engine layers behind <GameCanvas/>.
+ *
+ * Before a match there is nothing to command, so the sidebar isn't rendered at
+ * all — the title screen is just the splash art plus the menu. `<GameCanvas/>`
+ * stays mounted throughout: unmounting it would tear down the whole GameApp
+ * (with it the online session and the flags that start a match).
  */
 function App() {
   const t = useT();
@@ -46,75 +51,80 @@ function App() {
   // online guest plays Owner.AI but is "player" to itself (same rule as the
   // canvas `ownerColor`), with the local side listed first.
   const sideRows = [...sides].sort((a, b) => Number(b.owner === localSide) - Number(a.owner === localSide));
+  // `won`/`lost` still count as in-match: the world (and the HUD) stay on screen
+  // behind the game-over modal.
+  const inMatch = status !== 'menu';
 
   return (
-    <div className="app-shell">
-      <aside className="hud">
-        <div className="hud__titlebar">
-          <h1 className="hud__title">{t('hud', 'title')}</h1>
-          <div className="hud__controls">
-            <PauseButton />
-            <SoundToggle />
+    <div className={`app-shell ${inMatch ? '' : 'app-shell--menu'}`.trim()}>
+      {inMatch && (
+        <aside className="hud">
+          <div className="hud__titlebar">
+            <h1 className="hud__title">{t('hud', 'title')}</h1>
+            <div className="hud__controls">
+              <PauseButton />
+              <SoundToggle />
+            </div>
           </div>
-        </div>
-        <p className="hud__status">
-          {t('hud', 'statusPrefix')}: {t('hud', STATUS_KEYS[status])} · {t('difficulty', difficulty)}
-        </p>
+          <p className="hud__status">
+            {t('hud', 'statusPrefix')}: {t('hud', STATUS_KEYS[status])} · {t('difficulty', difficulty)}
+          </p>
 
-        <div className="hud__section">
-          <h2 className="hud__heading">{t('hud', 'command')}</h2>
-          <StatusPanel />
-        </div>
-
-        <div className="hud__section">
-          <h2 className="hud__heading">{t('hud', 'bases')}</h2>
-          <ul className="hud__list">
-            {bases.map((base) => (
-              <li key={base.id} className="hud__row">
-                <span className={`dot dot--${sideTone(base.owner, localSide)}`} />
-                <span className="hud__row-label">{sideLabel(base.owner, sides, localSide, t)}</span>
-                {base.queueLength > 0 && (
-                  <span className="hud__build" title={t('statusPanel', 'building')}>
-                    <Settings2Icon size={14} /> {base.queueLength}
-                  </span>
-                )}
-                <span className="hud__row-value">
-                  {base.hp}/{base.maxHp}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="hud__section">
-          <h2 className="hud__heading">{t('hud', 'units')}</h2>
-          <ul className="hud__list">
-            {sideRows.map((side) => (
-              <li key={side.owner} className={`hud__row ${side.alive ? '' : 'hud__row--out'}`.trim()}>
-                <span className={`dot dot--${sideTone(side.owner, localSide)}`} />
-                <span className="hud__row-label">{sideLabel(side.owner, sides, localSide, t)}</span>
-                <span className="hud__row-value">{robots.filter((r) => r.owner === side.owner).length}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="hud__section">
-          <h2 className="hud__heading">{t('hud', 'directive')}</h2>
-          <ProgrammingPanel />
-        </div>
-
-        {status === 'playing' && (
           <div className="hud__section">
-            <h2 className="hud__heading">{t('hud', 'drone')}</h2>
-            <p className="hud__status">
-              {droneStatus.mode === 'possessing' ? t('hud', 'piloting') : t('hud', 'observing')}
-            </p>
+            <h2 className="hud__heading">{t('hud', 'command')}</h2>
+            <StatusPanel />
           </div>
-        )}
 
-        <p className="hud__hint">{t('hud', 'hint')}</p>
-      </aside>
+          <div className="hud__section">
+            <h2 className="hud__heading">{t('hud', 'bases')}</h2>
+            <ul className="hud__list">
+              {bases.map((base) => (
+                <li key={base.id} className="hud__row">
+                  <span className={`dot dot--${sideTone(base.owner, localSide)}`} />
+                  <span className="hud__row-label">{sideLabel(base.owner, sides, localSide, t)}</span>
+                  {base.queueLength > 0 && (
+                    <span className="hud__build" title={t('statusPanel', 'building')}>
+                      <Settings2Icon size={14} /> {base.queueLength}
+                    </span>
+                  )}
+                  <span className="hud__row-value">
+                    {base.hp}/{base.maxHp}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="hud__section">
+            <h2 className="hud__heading">{t('hud', 'units')}</h2>
+            <ul className="hud__list">
+              {sideRows.map((side) => (
+                <li key={side.owner} className={`hud__row ${side.alive ? '' : 'hud__row--out'}`.trim()}>
+                  <span className={`dot dot--${sideTone(side.owner, localSide)}`} />
+                  <span className="hud__row-label">{sideLabel(side.owner, sides, localSide, t)}</span>
+                  <span className="hud__row-value">{robots.filter((r) => r.owner === side.owner).length}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="hud__section">
+            <h2 className="hud__heading">{t('hud', 'directive')}</h2>
+            <ProgrammingPanel />
+          </div>
+
+          {status === 'playing' && (
+            <div className="hud__section">
+              <h2 className="hud__heading">{t('hud', 'drone')}</h2>
+              <p className="hud__status">
+                {droneStatus.mode === 'possessing' ? t('hud', 'piloting') : t('hud', 'observing')}
+              </p>
+            </div>
+          )}
+
+          <p className="hud__hint">{t('hud', 'hint')}</p>
+        </aside>
+      )}
       <main className="viewport">
         <GameCanvas />
         {status === 'playing' && paused && (

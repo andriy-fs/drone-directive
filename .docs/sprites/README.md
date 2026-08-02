@@ -18,6 +18,10 @@ robot chassis or base types are added, so art can be regenerated consistently.
   rolled per cluster from the seeded match rng.
 - **[ground.md](ground.md)** — the walkable ground surface tile (seamless,
   full-field) that replaces the flat dark playfield fill.
+- **[menu-backdrop.md](menu-backdrop.md)** — the title-screen splash art shown
+  behind the main menu before a match starts. **Key art, not a game object:**
+  cinematic three-quarter view, 16:9, opaque — it keeps the palette and faction
+  language below but overrides the top-down/square/transparent rules.
 
 ## What exists today (regenerate against this list)
 
