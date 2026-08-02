@@ -6,6 +6,11 @@
   overflow: hidden;
 }
 
+/* No HUD before a match: the title screen is splash art + menu, nothing else. */
+.app-shell--menu {
+  grid-template-columns: 1fr;
+}
+
 .hud {
   background: var(--panel-bg);
   border-right: 1px solid var(--panel-border);
@@ -79,12 +84,16 @@
   font-size: 34px;
   letter-spacing: 1px;
   color: var(--text-h);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Reserves room for the longest translation (wraps to 3 lines in some languages, 2 in
    others) so the menu doesn't change height when the player switches language. */
 .menu__intro {
   min-height: 60px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .hud__status {
@@ -407,13 +416,21 @@
   z-index: 10;
 }
 
+.dialog-backdrop--splash {
+  background-color: transparent;
+  background-image: var(--splash-image, none);
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
 .dialog-frame {
   position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
+  z-index: 11;
 }
 
 .modal {
@@ -430,6 +447,13 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.menu {
+  background: rgba(12, 17, 26, 0.4);
+  backdrop-filter: blur(3px);
 }
 
 /* Wider variant: for modals whose content needs more than one row of chips to fit (see

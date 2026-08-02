@@ -1,8 +1,9 @@
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { Settings2Icon, HelpCircleIcon, BotIcon } from '../common/icons';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
 import { maxAiOpponents } from '../../config/gameSettings';
+import { menuBackdropSrc } from '../../config/sprites';
 import { useT, Locale } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectOnline, selectStatus } from '../../store/selectors';
@@ -72,7 +73,13 @@ export function MainMenu() {
 
   return (
     <Dialog open={status === 'menu'} onClose={() => undefined}>
-      <DialogBackdrop className="dialog-backdrop" />
+      {/* The title screen's backdrop *is* the splash art: nothing of the world is
+          built before Start, so this opaque, full-viewport layer is all there is
+          behind the menu (see .docs/sprites/menu-backdrop.md). */}
+      <DialogBackdrop
+        className="dialog-backdrop dialog-backdrop--splash"
+        style={{ '--splash-image': `url(${menuBackdropSrc})` } as CSSProperties}
+      />
       <div className="dialog-frame">
         <DialogPanel className="modal menu">
           <DialogTitle className="menu__title">{t('mainMenu', 'title')}</DialogTitle>

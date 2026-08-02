@@ -68,9 +68,7 @@ export interface OnlineState {
 
 /** One-shot online request the UI raises and the app bridge (GameApp) consumes. */
 export type PendingOnline =
-  | { kind: 'host'; mapSize: MapSize; aiOpponents: number }
-  | { kind: 'join'; roomCode: string }
-  | { kind: 'leave' };
+  { kind: 'host'; mapSize: MapSize; aiOpponents: number } | { kind: 'join'; roomCode: string } | { kind: 'leave' };
 
 /** HUD-facing view of one side in the match (projected from the engine roster). */
 export interface SideSnapshot {

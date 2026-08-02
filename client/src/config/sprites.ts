@@ -137,6 +137,14 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
   },
 };
 
+/**
+ * Title-screen splash art, shown behind the main menu before a match starts (see
+ * `.docs/sprites/menu-backdrop.md`). Not a Pixi sprite — the menu draws it as a
+ * DOM background, so it is deliberately absent from `spriteSources()` and never
+ * enters the texture cache. A missing file degrades to the flat `--bg` fill.
+ */
+export const menuBackdropSrc = `${PUBLIC_BASE}menu-backdrop.webp`;
+
 /** Unique image sources to preload (robots + bases + weapon modules + terrain). */
 export function spriteSources(): string[] {
   const srcs: string[] = [];
