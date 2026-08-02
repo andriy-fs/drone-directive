@@ -72,3 +72,24 @@ To prevent similar regressions in the future, the following areas are worth hard
    - one-shot request consumption should be coupled to a visible “wake + consume once” behavior
    - not implicitly depend on the render frame order
 4. Review similar `sleep()`/`wake()` transitions for any other one-shot UI requests that may race with the menu scene.
+
+## Hardening applied
+
+The first fix guarded the park with an explicit flag check (`!restartRequested && !menuRequested`), which left the same race open for the third one-shot control, `pendingOnline` — hosting or joining from the title screen woke the loop and parked it again before `step()` could consume the request.
+
+The guard is now a loop invariant instead of a list of flags. `GameLoop` tracks whether a fixed step has run since it last resumed, and `park()` refuses (returning `false`) until one has:
+
+- `GameLoop.resume()` / `GameLoop.park()` own the ticker start/stop and the guard;
+- `GameApp.render()` is back to the plain rule — `if (this.idle) this.sleep()` — and `sleep()` only flushes the final frame when `park()` actually parked;
+- any future one-shot request is covered without touching the render path, because the loop guarantees **at least one `update()` per wake-up**.
+
+Why the very first frame after a wake runs no step: `Ticker.start()` resets `lastTime` to `performance.now()`, so that frame reports ~16 ms against the 33.3 ms fixed step, and `GameLoop`'s accumulator (empty, because the loop parks right after a step drains it) never reaches the threshold.
+
+Regression coverage lives in `client/src/pixi/GameLoop.test.ts` (fake ticker, no Pixi/DOM):
+
+- a frame shorter than the fixed step renders without stepping — the hazard itself;
+- `park()` refuses on the first frame after `resume()` and succeeds once a step has run;
+- a one-shot request raised while parked is consumed after the wake-up rather than swallowed;
+- `park()`/`resume()` are idempotent and a stopped loop cannot be resumed.
+
+Both regression tests fail if the guard is removed.

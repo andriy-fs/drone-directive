@@ -54,6 +54,7 @@ export class GameApp {
   private netTick = 0;
   private pendingOnlineStart: { seed: number; mapSize: MapSize; aiCount: number } | null = null;
   private onlineEnded = false;
+  private hostResizeObserver: ResizeObserver | null = null;
   private readonly onResize = (width: number, height: number) => this.camera.setViewport(width, height);
 
   /** The side this client plays/views (Player offline & host; AI for the online guest). */
@@ -98,6 +99,16 @@ export class GameApp {
     this.detachPointer = attachPointerControls(this.app, this.camera, this.engine);
     this.app.renderer.on('resize', this.onResize);
 
+    // `resizeTo` only listens for *window* resizes, so it misses the host shrinking
+    // on its own — which is exactly what happens when the HUD column mounts at match
+    // start and takes 260px off the viewport's width. The renderer would keep the
+    // menu-width screen for the whole match: the canvas overhangs its clipped host,
+    // and the camera clamps against a viewport wider than what is actually on screen,
+    // so the drone flies into that hidden strip near the right edge of the map. Height
+    // never changes with the sidebar, which is why only horizontal panning broke.
+    this.hostResizeObserver = new ResizeObserver(() => this.app.queueResize());
+    this.hostResizeObserver.observe(host);
+
     // Everything `step()` has to consume while no match is running arrives as a
     // store flag, so the parked loop can be woken from here instead of polled.
     this.storeUnsub = useGameStore.subscribe((s, prev) => {
@@ -121,30 +132,40 @@ export class GameApp {
    * Park the render/simulation loop after one last frame. The title screen has no
    * world to draw and nothing to advance, so an idle tab should cost nothing —
    * `wake()` brings it back the moment something needs a tick.
+   *
+   * `GameLoop.park()` refuses until a fixed step has run since the last wake, so
+   * a request that woke the loop is always given a tick to be consumed in — no
+   * caller has to enumerate the pending flags to know it is safe to park.
    */
   private sleep(): void {
-    if (!this.app.ticker.started) return;
-    this.app.stop();
-    this.app.render();
+    if (this.loop.park()) this.app.render();
   }
 
   private wake(): void {
-    if (this.destroyed || this.app.ticker.started) return;
-    this.app.start();
+    if (this.destroyed) return;
+    this.loop.resume();
+  }
+
+  /**
+   * Sync the views and get them on screen even if the loop is already parked —
+   * `sleep()` only flushes the frame it parks on, so a world change arriving off
+   * the ticker (a peer disconnecting, say) would otherwise sit invisible behind
+   * the last frame the canvas happens to be holding.
+   */
+  private flush(): void {
+    const parked = !this.loop.running;
+    this.render();
+    if (parked) this.app.render();
   }
 
   /** Render pass: move the camera, sync views, redraw fog. */
   private render(): void {
-    const store = useGameStore.getState();
     this.updateCamera();
-    this.worldRenderer.sync(new Set(store.selectedRobotIds), (e) => this.isVisibleToLocalSide(e));
+    this.worldRenderer.sync(new Set(useGameStore.getState().selectedRobotIds), (e) => this.isVisibleToLocalSide(e));
     this.fogView?.update(this.engine.context?.fog);
     // One check covers every way into the menu — first load, Esc, game over, a
     // peer disconnecting — so no transition has to remember to park the loop.
-    // When a restart/menu request is pending, keep the ticker alive long enough
-    // for the next fixed step to process it; otherwise the first render frame can
-    // go straight back to sleep() before any update() ever accumulates.
-    if (this.idle && !store.restartRequested && !store.menuRequested) this.sleep();
+    if (this.idle) this.sleep();
   }
 
   /**
@@ -195,7 +216,7 @@ export class GameApp {
           // next tick: this can arrive from a socket callback (peer left, error)
           // while the loop is already parked, and the last frame of the finished
           // match would otherwise stay frozen on screen.
-          this.render();
+          this.flush();
         } else {
           store().setStatus('playing');
           // Map size can change between matches — rebuild everything sized off
@@ -522,6 +543,8 @@ export class GameApp {
     this.detachPointer?.();
     this.detachPointer = null;
     this.clearObstacles();
+    this.hostResizeObserver?.disconnect();
+    this.hostResizeObserver = null;
     this.app.renderer?.off('resize', this.onResize);
     this.app.destroy({ removeView: true }, { children: true });
   }
