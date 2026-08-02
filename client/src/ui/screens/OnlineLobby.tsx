@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
 import { useGameStore } from '../../store/gameStore';
 import { selectOnline } from '../../store/selectors';
 import { maxAiOpponents } from '../../config/gameSettings';
+import { copyText } from '../../utils/clipboard';
 import { MapSize } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
+import { CheckIcon, CopyIcon } from '../common/icons';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 
 const MAP_SIZES: { value: MapSize; label: 'small' | 'medium' | 'large' }[] = [
@@ -16,6 +18,41 @@ const MAP_SIZES: { value: MapSize; label: 'small' | 'medium' | 'large' }[] = [
 
 /** Bot counts a networked match can seat — the two humans already hold two corners. */
 const OPPONENT_COUNTS = Array.from({ length: maxAiOpponents(true) + 1 }, (_, i) => i);
+
+/** How long the copy button shows its "copied" tick before reverting. */
+const COPIED_FEEDBACK_MS = 1500;
+
+/**
+ * The generated room code with a copy button. The code itself is `user-select:
+ * none` (it inherits `menu__title`), so this button is the only way to get it
+ * out of the page and into a chat window.
+ */
+function RoomCode({ code }: { code: string | null }) {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const id = setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
+    return () => clearTimeout(id);
+  }, [copied]);
+
+  if (!code) return null;
+
+  return (
+    <div className="room-code">
+      <p className="menu__title room-code__value">{code}</p>
+      <Button
+        className="room-code__copy"
+        onClick={() => void copyText(code).then(setCopied)}
+        aria-label={t('online', copied ? 'codeCopied' : 'copyCode')}
+        title={t('online', copied ? 'codeCopied' : 'copyCode')}
+      >
+        {copied ? <CheckIcon size={18} aria-hidden /> : <CopyIcon size={18} aria-hidden />}
+      </Button>
+    </div>
+  );
+}
 
 /**
  * Online 2-player lobby: host a room (and share the generated code) or join one
@@ -62,9 +99,7 @@ export function OnlineLobby({ onClose }: { onClose: () => void }) {
             {online.status === 'hosting' && (
               <>
                 <p>{t('online', 'shareCode')}</p>
-                <p className="menu__title" style={{ letterSpacing: '0.25em' }}>
-                  {online.roomCode}
-                </p>
+                <RoomCode code={online.roomCode} />
                 <p className="hud__muted">{t('online', 'waitingOpponent')}</p>
               </>
             )}

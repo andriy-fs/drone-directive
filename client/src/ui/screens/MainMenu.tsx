@@ -4,7 +4,7 @@ import { useState, type CSSProperties } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
-import { selectOnline, selectStatus } from '../../store/selectors';
+import { selectOnline } from '../../store/selectors';
 import { menuBackdropSrc } from '../../config/sprites';
 import { Button } from '../common/Button';
 import { ChipPicker, PickerGroup } from '../common/Picker';
@@ -15,16 +15,16 @@ import { UnitsGuideModal } from './UnitsGuideModal';
 import { LANGUAGE_OPTIONS, difficultyOptions, mapSizeOptions, opponentOptions } from './menuOptions';
 
 /**
- * Title screen (shown while status is `menu`): pick language/difficulty/roster,
- * open Base Setup (auto-produce + robot program) or the guides, then Start
- * rebuilds the world with the chosen settings.
+ * Title screen: pick language/difficulty/roster, open Base Setup (auto-produce +
+ * robot program) or the guides, then Start rebuilds the world with the chosen
+ * settings. `App` mounts this only while the status is `menu`, which is what
+ * keeps the dialog state below from surviving into (and out of) a match.
  *
  * Start does nothing here but raise the store's one-shot `restartRequested`;
  * consuming it — and beginning the match — is `GameApp.step()`'s job.
  */
 export function MainMenu() {
   const t = useT();
-  const status = useGameStore(selectStatus);
   const difficulty = useGameStore((s) => s.settings.match.difficulty);
   const mapSize = useGameStore((s) => s.settings.match.mapSize);
   const aiOpponents = useGameStore((s) => s.settings.match.aiOpponents);
@@ -38,15 +38,13 @@ export function MainMenu() {
   const [unitsOpen, setUnitsOpen] = useState(false);
   const [onlineOpen, setOnlineOpen] = useState(false);
 
-  if (status !== 'menu') return null;
-
   const start = () => {
     sfx.resume();
     requestRestart(); // rebuild the world with the selected settings, then play
   };
 
   return (
-    <Dialog open={status === 'menu'} onClose={() => undefined}>
+    <Dialog open onClose={() => undefined}>
       {/* The title screen's backdrop *is* the splash art: nothing of the world is
           built before Start, so this opaque, full-viewport layer is all there is
           behind the menu (see .docs/sprites/menu-backdrop.md). */}

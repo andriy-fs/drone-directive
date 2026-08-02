@@ -486,14 +486,24 @@ export class GameApp {
     store.setOnline({ status: isError || !wasInMatch ? 'error' : 'ended', roomCode: null, error: message });
   }
 
-  /** Tear down any active online session (used when restarting/leaving to the menu). */
+  /**
+   * Tear down any active online session (used when restarting/leaving to the menu).
+   *
+   * The store reset is unconditional even though the teardown is not: a match that
+   * ended on its own (`endOnline` — peer left, error, desync) has already dropped
+   * the session while leaving `online.status` at `ended`/`error` for the lobby to
+   * report. Returning early on a null session used to leave that status stuck, and
+   * `MainMenu` keeps the lobby mounted for any non-`offline` status — a full-screen
+   * `.dialog-frame` over the menu that swallows every click until a page reload.
+   */
   private leaveOnlineIfAny(): void {
-    if (!this.session) return;
-    this.onlineEnded = true;
-    this.session.disconnect();
-    this.session = null;
-    this.netTick = 0;
-    this.pendingOnlineStart = null;
+    if (this.session) {
+      this.onlineEnded = true;
+      this.session.disconnect();
+      this.session = null;
+      this.netTick = 0;
+      this.pendingOnlineStart = null;
+    }
     useGameStore.getState().setOnline({ status: 'offline', roomCode: null, error: null });
   }
 

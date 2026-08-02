@@ -6,6 +6,8 @@ import {
   VolumeX as LucideVolumeX,
   HelpCircle as LucideHelpCircle,
   Bot as LucideBot,
+  Copy as LucideCopy,
+  Check as LucideCheck,
 } from 'lucide-react';
 
 export const PauseIcon = LucidePause;
@@ -15,3 +17,5 @@ export const Volume2Icon = LucideVolume2;
 export const VolumeXIcon = LucideVolumeX;
 export const HelpCircleIcon = LucideHelpCircle;
 export const BotIcon = LucideBot;
+export const CopyIcon = LucideCopy;
+export const CheckIcon = LucideCheck;

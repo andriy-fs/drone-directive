@@ -174,6 +174,8 @@ export const ru: Dict = {
     title: 'Онлайн на двоих',
     connecting: 'Подключение…',
     shareCode: 'Отправьте этот код комнаты сопернику:',
+    copyCode: 'Скопировать код комнаты',
+    codeCopied: 'Скопировано!',
     waitingOpponent: 'Ожидание соперника…',
     matchEnded: 'Матч завершён.',
     hostGame: 'Создать игру',
