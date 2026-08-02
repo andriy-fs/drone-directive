@@ -84,6 +84,64 @@ describe('productionSystem — program resolution', () => {
   });
 });
 
+describe('productionSystem — rally point', () => {
+  const rally = { x: 700, y: 700 };
+
+  /** A base with a rally point set and one queued order of the given program. */
+  function baseWithRally(ctx: GameContext, task: TaskType | null, weapon: WeaponType = WeaponType.Cannon): Entity {
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    base.production!.rally = { ...rally };
+    base.production!.queue.push({ chassis: ChassisType.Tracks, weapon, task });
+    return base;
+  }
+
+  it('walks an Idle unit to the rally point', () => {
+    const ctx = makeCtx(1);
+    const robot = buildOne(ctx, baseWithRally(ctx, null));
+    expect(robot.script!.programId).toBe(TaskType.Idle);
+    // The goal is snapped to a reachable tile, so compare by proximity.
+    expect(robot.movement!.goal).toBeDefined();
+    expect(Math.hypot(robot.movement!.goal!.x - rally.x, robot.movement!.goal!.y - rally.y)).toBeLessThan(
+      gameConfig.grid.tilePx * 2,
+    );
+  });
+
+  it('posts a Guard at the rally point rather than at the factory door', () => {
+    const ctx = makeCtx(1);
+    const base = baseWithRally(ctx, TaskType.Guard);
+    const robot = buildOne(ctx, base);
+    expect(robot.script!.programId).toBe(TaskType.Guard);
+    expect(robot.script!.blackboard.guardPos).toEqual(rally);
+    expect(robot.script!.blackboard.guardPos).not.toEqual(base.position);
+  });
+
+  it('leaves an attack program alone — its own priority takes over anyway', () => {
+    const ctx = makeCtx(1);
+    const robot = buildOne(ctx, baseWithRally(ctx, TaskType.AttackBase));
+    expect(robot.script!.programId).toBe(TaskType.AttackBase);
+    expect(robot.movement!.goal).toBeUndefined();
+    expect(robot.script!.blackboard.guardPos).toBeUndefined();
+  });
+
+  it('rallies a radar that was refused an attack program and fell back to Idle', () => {
+    const ctx = makeCtx(1);
+    const robot = buildOne(ctx, baseWithRally(ctx, TaskType.AttackRobots, WeaponType.Radar));
+    expect(robot.script!.programId).toBe(TaskType.Idle);
+    expect(robot.movement!.goal).toBeDefined();
+  });
+
+  it('sends nobody anywhere without a rally point (bots never set one)', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.AI, 4, 33);
+    base.production!.autoBuildPreset = BuildPresetType.Tracks;
+    base.production!.defaultTask = TaskType.Guard;
+    const robot = buildOne(ctx, base);
+    expect(base.production!.rally).toBeNull();
+    expect(robot.script!.programId).toBe(TaskType.Guard);
+    expect(robot.script!.blackboard.guardPos).toEqual(robot.position);
+  });
+});
+
 describe('productionSystem — auto-build presets', () => {
   it('the Tracks preset follows the base default program (regression: no forced Idle)', () => {
     const ctx = makeCtx(1);

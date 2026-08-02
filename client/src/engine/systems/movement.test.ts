@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
-import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { spawnBase, spawnRobot } from '../ecs/factory';
 import { refreshNavObstacles } from '../navGrid';
 import { isBlockedGrid, tileOf } from '../obstacles';
@@ -72,7 +72,7 @@ describe('movementSystem — anti-jam retreat', () => {
     expect(inside()).toBe(false); // reversed out of the footprint
   });
 
-  it('leaves an idle robot inside a base alone (no directive → no retreat)', () => {
+  it('leaves a parked idle robot inside a base alone (no goal → no retreat)', () => {
     const ctx = makeCtx(1);
     const base = spawnBase(ctx.world, Owner.Player, 4, 33);
     const robot = spawnRobot(ctx.world, Owner.AI, { ...base.position! }, ChassisType.Tracks, WeaponType.Cannon);
@@ -80,5 +80,20 @@ describe('movementSystem — anti-jam retreat', () => {
     const start = { x: robot.position!.x, y: robot.position!.y };
     for (let i = 0; i < 60; i++) movementSystem(ctx, gameConfig.fixedDt);
     expect(robot.position).toEqual(start); // untouched
+  });
+
+  it('retreats an idle robot that has been *sent* somewhere and makes no progress', () => {
+    // An Idle unit with a goal is a real case now: a right-click move, or a
+    // whole production run funnelling out to a rally point. A goal it cannot
+    // path to leaves it with no destination to walk toward — exactly the jam.
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.AI, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    expect(robot.script!.programId).toBe(TaskType.Idle);
+    robot.movement!.goal = { x: 900, y: 900 };
+    robot.movement!.destination = undefined;
+
+    const ticks = Math.ceil(gameConfig.behavior.stuckAfter / gameConfig.fixedDt) + 2;
+    for (let i = 0; i < ticks; i++) movementSystem(ctx, gameConfig.fixedDt);
+    expect(robot.movement!.retreatTime).toBeGreaterThan(0);
   });
 });

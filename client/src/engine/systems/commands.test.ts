@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { worldPixelSize } from '../../config/gameConfig';
 import { spawnBase, spawnRobot } from '../ecs/factory';
 import { makeGuard } from '../tasks/taskDefinitions';
 import { commandsSystem, isCommandFrom } from './commands';
@@ -38,6 +39,35 @@ describe('commandsSystem — AssignTask refuses attack orders for a radar', () =
     ctx.commands.push({ kind: 'AssignTask', robotId: cannon.id, task: TaskType.AttackRobots });
     commandsSystem(ctx);
     expect(cannon.script!.programId).toBe(TaskType.AttackRobots);
+  });
+});
+
+describe('commandsSystem — SetRallyPoint', () => {
+  it('sets, then clears, a base rally point', () => {
+    const ctx = makeCtx();
+    const base = spawnBase(ctx.world, Owner.Player, 2, 2);
+    ctx.commands.push({ kind: 'SetRallyPoint', baseId: base.id, point: { x: 300, y: 400 } });
+    commandsSystem(ctx);
+    expect(base.production!.rally).toEqual({ x: 300, y: 400 });
+
+    ctx.commands.push({ kind: 'SetRallyPoint', baseId: base.id, point: null });
+    commandsSystem(ctx);
+    expect(base.production!.rally).toBeNull();
+  });
+
+  it('clamps a point off the map — solo play never meets the wire validator', () => {
+    const ctx = makeCtx();
+    const base = spawnBase(ctx.world, Owner.Player, 2, 2);
+    ctx.commands.push({ kind: 'SetRallyPoint', baseId: base.id, point: { x: -50, y: 1e9 } });
+    commandsSystem(ctx);
+    expect(base.production!.rally).toEqual({ x: 0, y: worldPixelSize.height });
+  });
+
+  it('ignores a rally point aimed at something that is not a base', () => {
+    const ctx = makeCtx();
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 100, y: 100 }, ChassisType.Tracks, WeaponType.Cannon);
+    ctx.commands.push({ kind: 'SetRallyPoint', baseId: robot.id, point: { x: 300, y: 400 } });
+    expect(() => commandsSystem(ctx)).not.toThrow();
   });
 });
 
@@ -83,6 +113,9 @@ describe('isCommandFrom — a side may only command what it owns', () => {
     expect(isCommandFrom(ctx, { kind: 'BuildRobot', baseId: mine.id, order }, Owner.Player)).toBe(true);
     expect(isCommandFrom(ctx, { kind: 'BuildRobot', baseId: theirs.id, order }, Owner.Player)).toBe(false);
     expect(isCommandFrom(ctx, { kind: 'SetAutoBuild', baseId: theirs.id, order: null }, Owner.Player)).toBe(false);
+    const point = { x: 100, y: 100 };
+    expect(isCommandFrom(ctx, { kind: 'SetRallyPoint', baseId: mine.id, point }, Owner.Player)).toBe(true);
+    expect(isCommandFrom(ctx, { kind: 'SetRallyPoint', baseId: theirs.id, point }, Owner.Player)).toBe(false);
   });
 
   it('mirrors for the online guest, who plays Owner.AI', () => {

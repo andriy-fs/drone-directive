@@ -6,6 +6,7 @@ import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { tileOf } from '../obstacles';
 import { findPath } from '../pathfinding';
+import { baseFootprintContains } from './targeting';
 
 /**
  * Sets a robot's navigation goal, pathfinding around obstacles. Skips the A*
@@ -56,16 +57,20 @@ export function movementSystem(ctx: GameContext, dt: number): void {
 }
 
 /**
- * Detects a jam and starts a retreat: a robot with a non-idle program that wants
- * to move (has a goal) or is trapped inside a base, yet made ~no net progress
- * since last tick, backs off for `retreatSeconds` — driving back the way it came
- * (or straight out of a base) — then re-approaches. Legitimately-holding units
- * (no goal, not in a base) and idle units are left alone.
+ * Detects a jam and starts a retreat: a robot that wants to move (has a goal) or
+ * is trapped inside a base, yet made ~no net progress since last tick, backs off
+ * for `retreatSeconds` — driving back the way it came (or straight out of a
+ * base) — then re-approaches. Legitimately-holding units (no goal, not in a
+ * base) and parked idle ones are left alone.
  */
 function maybeStartRetreat(ctx: GameContext, e: Entity, dt: number): void {
   const m = e.movement!;
   const pos = e.position!;
-  if (e.script?.programId === TaskType.Idle) {
+  // A parked idle robot must not jitter — but one that has been *sent* somewhere
+  // (a right-click move, or a rally point out of the factory) may jam like any
+  // other, and a whole production run funnelling through the same door makes
+  // that systematic rather than occasional.
+  if (e.script?.programId === TaskType.Idle && !m.goal) {
     m.stuckTime = 0;
     return;
   }
@@ -105,12 +110,7 @@ function retreatStep(e: Entity, dt: number): void {
 
 /** The living base whose footprint contains `p`, or undefined. */
 function baseContaining(ctx: GameContext, p: Vec2): Entity | undefined {
-  const { tilePx } = gameConfig.grid;
-  return ctx.world.with('base', 'position').entities.find((b) => {
-    if ((b.hp ?? 0) <= 0) return false;
-    const half = ((b.footprint ?? gameConfig.bases.footprintTiles) * tilePx) / 2;
-    return Math.abs(p.x - b.position!.x) <= half && Math.abs(p.y - b.position!.y) <= half;
-  });
+  return ctx.world.with('base', 'position').entities.find((b) => (b.hp ?? 0) > 0 && baseFootprintContains(b, p));
 }
 
 function moveEntity(e: Entity, dt: number): void {

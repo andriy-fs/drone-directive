@@ -2,7 +2,7 @@ import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { gameConfig } from '../../config/gameConfig';
 import type { Entity } from '../../engine/ecs/entity';
 import type { GameEngine } from '../../engine/game/engine';
-import { findById, isEnemy } from '../../engine/systems/targeting';
+import { baseFootprintContains, findById, isEnemy } from '../../engine/systems/targeting';
 import type { GameContext } from '../../engine/game/context';
 import type { Vec2 } from '@drone-directive/types/entities';
 import type { Owner } from '@drone-directive/types/enums';
@@ -39,10 +39,13 @@ const FIRE_KEY = 'KeyE';
 
 /**
  * Playfield input:
- * - Left drag = selection marquee (Shift adds); left click on empty = clear.
+ * - Left drag = selection marquee (Shift adds); left click on your own base
+ *   selects it, left click on empty ground clears the selection.
  *   (Clicking a robot is handled in RobotView.)
  * - Arrow keys/WASD = fly the observer drone (the camera follows it).
  * - `F` = land on / take off from an idle robot; `E` = fire / detonate it.
+ * - Right click with a base selected = set that base's rally point (right click
+ *   on the base itself clears it); the robot selection is untouched.
  * - Right click on an enemy (robot or base) = order the selection to attack it;
  *   right click on open ground = move the selection there in a compact formation.
  */
@@ -87,7 +90,10 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
         marqueeGfx.visible = false;
         marqueeGfx.clear();
       } else if (!additive && e.button === 0) {
-        useGameStore.getState().clearSelection();
+        // Base selection lives here rather than in BaseView: a click there would
+        // still bubble to this handler and be wiped by the clear below, and
+        // stopping propagation would turn the base into dead marquee space.
+        selectBaseOrClear(camera, engine, e.global.x, e.global.y);
       }
     }
     selecting = false;
@@ -194,12 +200,42 @@ function selectInBox(
   store.selectRobots(additive ? [...new Set([...store.selectedRobotIds, ...inBox])] : inBox);
 }
 
-/** Right click: attack an enemy under the cursor if any, else move the selection there. */
+/** Plain left click: select your own base if it's under the cursor, else deselect. */
+function selectBaseOrClear(camera: Camera, engine: GameEngine, globalX: number, globalY: number): void {
+  const ctx = engine.context;
+  const store = useGameStore.getState();
+  if (!ctx) {
+    store.clearSelection();
+    return;
+  }
+  const base = ownBaseAt(ctx, camera.screenToWorld(globalX, globalY), store.localSide);
+  if (base) store.selectBase(base.id);
+  else store.clearSelection();
+}
+
+/**
+ * Right click: with your base selected, plant (or, on the base itself, clear)
+ * its rally point. Otherwise attack an enemy under the cursor if any, else move
+ * the selection there.
+ */
 function issueRightClick(camera: Camera, engine: GameEngine, globalX: number, globalY: number): void {
   const ctx = engine.context;
   if (!ctx) return;
   const store = useGameStore.getState();
   const side = store.localSide;
+
+  if (store.selectedBaseId) {
+    const base = findById(ctx, store.selectedBaseId);
+    if (base?.base && base.owner === side && (base.hp ?? 0) > 0) {
+      const p = camera.screenToWorld(globalX, globalY);
+      // Right-clicking the base itself is the cancel gesture.
+      const point = baseFootprintContains(base, p) ? null : p;
+      store.enqueueCommand({ kind: 'SetRallyPoint', baseId: base.id, point });
+      return;
+    }
+    store.selectBase(null); // the base is gone — fall back to ordering robots
+  }
+
   const robotIds = store.selectedRobotIds
     .map((id) => findById(ctx, id))
     .filter((e): e is Entity => e?.robot === true && e.owner === side && (e.hp ?? 0) > 0 && !!e.position)
@@ -214,6 +250,13 @@ function issueRightClick(camera: Camera, engine: GameEngine, globalX: number, gl
   else store.enqueueCommand({ kind: 'MoveRobots', robotIds, point });
 }
 
+/** `side`'s own living base under a world point, or undefined. */
+function ownBaseAt(ctx: GameContext, p: Vec2, side: Owner): Entity | undefined {
+  return ctx.world
+    .with('base', 'position')
+    .entities.find((e) => e.owner === side && (e.hp ?? 0) > 0 && baseFootprintContains(e, p));
+}
+
 /** The living enemy robot or base under a world point (from `side`'s perspective), or undefined. */
 function enemyAt(ctx: GameContext, p: Vec2, side: Owner): Entity | undefined {
   const robot = ctx.world
@@ -226,10 +269,7 @@ function enemyAt(ctx: GameContext, p: Vec2, side: Owner): Entity | undefined {
     );
   if (robot) return robot;
 
-  const { tilePx } = gameConfig.grid;
-  return ctx.world.with('base', 'position').entities.find((e) => {
-    if ((e.hp ?? 0) <= 0 || !isEnemy(side, e.owner)) return false;
-    const half = ((e.footprint ?? gameConfig.bases.footprintTiles) * tilePx) / 2;
-    return Math.abs(p.x - e.position!.x) <= half && Math.abs(p.y - e.position!.y) <= half;
-  });
+  return ctx.world
+    .with('base', 'position')
+    .entities.find((e) => (e.hp ?? 0) > 0 && isEnemy(side, e.owner) && baseFootprintContains(e, p));
 }

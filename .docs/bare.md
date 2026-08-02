@@ -38,7 +38,7 @@ in [`net/`](../net) honest: **BARE proves the shape, valibot proves the meaning.
 The division isn't a diagram we drew; the format enforces it.
 
 **2. `union` is a real sum type; `oneof` is not.** The domain's `Command` is a TS
-discriminated union of five variants. BARE's `union { AssignTask | BuildRobot | … }`
+discriminated union. BARE's `union { AssignTask | BuildRobot | … }`
 with `--use-struct-flat-union` generates exactly that shape, tag and all. Protobuf
 would have needed a wrapper message with a `oneof`, producing either a
 `{ case, value }` box or a bag of optional fields where zero may be set — extra
