@@ -9,8 +9,21 @@ compatibility_date = "2024-09-23"
 name = "ROOM"
 class_name = "Room"
 
+# One Durable Object per chat, addressed by the opaque id `Room` issues in
+# `start`. Separate from ROOM on purpose: a chat outlives the match, so it needs
+# its own lifetime, its own socket, and (unlike ROOM) real storage.
+[[durable_objects.bindings]]
+name = "CHAT"
+class_name = "Chat"
+
 # SQLite-backed classes are required for Durable Objects on the free plan
 # (this relay keeps only in-memory state, but must still be declared this way).
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+# Adding a DO class is a migration of its own; `Chat` really does use its SQLite
+# storage, for the message log and the retention alarm.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Chat"]

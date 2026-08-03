@@ -184,6 +184,26 @@ export interface Dict {
     joinRoom: string;
     cancel: string;
   };
+  /**
+   * Chat with the online opponent. Messages are identified by seat — there are no
+   * nicknames in this game, so `you`/`opponent` is the whole vocabulary.
+   */
+  chat: {
+    title: string;
+    open: string;
+    close: string;
+    leave: string;
+    placeholder: string;
+    send: string;
+    you: string;
+    opponent: string;
+    peerOnline: string;
+    peerAway: string;
+    connecting: string;
+    empty: string;
+    muteSound: string;
+    unmuteSound: string;
+  };
   unitsGuide: {
     title: string;
     intro: string;
@@ -376,6 +396,22 @@ export const en: Dict = {
     roomCodePlaceholder: 'ROOM CODE',
     joinRoom: 'Join room',
     cancel: 'Cancel',
+  },
+  chat: {
+    title: 'Chat',
+    open: 'Chat with opponent',
+    close: 'Minimise chat',
+    leave: 'Leave this chat',
+    placeholder: 'Message…',
+    send: 'Send',
+    you: 'You',
+    opponent: 'Opponent',
+    peerOnline: 'Opponent is here',
+    peerAway: 'Opponent is away',
+    connecting: 'Reconnecting…',
+    empty: 'No messages yet.',
+    muteSound: 'Mute new-message sound',
+    unmuteSound: 'Unmute new-message sound',
   },
   unitsGuide: {
     title: 'Unit Guide',

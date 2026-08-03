@@ -76,7 +76,7 @@ export class LockstepSession {
         this.started = true;
         // No coercion left to do: the schema pinned `seed` to a u32 and `mapSize`
         // to one of three tags, which the codec already turned into a `MapSize`.
-        this.handlers.onStart?.(msg.seed, msg.mapSize, msg.aiCount);
+        this.handlers.onStart?.(msg.seed, msg.mapSize, msg.aiCount, msg.chatId);
         break;
       case 'tick':
         this.peerBuffer.set(msg.tick, screen(msg, this.config.limits()));

@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { GameCanvas } from './GameCanvas';
 import { PauseIcon, Settings2Icon } from './common/icons';
+import { ChatPanel } from './hud/ChatPanel';
 import { PauseButton } from './hud/PauseButton';
 import { SoundToggle } from './hud/SoundToggle';
 import { StatusPanel } from './hud/StatusPanel';
@@ -10,6 +12,7 @@ import { MainMenu } from './screens/MainMenu';
 import { useControlGroupHotkeys } from './hooks/useControlGroupHotkeys';
 import { usePauseHotkey } from './hooks/usePauseHotkey';
 import { useSelectAllHotkey } from './hooks/useSelectAllHotkey';
+import { restoreChat } from '../chat/chatBridge';
 import { useT } from '../i18n';
 import { useGameStore } from '../store/gameStore';
 import { selectBases, selectLocalSide, selectRobots, selectSides, selectStatus } from '../store/selectors';
@@ -46,6 +49,9 @@ function App() {
   usePauseHotkey();
   useSelectAllHotkey();
   useControlGroupHotkeys();
+  // Re-attach to the last conversation this browser knows about. The server keeps
+  // it for a week, so a reload — or a visit two days later — finds it still there.
+  useEffect(restoreChat, []);
 
   // Sides are labelled and coloured from the local client's point of view — the
   // online guest plays Owner.AI but is "player" to itself (same rule as the
@@ -140,6 +146,10 @@ function App() {
           returning null inside would keep that state alive across a whole match. */}
       {!inMatch && <MainMenu />}
       <GameOverModal />
+      {/* Outside the `inMatch` guard, unlike everything above it: the chat outlives
+          the match, so the panel has to survive the return to the menu. It renders
+          nothing until there is a conversation to show. */}
+      <ChatPanel />
     </div>
   );
 }

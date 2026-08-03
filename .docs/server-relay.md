@@ -34,10 +34,11 @@ browser (guest) ─┘                          └─→ Room DO "AB7K"  ──
 
 Two pieces, split by whether they need memory:
 
-| File                                            | Role                                                                                                           |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| [`server/src/index.ts`](../server/src/index.ts) | Worker entry. Stateless: health check, upgrade check, read `?room=`, route to the DO. Never touches game data. |
-| [`server/src/Room.ts`](../server/src/Room.ts)   | The `Room` Durable Object. All pairing, the seed, relaying, teardown.                                          |
+| File                                            | Role                                                                                                              |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [`server/src/index.ts`](../server/src/index.ts) | Worker entry. Stateless: health check, upgrade check, route by path — `/chat` to `CHAT`, anything else to `ROOM`. |
+| [`server/src/Room.ts`](../server/src/Room.ts)   | The `Room` Durable Object. All pairing, the seed, relaying, teardown.                                             |
+| [`server/src/Chat.ts`](../server/src/Chat.ts)   | The `Chat` Durable Object. One conversation: history, presence, retention. See [Chat](#the-chat-durable-object).  |
 
 **Why a Durable Object and not plain Worker state.** Worker invocations are
 stateless and can land on any machine worldwide, so two players hitting the same
@@ -92,9 +93,11 @@ the constants are shared via `@drone-directive/protocol`:
 - host: `?room=<CODE>&create=1&v=<PROTOCOL_VERSION>&mapSize=<small|medium|large>`
 - guest: `?room=<CODE>&v=<PROTOCOL_VERSION>`
 
-`Worker.fetch` then does four things and nothing else: answers `GET /health` with
-`ok`, rejects non-upgrade requests with **426**, rejects a missing `?room=` with
-**400**, and otherwise forwards the untouched request to `env.ROOM.get(idFromName(roomCode))`.
+`Worker.fetch` then does five things and nothing else: answers `GET /health` with
+`ok`, rejects non-upgrade requests with **426**, routes `/chat` to
+`env.CHAT.get(idFromName(chatId))` (**400** on a missing or too-short id), rejects a
+missing `?room=` with **400**, and otherwise forwards the untouched request to
+`env.ROOM.get(idFromName(roomCode))`.
 
 The room code is generated **client-side** by the host (`randomRoomCode()`, 4 chars
 from an alphabet with no `0/O/1/I`) — the server never allocates codes, it just
@@ -253,7 +256,9 @@ Then verify the game itself by hand:
 2. Close one tab → the other reports the opponent left and returns to the menu.
 3. Join a code nobody is hosting → `room-not-found` in the lobby.
 
-## Why the DO stays resident
+## Why the room DO stays resident
+
+(`Chat` makes the opposite call, for the opposite reason — see below.)
 
 `Room` uses `server.accept()`, not the WebSocket **Hibernation** API
 (`state.acceptWebSocket()`). The difference matters for correctness here: with
@@ -267,6 +272,43 @@ traffic every tick that's the right call — hibernation pays off for idle
 connections, and these are never idle. Switching to hibernation later would mean
 moving `host`/`guest` into DO storage or reconstructing them from
 `state.getWebSockets()`, plus handling wake-ups — real work, not a flag flip.
+
+## The Chat Durable Object
+
+`Chat` is the second object in this Worker and shares nothing with `Room` but the
+protocol. A different address (the opaque `chatId` `Room` issues in
+`StartMessage`, hex of 16 random bytes), a different socket (`/chat`), and — the
+reason it exists at all — **a different lifetime**: a conversation outlives the
+match that created it, by up to `CHAT_RETENTION_MS` (7 days from the _last_
+message). See [multiplayer.md](./multiplayer.md#chat-a-second-socket-to-a-second-object).
+
+**It decodes what it is sent, and `Room` does not.** That is not an inconsistency.
+`Room`'s content-blindness is about relaying a lockstep tick it has no business
+understanding; `Chat` has to read a message to assign it a sequence number, store
+it and cap the log. Nothing it decodes is a simulation input.
+
+**Hibernatable from day one** — the opposite call from `Room`, and for the
+opposite reason. Sockets are accepted with `ctx.acceptWebSocket(server, [seat])`,
+using the seat as the hibernation tag, so `ctx.getWebSockets('host'|'guest')`
+finds the peer with no in-memory state to lose. A chat is idle almost all of the
+time (that is the whole point of a week's retention), which is exactly the case
+hibernation is for. It also forces one thing that is easy to get wrong: the
+**rate-limit counters live in `ws.serializeAttachment()`**, because an in-memory
+counter is lost the moment the object sleeps — a flood window anyone could open by
+waiting.
+
+State is `ctx.storage.sql`: `messages(seq INTEGER PRIMARY KEY, seat INTEGER, text
+TEXT, sent_at INTEGER)`, pruned to `CHAT_HISTORY_LIMIT` after every insert, with
+`alarm()` → `storage.deleteAll()` for retention. Every post re-arms the alarm, so
+an active conversation is never erased under the players.
+
+**Access is capability-based, and that is a deliberate limitation.** Anyone
+holding a `chatId` can attach as either seat — the object authenticates nothing.
+With a 128-bit id issued by the relay, delivered only inside `StartMessage`, and
+never displayed anywhere, that is the right trade for a two-person chat: the
+alternative is accounts, which this game does not have and does not want. Worth
+knowing rather than discovering: a leaked `chatId` is full read/write access to
+that conversation until retention expires.
 
 ## Deliberate non-goals
 

@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import type { ChatMessage, ChatSeat } from '@drone-directive/chat';
+import { loadChatSound } from '../chat/chatStorage';
 import { gameConfig } from '../config/gameConfig';
 import { createDefaultSettings, type GameSettings, type SettingsPatch } from '../config/gameSettings';
 import { Locale, resolveInitialLocale, saveLocale } from '../i18n/locale';
@@ -72,6 +74,42 @@ export interface OnlineState {
 export type PendingOnline =
   { kind: 'host'; mapSize: MapSize; aiOpponents: number } | { kind: 'join'; roomCode: string } | { kind: 'leave' };
 
+/**
+ * Chat with the online opponent.
+ *
+ * **The store's first slice with no engine snapshot behind it.** Every other
+ * field here is projected from the ECS world on a tick; this one is event-driven
+ * — the chat bridge appends to it as frames arrive — and it must never be rebuilt
+ * from a snapshot, because the engine has never heard of it. It also outlives the
+ * match on purpose: `endOnline`/`leaveOnlineIfAny` reset `online`, not this.
+ */
+export interface ChatState {
+  /** Panel expanded? Collapsed is a button with an unread badge. */
+  open: boolean;
+  /** The chat this client is attached to, or null when there is none to attach to. */
+  chatId: string | null;
+  /** Which seat this client holds — what makes a message "You" rather than "Opponent". */
+  seat: ChatSeat | null;
+  /** The room code the match was played in, for telling two conversations apart. */
+  roomCode: string | null;
+  /** Socket state. False while reconnecting — the log stays on screen regardless. */
+  connected: boolean;
+  /** Is the opponent attached right now (the presence dot)? */
+  peerOnline: boolean;
+  /** The log, oldest first, exactly as the server numbered it. */
+  messages: ChatMessage[];
+  /** Messages from the opponent since the panel was last read. */
+  unread: number;
+  /**
+   * Does an arriving message make a sound? Separate from the game's own mute
+   * (`sfx.setMuted`, the HUD speaker), because the two answer different
+   * questions: one is "I don't want game audio", the other is "don't ping me".
+   * The global mute still wins — it silences everything, this one included.
+   */
+  soundOn: boolean;
+  error: string | null;
+}
+
 /** HUD-facing view of one side in the match (projected from the engine roster). */
 export interface SideSnapshot {
   owner: Owner;
@@ -120,6 +158,8 @@ export interface GameState {
   online: OnlineState;
   /** One-shot online request the bridge consumes (connect/leave). */
   pendingOnline: PendingOnline | null;
+  /** Chat with the online opponent — event-driven, and outlives the match (see ChatState). */
+  chat: ChatState;
   setStatus: (status: GameStatus) => void;
   setBases: (bases: BaseSnapshot[]) => void;
   setRobots: (robots: RobotSnapshot[]) => void;
@@ -159,6 +199,18 @@ export interface GameState {
   consumePendingOnline: () => PendingOnline | null;
   /** Bridge-only: merge a patch into the online connection state. */
   setOnline: (patch: Partial<OnlineState>) => void;
+  /**
+   * Chat setters, all bridge-only (`client/src/chat/chatBridge.ts`) — the UI goes
+   * through the bridge rather than here, because opening a panel also has to open
+   * a socket and the store must not know what a socket is.
+   */
+  setChat: (patch: Partial<ChatState>) => void;
+  /** Replay from the server: merge by `seq`, since it may overlap what is on screen. */
+  mergeChatHistory: (entries: ChatMessage[]) => void;
+  /** One new message; counts as unread when it is the opponent's and the panel is shut. */
+  appendChatMessage: (entry: ChatMessage) => void;
+  /** The player is looking at the log — clear the badge. */
+  markChatRead: () => void;
 }
 
 const initialState = {
@@ -191,6 +243,18 @@ const initialState = {
   localSide: Owner.Player as Owner,
   online: { status: 'offline', roomCode: null, error: null } as OnlineState,
   pendingOnline: null as PendingOnline | null,
+  chat: {
+    open: false,
+    chatId: null,
+    seat: null,
+    roomCode: null,
+    connected: false,
+    peerOnline: false,
+    messages: [],
+    unread: 0,
+    soundOn: loadChatSound(),
+    error: null,
+  } as ChatState,
 };
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -267,6 +331,31 @@ export const useGameStore = create<GameState>((set, get) => ({
     return pendingOnline;
   },
   setOnline: (patch) => set((s) => ({ online: { ...s.online, ...patch } })),
+  setChat: (patch) => set((s) => ({ chat: { ...s.chat, ...patch } })),
+  mergeChatHistory: (entries) =>
+    set((s) => {
+      if (entries.length === 0) return {};
+      // A reconnect asks for the gap, but a message can cross the request in
+      // flight, so a replay may repeat something already on screen. `seq` is the
+      // server's identity for a message, which makes the merge exact.
+      const bySeq = new Map(s.chat.messages.map((m) => [m.seq, m]));
+      for (const entry of entries) bySeq.set(entry.seq, entry);
+      const messages = [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+      return { chat: { ...s.chat, messages } };
+    }),
+  appendChatMessage: (entry) =>
+    set((s) => {
+      if (s.chat.messages.some((m) => m.seq === entry.seq)) return {};
+      const fromPeer = entry.from !== s.chat.seat;
+      return {
+        chat: {
+          ...s.chat,
+          messages: [...s.chat.messages, entry],
+          unread: fromPeer && !s.chat.open ? s.chat.unread + 1 : s.chat.unread,
+        },
+      };
+    }),
+  markChatRead: () => set((s) => (s.chat.unread === 0 ? {} : { chat: { ...s.chat, unread: 0 } })),
 }));
 
 /** Non-reactive handle for the app bridge (outside React). */

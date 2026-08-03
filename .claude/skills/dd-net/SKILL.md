@@ -23,6 +23,13 @@ Everything outside the client's three layers. Dependency order is **one-way** �
 
 `client/` sits below all of them. **No game layer owns socket, codec or validation code** — if you are about to add any under `client/src/pixi/**` or `client/src/engine/**`, it belongs here instead.
 
+**Chat is not this skill.** It is a sibling workspace (`chat/`) on a second socket
+to a second Durable Object (`server/src/Chat.ts`), sharing only the tag space and
+`protocol/`. It deliberately breaks two of the rules below — its object decodes
+payloads, and its validation is asymmetric. Load **dd-chat** before touching any
+of it. What does concern this skill: `MessageTag` 5-8 belong to chat, and
+`decodePayload` must keep throwing on them.
+
 ## The path a peer's frame takes
 
 1. **`server/src/Room.ts`** reads `bytes[0]` (the `MessageTag` octet) and forwards a `Tick` frame's **original bytes** to the peer. It never decodes a payload.

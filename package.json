@@ -8,6 +8,7 @@
     "types",
     "protocol",
     "net",
+    "chat",
     "client",
     "server"
   ],
@@ -17,9 +18,9 @@
     "build": "npm run build -w client",
     "lint": "eslint .",
     "preview": "npm run preview -w client",
-    "test": "npm run test -w net && npm run test -w client",
+    "test": "npm run test -w net && npm run test -w chat && npm run test -w client",
     "test:watch": "npm run test:watch -w client",
-    "type-check": "npm run type-check -w types && npm run type-check -w net && npm run type-check -w server",
+    "type-check": "npm run type-check -w types && npm run type-check -w net && npm run type-check -w chat && npm run type-check -w server",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

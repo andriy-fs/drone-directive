@@ -1,10 +1,13 @@
 import { useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { isTypingTarget } from '../../utils/isTypingTarget';
 
 /** Space / P / Esc toggles pause while a match is running. */
 export function usePauseHotkey(): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // A space typed into the chat panel is a space, not a pause.
+      if (isTypingTarget(e.target)) return;
       // Use physical keys (e.code) so a non-Latin keyboard layout still works.
       const isPauseKey = e.code === 'Space' || e.code === 'Escape' || e.code === 'KeyP';
       if (!isPauseKey) return;
