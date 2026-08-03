@@ -86,6 +86,19 @@ Push to `main` → two green paths in Actions (Pages + worker). Open the deploye
 **Online (2P)** → Host, then Join by code in a second tab — it should connect
 through the production relay.
 
+## Shipping a protocol bump
+
+`PROTOCOL_VERSION` is checked at connect time and a mismatch is a hard reject, so
+**the Worker and the static client must ship together.** Both jobs run off the
+same push today, which is what makes that safe — if you ever gate the Worker
+deploy on `paths:` (see Optional, below), a schema-only change could ship the
+client without the relay and every connect would fail with `version-mismatch`.
+
+A change that adds a Durable Object class (as chat's `Chat` did) also needs a new
+`[[migrations]]` tag in `server/wrangler.toml`; wrangler applies it on deploy, and
+without it the binding has nothing to bind to. Migration tags are append-only —
+never edit a tag that has already been deployed.
+
 ## Web Analytics (optional)
 
 Cloudflare dashboard → **Analytics & Logs → Web Analytics** → _Add a site_ with

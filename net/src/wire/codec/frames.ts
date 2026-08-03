@@ -9,7 +9,8 @@ import { MAP_SIZE_FROM_WIRE } from './enums';
 /** A relay frame, decoded and translated into terms the game already speaks. */
 export type DecodedMessage =
   | { type: 'created'; roomCode: string }
-  | { type: 'start'; seed: number; mapSize: MapSize; aiCount: number }
+  /** `chatId` is opaque here: this package carries it and never looks inside it. */
+  | { type: 'start'; seed: number; mapSize: MapSize; aiCount: number; chatId: string }
   | { type: 'tick'; tick: number; commands: Command[]; drone: DroneControl; check: WorldCheck | null }
   | { type: 'opponentLeft' }
   | { type: 'error'; code: wire.ErrorCode; message: string };
@@ -63,6 +64,7 @@ function decodePayload(tag: MessageTag, payload: Uint8Array): DecodedMessage {
         // The relay already clamps this; clamp again rather than let a bad number
         // reach `startMatch` and try to seat more sides than the map has corners.
         aiCount: Math.min(start.aiCount, MAX_AI_OPPONENTS),
+        chatId: start.chatId,
       };
     }
     case MessageTag.Tick: {
@@ -82,5 +84,15 @@ function decodePayload(tag: MessageTag, payload: Uint8Array): DecodedMessage {
       return { type: 'opponentLeft' };
     case MessageTag.Error:
       return { type: 'error', ...wire.decodeErrorMessage(payload) };
+    case MessageTag.ChatSend:
+    case MessageTag.ChatHistory:
+    case MessageTag.ChatPosted:
+    case MessageTag.ChatPresence:
+      // Chat shares the tag space but runs on its own socket against its own
+      // Durable Object (`@drone-directive/chat`). One arriving here means the
+      // relay mixed two connections up; `decodeServerMessage` turns the throw
+      // into a `null` and the frame is ignored. The switch is deliberately
+      // exhaustive with no `default`, so a new tag has to be considered here.
+      throw new Error('chat frame on the game socket');
   }
 }

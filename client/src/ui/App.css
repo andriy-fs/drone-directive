@@ -594,3 +594,193 @@
   display: block;
   margin: 4px 0 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   Chat with the online opponent.
+
+   Floating over everything rather than docked in the HUD: the HUD only exists
+   during a match, and the conversation outlives it — after the opponent leaves,
+   after a reload, and on a later visit. Bottom-right so it never covers the
+   sidebar or the game-over modal's buttons.
+   --------------------------------------------------------------------------- */
+.chat-launcher {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 8px;
+  border-radius: 50%;
+}
+
+.chat-launcher__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: #d9534f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.chat-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, calc(100vw - 40px));
+  max-height: min(420px, calc(100vh - 40px));
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.chat-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.chat-panel__title {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-h);
+}
+
+.chat-panel__status {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chat-panel__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 3px 5px;
+  line-height: 1;
+}
+
+.chat-panel__error {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #e5807c;
+  border-top: 1px solid var(--panel-border);
+}
+
+/* Presence: filled while the opponent is attached, hollow while they are away. */
+.chat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--text-dim);
+  flex: none;
+}
+
+.chat-dot--on {
+  background: #4caf7d;
+  border-color: #4caf7d;
+}
+
+.chat-log {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* The one place in the app where selecting text is the point. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.chat-log__empty {
+  margin: auto 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.chat-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  /* A single long "word" must wrap rather than widen the panel. */
+  overflow-wrap: anywhere;
+}
+
+.chat-line__who {
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.chat-line--mine .chat-line__who {
+  color: #6fa8dc;
+}
+
+.chat-line__time {
+  margin: 0 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chat-line__text {
+  color: var(--text);
+}
+
+.chat-compose {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.chat-compose__input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+}
+
+.chat-compose__input:focus {
+  outline: none;
+  border-color: #3c4a5e;
+}
+
+.chat-compose__send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 5px 8px;
+}
+
+.chat-compose__send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@drone-directive/chat": "*",
     "@drone-directive/net": "*",
     "@drone-directive/protocol": "*",
     "@drone-directive/types": "*",

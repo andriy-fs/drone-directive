@@ -122,21 +122,32 @@ describe('relay messages', () => {
   });
 
   it('round-trips start, mapping the wire tag back to a MapSize', () => {
+    const chatId = 'a'.repeat(32);
     const bytes = frame(
       MessageTag.Start,
-      encodeStartMessage({ seed: 0xfeedface, mapSize: WireMapSize.Large, aiCount: 2 }),
+      encodeStartMessage({ seed: 0xfeedface, mapSize: WireMapSize.Large, aiCount: 2, chatId }),
     );
     expect(decodeServerMessage(toArrayBuffer(bytes))).toEqual({
       type: 'start',
       seed: 0xfeedface,
       mapSize: MapSize.Large,
       aiCount: 2,
+      chatId,
     });
   });
 
   it('clamps a bot count the map has no corners for', () => {
-    const bytes = frame(MessageTag.Start, encodeStartMessage({ seed: 1, mapSize: WireMapSize.Small, aiCount: 200 }));
+    const start = { seed: 1, mapSize: WireMapSize.Small, aiCount: 200, chatId: '' };
+    const bytes = frame(MessageTag.Start, encodeStartMessage(start));
     expect(decodeServerMessage(toArrayBuffer(bytes))).toMatchObject({ aiCount: 2 });
+  });
+
+  // Chat runs on a socket of its own; the shared tag space is what makes this
+  // reachable at all, and dropping the frame is the whole of the response.
+  it('ignores a chat frame that arrives on the game socket', () => {
+    for (const tag of [MessageTag.ChatSend, MessageTag.ChatHistory, MessageTag.ChatPosted, MessageTag.ChatPresence]) {
+      expect(decodeServerMessage(toArrayBuffer(frame(tag, new Uint8Array([0]))))).toBeNull();
+    }
   });
 
   it('round-trips opponentLeft as a bare tag byte', () => {

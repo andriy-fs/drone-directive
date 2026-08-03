@@ -12,7 +12,7 @@
  */
 
 /** Bumped on any breaking wire change; clients send it, the relay rejects mismatches. */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** Room codes: fixed length, drawn from an unambiguous alphabet (no 0/O/1/I). */
 export const ROOM_CODE_LENGTH = 4;
@@ -23,6 +23,11 @@ export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
  * the create/join intent travels as URL query params rather than as messages:
  *   host:  `?room=<CODE>&create=1&v=<PROTOCOL_VERSION>&mapSize=<small|medium|large>&ai=<0-2>`
  *   guest: `?room=<CODE>&v=<PROTOCOL_VERSION>`
+ *   chat:  `/chat?chat=<CHAT_ID>&seat=<host|guest>&since=<SEQ>&v=<PROTOCOL_VERSION>`
+ *
+ * Chat travels the same way and for the same reason: the socket has to name the
+ * chat (and the seat, and where the client left off) before it opens, so there is
+ * no `hello` message to get wrong.
  */
 export const QueryParam = {
   Room: 'room',
@@ -31,6 +36,12 @@ export const QueryParam = {
   MapSize: 'mapSize',
   /** Bot-controlled sides joining the two humans, `0..MAX_AI_OPPONENTS`. */
   Ai: 'ai',
+  /** Chat: the relay-issued id of the chat object to attach to. */
+  ChatId: 'chat',
+  /** Chat: which seat this client holds, `host` or `guest`. */
+  Seat: 'seat',
+  /** Chat: the highest `seq` this client already has; the server replies with the gap. */
+  Since: 'since',
 } as const;
 
 /**
@@ -45,6 +56,72 @@ export type WireMapSize = (typeof WIRE_MAP_SIZES)[number];
 
 /** How often a peer attaches a `WorldCheck` (in ticks) — ~1s at 10Hz. */
 export const DESYNC_CHECK_EVERY = 10;
+
+// ---------------------------------------------------------------------------
+// Chat
+// ---------------------------------------------------------------------------
+
+/** Path a chat socket connects to; anything else on the relay is a game room. */
+export const CHAT_PATH = '/chat';
+
+/** Chat ids are hex of 16 random bytes — opaque, unguessable, relay-issued. */
+export const CHAT_ID_LENGTH = 32;
+
+/** Seat names as they are spelled in the `seat` query param (the handshake is text). */
+export const WIRE_CHAT_SEATS = ['host', 'guest'] as const;
+export type WireChatSeat = (typeof WIRE_CHAT_SEATS)[number];
+
+/** Longest a single message may be, after sanitizing; the server truncates rather than rejects. */
+export const MAX_CHAT_TEXT_LENGTH = 500;
+
+/** Most messages the server keeps (and replays); older ones are dropped after each insert. */
+export const CHAT_HISTORY_LIMIT = 200;
+
+/** A chat is erased this long after its *last* message — every post re-arms the timer. */
+export const CHAT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Per-seat send budget. Generous for a conversation, useless for a flood. */
+export const CHAT_RATE_LIMIT = { messages: 10, windowMs: 10_000 } as const;
+
+/**
+ * The bidi overrides, which let text render in an order it is not written in.
+ * Deleted outright: they separate nothing, so removing one must not open a gap.
+ */
+const CHAT_BIDI_RE = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+
+/**
+ * C0 and C1 control codes, including the newlines and tabs a single-line log
+ * would render as nothing. Replaced by a space rather than deleted: a newline is
+ * a word separator, and deleting one would silently glue two words together. The
+ * collapse pass right after removes whatever that leaves behind.
+ */
+// eslint-disable-next-line no-control-regex
+const CHAT_CONTROL_RE = /[\u0000-\u001F\u007F-\u009F]/g;
+
+/**
+ * The one sanitizer, imported by both the Worker and the client so what the
+ * sender sees and what the log stores can never disagree. Pure, and
+ * dependency-free, because this module is on the relay's hot path.
+ *
+ * Returns `''` for anything that sanitizes away to nothing — callers read that as
+ * "reject", which is why whitespace-only input never reaches the log.
+ */
+export function sanitizeChatText(raw: string): string {
+  const collapsed = raw
+    .normalize('NFC')
+    .replace(CHAT_BIDI_RE, '')
+    .replace(CHAT_CONTROL_RE, ' ')
+    // Collapse runs (including the exotic Unicode spaces) so no one can push the
+    // log around with three hundred blanks.
+    .replace(/\s+/gu, ' ')
+    .trim();
+  if (collapsed.length <= MAX_CHAT_TEXT_LENGTH) return collapsed;
+  // Truncation is by UTF-16 unit, so it can land between a surrogate pair and
+  // leave half an emoji behind; drop the orphan rather than store a lone unit.
+  const cut = collapsed.slice(0, MAX_CHAT_TEXT_LENGTH);
+  const last = cut.charCodeAt(cut.length - 1);
+  return (last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut).trim();
+}
 
 // ---------------------------------------------------------------------------
 // Framing
@@ -63,6 +140,14 @@ export const MessageTag = {
   Start: 2,
   OpponentLeft: 3,
   Error: 4,
+  // Chat shares the tag space but never the socket — it runs against a different
+  // Durable Object. One space keeps `frame`/`tagOf` the only framing there is;
+  // `Room` whitelists `Tick`, so these are dropped on a game socket, and the
+  // game decoder throws on them for the mirror-image reason.
+  ChatSend: 5,
+  ChatHistory: 6,
+  ChatPosted: 7,
+  ChatPresence: 8,
 } as const;
 export type MessageTag = (typeof MessageTag)[keyof typeof MessageTag];
 

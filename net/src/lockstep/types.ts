@@ -27,8 +27,14 @@ export interface LockstepConfig {
 export interface LockstepHandlers {
   /** Host only: the room is open and waiting for a guest. */
   onCreated?: (roomCode: string) => void;
-  /** Both sockets present — start simulating from this seed + map size. */
-  onStart?: (seed: number, mapSize: MapSize, aiCount: number) => void;
+  /**
+   * Both sockets present — start simulating from this seed + map size.
+   *
+   * `chatId` is opaque to this package: the relay issues it here because `start`
+   * is the one moment both peers are told the same thing at the same instant, and
+   * the host application takes it from there (see `@drone-directive/chat`).
+   */
+  onStart?: (seed: number, mapSize: MapSize, aiCount: number, chatId: string) => void;
   /** The peer disconnected; the match is over. */
   onOpponentLeft?: () => void;
   onError?: (code: ErrorCode, message: string) => void;

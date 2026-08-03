@@ -172,10 +172,15 @@ type CreatedMessage struct {
 # Both sockets present — begin simulating. Everything that shapes the world has to
 # be in here: the peers build it independently, so any setting only one of them
 # knows would desync them.
+#
+# `chatId` is the exception: it shapes nothing, but this is the one instant both
+# peers are guaranteed to hear the same thing at the same time, so it is where
+# the relay hands them the opaque id of the chat object they may both attach to.
 type StartMessage struct {
     seed: u32
     mapSize: MapSize
     aiCount: u8
+    chatId: str
 }
 
 type ErrorMessage struct {
@@ -185,3 +190,54 @@ type ErrorMessage struct {
 
 # There is no OpponentLeftMessage: it carries nothing, so its frame is the tag
 # byte alone.
+
+# ---------------------------------------------------------------------------
+# Chat (client <-> the Chat Durable Object, on its own socket)
+# ---------------------------------------------------------------------------
+#
+# These share the tag space above but never the socket: chat runs against a
+# different Durable Object, over a connection of its own, with a lifetime that
+# outlives the match. `Room` whitelists `Tick`, so a chat frame sent down a game
+# socket is dropped, and `net`'s decoder throws on one for the same reason.
+#
+# Unlike the game relay, the chat object *does* decode these — it has to, to
+# assign sequence numbers, store history and cap the log. That is a property of
+# this object, not a hole in the relay's content-blindness.
+
+type ChatSeat enum {
+    HOST = 0
+    GUEST = 1
+}
+
+# One stored message. `seq` is assigned by the server and is what both orders the
+# log and tells a reconnecting client which messages it still needs.
+type ChatEntry struct {
+    seq: u32
+    from: ChatSeat
+    text: str
+    # Unix seconds. u32, never uint/u64 — the generated code would reach for
+    # bigint, and this protocol keeps every number a `number`.
+    sentAt: u32
+}
+
+# client -> Chat DO. The server sanitizes, rate-limits and numbers it.
+type ChatSendMessage struct {
+    text: str
+}
+
+# Chat DO -> client, on connect: everything after the `since` the client asked
+# for, plus whether the other seat is attached right now.
+type ChatHistoryMessage struct {
+    entries: list<ChatEntry>
+    peerOnline: bool
+}
+
+# Chat DO -> both clients. The sender's own echo is what confirms its `seq`.
+type ChatPostedMessage struct {
+    entry: ChatEntry
+}
+
+# Chat DO -> client: the other seat attached or dropped.
+type ChatPresenceMessage struct {
+    peerOnline: bool
+}

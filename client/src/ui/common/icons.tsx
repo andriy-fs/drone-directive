@@ -8,6 +8,11 @@ import {
   Bot as LucideBot,
   Copy as LucideCopy,
   Check as LucideCheck,
+  MessageSquare as LucideMessageSquare,
+  Send as LucideSend,
+  X as LucideX,
+  Bell as LucideBell,
+  BellOff as LucideBellOff,
 } from 'lucide-react';
 
 export const PauseIcon = LucidePause;
@@ -19,3 +24,8 @@ export const HelpCircleIcon = LucideHelpCircle;
 export const BotIcon = LucideBot;
 export const CopyIcon = LucideCopy;
 export const CheckIcon = LucideCheck;
+export const MessageSquareIcon = LucideMessageSquare;
+export const SendIcon = LucideSend;
+export const XIcon = LucideX;
+export const BellIcon = LucideBell;
+export const BellOffIcon = LucideBellOff;

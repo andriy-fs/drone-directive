@@ -50,6 +50,28 @@ function sweep(freq: number, endFreq: number, duration: number, type: Oscillator
   osc.stop(a.currentTime + duration);
 }
 
+/**
+ * A soft sine note, scheduled `delay` seconds out. Unlike `blip` the gain ramps
+ * *up* rather than starting at full: an instant attack on a pure sine is audible
+ * as a click, which is the opposite of what a notification should sound like.
+ */
+function chime(freq: number, delay: number, duration: number, gain: number): void {
+  const a = audioCtx();
+  if (!a || muted) return;
+  const t = a.currentTime + delay;
+  const osc = a.createOscillator();
+  const g = a.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  // Exponential ramps cannot reach or leave zero, hence the near-silent endpoints.
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+  osc.connect(g).connect(a.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
 function noiseBurst(duration: number, gain: number): void {
   const a = audioCtx();
   if (!a || muted) return;
@@ -88,5 +110,15 @@ export const sfx = {
   },
   explosion(): void {
     noiseBurst(0.3, 0.18);
+  },
+  /**
+   * A new chat message: two soft rising sine notes, at roughly a fifth of the
+   * volume of anything the game itself makes. It has to be noticeable while the
+   * player is looking at the battle and forgettable while they are not — a
+   * weapon-grade blip would just train them to switch it off.
+   */
+  chatMessage(): void {
+    chime(784, 0, 0.1, 0.035);
+    chime(1046.5, 0.07, 0.14, 0.03);
   },
 };

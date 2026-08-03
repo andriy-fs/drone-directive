@@ -18,6 +18,8 @@ import type { DroneControl, GameContext } from '../engine/game/context';
 import { loadGameAssets } from './assets';
 import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
 import { LockstepSession, randomRoomCode, setNetDebug, type TickInput } from '@drone-directive/net';
+import { ChatSeat } from '@drone-directive/chat';
+import { attachChat } from '../chat/chatBridge';
 import { lockstepConfig } from '../config/multiplayer';
 import { worldHash } from '../engine/worldHash';
 import { sfx } from './audio/sfx';
@@ -442,11 +444,21 @@ export class GameApp {
     }
     this.session?.disconnect();
     this.onlineEnded = false;
+    // Decided here rather than read back from the store later: the host's code is
+    // generated at connect time, and the chat is labelled with the room it came
+    // from so two saved conversations are distinguishable.
+    const isHost = req.kind === 'host';
+    const roomCode = isHost ? randomRoomCode() : req.roomCode;
     this.session = new LockstepSession(
       {
-        onCreated: (roomCode) => useGameStore.getState().setOnline({ status: 'hosting', roomCode }),
-        onStart: (seed, mapSize, aiCount) => {
+        onCreated: (code) => useGameStore.getState().setOnline({ status: 'hosting', roomCode: code }),
+        onStart: (seed, mapSize, aiCount, chatId) => {
           this.pendingOnlineStart = { seed, mapSize, aiCount };
+          // Attached here and torn down nowhere below: `endOnline` and
+          // `leaveOnlineIfAny` drop `this.session` only. That asymmetry is the
+          // client half of "chat outlives the match" — the moment the opponent
+          // leaves is exactly when the players want to say something.
+          attachChat(chatId, isHost ? ChatSeat.Host : ChatSeat.Guest, roomCode);
           this.wake(); // arrives over the socket, with the loop parked on the lobby
         },
         onOpponentLeft: () => this.endOnline('Opponent left the match'),
@@ -456,8 +468,8 @@ export class GameApp {
       },
       lockstepConfig,
     );
-    if (req.kind === 'host') this.session.connectHost(randomRoomCode(), req.mapSize, req.aiOpponents);
-    else this.session.connectGuest(req.roomCode);
+    if (req.kind === 'host') this.session.connectHost(roomCode, req.mapSize, req.aiOpponents);
+    else this.session.connectGuest(roomCode);
   }
 
   /** Start the shared simulation from the relay's seed + map size. */

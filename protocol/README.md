@@ -25,7 +25,8 @@ npm run codegen -w protocol   # regenerate after editing the schema, then commit
 A frame is **one tag octet followed by the BARE payload**:
 
 ```
-byte 0    MessageTag — Tick 0, Created 1, Start 2, OpponentLeft 3, Error 4
+byte 0    MessageTag — game:  Tick 0, Created 1, Start 2, OpponentLeft 3, Error 4
+                       chat:  ChatSend 5, ChatHistory 6, ChatPosted 7, ChatPresence 8
 byte 1+   the BARE-encoded body of that message (empty for opponentLeft)
 ```
 
@@ -33,6 +34,14 @@ The tag sits _outside_ the payload so the relay can route a frame by reading
 `bytes[0]` and forward the rest untouched — it never decodes a game payload, and
 the decoder half of the codec never enters its bundle. That is also why
 `src/index.ts` stays dependency-free: it is on the Worker's hot path.
+
+**One tag space, two sockets.** Chat tags share the numbering but never the
+connection: they run against the `Chat` Durable Object over a socket of their own
+(`/chat`), with a lifetime that outlives the match. `Room` forwards `Tick` and
+nothing else, so a chat frame on a game socket is dropped; `@drone-directive/net`
+throws on one for the mirror-image reason. Unlike `Room`, the chat object _does_
+decode its payloads — it has to, to number and store them — which is a property of
+that object, not a hole in the relay's content-blindness.
 
 ## Versioning
 

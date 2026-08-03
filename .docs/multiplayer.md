@@ -106,9 +106,15 @@ connect time (it was a hard break on mismatch before this too).
 A frame is **one tag octet followed by the BARE payload**:
 
 ```
-byte 0    MessageTag — Tick 0, Created 1, Start 2, OpponentLeft 3, Error 4
+byte 0    MessageTag — game:  Tick 0, Created 1, Start 2, OpponentLeft 3, Error 4
+                       chat:  ChatSend 5, ChatHistory 6, ChatPosted 7, ChatPresence 8
 byte 1+   the BARE-encoded body of that message (empty for opponentLeft)
 ```
+
+The chat tags share the numbering but never the socket — see
+[Chat](#chat-a-second-socket-to-a-second-object) below. `Room.relay` whitelists
+`Tick`, so one arriving on a game socket is dropped, and `net`'s decoder throws on
+one for the mirror-image reason.
 
 The tag sits _outside_ the payload deliberately. It lets `Room.relay` decide what
 to do with a frame by reading `bytes[0]` and forward the rest untouched, so the
@@ -130,13 +136,13 @@ client-side, from an unambiguous alphabet):
 The Worker routes each upgrade to the Durable Object `idFromName(room)`. Messages
 after that:
 
-| Direction                     | Tag / message                                       | Purpose                                                                                         |
-| ----------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Relay → host                  | `1` `CreatedMessage { roomCode }`                   | Room open, waiting for a guest.                                                                 |
-| Relay → both                  | `2` `StartMessage { seed, mapSize, aiCount }`       | Sent once the room has 2 sockets — shared seed + match setup; fires `startMatch`.               |
-| Client → relay → other client | `0` `TickMessage { tick, commands, drone, check? }` | One sim tick's commands **+ the sender's drone input**; the DO rebroadcasts the bytes verbatim. |
-| Relay → remaining client      | `3` (no payload)                                    | On disconnect — the match ends (no reconnection).                                               |
-| Relay → client                | `4` `ErrorMessage { code, message }`                | Join/version failures (`ROOM_NOT_FOUND` / `ROOM_FULL` / `ROOM_TAKEN` / `VERSION_MISMATCH`).     |
+| Direction                     | Tag / message                                         | Purpose                                                                                                                      |
+| ----------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Relay → host                  | `1` `CreatedMessage { roomCode }`                     | Room open, waiting for a guest.                                                                                              |
+| Relay → both                  | `2` `StartMessage { seed, mapSize, aiCount, chatId }` | Sent once the room has 2 sockets — shared seed + match setup; fires `startMatch`. `chatId` is opaque to the game (see Chat). |
+| Client → relay → other client | `0` `TickMessage { tick, commands, drone, check? }`   | One sim tick's commands **+ the sender's drone input**; the DO rebroadcasts the bytes verbatim.                              |
+| Relay → remaining client      | `3` (no payload)                                      | On disconnect — the match ends (no reconnection).                                                                            |
+| Relay → client                | `4` `ErrorMessage { code, message }`                  | Join/version failures (`ROOM_NOT_FOUND` / `ROOM_FULL` / `ROOM_TAKEN` / `VERSION_MISMATCH`).                                  |
 
 The `Room` Durable Object's whole job: hold up to 2 sockets, generate the seed
 (`crypto.getRandomValues`) once the second connects, forward each `tick` to the
@@ -233,6 +239,57 @@ them before simulating that tick:
   The probe covers simulation state only — never anything derived from `localSide`,
   which legitimately differs per client.
 
+## Chat: a second socket to a second object
+
+Players in an online match can talk to each other. The requirement that shapes the
+whole design is that **chat outlives the match** — it survives the opponent
+leaving, the return to the menu, a page reload, and a visit days later.
+
+That rules out putting it in the lockstep stream. `Room` is two-socket and
+match-lifetime by construction; a conversation hung off it would end with the
+match, and a reload would lose it outright. So chat gets its **own WebSocket to
+its own Durable Object**, addressed by a relay-issued opaque `chatId` — 128 bits
+of randomness, unrelated to the 4-character room code — which both peers learn in
+`StartMessage`, the one instant they are told the same thing at the same time.
+
+- **Reached only from an existing network match.** No lobby chat, no chat in solo
+  or AI games, no discovery by code.
+- **Identified by seat**, "You" / "Opponent". There are no nicknames in this game.
+- **Retention is 7 days from the last message** — every post re-arms the alarm.
+- The panel floats over the canvas and is mounted **outside** `App`'s `inMatch`
+  guard, which is the UI half of the same property.
+
+Two things about the chat stack are deliberately unlike `net`, and both are
+written up in [`chat/README.md`](../chat/README.md):
+
+- **The chat Durable Object decodes what it is sent.** It has to — it assigns
+  sequence numbers, stores history and caps the log. `Room`'s content-blindness is
+  about relaying a lockstep tick it has no business understanding; it does not
+  generalize to a different object with a different job.
+- **Validation is asymmetric.** `net`'s hard rule (`scheduleLocal` screens the
+  local batch too) exists because under lockstep an asymmetric filter _is_ a
+  desync. Chat touches no simulation, so the server is simply authoritative: it
+  sanitizes and rate-limits, the client runs the same `sanitizeChatText` on its own
+  outgoing text, and a disagreement costs a re-render at worst.
+
+| Direction     | Tag / message                                    | Purpose                                                          |
+| ------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
+| Client → Chat | `5` `ChatSendMessage { text }`                   | Sanitized, rate-limited and numbered server-side.                |
+| Chat → client | `6` `ChatHistoryMessage { entries, peerOnline }` | On connect: everything after the `since` the client asked for.   |
+| Chat → both   | `7` `ChatPostedMessage { entry }`                | A new message; the sender's own echo is what confirms its `seq`. |
+| Chat → client | `8` `ChatPresenceMessage { peerOnline }`         | The other seat attached or dropped.                              |
+
+Connection, as always, is query params: `/chat?chat=<ID>&seat=<host|guest>&since=<SEQ>&v=<VERSION>`.
+`since` is the highest `seq` the client already has, so a reconnect costs the gap
+rather than the log — which is what makes reconnecting cheap enough to do on every
+backoff tick (1s → 2s → 4s → … → 30s).
+
+**Typing must not play the game.** Every hotkey listens on `window` and calls
+`preventDefault()`, so without a guard a message would pause the match, select the
+army, recall control groups and fly the drone. `client/src/utils/isTypingTarget.ts`
+is that guard, and all four listeners (three hooks plus `pixi/input/pointer.ts`)
+bail out on it.
+
 ## Explicitly out of scope
 
 - **Pause** — not synchronized; the in-match pause hotkey and button are disabled
@@ -249,16 +306,18 @@ command log`, both of which already exist in this design, so recording one
 
 ## Where the pieces live
 
-The repo is an npm-workspaces monorepo. Online play spans five of them, and the
-dependency direction is one-way — each may only import from the ones above it:
+The repo is an npm-workspaces monorepo. Online play spans six of them, and the
+dependency direction is one-way — `net` and `chat` are siblings, neither importing
+the other:
 
-| Workspace   | Its part in a networked match                                                                                                             |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `types/`    | The vocabulary both the game and the wire boundary speak: `Command`, `DroneControl`, the enums. Zero dependencies.                        |
-| `protocol/` | `schema/messages.bare` + its committed codegen, and the framing/handshake constants. Shared with the relay.                               |
+| Workspace   | Its part in a networked match                                                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `types/`    | The vocabulary both the game and the wire boundary speak: `Command`, `DroneControl`, the enums. Zero dependencies.                       |
+| `protocol/` | `schema/messages.bare` + its committed codegen, and the framing/handshake constants. Shared with the relay.                              |
 | `net/`      | `LockstepSession` (transport), `wire/codec/` (shape + mapping), `wire/validation/` (meaning). Depends on the two above and nothing else. |
-| `client/`   | The game. `GameApp.step()` consults `LockstepSession` before ticking; `config/multiplayer.ts` injects the relay URL and world bounds.     |
-| `server/`   | The relay Worker + `Room` Durable Object.                                                                                                 |
+| `chat/`     | `ChatSession` + its codec/validation. A sibling of `net` under the same rules; carries the conversation, never the simulation.           |
+| `client/`   | The game. `GameApp.step()` consults `LockstepSession` before ticking; `config/multiplayer.ts` injects the relay URL and world bounds.    |
+| `server/`   | The relay Worker, the `Room` Durable Object, and the `Chat` one.                                                                         |
 
 The client-side pieces the online path touches:
 
@@ -272,6 +331,10 @@ The client-side pieces the online path touches:
 | `client/src/store/gameStore.ts`              | `localSide` + lobby status (`connecting`/`hosting`/`inMatch`/`ended`/`error`) and actions.                     |
 | `client/src/ui/screens/OnlineLobby.tsx`      | Create/join-room screen, wired from `MainMenu.tsx`.                                                            |
 | `client/src/ui/hooks/usePauseHotkey.ts`      | Disabled while online — pause is not synchronized.                                                             |
+| `client/src/chat/chatBridge.ts`              | Owns the `ChatSession`. Outside `pixi/` on purpose — it must not die with the match.                           |
+| `client/src/chat/chatStorage.ts`             | The chat addresses this browser knows. Without it a reload loses a chat the server still holds.                |
+| `client/src/ui/hud/ChatPanel.tsx`            | The floating panel, mounted outside `App`'s `inMatch` guard.                                                   |
+| `client/src/utils/isTypingTarget.ts`         | The guard every `window` hotkey runs first, so typing a message doesn't play the game.                         |
 
 ## How to run (dev)
 

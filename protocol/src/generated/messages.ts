@@ -4,6 +4,7 @@ export type f32 = number
 export type f64 = number
 export type u8 = number
 export type u32 = number
+export type u64 = bigint
 export type uint = bigint
 
 /**
@@ -786,14 +787,15 @@ export function decodeCreatedMessage(bytes: Uint8Array): CreatedMessage {
 }
 
 /**
- * Both sockets present — begin simulating. Everything that shapes the world has to
- * be in here: the peers build it independently, so any setting only one of them
- * knows would desync them.
+ * `chatId` is the exception: it shapes nothing, but this is the one instant both
+ * peers are guaranteed to hear the same thing at the same time, so it is where
+ * the relay hands them the opaque id of the chat object they may both attach to.
  */
 export type StartMessage = {
     readonly seed: u32
     readonly mapSize: MapSize
     readonly aiCount: u8
+    readonly chatId: string
 }
 
 export function readStartMessage(bc: bare.ByteCursor): StartMessage {
@@ -801,6 +803,7 @@ export function readStartMessage(bc: bare.ByteCursor): StartMessage {
         seed: bare.readU32(bc),
         mapSize: readMapSize(bc),
         aiCount: bare.readU8(bc),
+        chatId: bare.readString(bc),
     }
 }
 
@@ -808,6 +811,7 @@ export function writeStartMessage(bc: bare.ByteCursor, x: StartMessage): void {
     bare.writeU32(bc, x.seed)
     writeMapSize(bc, x.mapSize)
     bare.writeU8(bc, x.aiCount)
+    bare.writeString(bc, x.chatId)
 }
 
 export function encodeStartMessage(x: StartMessage, config?: Partial<bare.Config>): Uint8Array {
@@ -859,6 +863,237 @@ export function encodeErrorMessage(x: ErrorMessage, config?: Partial<bare.Config
 export function decodeErrorMessage(bytes: Uint8Array): ErrorMessage {
     const bc = new bare.ByteCursor(bytes, bare.DEFAULT_CONFIG)
     const result = readErrorMessage(bc)
+    if (bc.offset < bc.view.byteLength) {
+        throw new bare.BareError(bc.offset, "remaining bytes")
+    }
+    return result
+}
+
+export enum ChatSeat {
+    Host = "Host",
+    Guest = "Guest",
+}
+
+export function readChatSeat(bc: bare.ByteCursor): ChatSeat {
+    const offset = bc.offset
+    const tag = bare.readU8(bc)
+    switch (tag) {
+        case 0:
+            return ChatSeat.Host
+        case 1:
+            return ChatSeat.Guest
+        default: {
+            bc.offset = offset
+            throw new bare.BareError(offset, "invalid tag")
+        }
+    }
+}
+
+export function writeChatSeat(bc: bare.ByteCursor, x: ChatSeat): void {
+    switch (x) {
+        case ChatSeat.Host: {
+            bare.writeU8(bc, 0)
+            break
+        }
+        case ChatSeat.Guest: {
+            bare.writeU8(bc, 1)
+            break
+        }
+    }
+}
+
+/**
+ * One stored message. `seq` is assigned by the server and is what both orders the
+ * log and tells a reconnecting client which messages it still needs.
+ */
+export type ChatEntry = {
+    readonly seq: u32
+    readonly from: ChatSeat
+    readonly text: string
+    /**
+     * Unix seconds. u32, never uint/u64 — the generated code would reach for
+     * bigint, and this protocol keeps every number a `number`.
+     */
+    readonly sentAt: u32
+}
+
+export function readChatEntry(bc: bare.ByteCursor): ChatEntry {
+    return {
+        seq: bare.readU32(bc),
+        from: readChatSeat(bc),
+        text: bare.readString(bc),
+        sentAt: bare.readU32(bc),
+    }
+}
+
+export function writeChatEntry(bc: bare.ByteCursor, x: ChatEntry): void {
+    bare.writeU32(bc, x.seq)
+    writeChatSeat(bc, x.from)
+    bare.writeString(bc, x.text)
+    bare.writeU32(bc, x.sentAt)
+}
+
+/**
+ * client -> Chat DO. The server sanitizes, rate-limits and numbers it.
+ */
+export type ChatSendMessage = {
+    readonly text: string
+}
+
+export function readChatSendMessage(bc: bare.ByteCursor): ChatSendMessage {
+    return {
+        text: bare.readString(bc),
+    }
+}
+
+export function writeChatSendMessage(bc: bare.ByteCursor, x: ChatSendMessage): void {
+    bare.writeString(bc, x.text)
+}
+
+export function encodeChatSendMessage(x: ChatSendMessage, config?: Partial<bare.Config>): Uint8Array {
+    const fullConfig = config != null ? bare.Config(config) : bare.DEFAULT_CONFIG
+    const bc = new bare.ByteCursor(
+        new Uint8Array(fullConfig.initialBufferLength),
+        fullConfig
+    )
+    writeChatSendMessage(bc, x)
+    return new Uint8Array(bc.view.buffer, bc.view.byteOffset, bc.offset)
+}
+
+export function decodeChatSendMessage(bytes: Uint8Array): ChatSendMessage {
+    const bc = new bare.ByteCursor(bytes, bare.DEFAULT_CONFIG)
+    const result = readChatSendMessage(bc)
+    if (bc.offset < bc.view.byteLength) {
+        throw new bare.BareError(bc.offset, "remaining bytes")
+    }
+    return result
+}
+
+function read5(bc: bare.ByteCursor): readonly ChatEntry[] {
+    const len = bare.readUintSafe(bc)
+    if (len === 0) {
+        return []
+    }
+    const result = [readChatEntry(bc)]
+    for (let i = 1; i < len; i++) {
+        result[i] = readChatEntry(bc)
+    }
+    return result
+}
+
+function write5(bc: bare.ByteCursor, x: readonly ChatEntry[]): void {
+    bare.writeUintSafe(bc, x.length)
+    for (let i = 0; i < x.length; i++) {
+        writeChatEntry(bc, x[i])
+    }
+}
+
+/**
+ * Chat DO -> client, on connect: everything after the `since` the client asked
+ * for, plus whether the other seat is attached right now.
+ */
+export type ChatHistoryMessage = {
+    readonly entries: readonly ChatEntry[]
+    readonly peerOnline: boolean
+}
+
+export function readChatHistoryMessage(bc: bare.ByteCursor): ChatHistoryMessage {
+    return {
+        entries: read5(bc),
+        peerOnline: bare.readBool(bc),
+    }
+}
+
+export function writeChatHistoryMessage(bc: bare.ByteCursor, x: ChatHistoryMessage): void {
+    write5(bc, x.entries)
+    bare.writeBool(bc, x.peerOnline)
+}
+
+export function encodeChatHistoryMessage(x: ChatHistoryMessage, config?: Partial<bare.Config>): Uint8Array {
+    const fullConfig = config != null ? bare.Config(config) : bare.DEFAULT_CONFIG
+    const bc = new bare.ByteCursor(
+        new Uint8Array(fullConfig.initialBufferLength),
+        fullConfig
+    )
+    writeChatHistoryMessage(bc, x)
+    return new Uint8Array(bc.view.buffer, bc.view.byteOffset, bc.offset)
+}
+
+export function decodeChatHistoryMessage(bytes: Uint8Array): ChatHistoryMessage {
+    const bc = new bare.ByteCursor(bytes, bare.DEFAULT_CONFIG)
+    const result = readChatHistoryMessage(bc)
+    if (bc.offset < bc.view.byteLength) {
+        throw new bare.BareError(bc.offset, "remaining bytes")
+    }
+    return result
+}
+
+/**
+ * Chat DO -> both clients. The sender's own echo is what confirms its `seq`.
+ */
+export type ChatPostedMessage = {
+    readonly entry: ChatEntry
+}
+
+export function readChatPostedMessage(bc: bare.ByteCursor): ChatPostedMessage {
+    return {
+        entry: readChatEntry(bc),
+    }
+}
+
+export function writeChatPostedMessage(bc: bare.ByteCursor, x: ChatPostedMessage): void {
+    writeChatEntry(bc, x.entry)
+}
+
+export function encodeChatPostedMessage(x: ChatPostedMessage, config?: Partial<bare.Config>): Uint8Array {
+    const fullConfig = config != null ? bare.Config(config) : bare.DEFAULT_CONFIG
+    const bc = new bare.ByteCursor(
+        new Uint8Array(fullConfig.initialBufferLength),
+        fullConfig
+    )
+    writeChatPostedMessage(bc, x)
+    return new Uint8Array(bc.view.buffer, bc.view.byteOffset, bc.offset)
+}
+
+export function decodeChatPostedMessage(bytes: Uint8Array): ChatPostedMessage {
+    const bc = new bare.ByteCursor(bytes, bare.DEFAULT_CONFIG)
+    const result = readChatPostedMessage(bc)
+    if (bc.offset < bc.view.byteLength) {
+        throw new bare.BareError(bc.offset, "remaining bytes")
+    }
+    return result
+}
+
+/**
+ * Chat DO -> client: the other seat attached or dropped.
+ */
+export type ChatPresenceMessage = {
+    readonly peerOnline: boolean
+}
+
+export function readChatPresenceMessage(bc: bare.ByteCursor): ChatPresenceMessage {
+    return {
+        peerOnline: bare.readBool(bc),
+    }
+}
+
+export function writeChatPresenceMessage(bc: bare.ByteCursor, x: ChatPresenceMessage): void {
+    bare.writeBool(bc, x.peerOnline)
+}
+
+export function encodeChatPresenceMessage(x: ChatPresenceMessage, config?: Partial<bare.Config>): Uint8Array {
+    const fullConfig = config != null ? bare.Config(config) : bare.DEFAULT_CONFIG
+    const bc = new bare.ByteCursor(
+        new Uint8Array(fullConfig.initialBufferLength),
+        fullConfig
+    )
+    writeChatPresenceMessage(bc, x)
+    return new Uint8Array(bc.view.buffer, bc.view.byteOffset, bc.offset)
+}
+
+export function decodeChatPresenceMessage(bytes: Uint8Array): ChatPresenceMessage {
+    const bc = new bare.ByteCursor(bytes, bare.DEFAULT_CONFIG)
+    const result = readChatPresenceMessage(bc)
     if (bc.offset < bc.view.byteLength) {
         throw new bare.BareError(bc.offset, "remaining bytes")
     }

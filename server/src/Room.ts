@@ -26,6 +26,11 @@ const MAP_SIZES: Record<WireMapSize, MapSize> = {
   large: MapSize.Large,
 };
 
+/** Lowercase hex of some random bytes — how a `chatId` is spelled (`CHAT_ID_LENGTH`). */
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 /** The host names the bot count; anything absent or out of range falls back to none. */
 function clampAiCount(raw: string | null): number {
   const n = Number(raw);
@@ -96,10 +101,22 @@ export class Room implements DurableObject {
     this.start();
   }
 
-  /** Both sockets present: pick the shared seed and start both simulations. */
+  /**
+   * Both sockets present: pick the shared seed and start both simulations.
+   *
+   * The same message carries a fresh `chatId` — 128 bits of randomness naming a
+   * `Chat` Durable Object neither peer has to agree on separately. This is the
+   * one instant both are told the same thing at the same time, which is the only
+   * reason chat's id is issued from here. Nothing else about chat touches this
+   * object: it is not relayed, not stored, and not part of the match's lifetime.
+   */
   private start(): void {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-    const bytes = frame(MessageTag.Start, encodeStartMessage({ seed, mapSize: this.mapSize, aiCount: this.aiCount }));
+    const chatId = hex(crypto.getRandomValues(new Uint8Array(16)));
+    const bytes = frame(
+      MessageTag.Start,
+      encodeStartMessage({ seed, mapSize: this.mapSize, aiCount: this.aiCount, chatId }),
+    );
     this.send(this.host, bytes);
     this.send(this.guest, bytes);
   }
