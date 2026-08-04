@@ -6,9 +6,10 @@ tick loop, determinism) lives in [multiplayer.md](./multiplayer.md), and the
 CI/Cloudflare setup in [deployment.md](./deployment.md).
 
 **One-line summary:** a Cloudflare Worker that upgrades WebSockets and hands each
-one to a Durable Object named after the room code; that object holds two sockets,
-mints one shared RNG seed, and forwards `tick` frames between them. It runs **no
-game code and stores nothing.**
+one to a Durable Object named after the room code; that object holds two seats,
+mints one shared RNG seed, forwards `tick` frames between them, and holds a
+dropped seat open long enough for it to come back. It runs **no game code and
+stores nothing.**
 
 ## Why there is a server at all
 
@@ -60,14 +61,20 @@ and all it does is pick which DO to talk to.
 
 ## The room's state machine
 
-`Room` holds four fields, all in memory, none persisted:
+`Room` holds two seats and the match setup, all in memory, none persisted:
 
 ```ts
-private host: WebSocket | null = null;      // first socket, arrived with create=1
-private guest: WebSocket | null = null;     // second socket
-private roomCode = '';                      // echoed back in `created`
-private mapSize: MapSize = MapSize.Medium;  // the host's pick, forwarded in `start`
+private readonly host = new Seat();          // first socket, arrived with create=1
+private readonly guest = new Seat();         // second socket
+private roomCode = '';                       // echoed back in `created`
+private mapSize: MapSize = MapSize.Medium;   // the host's pick, forwarded in `start`
+private started = false;                     // both seats taken and `start` sent
 ```
+
+A `Seat` is the part that outlives its socket: the socket itself, the
+`resumeToken` that names the seat, the frames held while it is away, and the grace
+timer. That split is the whole of the reconnection feature —
+`this.host.ws` changes, `this.host` does not.
 
 ```
    (empty) ──host connects──▶ hosting ──guest connects──▶ paired ──either closes──▶ (empty)
@@ -92,6 +99,7 @@ the constants are shared via `@drone-directive/protocol`:
 
 - host: `?room=<CODE>&create=1&v=<PROTOCOL_VERSION>&mapSize=<small|medium|large>`
 - guest: `?room=<CODE>&v=<PROTOCOL_VERSION>`
+- resume: `?room=<CODE>&v=<PROTOCOL_VERSION>&resume=<RESUME_TOKEN>`
 
 `Worker.fetch` then does five things and nothing else: answers `GET /health` with
 `ok`, rejects non-upgrade requests with **426**, routes `/chat` to
@@ -111,12 +119,16 @@ client half with status **101**. Then, in order:
 1. **Version gate first.** `v` must equal `PROTOCOL_VERSION`, else
    `error: version-mismatch`. Checking before the create/join branch means an
    outdated client can never occupy a room slot.
-2. **`create=1` → `acceptHost`.** Refuses with `room-taken` if a host is already
+2. **`resume=<token>` → `acceptResume`, before either of the below.** The token
+   names the seat as well as proving the right to it, so a match on a seat still
+   inside its grace period adopts the new socket and replays what it missed;
+   anything else is `resume-rejected` rather than some other kind of join.
+3. **`create=1` → `acceptHost`.** Refuses with `room-taken` if a host is already
    there; otherwise stores the socket, maps the `mapSize` query param to its schema
    tag (falling back to `medium` on anything else — the only input validation in
    the whole server, and the only place it still handles text), and replies
    `created` so the lobby can show the code.
-3. **no `create` → `acceptGuest`.** Refuses with `room-not-found` if no host is
+4. **no `create` → `acceptGuest`.** Refuses with `room-not-found` if no host is
    waiting, `room-full` if the room already has two, otherwise stores the socket
    and calls `start()`.
 
@@ -127,9 +139,16 @@ const seed = crypto.getRandomValues(new Uint32Array(1))[0];
 ```
 
 One CSPRNG draw, sent identically to both sockets alongside the host's `mapSize`.
-This is the **only value the server ever originates**, and it's the linchpin of the
-whole design: both clients feed it to `GameEngine.startMatch(settings, seed)` and
-build byte-identical worlds — same obstacles, same base placement, same entity ids.
+This is the **only value the server ever originates** that both peers share, and
+it's the linchpin of the whole design: both clients feed it to
+`GameEngine.startMatch(settings, seed)` and build byte-identical worlds — same
+obstacles, same base placement, same entity ids.
+
+The same message carries two more relay-minted values, and the second is why the
+two `start` frames are no longer byte-identical: the opaque `chatId` (the same for
+both) and a **per-seat `resumeToken`** (128 bits each). Reconnection has to be
+something only a seat's own holder can do, and the room code — four characters,
+typed by a human, guessable — could never carry that weight.
 
 ### 4. Relaying
 
@@ -154,11 +173,26 @@ in its bundle — but only the writers for those four: tree-shaking leaves out e
 reader and the whole `Command` graph, which is checkable with
 `npx wrangler deploy --dry-run --outdir …`. It never learns what a robot is.
 
-### 5. Teardown
+### 5. A dropped seat, and teardown
 
-`close` and `error` both route to `onClose`, which sends `opponentLeft` to the
-surviving peer, closes it with code **1000**, and clears both slots. A disconnect
-ends the match — there is no reconnection (see [out of scope](#deliberate-non-goals)).
+`close` and `error` both route to `onClose`. Before the match starts it ends the
+room outright, as it always did. Mid-match it does something else: the seat is
+marked `awaiting`, a `setTimeout` for `RESUME_GRACE_MS` (20s) is armed, and every
+frame `relay()` would have forwarded to that seat is pushed onto a bounded ring
+instead (`RESUME_BUFFER_FRAMES`, still the same opaque bytes — nothing is decoded
+to hold it). The surviving socket is left completely alone: under lockstep it
+cannot advance without the missing peer's input anyway, so it simply stalls, which
+is what it already does for lag.
+
+A socket arriving with that seat's token inside the window is adopted, given the
+held frames **in order**, and the live stream picks up behind them. If the timer
+fires first, `endMatch` does what `onClose` used to: `opponentLeft` to whoever is
+left, closed with code **1000**, both seats cleared.
+
+The grace period runs on a plain `setTimeout` rather than a DO alarm on purpose.
+The surviving socket keeps this object in memory for the whole window, and if both
+sides are gone there is nobody left to notify — so the timer never has to outlive
+the instance, and the room stays free of storage.
 
 One deliberate subtlety: **rejected sockets never get listeners.** `wire()` runs
 only after a socket passes the checks in `acceptHost`/`acceptGuest`, so a
@@ -181,10 +215,10 @@ Each frame is one `MessageTag` octet followed by that message's BARE payload:
 | Tag | Direction             | Message                                         | Sent when                                                                          |
 | --- | --------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `1` | Relay → host          | `CreatedMessage { roomCode }`                   | Room opened, waiting for a guest.                                                  |
-| `2` | Relay → both          | `StartMessage { seed, mapSize, aiCount }`       | Second socket joined. Triggers `startMatch`.                                       |
-| `0` | Client → relay → peer | `TickMessage { tick, commands, drone, check? }` | Every sim tick, forwarded verbatim (heartbeat even when empty).                    |
-| `3` | Relay → survivor      | _(no payload — the tag byte alone)_             | Peer's socket closed or errored.                                                   |
-| `4` | Relay → client        | `ErrorMessage { code, message }`                | `ROOM_NOT_FOUND` · `ROOM_FULL` · `ROOM_TAKEN` · `VERSION_MISMATCH` · `BAD_MESSAGE` |
+| `2` | Relay → both          | `StartMessage { seed, mapSize, aiCount, chatId, resumeToken }` | Second socket joined. Triggers `startMatch`. `resumeToken` differs per seat.       |
+| `0` | Client → relay → peer | `TickMessage { tick, commands, drone, check?, pauseToggle }`   | Every sim tick, forwarded verbatim (heartbeat even when empty).                    |
+| `3` | Relay → survivor      | _(no payload — the tag byte alone)_             | Peer left, or its seat's grace period expired.                                     |
+| `4` | Relay → client        | `ErrorMessage { code, message }`                | `ROOM_NOT_FOUND` · `ROOM_FULL` · `ROOM_TAKEN` · `VERSION_MISMATCH` · `BAD_MESSAGE` · `RESUME_REJECTED` |
 
 `BAD_MESSAGE` is declared in the schema but never sent by the relay — the client
 uses it locally for a malformed `VITE_MULTIPLAYER_URL` (`LockstepSession.open`).
@@ -332,12 +366,16 @@ The relay does **not**, and is not meant to:
 - **Detect desync.** The clients do that themselves: a periodic world hash rides
   on the `tick` message the relay already forwards verbatim, so the relay stays
   ignorant of game state (see [multiplayer.md](./multiplayer.md)).
-- **Support reconnection, spectators, or more than 2 human players.** (Bots need
-  no socket — both clients simulate them from the shared seed; the relay only
-  carries the host's `aiCount` in `start`.)
+- **Rejoin a match that has actually ended.** Holding a dropped seat for 20s is
+  re-delivery, not a lobby: once `opponentLeft` is sent there is nothing to come
+  back to.
+- **Support spectators, or more than 2 human players.** (Bots need no socket —
+  both clients simulate them from the shared seed; the relay only carries the
+  host's `aiCount` in `start`.)
 - **Authenticate, rate-limit, or match-make.** Anyone who guesses a 4-character
   code can join a room that's still waiting. Rooms are ephemeral and the code space
   is small by design (it has to be typeable) — acceptable for a hobby game, worth
   revisiting before anything public-facing.
 - **Persist.** No storage, no logs, no match history. A room's whole existence is
-  two sockets and a seed.
+  two seats and a seed, and a seat held for a dropped player lives in memory too —
+  if the object itself goes, so does the seat.

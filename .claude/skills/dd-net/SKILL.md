@@ -39,6 +39,12 @@ of it. What does concern this skill: `MessageTag` 5-8 belong to chat, and
 
 **BARE proves the shape, valibot proves the meaning.** Decoding does not make a frame safe — a well-formed f64 can be `NaN`.
 
+## A dropped socket is not a dropped match
+
+Neither peer advances without both sides' input for the current tick, so a client that loses its connection falls **zero** ticks behind — a reconnect is re-delivery, never catch-up. `Room` holds the seat for `RESUME_GRACE_MS` (20s) and rings the frames aimed at it (still opaque bytes — nothing is decoded to hold them); `LockstepSession` keeps an outbox, re-attaches with `?resume=<token>`, and replays what is outstanding. The peer's own tick stream is the acknowledgement: it could not have reached tick N without our input for `N - INPUT_DELAY_TICKS`. The surviving client needs nothing new — it stalls, exactly as it does for lag. Only when the grace expires does `opponentLeft` go out.
+
+Seats are named by the per-seat `resumeToken` in `start`, never by the room code (four typeable characters). That makes the two `start` frames the one pair of messages that are deliberately **not** byte-identical.
+
 ## Rules that bite
 
 - **Filters must be symmetric.** `scheduleLocal` runs `parseCommands` on the **local** batch too. Under lockstep a filter only one side applies _is_ a desync: one client applies the order, the other drops it, the worlds part. Same reasoning as `isCommandFrom` in `GameApp.stepOnline`. Anything new that can drop a command obeys this.
@@ -48,6 +54,7 @@ of it. What does concern this skill: `MessageTag` 5-8 belong to chat, and
 - **`f64`, never `f32`, for coordinates.** Rounding a position on the wire desyncs the peers a few ticks later. There is a test for this.
 - **Integer types:** `uint`/`u64` generate `bigint`. Use `u32`/`u8` so the generated code stays on `number`.
 - **The relay stays dumb.** It encodes the four messages it originates and decodes nothing. Don't teach `Room.ts` about commands — that is the deliberate non-goal in `.docs/server-relay.md`.
+- **The pause is input, not a message.** `TickMessage.pauseToggle` is a pulse applied on the same tick by both peers, so it needs no ordering rule and no owner: two pulses on one tick are two flips, which composes identically either way. `GameApp.stepOnline` derives the shared flag; the heartbeat keeps running while paused, which is the only reason it can be lifted.
 - **`worldHash` is not here.** It reads the ECS world, so it lives at `client/src/engine/worldHash.ts`; `net` only ever sees the resulting number via `recordHash(tick, hash)`.
 
 ## Adding to `types/`

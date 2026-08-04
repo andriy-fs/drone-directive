@@ -22,8 +22,8 @@ import { decodeServerMessage, encodeTick, ErrorCode, mapSizeToQueryParam } from 
 const IDLE_DRONE: DroneControl = { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false };
 
 /** Round-trips one tick's worth of input the way the two peers actually do. */
-function roundTrip(commands: Command[], drone: DroneControl = IDLE_DRONE, tick = 7) {
-  const bytes = encodeTick(tick, commands, drone, null);
+function roundTrip(commands: Command[], drone: DroneControl = IDLE_DRONE, tick = 7, pauseToggle = false) {
+  const bytes = encodeTick(tick, { commands, drone, pauseToggle }, null);
   const decoded = decodeServerMessage(toArrayBuffer(bytes));
   if (decoded?.type !== 'tick') throw new Error(`expected a tick frame, got ${decoded?.type ?? 'null'}`);
   return decoded;
@@ -108,10 +108,17 @@ describe('tick frame round-trip', () => {
 
   it('carries the desync probe when one is attached, and null when not', () => {
     const check = { tick: 120, hash: 0xdeadbeef };
-    const withCheck = encodeTick(130, [], IDLE_DRONE, check);
+    const withCheck = encodeTick(130, { commands: [], drone: IDLE_DRONE, pauseToggle: false }, check);
     const decoded = decodeServerMessage(toArrayBuffer(withCheck));
     expect(decoded).toMatchObject({ type: 'tick', check });
     expect(roundTrip([]).check).toBeNull();
+  });
+
+  // The pause pulse rides the same per-tick frame as everything else, which is
+  // what applies it on the same tick in both simulations.
+  it('carries the pause pulse in both states', () => {
+    expect(roundTrip([], IDLE_DRONE, 7, true).pauseToggle).toBe(true);
+    expect(roundTrip([], IDLE_DRONE, 7, false).pauseToggle).toBe(false);
   });
 });
 
@@ -123,9 +130,12 @@ describe('relay messages', () => {
 
   it('round-trips start, mapping the wire tag back to a MapSize', () => {
     const chatId = 'a'.repeat(32);
+    // Unlike everything else in `start`, this one differs between the two peers —
+    // it names the seat, which is what lets only its holder reclaim it.
+    const resumeToken = 'b'.repeat(32);
     const bytes = frame(
       MessageTag.Start,
-      encodeStartMessage({ seed: 0xfeedface, mapSize: WireMapSize.Large, aiCount: 2, chatId }),
+      encodeStartMessage({ seed: 0xfeedface, mapSize: WireMapSize.Large, aiCount: 2, chatId, resumeToken }),
     );
     expect(decodeServerMessage(toArrayBuffer(bytes))).toEqual({
       type: 'start',
@@ -133,11 +143,12 @@ describe('relay messages', () => {
       mapSize: MapSize.Large,
       aiCount: 2,
       chatId,
+      resumeToken,
     });
   });
 
   it('clamps a bot count the map has no corners for', () => {
-    const start = { seed: 1, mapSize: WireMapSize.Small, aiCount: 200, chatId: '' };
+    const start = { seed: 1, mapSize: WireMapSize.Small, aiCount: 200, chatId: '', resumeToken: '' };
     const bytes = frame(MessageTag.Start, encodeStartMessage(start));
     expect(decodeServerMessage(toArrayBuffer(bytes))).toMatchObject({ aiCount: 2 });
   });
@@ -169,7 +180,7 @@ describe('relay messages', () => {
 
 describe('framing', () => {
   it('puts the tag in the leading octet, where the relay reads it', () => {
-    const bytes = encodeTick(1, [], IDLE_DRONE, null);
+    const bytes = encodeTick(1, { commands: [], drone: IDLE_DRONE, pauseToggle: false }, null);
     expect(bytes[0]).toBe(MessageTag.Tick);
     expect(tagOf(toArrayBuffer(bytes))).toBe(MessageTag.Tick);
   });
@@ -188,7 +199,15 @@ describe('framing', () => {
 
 describe('malformed input', () => {
   it('returns null rather than throwing', () => {
-    const good = encodeTick(1, [{ kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_1' }], IDLE_DRONE, null);
+    const good = encodeTick(
+      1,
+      {
+        commands: [{ kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_1' }],
+        drone: IDLE_DRONE,
+        pauseToggle: false,
+      },
+      null,
+    );
 
     expect(decodeServerMessage(new ArrayBuffer(0))).toBeNull(); // empty
     expect(decodeServerMessage(Uint8Array.of(99, 1, 2, 3).buffer)).toBeNull(); // unknown tag

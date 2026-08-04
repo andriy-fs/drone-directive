@@ -36,7 +36,7 @@ React renders only HUD/screens/overlays. **Never import Pixi objects or ECS enti
 
 ## Contracts
 
-- **UI → game = commands or flags.** Player intents → `enqueueCommand({...})` (the bridge forwards to `engine.enqueueCommand`, drained by the engine's command system). Meta actions set flags the bridge maps to the engine: `requestRestart`→`engine.startMatch(settings)`, `requestMenu`→`engine.toMenu()`, `paused`→`engine.setPaused`. Selection (`selectRobots/toggleRobot/clearSelection`) is UI state the renderer reads.
+- **UI → game = commands or flags.** Player intents → `enqueueCommand({...})` (the bridge forwards to `engine.enqueueCommand`, drained by the engine's command system). Meta actions set flags the bridge maps to the engine: `requestRestart`→`engine.startMatch(settings)`, `requestMenu`→`engine.toMenu()`, `paused`→`engine.setPaused` (online it is the other way round: `togglePause` only raises `pauseTogglePending`, the bridge puts it on the wire, and `paused` comes back once both simulations stop on the agreed tick). Selection (`selectRobots/toggleRobot/clearSelection`) is UI state the renderer reads.
 - **Game → UI = throttled snapshots + status.** The bridge (GameApp) projects the ECS world into the snapshot DTOs (~5×/s or on spawn/destroy) and sets `status` from bus `sceneChanged`/`gameOver`. Treat snapshots as read-only, slightly-lagging view data (live HP is drawn in Pixi).
 - The engine/world lives outside the store; that's why restart/menu/settings go through flags + `startMatch(config)`.
 

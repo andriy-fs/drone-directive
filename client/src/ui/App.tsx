@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { GameCanvas } from './GameCanvas';
-import { PauseIcon, Settings2Icon } from './common/icons';
+import { HourglassIcon, PauseIcon, Settings2Icon } from './common/icons';
 import { ChatPanel } from './hud/ChatPanel';
 import { PauseButton } from './hud/PauseButton';
 import { SoundToggle } from './hud/SoundToggle';
@@ -15,7 +15,7 @@ import { useSelectAllHotkey } from './hooks/useSelectAllHotkey';
 import { restoreChat } from '../chat/chatBridge';
 import { useT } from '../i18n';
 import { useGameStore } from '../store/gameStore';
-import { selectBases, selectLocalSide, selectRobots, selectSides, selectStatus } from '../store/selectors';
+import { selectBases, selectLocalSide, selectOnline, selectRobots, selectSides, selectStatus } from '../store/selectors';
 
 import './App.css';
 
@@ -43,6 +43,7 @@ function App() {
   const robots = useGameStore(selectRobots);
   const sides = useGameStore(selectSides);
   const paused = useGameStore((s) => s.paused);
+  const online = useGameStore(selectOnline);
   const difficulty = useGameStore((s) => s.settings.match.difficulty);
   const droneStatus = useGameStore((s) => s.droneStatus);
   const localSide = useGameStore(selectLocalSide);
@@ -60,6 +61,9 @@ function App() {
   // `won`/`lost` still count as in-match: the world (and the HUD) stay on screen
   // behind the game-over modal.
   const inMatch = status !== 'menu';
+  // Lockstep froze the world waiting for input — the peer's, or our own once the
+  // socket comes back. Not a pause, and not a crash either.
+  const stalled = online.status === 'inMatch' && online.link !== 'ok';
 
   return (
     <div className={`app-shell ${inMatch ? '' : 'app-shell--menu'}`.trim()}>
@@ -133,7 +137,18 @@ function App() {
       )}
       <main className="viewport">
         <GameCanvas />
-        {status === 'playing' && paused && (
+        {/* Three ways for the world to be standing still, and the player is owed
+            the difference: a pause someone asked for, versus a lockstep step that
+            cannot run yet. The link takes precedence — it is the one that might
+            end the match. */}
+        {status === 'playing' && stalled && (
+          <div className="pause-overlay">
+            <span className="pause-overlay__label pause-overlay__label--link">
+              <HourglassIcon size={32} /> {t('online', online.link === 'reconnecting' ? 'reconnecting' : 'waitingPeer')}
+            </span>
+          </div>
+        )}
+        {status === 'playing' && paused && !stalled && (
           <div className="pause-overlay">
             <span className="pause-overlay__label">
               <PauseIcon size={32} /> {t('hud', 'paused')}

@@ -62,12 +62,23 @@ export type GameStatus = 'menu' | 'playing' | 'won' | 'lost';
  */
 export type OnlineStatus = 'offline' | 'connecting' | 'hosting' | 'inMatch' | 'ended' | 'error';
 
+/**
+ * Why an online match is standing still, when it is. Lockstep freezes both worlds
+ * the moment one side's input for the current tick is missing, so a stall is
+ * normal and recoverable — but indistinguishable from a crash unless the HUD says
+ * which it is. `stalled` = the peer's input is late; `reconnecting` = our own
+ * socket dropped and the session is reclaiming its seat.
+ */
+export type OnlineLink = 'ok' | 'stalled' | 'reconnecting';
+
 export interface OnlineState {
   status: OnlineStatus;
   /** The room code (host: generated; guest: the one they entered). */
   roomCode: string | null;
   /** Human-readable message for the `ended` / `error` states. */
   error: string | null;
+  /** Transport health while `inMatch`; always `ok` outside a match. */
+  link: OnlineLink;
 }
 
 /** One-shot online request the UI raises and the app bridge (GameApp) consumes. */
@@ -139,6 +150,8 @@ export interface GameState {
   restartRequested: boolean;
   menuRequested: boolean;
   paused: boolean;
+  /** One-shot "flip the shared pause" the bridge puts on the wire (online only). */
+  pauseTogglePending: boolean;
   /** Observer-drone flight direction (unit-ish vector); the bridge forwards it each step. */
   droneInput: Vec2;
   /** One-shot drone intents the bridge forwards then clears (land/take-off, fire/detonate). */
@@ -177,8 +190,16 @@ export interface GameState {
   requestRestart: () => void;
   requestMenu: () => void;
   clearRequests: () => void;
+  /**
+   * Stop/resume the world. Solo it flips `paused` outright; in a networked match
+   * it can only *ask* — the pause has to happen on the same tick in both
+   * simulations, so it raises `pauseTogglePending` for the bridge to put on the
+   * wire, and `paused` follows once the tick both peers agreed on comes round.
+   */
   togglePause: () => void;
   setPaused: (value: boolean) => void;
+  /** Bridge-only: take and clear the pending pause request. */
+  consumePauseToggle: () => boolean;
   setDroneInput: (dir: Vec2) => void;
   requestDronePossess: () => void;
   requestDroneFire: () => void;
@@ -227,6 +248,7 @@ const initialState = {
   restartRequested: false,
   menuRequested: false,
   paused: false,
+  pauseTogglePending: false,
   droneInput: { x: 0, y: 0 } as Vec2,
   dronePossessRequested: false,
   droneFireRequested: false,
@@ -241,7 +263,7 @@ const initialState = {
   settings: createDefaultSettings(),
   locale: resolveInitialLocale(),
   localSide: Owner.Player as Owner,
-  online: { status: 'offline', roomCode: null, error: null } as OnlineState,
+  online: { status: 'offline', roomCode: null, error: null, link: 'ok' } as OnlineState,
   pendingOnline: null as PendingOnline | null,
   chat: {
     open: false,
@@ -293,8 +315,19 @@ export const useGameStore = create<GameState>((set, get) => ({
   requestRestart: () => set({ restartRequested: true }),
   requestMenu: () => set({ menuRequested: true }),
   clearRequests: () => set({ restartRequested: false, menuRequested: false }),
-  togglePause: () => set((s) => ({ paused: !s.paused })),
+  togglePause: () =>
+    set((s) =>
+      // Online the pause is a shared thing scheduled a few ticks ahead, so this
+      // only raises the request; `paused` is set by the bridge when the two
+      // simulations actually stop, which is the only moment they agree on.
+      s.online.status === 'inMatch' ? { pauseTogglePending: true } : { paused: !s.paused },
+    ),
   setPaused: (value) => set({ paused: value }),
+  consumePauseToggle: () => {
+    const { pauseTogglePending } = get();
+    if (pauseTogglePending) set({ pauseTogglePending: false });
+    return pauseTogglePending;
+  },
   setDroneInput: (dir) => set({ droneInput: dir }),
   requestDronePossess: () => set({ dronePossessRequested: true }),
   requestDroneFire: () => set({ droneFireRequested: true }),
@@ -309,21 +342,21 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       localSide: Owner.Player,
       pendingOnline: { kind: 'host', mapSize, aiOpponents },
-      online: { status: 'connecting', roomCode: null, error: null },
+      online: { status: 'connecting', roomCode: null, error: null, link: 'ok' },
     }),
   joinMatch: (roomCode) => {
     const code = roomCode.toUpperCase();
     set({
       localSide: Owner.AI,
       pendingOnline: { kind: 'join', roomCode: code },
-      online: { status: 'connecting', roomCode: code, error: null },
+      online: { status: 'connecting', roomCode: code, error: null, link: 'ok' },
     });
   },
   leaveOnline: () =>
     set({
       localSide: Owner.Player,
       pendingOnline: { kind: 'leave' },
-      online: { status: 'offline', roomCode: null, error: null },
+      online: { status: 'offline', roomCode: null, error: null, link: 'ok' },
     }),
   consumePendingOnline: () => {
     const { pendingOnline } = get();

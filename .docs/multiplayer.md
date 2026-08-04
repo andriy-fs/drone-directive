@@ -132,6 +132,8 @@ client-side, from an unambiguous alphabet):
 
 - host: `?room=<CODE>&create=1&v=<PROTOCOL_VERSION>&mapSize=<small|medium|large>`
 - guest: `?room=<CODE>&v=<PROTOCOL_VERSION>`
+- resume: `?room=<CODE>&v=<PROTOCOL_VERSION>&resume=<RESUME_TOKEN>` — a dropped
+  seat reclaiming itself (see [Surviving a disconnect](#surviving-a-disconnect))
 
 The Worker routes each upgrade to the Durable Object `idFromName(room)`. Messages
 after that:
@@ -139,14 +141,51 @@ after that:
 | Direction                     | Tag / message                                         | Purpose                                                                                                                      |
 | ----------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Relay → host                  | `1` `CreatedMessage { roomCode }`                     | Room open, waiting for a guest.                                                                                              |
-| Relay → both                  | `2` `StartMessage { seed, mapSize, aiCount, chatId }` | Sent once the room has 2 sockets — shared seed + match setup; fires `startMatch`. `chatId` is opaque to the game (see Chat). |
-| Client → relay → other client | `0` `TickMessage { tick, commands, drone, check? }`   | One sim tick's commands **+ the sender's drone input**; the DO rebroadcasts the bytes verbatim.                              |
-| Relay → remaining client      | `3` (no payload)                                      | On disconnect — the match ends (no reconnection).                                                                            |
-| Relay → client                | `4` `ErrorMessage { code, message }`                  | Join/version failures (`ROOM_NOT_FOUND` / `ROOM_FULL` / `ROOM_TAKEN` / `VERSION_MISMATCH`).                                  |
+| Relay → both                  | `2` `StartMessage { seed, mapSize, aiCount, chatId, resumeToken }` | Sent once the room has 2 sockets — shared seed + match setup; fires `startMatch`. `chatId` is opaque to the game (see Chat). `resumeToken` is **per seat**, so these two frames are not byte-identical. |
+| Client → relay → other client | `0` `TickMessage { tick, commands, drone, check?, pauseToggle }`   | One sim tick's commands **+ the sender's drone input**, plus the shared-pause pulse; the DO rebroadcasts the bytes verbatim. |
+| Relay → remaining client      | `3` (no payload)                                      | The peer left, or its seat's grace period expired — the match is over.                                                       |
+| Relay → client                | `4` `ErrorMessage { code, message }`                  | Join/version failures (`ROOM_NOT_FOUND` / `ROOM_FULL` / `ROOM_TAKEN` / `VERSION_MISMATCH` / `RESUME_REJECTED`).              |
 
 The `Room` Durable Object's whole job: hold up to 2 sockets, generate the seed
 (`crypto.getRandomValues`) once the second connects, forward each `tick` to the
-other socket, and send `opponentLeft` on disconnect. No game logic, no persistence.
+other socket, hold a dropped seat open for its grace period, and send
+`opponentLeft` once it is really over. No game logic, no persistence.
+
+### Surviving a disconnect
+
+A dropped socket used to end the match outright. It no longer does, and the reason
+it can be cheap is the stall above: **under lockstep a peer with no connection does
+not fall behind**, because neither world advances without both sides' input for the
+current tick. Nothing has to be rewound or caught up — only re-delivered.
+
+So the relay holds the seat for `RESUME_GRACE_MS` (20s) and keeps the frames aimed
+at it in a bounded ring (`RESUME_BUFFER_FRAMES`), still as the opaque bytes it was
+already forwarding. The client's `LockstepSession` keeps its own outbox of sent
+ticks, re-attaches with `?resume=<token>`, and replays whatever the peer has not
+acknowledged — and the peer's own tick stream _is_ that acknowledgement, since it
+could not have reached tick N without our input for `N - INPUT_DELAY_TICKS`. The
+surviving client needs no new behaviour at all: it stalls, exactly as it does for
+lag, and its HUD says `reconnecting` instead of looking crashed
+(`online.link` in the store). Only when the grace period expires does the relay
+send `opponentLeft`.
+
+The seat is named by a **`resumeToken`** — 128 bits issued per seat in `start` —
+and not by the room code, which is four client-generated characters and far too
+guessable to protect a live match. An unknown or expired token gets
+`RESUME_REJECTED` rather than any other kind of join.
+
+### Pausing a networked match
+
+The pause is one bit of tick input (`pauseToggle`), so it lands on the same tick in
+both simulations and needs no message of its own. It is a **pulse**, not a state:
+either side may flip it and either may flip it back, and two pulses on one tick are
+two flips — which composes to the same world on both peers regardless of the order
+they are applied in. `GameApp.stepOnline` derives the shared flag from the pair and
+hands it to `engine.setPaused`; the per-tick heartbeat keeps running while paused,
+which is the only reason the pause can ever be lifted. Local input is dropped while
+it holds (a stopped world is a break, not free thinking time), and that is a
+sender-side policy — each peer decides it about its own input, so it cannot desync
+anything.
 
 ## Validating the peer's input
 
@@ -292,10 +331,9 @@ bail out on it.
 
 ## Explicitly out of scope
 
-- **Pause** — not synchronized; the in-match pause hotkey and button are disabled
-  online (`usePauseHotkey.ts` + `PauseButton`, gated on `online.status`).
-- **Reconnection** — a dropped socket ends the match (`opponentLeft`); no
-  resume/rejoin flow.
+- **Rejoining a match that really ended** — the resume flow above covers a
+  dropped socket inside its grace period, nothing beyond it: once `opponentLeft`
+  is sent the room is gone, and there is no lobby to re-enter or state to restore.
 - **Anti-cheat / hiding fog-of-war state from the client** — accepted
   limitation of lockstep, see above.
 - **More than 2 _humans_**— the relay pairs exactly two sockets per room.

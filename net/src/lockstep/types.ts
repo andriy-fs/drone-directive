@@ -10,6 +10,13 @@ import type { CommandLimits } from '../wire/validation';
 export interface TickInput {
   commands: Command[];
   drone: DroneControl;
+  /**
+   * "Flip the shared pause at this tick" — a pulse, not the pause state. Either
+   * side may raise it, both sides apply both pulses, so the two worlds agree on
+   * whether they are running without anyone owning the pause. The host
+   * application keeps the resulting flag; this package only carries the bit.
+   */
+  pauseToggle: boolean;
 }
 
 /** What the host application has to tell the transport about its own world. */
@@ -38,8 +45,21 @@ export interface LockstepHandlers {
   /** The peer disconnected; the match is over. */
   onOpponentLeft?: () => void;
   onError?: (code: ErrorCode, message: string) => void;
-  /** The socket closed (network drop or intentional disconnect). */
+  /**
+   * The session has given up: the socket closed and either it cannot be resumed
+   * (no match in progress) or every attempt inside the grace window failed. The
+   * match is over — unlike `onLinkDown`, this one does not come back.
+   */
   onClose?: () => void;
+  /**
+   * The socket dropped mid-match and the session is trying to reclaim its seat.
+   * Nothing is lost yet: neither peer can advance without the other's input, so
+   * both worlds are simply standing still. Purely an invitation to say so on
+   * screen.
+   */
+  onLinkDown?: () => void;
+  /** The seat was reclaimed and the missed frames replayed; the match resumes. */
+  onLinkUp?: () => void;
   /**
    * The peer's world hash for `tick` disagreed with ours: the simulations have
    * parted. Everything either client shows after this point is unreliable.

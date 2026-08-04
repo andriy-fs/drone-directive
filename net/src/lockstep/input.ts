@@ -5,7 +5,7 @@ import type { TickInput } from './types';
 /** Turning a decoded frame — or nothing at all — into one tick's `TickInput`. */
 
 export function emptyInput(): TickInput {
-  return { commands: [], drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false } };
+  return { commands: [], drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false }, pauseToggle: false };
 }
 
 /**
@@ -20,5 +20,8 @@ export function screen(msg: Extract<DecodedMessage, { type: 'tick' }>, limits: C
   return {
     commands: parseCommands(msg.commands, 'peer', limits),
     drone: parseDroneControl(msg.drone, 'peer') ?? emptyInput().drone,
+    // A bool has no shape to get wrong and no bounds to exceed, so there is
+    // nothing for the semantic layer to say about it.
+    pauseToggle: msg.pauseToggle,
   };
 }

@@ -43,6 +43,17 @@ throws on one for the mirror-image reason. Unlike `Room`, the chat object _does_
 decode its payloads — it has to, to number and store them — which is a property of
 that object, not a hole in the relay's content-blindness.
 
+## Resuming a seat
+
+`StartMessage` carries a per-seat `resumeToken`, which is the one field the two
+peers are told different values of — so the two `start` frames are **not**
+byte-identical, and anything asserting that (the e2e does) has to compare the
+prefix instead. A dropped client presents its token as `?resume=<token>` to
+reclaim its seat inside `RESUME_GRACE_MS`; the room code is four typeable
+characters and could never protect a live match on its own. The constants
+(`RESUME_GRACE_MS`, `RESUME_BUFFER_FRAMES`, `RESUME_TOKEN_LENGTH`) live in
+`src/index.ts` with the rest of what a schema cannot express.
+
 ## Versioning
 
 BARE has no field numbers and no schema evolution, so **every change to the schema

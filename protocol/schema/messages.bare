@@ -137,12 +137,21 @@ type WorldCheck struct {
 
 # One simulation tick's worth of one side's input. Sent every tick, empty command
 # list included — a steady heartbeat is simpler to reason about than a "did the
-# peer skip this tick" case.
+# peer skip this tick" case. The heartbeat keeps running while the match is
+# paused, which is what makes `pauseToggle` deliverable at all.
+#
+# `pauseToggle` is a *pulse*, not the pause state: "flip the shared pause at this
+# tick", in the same spirit as the drone's `possess`/`fire`. Either side may flip
+# it and either side may flip it back, and two pulses landing on the same tick are
+# two flips — which is the whole reason it is a pulse. An absolute flag would need
+# a rule for whose value wins; a pair of flips composes to the same world on both
+# peers no matter which order they are applied in.
 type TickMessage struct {
     tick: u32
     commands: list<Command>
     drone: DroneControl
     check: optional<WorldCheck>
+    pauseToggle: bool
 }
 
 # ---------------------------------------------------------------------------
@@ -162,6 +171,10 @@ type ErrorCode enum {
     ROOM_TAKEN = 2
     VERSION_MISMATCH = 3
     BAD_MESSAGE = 4
+    # A `resume` handshake the relay would not honour: unknown token, the grace
+    # period already elapsed, or so much was missed that the buffered ticks no
+    # longer reach back to where the client stopped.
+    RESUME_REJECTED = 5
 }
 
 # Host acknowledgement: the room is open and waiting for a guest.
@@ -176,11 +189,18 @@ type CreatedMessage struct {
 # `chatId` is the exception: it shapes nothing, but this is the one instant both
 # peers are guaranteed to hear the same thing at the same time, so it is where
 # the relay hands them the opaque id of the chat object they may both attach to.
+#
+# `resumeToken` is the one field the two peers are told *different* values of, so
+# the two `start` frames are no longer byte-identical: it names the seat rather
+# than the match. A dropped client presents it to reclaim its own seat, and a room
+# code — four characters, client-generated — is far too guessable to stand in for
+# it: reconnecting by code alone would let a stranger walk into a live match.
 type StartMessage struct {
     seed: u32
     mapSize: MapSize
     aiCount: u8
     chatId: str
+    resumeToken: str
 }
 
 type ErrorMessage struct {

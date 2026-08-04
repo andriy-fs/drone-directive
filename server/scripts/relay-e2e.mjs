@@ -22,11 +22,13 @@ const HTTP = RELAY.replace(/^ws/, 'http');
 // connection fail with `version-mismatch` and look like a relay bug.
 const protocolSource = readFileSync(fileURLToPath(new URL('../../protocol/src/index.ts', import.meta.url)), 'utf8');
 const V = Number(/PROTOCOL_VERSION = (\d+)/.exec(protocolSource)?.[1]);
+/** How long the relay holds a dropped seat — read from source for the same reason as the version. */
+const GRACE_MS = Number(/RESUME_GRACE_MS = ([\d_]+)/.exec(protocolSource)?.[1].replace(/_/g, ''));
 
 const Tag = { Tick: 0, Created: 1, Start: 2, OpponentLeft: 3, Error: 4 };
 // Chat shares the tag space with the game but never the socket.
 const ChatTag = { Send: 5, History: 6, Posted: 7, Presence: 8 };
-const ErrorCode = { RoomNotFound: 0, RoomFull: 1, RoomTaken: 2, VersionMismatch: 3 };
+const ErrorCode = { RoomNotFound: 0, RoomFull: 1, RoomTaken: 2, VersionMismatch: 3, BadMessage: 4, ResumeRejected: 5 };
 
 /** BARE writes a string as its length (varint) followed by UTF-8 — enough of an encoder for one field. */
 function encodeStringPayload(text) {
@@ -98,12 +100,14 @@ async function main() {
   const guestStart = guest.frames[0];
   check('both peers receive start', !!hostStart && !!guestStart);
   check('...tagged Start', hostStart?.[0] === Tag.Start && guestStart?.[0] === Tag.Start);
-  // The seed is the linchpin of the whole design: identical bytes is identical seed.
-  check('...byte-identical on both sockets', bytesEqual(hostStart, guestStart));
-  // 1 tag + u32 seed + u8 mapSize + u8 aiCount + (1 length + 32) chatId.
+  // The seed is the linchpin of the whole design, so everything up to the seat's
+  // own token has to be identical on both sockets — but no longer the whole frame:
+  // the resume token names the seat, so it is the one field they differ in.
+  check('...identical through seed, mapSize, aiCount and chatId', bytesEqual(hostStart?.subarray(0, 40), guestStart?.subarray(0, 40)));
+  // 1 tag + u32 seed + u8 mapSize + u8 aiCount + (1 length + 32) chatId + (1 + 32) resumeToken.
   check(
-    '...1 tag + seed + mapSize + aiCount + 32-char chatId = 40 bytes',
-    hostStart?.length === 40,
+    '...1 tag + seed + mapSize + aiCount + chatId + resumeToken = 73 bytes',
+    hostStart?.length === 73,
     `${hostStart?.length}`,
   );
   check('...carries the host mapSize (large = tag 2)', hostStart?.[5] === 2, `got ${hostStart?.[5]}`);
@@ -112,6 +116,11 @@ async function main() {
   const chatId = hostStart ? readString(hostStart, 7).value : '';
   check('...carries a 32-char chatId', /^[0-9a-f]{32}$/.test(chatId), chatId);
 
+  const hostToken = hostStart ? readString(hostStart, 40).value : '';
+  const guestToken = guestStart ? readString(guestStart, 40).value : '';
+  check('...carries a 32-char resumeToken', /^[0-9a-f]{32}$/.test(guestToken), guestToken);
+  check('...a different one per seat — it names the seat, not the match', hostToken !== guestToken);
+
   // --- tick relay ----------------------------------------------------------
   const tick = new Uint8Array([Tag.Tick, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x02]);
   host.send(tick);
@@ -119,20 +128,59 @@ async function main() {
   check('peer receives the tick', !!guest.frames[1]);
   check('...forwarded byte-for-byte, not re-encoded', bytesEqual(guest.frames[1], tick));
 
-  const before = guest.frames.length;
+  const beforeJunk = guest.frames.length;
   host.send(new Uint8Array([Tag.Created, 1, 2, 3])); // a tag the relay must not forward
   host.send('a JSON string, from a pre-v4 client');
   host.send(new Uint8Array(0));
   await wait(300);
-  check('anything that is not a tick is dropped', guest.frames.length === before, `+${guest.frames.length - before}`);
+  check(
+    'anything that is not a tick is dropped',
+    guest.frames.length === beforeJunk,
+    `+${guest.frames.length - beforeJunk}`,
+  );
 
-  // --- teardown ------------------------------------------------------------
-  host.close();
-  await wait(400);
-  const left = guest.frames[before];
-  check('survivor is told the opponent left', left?.[0] === Tag.OpponentLeft, `tag=${left?.[0]}`);
-  check('...opponentLeft is the tag byte alone', left?.length === 1, `${left?.length}`);
+  // --- resume: a dropped seat keeps its place ------------------------------
+  // Lockstep means the guest has not fallen behind by dropping — the host simply
+  // stalls — so all the relay owes it is the frames it was not there for.
+  const missedA = new Uint8Array([Tag.Tick, 1, 0, 0, 0, 0x11]);
+  const missedB = new Uint8Array([Tag.Tick, 2, 0, 0, 0, 0x22]);
   guest.close();
+  await wait(400);
+  host.send(missedA);
+  host.send(missedB);
+  await wait(300);
+  check(
+    'a drop inside the grace period does not end the match',
+    !host.frames.some((f) => f[0] === Tag.OpponentLeft),
+    'host was told the opponent left',
+  );
+
+  const back = open(`room=AB7K&v=${V}&resume=${guestToken}`);
+  await wait(500);
+  check('the resumed seat is given what it missed', back.frames.length === 2, `${back.frames.length} frames`);
+  check('...in order, byte-for-byte', bytesEqual(back.frames[0], missedA) && bytesEqual(back.frames[1], missedB));
+
+  const live = new Uint8Array([Tag.Tick, 3, 0, 0, 0, 0x33]);
+  host.send(live);
+  await wait(300);
+  check('...and the live stream picks up behind them', bytesEqual(back.frames[2], live));
+
+  // A token nobody was issued: holding one *is* the right to the seat, so this is
+  // the whole of the check standing between a live match and a passer-by.
+  const impostor = open(`room=AB7K&v=${V}&resume=${'0'.repeat(32)}`);
+  await wait(400);
+  check('an unknown resume token is refused', impostor.frames[0]?.[0] === Tag.Error, `tag=${impostor.frames[0]?.[0]}`);
+  check('...with RESUME_REJECTED', impostor.frames[0]?.[1] === ErrorCode.ResumeRejected, `got ${impostor.frames[0]?.[1]}`);
+  impostor.close();
+
+  // --- teardown: the grace period runs out ---------------------------------
+  const beforeLeft = host.frames.length;
+  back.close();
+  await wait(GRACE_MS + 2_000);
+  const left = host.frames[beforeLeft];
+  check('survivor is told the opponent left once the grace expires', left?.[0] === Tag.OpponentLeft, `tag=${left?.[0]}`);
+  check('...opponentLeft is the tag byte alone', left?.length === 1, `${left?.length}`);
+  host.close();
 
   // --- rejections ----------------------------------------------------------
   const orphan = open(`room=ZZZZ&v=${V}`);
