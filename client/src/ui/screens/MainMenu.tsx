@@ -1,4 +1,4 @@
-import { Settings2Icon, HelpCircleIcon, BotIcon } from '../common/icons';
+import { Settings2Icon, HelpCircleIcon, BotIcon, Volume2Icon, VolumeXIcon } from '../common/icons';
 import { useState, type CSSProperties } from 'react';
 import { sfx } from '../../pixi/audio/sfx';
 import { useT } from '../../i18n';
@@ -10,11 +10,12 @@ import { ChipPicker, PickerGroup } from '../common/Picker';
 import { BaseSetupModal } from './BaseSetupModal';
 import { ControlsModal } from './ControlsModal';
 import { OnlineLobby } from './OnlineLobby';
+import { SoundSettingsModal } from './SoundSettingsModal';
 import { UnitsGuideModal } from './UnitsGuideModal';
 import { LANGUAGE_OPTIONS, difficultyOptions, mapSizeOptions, opponentOptions } from './menuOptions';
 
 /** Which overlay the title screen is showing, or `null` for the menu itself. */
-type MenuModal = 'setup' | 'controls' | 'units' | 'online' | null;
+type MenuModal = 'setup' | 'controls' | 'units' | 'online' | 'sound' | null;
 
 /**
  * Title screen: pick language/difficulty/roster, open Base Setup (auto-produce +
@@ -105,6 +106,12 @@ export function MainMenu() {
             </Button>
           </PickerGroup>
 
+          <PickerGroup label={t('sound', 'title')}>
+            <Button onClick={() => setModal('sound')}>
+              {sfx.isMuted() ? <VolumeXIcon size={16} /> : <Volume2Icon size={16} />} {t('sound', 'settings')}
+            </Button>
+          </PickerGroup>
+
           <PickerGroup label={t('mainMenu', 'help')}>
             <Button onClick={() => setModal('controls')}>
               <HelpCircleIcon size={16} /> {t('mainMenu', 'controls')}
@@ -136,6 +143,8 @@ export function MainMenu() {
         <UnitsGuideModal onClose={closeModal} />
       ) : modal === 'controls' ? (
         <ControlsModal onClose={closeModal} />
+      ) : modal === 'sound' ? (
+        <SoundSettingsModal onClose={closeModal} />
       ) : null}
     </>
   );

@@ -1,124 +1,192 @@
 /**
- * Tiny self-contained sound layer using the Web Audio API — no external assets
- * or dependencies. Sounds are synthesized on the fly (a blip for shots, a noise
- * burst for explosions). The AudioContext is created lazily and must be resumed
- * after a user gesture (see `resume`, called from the Start button).
+ * The game's sound. Cues are sample files (see `config/sounds.ts` for the table
+ * and `.docs/sfx/README.md` for what each one is meant to be) played through
+ * `@pixi/sound`, which owns the AudioContext and puts an analyser + compressor
+ * in front of the destination — so there is no hand-built bus here any more.
+ *
+ * The AudioContext still starts suspended and must be resumed after a user
+ * gesture (see `resume`, called from the Start button).
  */
-type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
+import { sound, webaudio, type PlayOptions } from '@pixi/sound';
+import { soundDefs, type SoundName } from '../../config/sounds';
+import { storage } from '../../utils/storage';
+import type { ChassisType } from '@drone-directive/types/enums';
 
-let ctx: AudioContext | null = null;
-let muted = false;
+/** Persisted preferences. `dd:` prefix + absence-means-default, as with `dd:chatSound`. */
+const MUTED_KEY = 'dd:sfxMuted';
+const VOLUME_KEY = 'dd:sfxVolume';
 
-function audioCtx(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-  if (!ctx) {
-    const Ctor: typeof AudioContext | undefined =
-      typeof AudioContext !== 'undefined' ? AudioContext : (window as AudioWindow).webkitAudioContext;
-    if (!Ctor) return null;
-    ctx = new Ctor();
-  }
-  return ctx;
+/**
+ * Cues whose buffer is decoded and ready. `sound.exists()` is **not** a
+ * substitute: it goes true the moment an alias is registered, and `Sound.play()`
+ * in that state *queues* the call and fires it once decoding finishes — which
+ * would spray a match's worth of stale explosions seconds after the fact.
+ */
+const ready = new Set<SoundName>();
+
+/** Context time of the last pip/boom of each rate-limited cue. */
+let lastUnitReadyAt = -Infinity;
+let lastExplosionAt = -Infinity;
+
+/** Selection cues layer a chassis voice under the group cue; see `groupSelected`. */
+const GROUP_LAYER_DELAY_MS = 70;
+/** Bursts of an identical buffer starting on the same sample sum coherently. */
+const COALESCE_MS = 120;
+
+const chassisCue: Record<ChassisType, SoundName> = {
+  tracks: 'select-tracks',
+  wheels: 'select-wheels',
+  legs: 'select-legs',
+};
+
+function play(name: SoundName, options?: { speed?: number; volumeScale?: number }): void {
+  if (!ready.has(name)) return;
+  const def = soundDefs[name];
+  const opts: PlayOptions = { volume: def.volume * (options?.volumeScale ?? 1) };
+  // Set `speed` only when there is one to set: `Sound.play` spreads the caller's
+  // options *over* its defaults, so a present-but-undefined key overwrites the
+  // default of 1 and the playback rate ends up NaN.
+  if (options?.speed !== undefined) opts.speed = options.speed;
+  void sound.play(name, opts);
 }
 
-function blip(freq: number, duration: number, type: OscillatorType, gain: number): void {
-  const a = audioCtx();
-  if (!a || muted) return;
-  const osc = a.createOscillator();
-  const g = a.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  g.gain.setValueAtTime(gain, a.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + duration);
-  osc.connect(g).connect(a.destination);
-  osc.start();
-  osc.stop(a.currentTime + duration);
-}
-
-/** Like `blip`, but the oscillator's pitch sweeps from `freq` to `endFreq` over `duration`. */
-function sweep(freq: number, endFreq: number, duration: number, type: OscillatorType, gain: number): void {
-  const a = audioCtx();
-  if (!a || muted) return;
-  const osc = a.createOscillator();
-  const g = a.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, a.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(endFreq, a.currentTime + duration);
-  g.gain.setValueAtTime(gain, a.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + duration);
-  osc.connect(g).connect(a.destination);
-  osc.start();
-  osc.stop(a.currentTime + duration);
+/** Called by the asset loader once a cue's buffer is decoded. */
+export function markSoundReady(name: SoundName): void {
+  ready.add(name);
 }
 
 /**
- * A soft sine note, scheduled `delay` seconds out. Unlike `blip` the gain ramps
- * *up* rather than starting at full: an instant attack on a pure sine is audible
- * as a click, which is the opposite of what a notification should sound like.
+ * Apply the stored preferences and stop the library from suspending itself.
+ *
+ * `WebAudioContext.autoPause` defaults to true, which suspends the whole context
+ * when the window loses focus. That would silence the chat notification — the
+ * one cue whose entire job is to reach a player who is looking somewhere else.
  */
-function chime(freq: number, delay: number, duration: number, gain: number): void {
-  const a = audioCtx();
-  if (!a || muted) return;
-  const t = a.currentTime + delay;
-  const osc = a.createOscillator();
-  const g = a.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = freq;
-  // Exponential ramps cannot reach or leave zero, hence the near-silent endpoints.
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-  osc.connect(g).connect(a.destination);
-  osc.start(t);
-  osc.stop(t + duration);
+function init(): void {
+  const ctx = sound.context;
+  if (ctx instanceof webaudio.WebAudioContext) ctx.autoPause = false;
+
+  const storedVolume = Number(storage.getItem(VOLUME_KEY));
+  sound.volumeAll = Number.isFinite(storedVolume) && storage.getItem(VOLUME_KEY) !== null
+    ? Math.min(Math.max(storedVolume, 0), 1)
+    : 1;
+  if (storage.getItem(MUTED_KEY) === 'on') sound.muteAll();
 }
 
-function noiseBurst(duration: number, gain: number): void {
-  const a = audioCtx();
-  if (!a || muted) return;
-  const frames = Math.floor(a.sampleRate * duration);
-  const buffer = a.createBuffer(1, frames, a.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < frames; i++) {
-    data[i] = (Math.random() * 2 - 1) * (1 - i / frames); // white noise, decaying
-  }
-  const src = a.createBufferSource();
-  src.buffer = buffer;
-  const g = a.createGain();
-  g.gain.value = gain;
-  src.connect(g).connect(a.destination);
-  src.start();
-}
+init();
 
 export const sfx = {
   /** Resume the context after a user gesture (browsers block autoplay). */
   resume(): void {
-    void audioCtx()?.resume();
+    void sound.context.audioContext.resume();
   },
+
   setMuted(value: boolean): void {
-    muted = value;
+    // Always go through muteAll/unmuteAll — assigning `sound.context.muted`
+    // directly skips the library's `refresh()` and never reaches the graph.
+    if (value) sound.muteAll();
+    else sound.unmuteAll();
+    storage.setItem(MUTED_KEY, value ? 'on' : 'off');
   },
   isMuted(): boolean {
-    return muted;
+    return sound.context.muted;
   },
+
+  /** Master volume, 0..1. Persisted; the mute switch is independent of it. */
+  setVolume(value: number): void {
+    const v = Math.min(Math.max(value, 0), 1);
+    sound.volumeAll = v;
+    storage.setItem(VOLUME_KEY, String(v));
+  },
+  getVolume(): number {
+    return sound.volumeAll;
+  },
+
   cannonShot(): void {
-    blip(760, 0.06, 'square', 0.04);
+    play('shot-cannon');
   },
-  /** Louder, longer launch: a descending thump sweep layered under a short whoosh. */
+
   missileShot(): void {
-    sweep(320, 90, 0.18, 'sawtooth', 0.09);
-    noiseBurst(0.16, 0.05);
+    play('shot-missile');
   },
-  explosion(): void {
-    noiseBurst(0.3, 0.18);
-  },
+
   /**
-   * A new chat message: two soft rising sine notes, at roughly a fifth of the
-   * volume of anything the game itself makes. It has to be noticeable while the
-   * player is looking at the battle and forgettable while they are not — a
-   * weapon-grade blip would just train them to switch it off.
+   * A reap can destroy a dozen entities inside one fixed step, and the bus
+   * dispatches those synchronously: identical buffers starting on the same
+   * sample sum coherently into one clipped bang. Coalesce the burst, and vary
+   * the pitch of what survives so repeats don't sound like a loop.
+   */
+  explosion(): void {
+    const now = performance.now();
+    if (now - lastExplosionAt < COALESCE_MS) return;
+    lastExplosionAt = now;
+    play('explosion', { speed: 0.94 + Math.random() * 0.12 });
+  },
+
+  /**
+   * A new chat message. Roughly a fifth of the volume of anything the game
+   * itself makes: it has to be noticeable while the player is looking at the
+   * battle and forgettable while they are not.
    */
   chatMessage(): void {
-    chime(784, 0, 0.1, 0.035);
-    chime(1046.5, 0.07, 0.14, 0.03);
+    play('chat-message');
+  },
+
+  /** The other half of that pair — a message of ours going out. */
+  chatSend(): void {
+    play('chat-send');
+  },
+
+  /** Selecting your base: the factory acknowledging an order. */
+  baseSelected(): void {
+    play('select-base');
+  },
+
+  /**
+   * Selecting one robot, by chassis. The three differ on register, texture and
+   * rhythm at once, so they stay apart under gunfire and not merely on a quiet
+   * menu.
+   */
+  robotSelected(chassis: ChassisType): void {
+    play(chassisCue[chassis]);
+  },
+
+  /**
+   * Selecting a group: the column rolling out, with the heaviest chassis present
+   * layered under it so a wheeled squad still sounds wheeled.
+   *
+   * The layer is delayed rather than played alongside: two `sound.play` calls in
+   * one synchronous tick start inside the same render quantum — i.e. on the same
+   * output sample — and sum coherently into a single loud transient instead of
+   * arriving as a mix. Timer jitter is inaudible against a 70 ms offset.
+   */
+  groupSelected(chassis: readonly ChassisType[], count: number): void {
+    // Varispeed drops the pitch and stretches the cue, which is what the
+    // synthesized version did by hand for a big selection.
+    play('select-group', { speed: count >= 8 ? 0.85 : 1 });
+    const lead = chassis[0];
+    if (lead) setTimeout(() => play(chassisCue[lead], { volumeScale: 0.5 }), GROUP_LAYER_DELAY_MS);
+  },
+
+  /**
+   * A robot rolled off the line. Fires unattended for the whole match, so it has
+   * to be a pip the player stops consciously hearing. Several bases can finish
+   * on the same tick — same coherent-summing problem as `explosion`.
+   */
+  unitReady(): void {
+    const now = performance.now();
+    if (now - lastUnitReadyAt < COALESCE_MS) return;
+    lastUnitReadyAt = now;
+    play('unit-ready');
+  },
+
+  /** Any button in the HUD or the menus. */
+  buttonClick(): void {
+    play('button-click');
+  },
+
+  /** A modal coming up. */
+  modalOpen(): void {
+    play('modal-open');
   },
 };

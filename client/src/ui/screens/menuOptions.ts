@@ -1,6 +1,7 @@
 import type { ChipOption } from '../common/Picker';
 import { maxAiOpponents } from '../../config/gameSettings';
-import { Locale, type T } from '../../i18n';
+import type { T } from '../../i18n';
+import { Locale } from '../../i18n/locale';
 import { Difficulty, MapSize } from '@drone-directive/types/enums';
 
 /**

@@ -1,4 +1,4 @@
-import type { Dict } from './en';
+import type { Dict } from '../dict';
 
 export const pl: Dict = {
   mainMenu: {
@@ -167,6 +167,16 @@ export const pl: Dict = {
     pause: 'Pauza',
     unmute: 'Włącz dźwięk',
     mute: 'Wycisz',
+    volume: 'Głośność dźwięku',
+    soundSettings: 'Ustawienia dźwięku',
+  },
+  sound: {
+    title: 'Dźwięk',
+    settings: 'Ustawienia dźwięku',
+    effects: 'Efekty dźwiękowe',
+    on: 'Wł.',
+    off: 'Wył.',
+    volume: 'Głośność',
   },
   online: {
     multiplayer: 'Tryb wieloosobowy',

@@ -134,6 +134,9 @@ function ExpandedChat({ t }: { t: T }) {
         <Button
           className="chat-compose__send"
           type="submit"
+          // `sendChat` plays its own cue; a click on top of it would land on the
+          // same output sample and the two would fuse into one loud transient.
+          silent
           disabled={!chat.connected}
           title={t('chat', 'send')}
           aria-label={t('chat', 'send')}

@@ -3,7 +3,7 @@ import { GameCanvas } from './GameCanvas';
 import { HourglassIcon, PauseIcon, Settings2Icon } from './common/icons';
 import { ChatPanel } from './hud/ChatPanel';
 import { PauseButton } from './hud/PauseButton';
-import { SoundToggle } from './hud/SoundToggle';
+import { SoundButton } from './hud/SoundButton';
 import { StatusPanel } from './hud/StatusPanel';
 import { ProgrammingPanel } from './hud/ProgrammingPanel';
 import { sideLabel, sideTone } from './hud/sides';
@@ -73,7 +73,7 @@ function App() {
             <h1 className="hud__title">{t('hud', 'title')}</h1>
             <div className="hud__controls">
               <PauseButton />
-              <SoundToggle />
+              <SoundButton />
             </div>
           </div>
           <p className="hud__status">

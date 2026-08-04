@@ -45,6 +45,51 @@
   color: var(--text-h);
 }
 
+/* The volume row inside the sound dialog — the slider's only home now that the
+   HUD titlebar is just a button. */
+.sound-volume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sound-volume__value {
+  min-width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.slider {
+  flex: 1;
+  height: 4px;
+  appearance: none;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.35);
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.slider::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: none;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .sound-toggle {
   display: inline-flex;
   align-items: center;
