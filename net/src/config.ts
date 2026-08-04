@@ -27,12 +27,15 @@ export function randomRoomCode(): string {
  */
 export function connectUrl(
   relayUrl: string,
-  opts: { room: string; create?: boolean; mapSize?: MapSize; aiCount?: number },
+  opts: { room: string; create?: boolean; mapSize?: MapSize; aiCount?: number; resume?: string },
 ): string {
   const url = new URL(relayUrl);
   url.searchParams.set(QueryParam.Room, opts.room);
   url.searchParams.set(QueryParam.Version, String(PROTOCOL_VERSION));
   if (opts.create) url.searchParams.set(QueryParam.Create, '1');
+  // Reclaiming a seat: the token says which seat and proves the right to it, so
+  // this replaces the create/join intent rather than joining it.
+  if (opts.resume) url.searchParams.set(QueryParam.Resume, opts.resume);
   // Spelled through the codec rather than passed through: the two happen to use
   // the same strings today, and nothing should quietly depend on that.
   if (opts.mapSize) url.searchParams.set(QueryParam.MapSize, mapSizeToQueryParam(opts.mapSize));

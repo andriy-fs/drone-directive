@@ -177,6 +177,8 @@ export const ru: Dict = {
     copyCode: 'Скопировать код комнаты',
     codeCopied: 'Скопировано!',
     waitingOpponent: 'Ожидание соперника…',
+    waitingPeer: 'Ждём соперника…',
+    reconnecting: 'Соединение потеряно — переподключение…',
     matchEnded: 'Матч завершён.',
     hostGame: 'Создать игру',
     createRoom: 'Создать комнату',

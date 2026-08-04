@@ -58,6 +58,15 @@ export class GameApp {
   private netTick = 0;
   private pendingOnlineStart: { seed: number; mapSize: MapSize; aiCount: number } | null = null;
   private onlineEnded = false;
+  /**
+   * The shared pause, as both peers compute it: flipped by the `pauseToggle`
+   * pulses riding on the tick both of them are applying. Derived from the input
+   * stream rather than from the store, which is what makes it the same on both
+   * clients — the store only mirrors it for the HUD.
+   */
+  private onlinePaused = false;
+  /** When the current lockstep stall began (`0` while the match is advancing). */
+  private stalledSince = 0;
   private hostResizeObserver: ResizeObserver | null = null;
   private readonly onResize = (width: number, height: number) => this.camera.setViewport(width, height);
 
@@ -337,12 +346,8 @@ export class GameApp {
   /** Advance one networked tick once both sides' inputs for it have arrived (else stall). */
   private stepOnline(dt: number, store: GameState): void {
     const session = this.session!;
-    if (!session.ready(this.netTick)) return; // waiting on the peer — both stall the same way
-
-    // A networked match can't be paused, but `paused` survives a previous solo
-    // match (nothing clears it), and a stale `true` here would silently freeze
-    // this client's world while the peer's kept running.
-    this.engine.setPaused(false);
+    if (!session.ready(this.netTick)) return void this.noteStall(store);
+    this.noteRunning(store);
 
     const side = store.localSide;
     const remote = this.remoteSide(side);
@@ -365,7 +370,11 @@ export class GameApp {
     for (const batch of batches) this.enqueueFrom(batch.owner, batch.input.commands);
     this.engine.setDroneControl(side, local.drone);
     this.engine.setDroneControl(remote, peer.drone);
-    this.engine.tick(dt);
+    // Both pulses, so two players pausing on the same tick cancel out identically
+    // on both clients — and the flip lands on this tick in both worlds, which is
+    // the whole reason the pause travels as input instead of as a message.
+    this.applyPauseToggles(local.pauseToggle, peer.pauseToggle);
+    this.engine.tick(dt); // a no-op while paused: the world stops, the tick stream does not
 
     // Desync probe: hash the world every so often so the peers can notice they
     // have parted instead of quietly showing each other different battles.
@@ -377,6 +386,50 @@ export class GameApp {
     session.scheduleLocal(this.netTick + session.inputDelay, this.captureLocalInput(store));
     this.netTick += 1;
     this.snapshotAfterTick();
+  }
+
+  /**
+   * Flip the shared pause once per pulse and hand the result to the engine (whose
+   * `tick` then does nothing until it is lifted). The store is told too, but only
+   * so the HUD can draw the overlay: what the two simulations obey is this flag,
+   * computed from the same two bits on both clients.
+   */
+  private applyPauseToggles(local: boolean, peer: boolean): void {
+    const paused = this.onlinePaused !== (local !== peer);
+    if (paused !== this.onlinePaused) {
+      this.onlinePaused = paused;
+      useGameStore.getState().setPaused(paused);
+    }
+    this.engine.setPaused(paused);
+  }
+
+  /**
+   * The step could not run: neither side's world advances without the other's
+   * input for this tick, so this is a wait rather than a fault — announced once
+   * it has lasted long enough to be worth mentioning, and abandoned only when it
+   * has lasted long enough that nobody is coming back. A peer whose tab was
+   * backgrounded stops sending without ever closing its socket, and that is the
+   * only thing this ceiling exists for.
+   */
+  private noteStall(store: GameState): void {
+    const now = performance.now();
+    if (this.stalledSince === 0) this.stalledSince = now;
+    const stalledFor = now - this.stalledSince;
+    if (stalledFor >= gameConfig.online.stallTimeoutMs) {
+      this.endOnline('The opponent stopped responding');
+      return;
+    }
+    // `reconnecting` is our own socket and outranks this: it says more about the
+    // same silence, and the session clears it when the seat is back.
+    if (stalledFor >= gameConfig.online.stallNoticeMs && store.online.link === 'ok') {
+      store.setOnline({ link: 'stalled' });
+    }
+  }
+
+  /** A step went through: whatever the hold-up was, it is over. */
+  private noteRunning(store: GameState): void {
+    this.stalledSince = 0;
+    if (store.online.link === 'stalled') store.setOnline({ link: 'ok' });
   }
 
   /** A side's index in the roster — the same on every peer, so it orders anything canonically. */
@@ -402,7 +455,20 @@ export class GameApp {
     }
   }
 
+  /**
+   * This client's input for one tick. While the match is paused everything but
+   * the pause request itself is dropped on the floor: a stopped world is a break,
+   * not free thinking time in which to queue up orders. Each peer decides that
+   * about its own input, so the two never have to agree on it — nothing here can
+   * make the simulations differ.
+   */
   private captureLocalInput(store: GameState): TickInput {
+    const pauseToggle = store.consumePauseToggle();
+    if (this.onlinePaused) {
+      store.drainCommands();
+      store.clearDroneRequests();
+      return { commands: [], drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false }, pauseToggle };
+    }
     const commands = store.drainCommands();
     const drone: DroneControl = {
       dir: { x: store.droneInput.x, y: store.droneInput.y },
@@ -410,7 +476,7 @@ export class GameApp {
       firePulse: store.droneFireRequested,
     };
     store.clearDroneRequests();
-    return { commands, drone };
+    return { commands, drone, pauseToggle };
   }
 
   private snapshotAfterTick(): void {
@@ -464,6 +530,14 @@ export class GameApp {
         onOpponentLeft: () => this.endOnline('Opponent left the match'),
         onError: (_code, message) => this.endOnline(message, true),
         onClose: () => this.endOnline('Connection closed'),
+        // A dropped socket is not a dropped match: the relay holds the seat, the
+        // session goes back for it, and this client's world is frozen at the same
+        // tick the peer's is. All the HUD has to do is stop looking crashed.
+        onLinkDown: () => useGameStore.getState().setOnline({ link: 'reconnecting' }),
+        onLinkUp: () => {
+          useGameStore.getState().setOnline({ link: 'ok' });
+          this.wake(); // the loop may have parked while the socket was away
+        },
         onDesync: (tick, mine, theirs) => this.reportDesync(tick, mine, theirs),
       },
       lockstepConfig,
@@ -479,9 +553,14 @@ export class GameApp {
     // would build different worlds from the same seed.
     store.updateSettings({ match: { mapSize, aiOpponents: aiCount, online: true } });
     this.netTick = 0;
+    this.onlinePaused = false;
+    this.stalledSince = 0;
+    // Nothing else clears `paused`, and a stale `true` from an earlier solo match
+    // would freeze this client's world while the peer's kept running.
+    store.setPaused(false);
     this.engine.startMatch(useGameStore.getState().settings, seed);
     this.engine.setLocalSide(store.localSide);
-    store.setOnline({ status: 'inMatch' });
+    store.setOnline({ status: 'inMatch', link: 'ok' });
   }
 
   /** End an online match (peer left / error / disconnect) and return to the menu. */
@@ -492,10 +571,9 @@ export class GameApp {
     const wasInMatch = store.online.status === 'inMatch';
     this.session?.disconnect();
     this.session = null;
-    this.netTick = 0;
-    this.pendingOnlineStart = null;
+    this.resetOnlineRun(store);
     this.engine.toMenu();
-    store.setOnline({ status: isError || !wasInMatch ? 'error' : 'ended', roomCode: null, error: message });
+    store.setOnline({ status: isError || !wasInMatch ? 'error' : 'ended', roomCode: null, error: message, link: 'ok' });
   }
 
   /**
@@ -509,14 +587,27 @@ export class GameApp {
    * `.dialog-frame` over the menu that swallows every click until a page reload.
    */
   private leaveOnlineIfAny(): void {
+    const store = useGameStore.getState();
     if (this.session) {
       this.onlineEnded = true;
       this.session.disconnect();
       this.session = null;
-      this.netTick = 0;
-      this.pendingOnlineStart = null;
+      this.resetOnlineRun(store);
     }
-    useGameStore.getState().setOnline({ status: 'offline', roomCode: null, error: null });
+    store.setOnline({ status: 'offline', roomCode: null, error: null, link: 'ok' });
+  }
+
+  /**
+   * Forget everything that only means something inside a networked match. The
+   * pause especially: it belongs to the two simulations that just stopped
+   * existing, and leaving it set would hand the next solo match a frozen world.
+   */
+  private resetOnlineRun(store: GameState): void {
+    this.netTick = 0;
+    this.pendingOnlineStart = null;
+    this.onlinePaused = false;
+    this.stalledSince = 0;
+    store.setPaused(false);
   }
 
   /** Fog of war: the local side's own units are always visible; every rival's only once detected. */

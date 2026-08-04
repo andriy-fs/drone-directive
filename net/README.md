@@ -32,6 +32,25 @@ with a list of strings and a pair of f64s; only the semantic layer knows that an
 f64 can be `NaN`, that the list must not be empty, and that the point has to land
 on the map the players are actually on.
 
+## A dropped socket is not a dropped match
+
+`LockstepSession` reconnects, and the reason it can be simple is the property the
+whole package is built on: **neither peer advances without both sides' input for
+the current tick**, so a client that loses its connection falls exactly zero ticks
+behind. Nothing needs rewinding or catching up — only re-delivering.
+
+So it keeps an outbox of the ticks it has sent, re-attaches with the `resumeToken`
+the relay issued that seat in `start`, and replays whatever is still outstanding.
+The peer's own tick stream is the acknowledgement that empties the outbox: it
+could not have reached tick N without our input for `N - INPUT_DELAY_TICKS`. Two
+callbacks, `onLinkDown`/`onLinkUp`, exist so the host can say what is happening;
+`onClose` now means the session has genuinely given up.
+
+Chat's session reconnects too, and it is worth being clear that it is for the
+opposite reason: its state lives on the server, so a dropped socket loses nothing.
+Here the state is a pair of simulations, and the reconnect exists to keep them
+from ever disagreeing.
+
 ## Injected, not imported
 
 Two things are the host application's business, and taking them as configuration
@@ -66,6 +85,8 @@ that can drop a command has to obey the same rule.
 npm run test -w net       # or `npm test` from the root, which runs this first
 ```
 
-The tests need no game: `CommandLimits` is three numbers, and the codec is
-exercised through round-trips. The full wire is covered separately by
-`npm run e2e -w server`, which drives real frames against a running relay.
+The tests need no game: `CommandLimits` is three numbers, the codec is exercised
+through round-trips, and `lockstep/session.test.ts` drives the reconnect against a
+fake socket with fake timers. The full wire is covered separately by
+`npm run e2e -w server`, which drives real frames against a running relay —
+including a seat that drops, resumes, and is handed the frames it missed.

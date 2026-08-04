@@ -9,9 +9,20 @@ import { MAP_SIZE_FROM_WIRE } from './enums';
 /** A relay frame, decoded and translated into terms the game already speaks. */
 export type DecodedMessage =
   | { type: 'created'; roomCode: string }
-  /** `chatId` is opaque here: this package carries it and never looks inside it. */
-  | { type: 'start'; seed: number; mapSize: MapSize; aiCount: number; chatId: string }
-  | { type: 'tick'; tick: number; commands: Command[]; drone: DroneControl; check: WorldCheck | null }
+  /**
+   * `chatId` is opaque here: this package carries it and never looks inside it.
+   * `resumeToken` is opaque too, but it does not leave the package — the session
+   * keeps it to reclaim its own seat after a drop.
+   */
+  | { type: 'start'; seed: number; mapSize: MapSize; aiCount: number; chatId: string; resumeToken: string }
+  | {
+      type: 'tick';
+      tick: number;
+      commands: Command[];
+      drone: DroneControl;
+      check: WorldCheck | null;
+      pauseToggle: boolean;
+    }
   | { type: 'opponentLeft' }
   | { type: 'error'; code: wire.ErrorCode; message: string };
 
@@ -19,18 +30,23 @@ export type WorldCheck = wire.WorldCheck;
 export type ErrorCode = wire.ErrorCode;
 export const ErrorCode = wire.ErrorCode;
 
-/** Encode this client's input for one tick, ready to hand to the socket. */
+/**
+ * Encode this client's input for one tick, ready to hand to the socket. The input
+ * is taken structurally rather than as a `TickInput`: that type belongs to the
+ * transport, which imports the codec and not the other way round.
+ */
 export function encodeTick(
   tick: number,
-  commands: Command[],
-  drone: DroneControl,
+  input: { commands: Command[]; drone: DroneControl; pauseToggle: boolean },
   check: WorldCheck | null,
 ): Uint8Array<ArrayBuffer> {
+  const { drone } = input;
   const payload = wire.encodeTickMessage({
     tick,
-    commands: commands.map(commandToWire),
+    commands: input.commands.map(commandToWire),
     drone: { dir: { x: drone.dir.x, y: drone.dir.y }, possess: drone.possessPulse, fire: drone.firePulse },
     check,
+    pauseToggle: input.pauseToggle,
   });
   return frame(MessageTag.Tick, payload);
 }
@@ -65,6 +81,7 @@ function decodePayload(tag: MessageTag, payload: Uint8Array): DecodedMessage {
         // reach `startMatch` and try to seat more sides than the map has corners.
         aiCount: Math.min(start.aiCount, MAX_AI_OPPONENTS),
         chatId: start.chatId,
+        resumeToken: start.resumeToken,
       };
     }
     case MessageTag.Tick: {
@@ -75,6 +92,7 @@ function decodePayload(tag: MessageTag, payload: Uint8Array): DecodedMessage {
         commands: msg.commands.map(commandFromWire),
         drone: { dir: { ...msg.drone.dir }, possessPulse: msg.drone.possess, firePulse: msg.drone.fire },
         check: msg.check,
+        pauseToggle: msg.pauseToggle,
       };
     }
     case MessageTag.OpponentLeft:

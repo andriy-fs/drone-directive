@@ -13,6 +13,7 @@ import {
   X as LucideX,
   Bell as LucideBell,
   BellOff as LucideBellOff,
+  Hourglass as LucideHourglass,
 } from 'lucide-react';
 
 export const PauseIcon = LucidePause;
@@ -29,3 +30,5 @@ export const SendIcon = LucideSend;
 export const XIcon = LucideX;
 export const BellIcon = LucideBell;
 export const BellOffIcon = LucideBellOff;
+/** A networked match standing still — waiting on the peer, or on our own socket. */
+export const HourglassIcon = LucideHourglass;

@@ -177,6 +177,8 @@ export const uk: Dict = {
     copyCode: 'Скопіювати код кімнати',
     codeCopied: 'Скопійовано!',
     waitingOpponent: 'Очікування суперника…',
+    waitingPeer: 'Чекаємо на суперника…',
+    reconnecting: 'З’єднання втрачено — перепідключення…',
     matchEnded: 'Матч завершено.',
     hostGame: 'Створити гру',
     createRoom: 'Створити кімнату',

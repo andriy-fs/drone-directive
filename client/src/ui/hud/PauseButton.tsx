@@ -4,7 +4,11 @@ import { selectOnline, selectStatus } from '../../store/selectors';
 import { Button } from '../common/Button';
 import { PauseIcon, PlayIcon } from '../common/icons';
 
-/** Toggles the paused state. Enabled only while a solo match is running (no pause online). */
+/**
+ * Toggles the paused state. Online it toggles the *shared* one — either player
+ * may stop the match and either may start it again — which takes a few ticks to
+ * come back, so the icon follows the simulation rather than the click.
+ */
 export function PauseButton() {
   const t = useT();
   const status = useGameStore(selectStatus);
@@ -16,7 +20,9 @@ export function PauseButton() {
     <Button
       className="sound-toggle"
       onClick={togglePause}
-      disabled={status !== 'playing' || online.status === 'inMatch'}
+      // Not while the link is down: the request travels as tick input, so with
+      // nothing flowing it would sit unsent and then fire on reconnect.
+      disabled={status !== 'playing' || (online.status === 'inMatch' && online.link !== 'ok')}
       aria-label={paused ? t('aria', 'resume') : t('aria', 'pause')}
     >
       {paused ? <PlayIcon size={16} /> : <PauseIcon size={16} />}

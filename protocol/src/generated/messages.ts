@@ -607,15 +607,19 @@ function write4(bc: bare.ByteCursor, x: WorldCheck | null): void {
 }
 
 /**
- * One simulation tick's worth of one side's input. Sent every tick, empty command
- * list included — a steady heartbeat is simpler to reason about than a "did the
- * peer skip this tick" case.
+ * `pauseToggle` is a *pulse*, not the pause state: "flip the shared pause at this
+ * tick", in the same spirit as the drone's `possess`/`fire`. Either side may flip
+ * it and either side may flip it back, and two pulses landing on the same tick are
+ * two flips — which is the whole reason it is a pulse. An absolute flag would need
+ * a rule for whose value wins; a pair of flips composes to the same world on both
+ * peers no matter which order they are applied in.
  */
 export type TickMessage = {
     readonly tick: u32
     readonly commands: readonly Command[]
     readonly drone: DroneControl
     readonly check: WorldCheck | null
+    readonly pauseToggle: boolean
 }
 
 export function readTickMessage(bc: bare.ByteCursor): TickMessage {
@@ -624,6 +628,7 @@ export function readTickMessage(bc: bare.ByteCursor): TickMessage {
         commands: read3(bc),
         drone: readDroneControl(bc),
         check: read4(bc),
+        pauseToggle: bare.readBool(bc),
     }
 }
 
@@ -632,6 +637,7 @@ export function writeTickMessage(bc: bare.ByteCursor, x: TickMessage): void {
     write3(bc, x.commands)
     writeDroneControl(bc, x.drone)
     write4(bc, x.check)
+    bare.writeBool(bc, x.pauseToggle)
 }
 
 export function encodeTickMessage(x: TickMessage, config?: Partial<bare.Config>): Uint8Array {
@@ -702,6 +708,12 @@ export enum ErrorCode {
     RoomTaken = "RoomTaken",
     VersionMismatch = "VersionMismatch",
     BadMessage = "BadMessage",
+    /**
+     * A `resume` handshake the relay would not honour: unknown token, the grace
+     * period already elapsed, or so much was missed that the buffered ticks no
+     * longer reach back to where the client stopped.
+     */
+    ResumeRejected = "ResumeRejected",
 }
 
 export function readErrorCode(bc: bare.ByteCursor): ErrorCode {
@@ -718,6 +730,8 @@ export function readErrorCode(bc: bare.ByteCursor): ErrorCode {
             return ErrorCode.VersionMismatch
         case 4:
             return ErrorCode.BadMessage
+        case 5:
+            return ErrorCode.ResumeRejected
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -745,6 +759,10 @@ export function writeErrorCode(bc: bare.ByteCursor, x: ErrorCode): void {
         }
         case ErrorCode.BadMessage: {
             bare.writeU8(bc, 4)
+            break
+        }
+        case ErrorCode.ResumeRejected: {
+            bare.writeU8(bc, 5)
             break
         }
     }
@@ -787,15 +805,18 @@ export function decodeCreatedMessage(bytes: Uint8Array): CreatedMessage {
 }
 
 /**
- * `chatId` is the exception: it shapes nothing, but this is the one instant both
- * peers are guaranteed to hear the same thing at the same time, so it is where
- * the relay hands them the opaque id of the chat object they may both attach to.
+ * `resumeToken` is the one field the two peers are told *different* values of, so
+ * the two `start` frames are no longer byte-identical: it names the seat rather
+ * than the match. A dropped client presents it to reclaim its own seat, and a room
+ * code — four characters, client-generated — is far too guessable to stand in for
+ * it: reconnecting by code alone would let a stranger walk into a live match.
  */
 export type StartMessage = {
     readonly seed: u32
     readonly mapSize: MapSize
     readonly aiCount: u8
     readonly chatId: string
+    readonly resumeToken: string
 }
 
 export function readStartMessage(bc: bare.ByteCursor): StartMessage {
@@ -804,6 +825,7 @@ export function readStartMessage(bc: bare.ByteCursor): StartMessage {
         mapSize: readMapSize(bc),
         aiCount: bare.readU8(bc),
         chatId: bare.readString(bc),
+        resumeToken: bare.readString(bc),
     }
 }
 
@@ -812,6 +834,7 @@ export function writeStartMessage(bc: bare.ByteCursor, x: StartMessage): void {
     writeMapSize(bc, x.mapSize)
     bare.writeU8(bc, x.aiCount)
     bare.writeString(bc, x.chatId)
+    bare.writeString(bc, x.resumeToken)
 }
 
 export function encodeStartMessage(x: StartMessage, config?: Partial<bare.Config>): Uint8Array {

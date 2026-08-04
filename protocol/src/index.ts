@@ -12,7 +12,7 @@
  */
 
 /** Bumped on any breaking wire change; clients send it, the relay rejects mismatches. */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 /** Room codes: fixed length, drawn from an unambiguous alphabet (no 0/O/1/I). */
 export const ROOM_CODE_LENGTH = 4;
@@ -21,9 +21,10 @@ export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 /**
  * Connection contract. A WebSocket must target a specific room before it opens, so
  * the create/join intent travels as URL query params rather than as messages:
- *   host:  `?room=<CODE>&create=1&v=<PROTOCOL_VERSION>&mapSize=<small|medium|large>&ai=<0-2>`
- *   guest: `?room=<CODE>&v=<PROTOCOL_VERSION>`
- *   chat:  `/chat?chat=<CHAT_ID>&seat=<host|guest>&since=<SEQ>&v=<PROTOCOL_VERSION>`
+ *   host:   `?room=<CODE>&create=1&v=<PROTOCOL_VERSION>&mapSize=<small|medium|large>&ai=<0-2>`
+ *   guest:  `?room=<CODE>&v=<PROTOCOL_VERSION>`
+ *   resume: `?room=<CODE>&v=<PROTOCOL_VERSION>&resume=<RESUME_TOKEN>`
+ *   chat:   `/chat?chat=<CHAT_ID>&seat=<host|guest>&since=<SEQ>&v=<PROTOCOL_VERSION>`
  *
  * Chat travels the same way and for the same reason: the socket has to name the
  * chat (and the seat, and where the client left off) before it opens, so there is
@@ -36,6 +37,12 @@ export const QueryParam = {
   MapSize: 'mapSize',
   /** Bot-controlled sides joining the two humans, `0..MAX_AI_OPPONENTS`. */
   Ai: 'ai',
+  /**
+   * Reclaiming a seat after a drop: the `resumeToken` that seat was issued in
+   * `start`. It names the seat as well as proving the right to it, so there is no
+   * separate host/guest param — the relay knows which of the two it matched.
+   */
+  Resume: 'resume',
   /** Chat: the relay-issued id of the chat object to attach to. */
   ChatId: 'chat',
   /** Chat: which seat this client holds, `host` or `guest`. */
@@ -56,6 +63,31 @@ export type WireMapSize = (typeof WIRE_MAP_SIZES)[number];
 
 /** How often a peer attaches a `WorldCheck` (in ticks) — ~1s at 10Hz. */
 export const DESYNC_CHECK_EVERY = 10;
+
+// ---------------------------------------------------------------------------
+// Resuming a dropped seat
+// ---------------------------------------------------------------------------
+
+/**
+ * How long the relay holds a dropped seat open before the match really is over.
+ *
+ * A lockstep peer that loses its socket does not fall behind — both sides stop
+ * advancing the moment one tick's input is missing — so the only thing a short
+ * outage costs is the frames sent while it lasted. The relay keeps those and the
+ * seat, and the survivor simply stalls, exactly as it already does for lag.
+ */
+export const RESUME_GRACE_MS = 20_000;
+
+/**
+ * Hard bound on the frames held for a dropped seat. At 30Hz the grace period can
+ * only produce ~600, so this is a memory ceiling rather than a policy: if it is
+ * ever hit the seat has missed more than it can be told about, and the relay
+ * refuses the resume instead of handing back a stream with a hole in it.
+ */
+export const RESUME_BUFFER_FRAMES = 900;
+
+/** Resume tokens are hex of 16 random bytes — opaque, unguessable, relay-issued. */
+export const RESUME_TOKEN_LENGTH = 32;
 
 // ---------------------------------------------------------------------------
 // Chat

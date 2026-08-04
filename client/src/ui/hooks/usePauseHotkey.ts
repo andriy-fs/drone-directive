@@ -13,7 +13,9 @@ export function usePauseHotkey(): void {
       if (!isPauseKey) return;
       const { status, togglePause, online } = useGameStore.getState();
       if (status !== 'playing') return;
-      if (online.status === 'inMatch') return; // no pause in networked matches
+      // Online the key asks both simulations to stop, and the request rides on the
+      // tick stream — so with the link down there is nothing to carry it.
+      if (online.status === 'inMatch' && online.link !== 'ok') return;
       e.preventDefault(); // stop Space from scrolling the page
       togglePause();
     };

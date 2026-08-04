@@ -292,6 +292,24 @@ export const gameConfig = {
     snapshotEveryTicks: 6,
   },
 
+  /** Networked matches: how long a stalled lockstep step is tolerated, and when it is worth saying so. */
+  online: {
+    /**
+     * Wait this long before telling the player the world has stopped. Below it a
+     * stall is just jitter, and a badge that flickered on every lag spike would
+     * be noise rather than information.
+     */
+    stallNoticeMs: 600,
+    /**
+     * Give up on a peer that has stopped sending for this long. Nothing on the
+     * wire says "my opponent closed the laptop lid" — a backgrounded tab simply
+     * stops producing ticks, and without a ceiling the match would wait forever.
+     * Well above the relay's resume grace, so a reconnect always gets its chance
+     * first.
+     */
+    stallTimeoutMs: 60_000,
+  },
+
   /** Fixed simulation step, in seconds (30 Hz). */
   fixedDt: 1 / 30,
   /** Safety cap so a long frame (tab refocus) cannot spiral the accumulator. */

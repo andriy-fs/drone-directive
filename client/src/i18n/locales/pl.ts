@@ -177,6 +177,8 @@ export const pl: Dict = {
     copyCode: 'Kopiuj kod pokoju',
     codeCopied: 'Skopiowano!',
     waitingOpponent: 'Oczekiwanie na przeciwnika…',
+    waitingPeer: 'Czekamy na przeciwnika…',
+    reconnecting: 'Utracono połączenie — ponowne łączenie…',
     matchEnded: 'Mecz zakończony.',
     hostGame: 'Utwórz grę',
     createRoom: 'Utwórz pokój',

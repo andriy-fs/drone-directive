@@ -176,6 +176,10 @@ export interface Dict {
     copyCode: string;
     codeCopied: string;
     waitingOpponent: string;
+    /** Mid-match, the world stopped: the peer's input for this tick has not arrived. */
+    waitingPeer: string;
+    /** Mid-match, our own socket dropped and the session is reclaiming its seat. */
+    reconnecting: string;
     matchEnded: string;
     hostGame: string;
     createRoom: string;
@@ -389,6 +393,8 @@ export const en: Dict = {
     copyCode: 'Copy room code',
     codeCopied: 'Copied!',
     waitingOpponent: 'Waiting for an opponent to join…',
+    waitingPeer: 'Waiting for the opponent…',
+    reconnecting: 'Connection lost — reconnecting…',
     matchEnded: 'The match ended.',
     hostGame: 'Host a game',
     createRoom: 'Create room',
