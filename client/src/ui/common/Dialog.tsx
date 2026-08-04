@@ -4,9 +4,20 @@ import {
   DialogPanel as HeadlessDialogPanel,
   DialogTitle as HeadlessDialogTitle,
 } from '@headlessui/react';
-import type { ComponentPropsWithoutRef } from 'react';
+import { useEffect, useRef, type ComponentPropsWithoutRef } from 'react';
+import { sfx } from '../../pixi/audio/sfx';
 
 export function Dialog(props: ComponentPropsWithoutRef<typeof HeadlessDialog>) {
+  const wasOpen = useRef(false);
+
+  // `open` is owned by the caller, so the cue hangs off the false→true edge —
+  // reacting to the value itself would replay it on every render of an open dialog.
+  useEffect(() => {
+    const open = props.open ?? false;
+    if (open && !wasOpen.current) sfx.modalOpen();
+    wasOpen.current = open;
+  }, [props.open]);
+
   return <HeadlessDialog {...props} />;
 }
 

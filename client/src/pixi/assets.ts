@@ -1,4 +1,7 @@
 import { Assets, Rectangle, Texture } from 'pixi.js';
+import { sound, type Sound } from '@pixi/sound';
+import { soundSources } from '../config/sounds';
+import { markSoundReady } from './audio/sfx';
 import {
   baseSprites,
   droneSprite,
@@ -21,6 +24,47 @@ export async function loadGameAssets(): Promise<void> {
     await Assets.load(spriteSources());
   } catch (err) {
     console.error('Failed to load sprite assets; using placeholders', err);
+  }
+}
+
+/**
+ * Preloads the sound cues and registers each under its alias. Resolves even on
+ * failure — a missing file just means that cue stays silent — matching how a
+ * missing sprite falls back to its placeholder.
+ *
+ * Goes through `Assets.load` (the `@pixi/sound` import registers a parser for
+ * it) rather than the library's own `preload`, whose fetch is an unguarded
+ * `await` inside a floating promise: a 404 there escapes as an unhandled
+ * rejection that no callback can catch.
+ *
+ * Runs at most once per page. The alias registry is module state on the sound
+ * library and nothing in `GameApp.destroy` unregisters it, so the second
+ * `GameApp.init` of a StrictMode double-mount would otherwise re-add every alias
+ * over itself.
+ */
+let soundLoad: Promise<void> | null = null;
+
+export function loadSoundAssets(): Promise<void> {
+  soundLoad ??= registerSounds();
+  return soundLoad;
+}
+
+async function registerSounds(): Promise<void> {
+  const sources = soundSources();
+  try {
+    const loaded = await Assets.load<Sound>(sources.map((s) => s.src));
+    for (const { name, src } of sources) {
+      const asset = loaded[src];
+      if (!asset) continue;
+      // The parser has already registered the file itself, under its basename —
+      // `lowThreeTone` rather than `select-group`, since cues point straight at
+      // the pack. Register the same Sound under the name the game calls it by,
+      // unless the two happen to coincide.
+      if (!sound.exists(name)) sound.add(name, asset);
+      markSoundReady(name);
+    }
+  } catch (err) {
+    console.error('Failed to load sound assets; the game runs silent', err);
   }
 }
 

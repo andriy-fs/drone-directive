@@ -161,7 +161,11 @@ export function closeChat(): void {
  * uses that to decide whether to clear the input.
  */
 export function sendChat(text: string): boolean {
-  return session?.send(text) != null;
+  const sent = session?.send(text) != null;
+  // Here rather than in the panel: sending happens two ways — the button and
+  // Enter on the form — and this is the one point both of them pass through.
+  if (sent) sfx.chatSend();
+  return sent;
 }
 
 /**

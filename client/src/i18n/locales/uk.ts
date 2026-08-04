@@ -1,4 +1,4 @@
-import type { Dict } from './en';
+import type { Dict } from '../dict';
 
 export const uk: Dict = {
   mainMenu: {
@@ -167,6 +167,16 @@ export const uk: Dict = {
     pause: 'Пауза',
     unmute: 'Увімкнути звук',
     mute: 'Вимкнути звук',
+    volume: 'Гучність звуку',
+    soundSettings: 'Налаштування звуку',
+  },
+  sound: {
+    title: 'Звук',
+    settings: 'Налаштування звуку',
+    effects: 'Звукові ефекти',
+    on: 'Увімк.',
+    off: 'Вимк.',
+    volume: 'Гучність',
   },
   online: {
     multiplayer: 'Мультиплеєр',

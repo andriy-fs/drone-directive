@@ -3,6 +3,7 @@ import type { ChatMessage, ChatSeat } from '@drone-directive/chat';
 import { loadChatSound } from '../chat/chatStorage';
 import { gameConfig } from '../config/gameConfig';
 import { createDefaultSettings, type GameSettings, type SettingsPatch } from '../config/gameSettings';
+import { loadDict } from '../i18n/dictionaries';
 import { Locale, resolveInitialLocale, saveLocale } from '../i18n/locale';
 import type { Command } from '@drone-directive/types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
@@ -279,6 +280,9 @@ const initialState = {
   } as ChatState,
 };
 
+/** Last language the player asked for — guards `setLocale` against out-of-order loads. */
+let requestedLocale: Locale = initialState.locale;
+
 export const useGameStore = create<GameState>((set, get) => ({
   ...initialState,
   setStatus: (status) => set({ status }),
@@ -334,9 +338,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   clearDroneRequests: () => set({ dronePossessRequested: false, droneFireRequested: false }),
   setDroneStatus: (status) => set({ droneStatus: status }),
   setBuildDialogOpen: (open) => set({ buildDialogOpen: open }),
+  // Dictionaries are code-split, so switching language is "load, then switch":
+  // the store never holds a locale whose dictionary is missing (see i18n/dictionaries.ts).
   setLocale: (locale) => {
-    saveLocale(locale);
-    set({ locale });
+    requestedLocale = locale;
+    void loadDict(locale)
+      .then(() => {
+        if (requestedLocale !== locale) return; // a newer pick already won
+        saveLocale(locale); // only persist a language the player actually got
+        set({ locale });
+      })
+      .catch((error: unknown) => console.error('[i18n] failed to load locale', locale, error));
   },
   hostMatch: (mapSize, aiOpponents) =>
     set({

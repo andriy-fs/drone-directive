@@ -15,13 +15,14 @@ import {
 import type { Command } from '@drone-directive/types/commands';
 import { Controller, Owner, TaskType, WeaponType, type MapSize } from '@drone-directive/types/enums';
 import type { DroneControl, GameContext } from '../engine/game/context';
-import { loadGameAssets } from './assets';
+import { loadGameAssets, loadSoundAssets } from './assets';
 import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
 import { LockstepSession, randomRoomCode, setNetDebug, type TickInput } from '@drone-directive/net';
 import { ChatSeat } from '@drone-directive/chat';
 import { attachChat } from '../chat/chatBridge';
 import { lockstepConfig } from '../config/multiplayer';
 import { worldHash } from '../engine/worldHash';
+import { attachSelectionAudio } from './audio/selectionAudio';
 import { sfx } from './audio/sfx';
 import { Camera } from './Camera';
 import { GameLoop } from './GameLoop';
@@ -50,6 +51,7 @@ export class GameApp {
   private loop!: GameLoop;
   private detachPointer: (() => void) | null = null;
   private storeUnsub: (() => void) | null = null;
+  private selectionAudioUnsub: (() => void) | null = null;
   private readonly busUnsubs: (() => void)[] = [];
   private destroyed = false;
   private snapshotTick = 0;
@@ -84,6 +86,12 @@ export class GameApp {
     // narrate the input it drops.
     setNetDebug(import.meta.env.DEV);
 
+    // Not awaited: a dozen small files have no business delaying the first frame,
+    // and starting them here overlaps the fetches with renderer init and the far
+    // larger sprite load rather than queueing them behind it. A cue that isn't
+    // decoded yet is skipped, not queued.
+    void loadSoundAssets();
+
     await this.app.init({
       resizeTo: host,
       background: palette.background,
@@ -112,6 +120,9 @@ export class GameApp {
     this.engine = new GameEngine();
     this.worldRenderer = new WorldRenderer(this.layers, this.engine.world);
     this.wireBus();
+    // Selection never reaches the bus (it is store-only state), so its sounds
+    // come off a store subscription rather than out of `wireBus`.
+    this.selectionAudioUnsub = attachSelectionAudio(this.engine.world);
 
     this.detachPointer = attachPointerControls(this.app, this.camera, this.engine);
     this.app.renderer.on('resize', this.onResize);
@@ -247,6 +258,14 @@ export class GameApp {
       }),
     );
     this.busUnsubs.push(bus.on('entitySpawned', () => this.pushSnapshot()));
+    this.busUnsubs.push(
+      // Starter robots and the opening drone emit nothing, so this event already
+      // means "produced mid-match". The owner filter is what keeps the AI's (and,
+      // online, the opponent's) factories out of this player's speakers.
+      bus.on('entitySpawned', ({ kind, owner }) => {
+        if (kind === 'robot' && owner === this.localSide) sfx.unitReady();
+      }),
+    );
     this.busUnsubs.push(bus.on('entityDestroyed', () => this.pushSnapshot()));
     this.busUnsubs.push(
       bus.on('sceneChanged', ({ scene }) => {
@@ -688,6 +707,8 @@ export class GameApp {
     for (const unsub of this.busUnsubs) unsub();
     this.storeUnsub?.();
     this.storeUnsub = null;
+    this.selectionAudioUnsub?.();
+    this.selectionAudioUnsub = null;
     this.detachPointer?.();
     this.detachPointer = null;
     this.clearObstacles();
