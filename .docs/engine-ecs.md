@@ -24,7 +24,11 @@ ECS fits this directly:
   fields, no subclassing). A robot is `{ robot: true, position, movement,
 weapon, script, threat, ... }`; a projectile is `{ projectile: true,
 position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
-  component + a system, not touching a class hierarchy.
+  component + a system, not touching a class hierarchy. A **temporary** state is
+  a component too, and its absence is the "off" state: a robot knocked out by a
+  directed-energy hit carries `disabled: {left}` until it expires, at which point
+  the component is dropped rather than zeroed (see `systems/status.ts`, which
+  owns every read and write of it, and decays it in `taskSystem`).
 - **Systems** are plain functions over the world (`client/src/engine/systems/*.ts`,
   each one `fooSystem(ctx, dt)`), run in a fixed order each tick by
   `GameScene.update` (`client/src/engine/game/scenes/gameScene.ts`). Order encodes

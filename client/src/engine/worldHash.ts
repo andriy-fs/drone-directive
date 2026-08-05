@@ -12,7 +12,10 @@ import type { EcsWorld } from './ecs/world';
  * What goes in has to be *simulation* state only — never anything derived from
  * `localSide` (fog, selection, camera), which legitimately differs per client.
  * Positions are quantised to 1/1000 px: identical simulations produce identical
- * floats, and the rounding keeps the hash readable when logging a mismatch.
+ * floats, and the rounding keeps the hash readable when logging a mismatch. The
+ * directed-energy knock-out is quantised the same way and for the same reason:
+ * peers that disagree on who is disabled will disagree on positions one tick
+ * later, and leaving it out would hide the divergence until it had spread.
  */
 export function worldHash(world: EcsWorld): number {
   const parts: string[] = [];
@@ -21,7 +24,8 @@ export function worldHash(world: EcsWorld): number {
     // and a divergence there is exactly the kind that snowballs into damage.
     const x = e.position ? Math.round(e.position.x * 1000) : 0;
     const y = e.position ? Math.round(e.position.y * 1000) : 0;
-    parts.push(`${e.id}:${e.owner ?? '-'}:${x}:${y}:${Math.round(e.hp ?? 0)}:${e.script?.programId ?? '-'}`);
+    const off = Math.round((e.disabled?.left ?? 0) * 1000);
+    parts.push(`${e.id}:${e.owner ?? '-'}:${x}:${y}:${Math.round(e.hp ?? 0)}:${e.script?.programId ?? '-'}:${off}`);
   }
   // Entity order comes from the ECS store and should already match, but sorting
   // makes the hash a statement about *contents* rather than iteration order.

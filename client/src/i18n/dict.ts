@@ -153,13 +153,16 @@ export interface Dict {
     bomb: string;
     radar: string;
     ew: string;
+    dew: string;
     statsRange: string;
     statsDamage: string;
+    statsReload: string;
     radarNote: string;
     ewNote: string;
     bombNote: string;
     cannonNote: string;
     missilesNote: string;
+    dewNote: string;
   };
   aria: {
     resume: string;

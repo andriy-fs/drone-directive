@@ -148,4 +148,29 @@ describe('visionSystem — ew jamming', () => {
     visionSystem(ctx);
     expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(true);
   });
+
+  it('a disabled ew robot no longer jams either', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.Player, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.None);
+    const jammer = spawnRobot(ctx.world, Owner.AI, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 100, y: 0 }, ChassisType.Tracks, WeaponType.Cannon);
+    jammer.disabled = { left: 8 };
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(true);
+  });
+});
+
+describe('visionSystem — disabled scouts', () => {
+  it('a disabled robot spots nothing for its side', () => {
+    const ctx = makeCtx(1);
+    const scout = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 120, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(true);
+
+    scout.disabled = { left: 8 };
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(false);
+  });
 });

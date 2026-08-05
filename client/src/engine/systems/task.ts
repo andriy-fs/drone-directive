@@ -9,6 +9,7 @@ import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileCentre, tileOf } from '../obstacles';
 import { nearestFreeTile, type Tile } from '../pathfinding';
 import { clearGoal, setGoal } from './movement';
+import { decayDisabled, isDisabled } from './status';
 import {
   findById,
   isEnemy,
@@ -37,9 +38,19 @@ const ADVANCING_TASKS = new Set<TaskType>([TaskType.AttackBase, TaskType.AttackR
  * can dodge (move) while returning fire (fire) at the same time. Movement/combat
  * systems act on the resulting goal + `targetId` afterwards. A surface-to-air
  * robot left with no fire intent at all falls back to `airTarget` — see there.
+ *
+ * This is also where the directed-energy knock-out ticks down, next to the
+ * under-fire window. A knocked-out robot's program simply doesn't run — which is
+ * what makes an order issued to it *stick* and take effect the moment it comes
+ * back, since nothing here overwrites the script it was given.
  */
 export function taskSystem(ctx: GameContext, dt: number): void {
   for (const e of ctx.world.with('robot', 'position', 'script', 'movement')) {
+    // Decay first, so the tick a robot recovers on is the tick it acts again —
+    // identically on both peers.
+    decayDisabled(e, dt);
+    if (isDisabled(e)) continue;
+
     if (e.threat && e.threat.underFireLeft > 0) {
       e.threat.underFireLeft = Math.max(0, e.threat.underFireLeft - dt);
     }
@@ -120,7 +131,30 @@ function conditionHolds(ctx: GameContext, e: Entity, cond: BehaviorCondition): b
       const foe = nearest(e.position!, knownEnemyRobots(ctx, e.owner!));
       return !!foe?.position && distance(e.position!.x, e.position!.y, foe.position.x, foe.position.y) <= range;
     }
+    case 'disabledEnemyWithin':
+      return disabledInRange(ctx, e, cond.range) !== undefined;
   }
+}
+
+/**
+ * The nearest knocked-out enemy robot standing inside `range` (default: this
+ * robot's weapon range). Shared by the `disabledEnemyWithin` condition and the
+ * `finishDisabled` action so the two can't drift apart.
+ *
+ * Only for weapons that can actually *finish* something: a `dew` gun would spend
+ * its five-second reload re-freezing a target that is already frozen, which is
+ * worse than holding the shot for whatever wakes up next.
+ */
+function disabledInRange(ctx: GameContext, e: Entity, range?: number): Entity | undefined {
+  const reach = range ?? e.weapon?.range ?? 0;
+  if (reach <= 0 || (e.weapon?.damage ?? 0) <= 0) return undefined;
+  const pos = e.position!;
+  const foe = nearest(
+    pos,
+    knownEnemyRobots(ctx, e.owner!).filter((r) => isDisabled(r)),
+  );
+  if (!foe?.position) return undefined;
+  return distance(pos.x, pos.y, foe.position.x, foe.position.y) <= reach ? foe : undefined;
 }
 
 function resolveAction(ctx: GameContext, e: Entity, action: BehaviorAction): Outcome {
@@ -136,6 +170,13 @@ function resolveAction(ctx: GameContext, e: Entity, action: BehaviorAction): Out
       return evadeOutcome(ctx, e);
     case 'attackAttacker':
       return attackAttackerOutcome(ctx, e);
+    case 'finishDisabled': {
+      // Fire-only, deliberately: a passive unit still must not chase. This says
+      // only that a helpless enemy already in front of a loaded gun doesn't get
+      // a free pass because it stopped shooting back.
+      const target = disabledInRange(ctx, e);
+      return target ? { fire: target.id } : {};
+    }
     case 'attackNearestRobot': {
       const target = nearest(e.position!, knownEnemyRobots(ctx, e.owner!));
       return target ? engageOutcome(ctx, e, target) : {};

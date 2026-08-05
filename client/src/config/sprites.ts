@@ -124,6 +124,10 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
       src: `${PUBLIC_BASE}weapon-bomb-player.png`,
       targetSize: WEAPON_TARGET,
     },
+    dew: {
+      src: `${PUBLIC_BASE}weapon-dew-player.png`,
+      targetSize: WEAPON_TARGET,
+    },
   },
   [Owner.AI]: {
     radar: {
@@ -132,6 +136,10 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
     },
     bomb: {
       src: `${PUBLIC_BASE}weapon-bomb-ai.png`,
+      targetSize: WEAPON_TARGET,
+    },
+    dew: {
+      src: `${PUBLIC_BASE}weapon-dew-ai.png`,
       targetSize: WEAPON_TARGET,
     },
   },

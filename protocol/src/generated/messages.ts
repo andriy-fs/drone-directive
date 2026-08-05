@@ -76,6 +76,7 @@ export enum WeaponType {
     Bomb = "Bomb",
     Radar = "Radar",
     Ew = "Ew",
+    Dew = "Dew",
 }
 
 export function readWeaponType(bc: bare.ByteCursor): WeaponType {
@@ -94,6 +95,8 @@ export function readWeaponType(bc: bare.ByteCursor): WeaponType {
             return WeaponType.Radar
         case 5:
             return WeaponType.Ew
+        case 6:
+            return WeaponType.Dew
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -125,6 +128,10 @@ export function writeWeaponType(bc: bare.ByteCursor, x: WeaponType): void {
         }
         case WeaponType.Ew: {
             bare.writeU8(bc, 5)
+            break
+        }
+        case WeaponType.Dew: {
+            bare.writeU8(bc, 6)
             break
         }
     }

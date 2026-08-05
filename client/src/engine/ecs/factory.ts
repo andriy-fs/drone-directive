@@ -54,6 +54,7 @@ export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: Ch
       explosionRadius: w.explosionRadius,
       jamRadius: w.jamRadius,
       canHitAir: w.canHitAir,
+      freezeDuration: w.freezeDuration,
     },
     // Radar (and any future spotter) scales the chassis sight radius; others = 1.
     sightRange: stats.sight * w.sightMultiplier,

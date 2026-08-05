@@ -276,7 +276,10 @@ them before simulating that tick:
   its own hash for that tick; a mismatch ends the match with an explicit "desync at
   tick N" instead of letting the two clients drift on showing different battles.
   The probe covers simulation state only — never anything derived from `localSide`,
-  which legitimately differs per client.
+  which legitimately differs per client. Timed status effects belong in it for the
+  same reason positions do: peers that disagree on who is currently disabled by a
+  directed-energy hit will disagree on where everyone is one tick later, so the
+  hash carries the remaining knock-out time alongside position, hp and program.
 
 ## Chat: a second socket to a second object
 

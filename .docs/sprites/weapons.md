@@ -7,10 +7,10 @@ not a full robot per chassis×weapon combination. This matches how the engine
 draws weapons today (a marker on top of the chassis) and scales cleanly as
 weapons are added.
 
-Covered here: **radar** and **bomb (kamikaze)** — the two weapons without art yet
-(`cannon`/`missiles` currently use simple drawn markers; add them the same way if
-you want sprite parity). The full weapon list is `types/src/enums.ts` →
-`WeaponType`.
+Covered here: **radar**, **bomb (kamikaze)** and **DEW (directed-energy weapon)** —
+the weapons without art yet (`cannon`/`missiles` currently use simple drawn markers;
+add them the same way if you want sprite parity). The full weapon list is
+`types/src/enums.ts` → `WeaponType`.
 
 ## Module-specific spec (in addition to the [Shared spec](README.md#shared-spec-applies-to-every-prompt--do-not-vary))
 
@@ -99,31 +99,61 @@ padding.
 
 ---
 
+## DEW — directed-energy emitter module (no damage; disables the target)
+
+The directed-energy weapon induces high-voltage currents in the target and knocks its
+electrics and electronics out for 8 seconds — see `.docs/tasks/weapon-dew.md`. It must
+read as an **energy emitter, not a gun**: coils and arcs, no barrel and no shell, so a
+player can tell at a glance that this unit disables rather than kills. Keep it clearly
+distinct from the `ew` jammer module (which is an antenna mast, not a coil).
+
+### Player (allied) — `weapon-dew-player.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact directed-energy weapon (DEW) emitter
+module that bolts onto the central hardpoint of a combat robot, viewed from directly
+above. A small armored mount plate carrying a ring of copper induction coils around a
+central Tesla-style high-voltage electrode, with thin blue-white arcs of electricity
+crackling between the coil tips. Allied faction design: cool blue and teal plating with
+brushed steel and copper coil windings, a glowing cyan-white core. No barrel, no shell,
+no explosive — clearly an energy emitter, not a gun. Radially balanced so it reads from
+any angle. Bold readable silhouette, semi-flat stylized art with light cel shading, soft
+top lighting. Fully transparent background, no ground, no shadow, no text. Centered, the
+module filling about 65% of a 512x512 frame with generous even padding.
+```
+
+### Enemy (AI / hostile) — `weapon-dew-ai.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact directed-energy weapon (DEW) emitter
+module that bolts onto the central hardpoint of a combat robot, viewed from directly
+above. A jagged armored mount plate carrying a crude ring of scorched copper induction
+coils around a central spiked high-voltage electrode, with violent violet-white arcs of
+electricity lashing between the coil tips. Hostile enemy faction design: dark gunmetal
+and red-orange plating, rust streaks and burn marks, a glaring magenta-white core. No
+barrel, no shell, no explosive — clearly a sinister energy emitter, not a gun. Radially
+balanced so it reads from any angle. Bold readable silhouette, semi-flat stylized art
+with light cel shading, soft top lighting. Fully transparent background, no ground, no
+shadow, no text. Centered, the module filling about 65% of a 512x512 frame with generous
+even padding.
+```
+
+---
+
 ## Wiring generated weapon modules into the game
 
-Weapon modules aren't rendered from sprites yet (the engine draws small Graphics
-markers in `RobotView`). To use these:
+The plumbing already exists — `weaponSprites` in `client/src/config/sprites.ts`,
+`getWeaponTexture()` in `client/src/pixi/assets.ts`, and the hardpoint child sprite in
+`RobotView` (which falls back to the drawn Graphics marker when a weapon has no art).
+So adding a module is two steps:
 
-1. Export transparent PNGs to `public/`, named `weapon-<type>-<faction>.png`
-   (e.g. `weapon-radar-ai.png`, `weapon-bomb-player.png`).
-2. Add a `weaponSprites` map to `src/config/sprites.ts`, keyed `owner → weapon`,
-   mirroring `robotSprites` (a small `targetSize`, ~22–24 px):
+1. Export transparent PNGs to `client/public/`, named `weapon-<type>-<faction>.png`
+   (e.g. `weapon-radar-ai.png`, `weapon-dew-player.png`).
+2. Add the pair to `weaponSprites`, keyed `owner → weapon`, using the shared
+   `WEAPON_TARGET` size:
    ```ts
-   export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, SpriteDef>>>> = {
-     player: {
-       radar: { src: '/weapon-radar-player.png', targetSize: 24 },
-       bomb: { src: '/weapon-bomb-player.png', targetSize: 24 },
-     },
-     ai: {
-       radar: { src: '/weapon-radar-ai.png', targetSize: 24 },
-       bomb: { src: '/weapon-bomb-ai.png', targetSize: 24 },
-     },
-   };
+   player: { dew: { src: '/weapon-dew-player.png', targetSize: WEAPON_TARGET } },
+   ai:     { dew: { src: '/weapon-dew-ai.png',     targetSize: WEAPON_TARGET } },
    ```
-   Add a `getWeaponTexture(weapon, owner)` in `src/pixi/assets.ts` (same cached
-   pattern as `getRobotTexture`) and include the sources in `spriteSources()`.
-3. In `RobotView`, add the weapon module as a child sprite on the hardpoint after
-   the chassis body, falling back to the existing Graphics marker when no sprite
-   is loaded.
-
-Generate the four modules and I'll wire this up, same as the robot/base sprites.
+   The map is `Partial` on both axes and `spriteSources()` collects whatever is in it,
+   so a weapon without art keeps its Graphics marker and the build stays green.

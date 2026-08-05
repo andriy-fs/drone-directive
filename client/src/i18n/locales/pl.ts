@@ -153,14 +153,17 @@ export const pl: Dict = {
     bomb: 'Bomba',
     radar: 'Radar',
     ew: 'Zakłócacz',
+    dew: 'DEW',
     statsRange: 'Zasięg',
     statsDamage: 'Obrażenia',
+    statsReload: 'Przeładowanie',
     radarNote: 'Brak broni — podwaja zasięg wzroku',
     ewNote: 'Brak broni — zagłusza wzrok wrogów w promieniu',
     bombNote: 'Wybucha przy kontakcie, promień wybuchu',
     cannonNote: 'Zbalansowana szybkostrzelność i zasięg — solidny wybór uniwersalny',
     missilesNote:
       'Większy zasięg i obrażenia kosztem wolniejszego przeładowania. Jedyna broń zdolna zestrzelić wrogiego drona obserwacyjnego',
+    dewNote: 'Broń energii skierowanej: nie zadaje obrażeń — unieruchamia cel na, s:',
   },
   aria: {
     resume: 'Wznów',

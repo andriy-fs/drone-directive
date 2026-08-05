@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { spawnDrone, spawnProjectile, spawnRobot } from '../ecs/factory';
+import { spawnBase, spawnDrone, spawnProjectile, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { combatSystem } from './combat';
 import { makeCtx } from './testkit';
@@ -102,6 +102,18 @@ describe('combatSystem — anti-air', () => {
     expect(drone.hp).toBe(gameConfig.drone.maxHp);
   });
 
+  it('a directed-energy shot cannot touch a drone', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    spawnProjectile(ctx.world, Owner.AI, { x: 390, y: 400 }, drone.position!, drone.id, 0, 'shooter', WeaponType.Dew);
+
+    for (let i = 0; i < 5; i++) combatSystem(ctx, DT);
+
+    expect(drone.hp).toBe(gameConfig.drone.maxHp);
+    expect(drone.disabled).toBeUndefined();
+  });
+
   it('leaves a friendly drone alone', () => {
     const ctx = makeCtx(1);
     openGround(ctx);
@@ -120,5 +132,81 @@ describe('combatSystem — anti-air', () => {
     for (let i = 0; i < 5; i++) combatSystem(ctx, DT);
 
     expect(drone.hp).toBe(gameConfig.drone.maxHp);
+  });
+});
+
+const DEW = gameConfig.robots.weapons.dew;
+
+/** Runs the system until `done()` holds, or fails the test after `ticks` steps. */
+function runUntil(ctx: GameContext, done: () => boolean, ticks = 30): void {
+  for (let i = 0; i < ticks && !done(); i++) combatSystem(ctx, DT);
+  expect(done()).toBe(true);
+}
+
+describe('combatSystem — directed-energy weapon', () => {
+  it('fires even though it deals no damage', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const shooter = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Dew);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    shooter.targetId = foe.id;
+
+    combatSystem(ctx, DT);
+
+    expect(ctx.world.with('projectile').entities.length).toBe(1);
+    expect(shooter.weapon!.cooldownLeft).toBe(DEW.cooldown);
+  });
+
+  it('disables the robot it hits instead of hurting it', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const shooter = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Dew);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    shooter.targetId = foe.id;
+
+    runUntil(ctx, () => foe.disabled !== undefined);
+
+    expect(foe.disabled!.left).toBe(DEW.freezeDuration);
+    expect(foe.hp).toBe(foe.maxHp);
+  });
+
+  it('a second hit extends the knock-out rather than stacking it', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    for (let i = 0; i < 2; i++) {
+      spawnProjectile(ctx.world, Owner.Player, { x: 400, y: 400 }, foe.position!, foe.id, 0, 'shooter', WeaponType.Dew);
+    }
+
+    runUntil(ctx, () => foe.disabled !== undefined);
+
+    expect(foe.disabled!.left).toBe(DEW.freezeDuration);
+  });
+
+  it('flies over an enemy base rather than being absorbed by it', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    const from = { x: base.position!.x - 120, y: base.position!.y };
+    spawnProjectile(ctx.world, Owner.Player, from, base.position!, base.id, 0, 'shooter', WeaponType.Dew);
+
+    for (let i = 0; i < 30; i++) combatSystem(ctx, DT);
+
+    expect(base.hp).toBe(base.maxHp);
+  });
+
+  it('a disabled robot neither fires nor reloads', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const shooter = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Radar);
+    shooter.targetId = foe.id;
+    shooter.weapon!.cooldownLeft = 0.5;
+    shooter.disabled = { left: 2 };
+
+    for (let i = 0; i < 10; i++) combatSystem(ctx, DT);
+
+    expect(ctx.world.with('projectile').entities.length).toBe(0);
+    expect(shooter.weapon!.cooldownLeft).toBe(0.5);
   });
 });

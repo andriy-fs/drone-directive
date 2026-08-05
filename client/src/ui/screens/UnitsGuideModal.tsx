@@ -12,6 +12,7 @@ const WEAPON_OPTIONS: WeaponType[] = [
   WeaponType.Bomb,
   WeaponType.Radar,
   WeaponType.Ew,
+  WeaponType.Dew,
 ];
 
 /** Reference modal (opened from the main menu) listing every chassis/weapon with stats and a one-line advantage. */

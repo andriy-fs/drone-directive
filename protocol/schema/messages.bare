@@ -41,6 +41,7 @@ type WeaponType enum {
     BOMB = 3
     RADAR = 4
     EW = 5
+    DEW = 6
 }
 
 type TaskType enum {

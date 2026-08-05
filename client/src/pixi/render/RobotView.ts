@@ -20,6 +20,7 @@ export class RobotView {
   private readonly body: Container;
   private readonly ring: Graphics;
   private readonly spotted: Graphics;
+  private readonly stunned: Graphics;
   private readonly healthBar: HealthBar;
   private readonly isEnemy: boolean;
   private lastClickAt = 0;
@@ -85,10 +86,24 @@ export class RobotView {
     this.spotted.circle(0, 0, outerRadius + 9).stroke({ width: 2, color: palette.vision.spotted });
     this.spotted.visible = false;
 
+    // Knocked out by a directed-energy hit: an arc over the hull. Shown for both
+    // sides — which units are out of the fight right now is the whole point of
+    // the weapon, and it has to be readable at a glance from either end of it.
+    this.stunned = new Graphics();
+    this.stunned
+      .arc(0, 0, outerRadius + 3, Math.PI * 1.15, Math.PI * 1.85)
+      .stroke({ width: 2, color: palette.status.disabled })
+      .moveTo(-4, -(outerRadius + 8))
+      .lineTo(1, -(outerRadius + 4))
+      .lineTo(-1, -(outerRadius + 3))
+      .lineTo(4, -(outerRadius + 9))
+      .stroke({ width: 2, color: palette.status.disabled });
+    this.stunned.visible = false;
+
     this.healthBar = new HealthBar(2 * outerRadius + 6, 4);
     this.healthBar.container.position.set(0, -(outerRadius + 10));
 
-    this.container.addChild(this.ring, this.spotted, this.body, this.healthBar.container);
+    this.container.addChild(this.ring, this.spotted, this.body, this.stunned, this.healthBar.container);
 
     if (!this.isEnemy) {
       // Pin the clickable area to the robot's own body — without this, the
@@ -127,6 +142,11 @@ export class RobotView {
     this.healthBar.set((robot.hp ?? 0) / (robot.maxHp ?? 1));
     this.ring.visible = selected;
     this.spotted.visible = this.isEnemy && visible;
+
+    // "The lights went out": the hull dims and an arc appears while it's disabled.
+    const off = (robot.disabled?.left ?? 0) > 0;
+    this.stunned.visible = off;
+    this.body.alpha = off ? 0.55 : 1;
   }
 
   destroy(): void {
@@ -204,6 +224,17 @@ function drawBody(robot: Entity, r: number, drawWeapon: boolean): Graphics {
           .lineTo(r * 0.45, r * 0.45)
           .moveTo(-r * 0.45, r * 0.45)
           .lineTo(r * 0.45, -r * 0.45)
+          .stroke({ width: 1.5, color: 0x0b0e13 });
+        break;
+      case WeaponType.Dew:
+        // Emitter coil + a discharge bolt across it — deliberately unlike the
+        // EW mast's X, since one jams sight and the other knocks a hull out.
+        g.circle(0, 0, r * 0.5)
+          .stroke({ width: 1.5, color: 0x0b0e13 })
+          .moveTo(-r * 0.3, -r * 0.5)
+          .lineTo(r * 0.08, -r * 0.05)
+          .lineTo(-r * 0.14, r * 0.05)
+          .lineTo(r * 0.28, r * 0.5)
           .stroke({ width: 1.5, color: 0x0b0e13 });
         break;
       default:

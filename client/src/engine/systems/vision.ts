@@ -3,6 +3,7 @@ import type { Owner } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext, TeamIntel } from '../game/context';
+import { isDisabled } from './status';
 import { enemyBases, enemyDrones, enemyRobots, isEnemy } from './targeting';
 
 /**
@@ -16,7 +17,9 @@ import { enemyBases, enemyDrones, enemyRobots, isEnemy } from './targeting';
  * `gameConfig.bases.sightRange`) and contribute vision equally. Living enemy
  * `ew` robots jam nearby scouts: a scout within an `ew` robot's `jamRadius`
  * sees at `sightRange * gameConfig.combat.jamMultiplier` instead of its full
- * range (see `jammers` below). This is the sole source of "known" enemies for
+ * range (see `jammers` below). Robots knocked out by a directed-energy hit drop
+ * out of both roles — they neither spot nor jam while their electronics are
+ * down. This is the sole source of "known" enemies for
  * the directive resolver (`task.ts`) — see `targeting.ts`'s
  * `knownEnemyRobots`/`knownEnemyBases`.
  */
@@ -27,7 +30,10 @@ export function visionSystem(ctx: GameContext): void {
 
 function updateSideVision(ctx: GameContext, owner: Owner): void {
   const intel: TeamIntel = ctx.intel[owner];
-  const isMine = (e: Entity): boolean => e.owner === owner && (e.hp ?? 0) > 0 && (e.sightRange ?? 0) > 0;
+  // A knocked-out robot's sensors are down with the rest of it — it neither
+  // spots for its own side nor jams for it (see `jammers` below).
+  const isMine = (e: Entity): boolean =>
+    e.owner === owner && (e.hp ?? 0) > 0 && (e.sightRange ?? 0) > 0 && !isDisabled(e);
   const scouts = [
     ...ctx.world.with('robot', 'position').entities.filter(isMine),
     ...ctx.world.with('base', 'position').entities.filter(isMine),
@@ -38,7 +44,9 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   // Enemy `ew` robots jamming this side's scouts.
   const jammers = ctx.world
     .with('robot', 'position', 'weapon')
-    .entities.filter((e) => isEnemy(owner, e.owner) && (e.hp ?? 0) > 0 && e.weapon!.jamRadius > 0);
+    .entities.filter(
+      (e) => isEnemy(owner, e.owner) && (e.hp ?? 0) > 0 && e.weapon!.jamRadius > 0 && !isDisabled(e),
+    );
 
   const visible = new Set<string>();
   for (const foe of enemyRobots(ctx, owner)) {

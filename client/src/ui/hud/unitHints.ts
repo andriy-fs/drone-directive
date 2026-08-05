@@ -30,6 +30,10 @@ export function weaponHint(weapon: WeaponType, t: T): string {
       return `${base} — ${t('weapons', 'radarNote')}`;
     case WeaponType.Ew:
       return `${base} — ${t('weapons', 'ewNote')} ${stats.jamRadius}px`;
+    case WeaponType.Dew:
+      // "Damage: 0" would read as broken, so this one shows what it actually
+      // trades on: reach, how long the target is out, and the long reload.
+      return `${t('weapons', 'statsRange')}: ${stats.range} · ${t('weapons', 'statsReload')}: ${stats.cooldown} — ${t('weapons', 'dewNote')} ${stats.freezeDuration}`;
     default:
       return base;
   }
