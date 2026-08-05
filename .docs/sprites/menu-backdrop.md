@@ -103,10 +103,13 @@ menu is React/DOM, so the image is a CSS background on the menu's own dialog
 backdrop. It is therefore deliberately **absent from `spriteSources()`**: preloading
 it into the WebGL texture cache would cost VRAM for something Pixi never draws.
 
-1. Export at **1920×1080** and save it as **`client/public/menu-backdrop.webp`** —
-   WebP at quality ≈80, aim for **≤ ~400 KB**. A full-frame illustration as PNG runs
-   to several megabytes (compare `ground-tile.png` at 1.6 MB), and this one is on the
-   critical path of the very first paint.
+1. Export at **1920×1080** into `client/assets-src/` as the master, then encode
+   **`client/public/menu-backdrop.webp`** with `cwebp -q 93 -m 6` and aim for
+   **≤ ~250 KB**. It is on the critical path of the very first paint — the page
+   preloads it from `index.html` — so **lossy, never lossless**: the first shipped
+   version was lossless VP8L and cost 1.1 MB for the same picture that lossy q93
+   stores in 205 KB. The art is dark with wide smooth gradients, which is the worst
+   case for banding, so do not drop below q90.
 2. Register the path in `client/src/config/sprites.ts` beside the sprite maps — a
    plain string, not a `SpriteDef`, and built off the same `PUBLIC_BASE` so it keeps
    working under the production `base: './'` (GitHub Pages):

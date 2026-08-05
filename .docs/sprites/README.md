@@ -74,24 +74,48 @@ at a glance, even before the tint:
 | Insignia | hexagon / chevron badge, cyan glow optics                | jagged emblem, single **menacing red optic/eye** |
 | Vibe     | protective, high-tech                                    | brutal, scavenged war-machine                    |
 
+## Where the files live: masters vs. what ships
+
+**`client/public/` holds no PNGs any more, and nothing there is hand-edited.**
+The generated art is committed twice, in two different roles:
+
+- **`client/assets-src/sprites/*.png`** — the masters, at whatever size they came
+  out of the generator. In the repository, outside `public/`, so they never reach
+  a build. This is the only copy worth editing or regenerating.
+- **`client/public/*.webp`** — what the game downloads: each master scaled to
+  roughly 2–3× its on-field size and encoded as WebP by
+  **`client/scripts/encode-sprites.mjs`**. Committed, generated, ~96% smaller than
+  the masters (4.0 MB → 163 KB across the 18 sprites).
+
+The split exists because the masters overshoot enormously — a weapon module was
+authored at 500² and is drawn at 24 px. Shipping the masters cost ~4 MB on the
+title screen for detail no display can resolve. See
+`.docs/tasks/asset-loading-first-paint.md`.
+
 ## Wiring generated art into the game
 
-1. Export each as a transparent PNG and drop it in `public/`.
+1. Export each as a transparent PNG into **`client/assets-src/sprites/`** (not
+   `public/`). Any resolution is fine; the encoder scales it down.
 2. Naming convention: `robot-<chassis>-<faction>.png`, `base-<faction>.png`
    (e.g. `robot-wheels-ai.png`, `base-player.png`).
-3. Register in `src/config/sprites.ts` (`robotSprites`) as a **whole-image** entry
-   — `src` only, **no `frame`** crop:
+3. Add an entry to the `SPRITES` table in `client/scripts/encode-sprites.mjs`
+   (name, encoded size, quality; `alpha: false` / `seamless: true` for opaque or
+   tiling terrain), then run `node scripts/encode-sprites.mjs` from `client/` and
+   commit the `.webp` it writes. The script fails loudly if a master has no entry,
+   so a forgotten one cannot silently never ship.
+4. Register in `src/config/sprites.ts` (`robotSprites`) as a **whole-image** entry
+   — `src` only, **no `frame`** crop, and note the **`.webp`** extension:
    ```ts
-   wheels: { src: '/robot-wheels-player.png', rotationOffset: Math.PI / 2, targetSize: 46 }
+   wheels: { src: '/robot-wheels-player.webp', rotationOffset: Math.PI / 2, targetSize: 46 }
    ```
    Bases use `targetSize` ≈ 96 (3 tiles × 32 px). Tracks currently ships as a
-   cropped reference sheet (`frame`); replacing it with a clean whole-image PNG
+   cropped reference sheet (`frame`); replacing it with a clean whole-image master
    means deleting its `frame`.
-4. **Note — per-faction sprites need a small code change:** `robotSprites` is keyed
-   by chassis only today (team difference = the tint disc). To actually show the
-   distinct _enemy_ art, extend the lookup to key on `owner + chassis` (and the same
-   for bases in `BaseView`). Generate both faction variants now; wire the owner
-   dimension when that lookup is added.
+5. **Per-faction art is already wired:** `robotSprites` and `weaponSprites` key on
+   `owner → chassis` / `owner → weapon`, and `baseSprites` on `owner`. Only two art
+   sets exist (player and opponent); every side past the first opponent reuses the
+   opponent art and is told apart by the team tint (`artOwner` in `pixi/assets.ts`),
+   so both faction variants always have to be generated.
 
 ## Per-image checklist before accepting a generation
 

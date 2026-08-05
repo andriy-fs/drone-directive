@@ -2,11 +2,18 @@ import { Owner, TerrainKind } from '@drone-directive/types/enums';
 import type { ChassisType, WeaponType } from '@drone-directive/types/enums';
 
 /**
- * Describes how to draw a unit from a PNG. `frame` is an optional crop (for a
- * sprite sheet); omit it for a clean whole-image, one-unit-per-file PNG.
+ * Describes how to draw a unit from an image. `frame` is an optional crop (for a
+ * sprite sheet); omit it for a clean whole-image, one-unit-per-file asset.
  * `rotationOffset` aligns the art's forward direction with the entity's heading
  * (heading 0 = +x/east); art drawn facing up needs +90°. `targetSize` is the
  * on-field diameter in px.
+ *
+ * Every `src` below points at a **WebP in `public/`, which is generated** — the
+ * PNG masters live in `client/assets-src/sprites/` and are re-encoded (scaled to
+ * roughly 2–3× their on-field size) by `scripts/encode-sprites.mjs`. Editing a
+ * file in `public/` by hand is therefore pointless; edit the master and re-run
+ * the script. Nothing scales off the file's own dimensions except `targetSize`,
+ * so the encoded size is free to change without touching this table.
  */
 export interface SpriteDef {
   src: string;
@@ -27,41 +34,41 @@ const PUBLIC_BASE = import.meta.env.BASE_URL;
 
 /**
  * Robot sprites keyed by **owner → chassis**, so each faction has distinct art
- * (see `.docs/sprites`). Whole-image PNGs authored facing up → `rotationOffset:
+ * (see `.docs/sprites`). Whole-image art authored facing up → `rotationOffset:
  * Math.PI / 2`. A missing entry falls back to the Graphics placeholder. Add a
  * chassis/faction by adding a `src`.
  */
 export const robotSprites: Partial<Record<Owner, Partial<Record<ChassisType, SpriteDef>>>> = {
   [Owner.Player]: {
     tracks: {
-      src: `${PUBLIC_BASE}robot-tracks-player.png`,
+      src: `${PUBLIC_BASE}robot-tracks-player.webp`,
       rotationOffset: Math.PI / 2,
       targetSize: ROBOT_TARGET,
     },
     wheels: {
-      src: `${PUBLIC_BASE}robot-wheels-player.png`,
+      src: `${PUBLIC_BASE}robot-wheels-player.webp`,
       rotationOffset: Math.PI / 2,
       targetSize: ROBOT_TARGET,
     },
     legs: {
-      src: `${PUBLIC_BASE}robot-legs-player.png`,
+      src: `${PUBLIC_BASE}robot-legs-player.webp`,
       rotationOffset: Math.PI / 2,
       targetSize: ROBOT_TARGET,
     },
   },
   [Owner.AI]: {
     tracks: {
-      src: `${PUBLIC_BASE}robot-tracks-ai.png`,
+      src: `${PUBLIC_BASE}robot-tracks-ai.webp`,
       rotationOffset: Math.PI / 2,
       targetSize: ROBOT_TARGET,
     },
     wheels: {
-      src: `${PUBLIC_BASE}robot-wheels-ai.png`,
+      src: `${PUBLIC_BASE}robot-wheels-ai.webp`,
       rotationOffset: Math.PI / 2,
       targetSize: ROBOT_TARGET,
     },
     legs: {
-      src: `${PUBLIC_BASE}robot-legs-ai.png`,
+      src: `${PUBLIC_BASE}robot-legs-ai.webp`,
       rotationOffset: Math.PI / 2,
       targetSize: ROBOT_TARGET,
     },
@@ -71,10 +78,10 @@ export const robotSprites: Partial<Record<Owner, Partial<Record<ChassisType, Spr
 /** Base sprites keyed by owner (bases don't rotate, so no `rotationOffset`). */
 export const baseSprites: Partial<Record<Owner, SpriteDef>> = {
   [Owner.Player]: {
-    src: `${PUBLIC_BASE}base-player.png`,
+    src: `${PUBLIC_BASE}base-player.webp`,
     targetSize: BASE_TARGET,
   },
-  [Owner.AI]: { src: `${PUBLIC_BASE}base-ai.png`, targetSize: BASE_TARGET },
+  [Owner.AI]: { src: `${PUBLIC_BASE}base-ai.webp`, targetSize: BASE_TARGET },
 };
 
 /**
@@ -85,8 +92,8 @@ export const baseSprites: Partial<Record<Owner, SpriteDef>> = {
  * `.docs/sprites/obstacle-mountain.md` / `obstacle-crater.md`.
  */
 export const terrainSprites: Partial<Record<TerrainKind, SpriteDef>> = {
-  [TerrainKind.Mountain]: { src: `${PUBLIC_BASE}obstacle-mountain.png` },
-  [TerrainKind.Crater]: { src: `${PUBLIC_BASE}obstacle-crater.png` },
+  [TerrainKind.Mountain]: { src: `${PUBLIC_BASE}obstacle-mountain.webp` },
+  [TerrainKind.Crater]: { src: `${PUBLIC_BASE}obstacle-crater.webp` },
 };
 
 /**
@@ -94,16 +101,16 @@ export const terrainSprites: Partial<Record<TerrainKind, SpriteDef>> = {
  * (see `createGround`). Undefined → the flat `palette.background` fill.
  */
 export const groundSprite: SpriteDef | undefined = {
-  src: `${PUBLIC_BASE}ground-tile.png`,
+  src: `${PUBLIC_BASE}ground-tile.webp`,
 };
 
 /**
- * The player's observer drone (single faction). Whole-image PNG authored facing
+ * The player's observer drone (single faction). Whole-image art authored facing
  * up → `rotationOffset: Math.PI / 2`. Undefined → the Graphics diamond in
  * `DroneView`. See `.docs/sprites/drone.md`.
  */
 export const droneSprite: SpriteDef | undefined = {
-  src: `${PUBLIC_BASE}drone-player.png`,
+  src: `${PUBLIC_BASE}drone-player.webp`,
   rotationOffset: Math.PI / 2,
   targetSize: DRONE_TARGET,
 };
@@ -117,29 +124,29 @@ export const droneSprite: SpriteDef | undefined = {
 export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, SpriteDef>>>> = {
   [Owner.Player]: {
     radar: {
-      src: `${PUBLIC_BASE}weapon-radar-player.png`,
+      src: `${PUBLIC_BASE}weapon-radar-player.webp`,
       targetSize: WEAPON_TARGET,
     },
     bomb: {
-      src: `${PUBLIC_BASE}weapon-bomb-player.png`,
+      src: `${PUBLIC_BASE}weapon-bomb-player.webp`,
       targetSize: WEAPON_TARGET,
     },
     dew: {
-      src: `${PUBLIC_BASE}weapon-dew-player.png`,
+      src: `${PUBLIC_BASE}weapon-dew-player.webp`,
       targetSize: WEAPON_TARGET,
     },
   },
   [Owner.AI]: {
     radar: {
-      src: `${PUBLIC_BASE}weapon-radar-ai.png`,
+      src: `${PUBLIC_BASE}weapon-radar-ai.webp`,
       targetSize: WEAPON_TARGET,
     },
     bomb: {
-      src: `${PUBLIC_BASE}weapon-bomb-ai.png`,
+      src: `${PUBLIC_BASE}weapon-bomb-ai.webp`,
       targetSize: WEAPON_TARGET,
     },
     dew: {
-      src: `${PUBLIC_BASE}weapon-dew-ai.png`,
+      src: `${PUBLIC_BASE}weapon-dew-ai.webp`,
       targetSize: WEAPON_TARGET,
     },
   },
