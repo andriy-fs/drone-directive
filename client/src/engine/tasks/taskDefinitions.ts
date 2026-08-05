@@ -2,17 +2,26 @@ import type { Vec2 } from '@drone-directive/types/entities';
 import { TaskType, WeaponType } from '@drone-directive/types/enums';
 import type { RobotScript } from '@drone-directive/types/tasks';
 
-/** Attack-oriented directives that are pointless for a weaponless robot (radar: 0 range, 0 damage). */
-const FORBIDDEN_FOR_RADAR = new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots]);
+/**
+ * Attack directives a given weapon has no business accepting. A radar has
+ * nothing to fight with at all (0 range, 0 damage), so both offensive programs
+ * are out; a `dew` fights robots perfectly well but cannot touch a building —
+ * its shot deals no damage and there is no crew to knock out — so only "Attack
+ * Base" is refused. Anything not listed here may take any program.
+ */
+const FORBIDDEN_TASKS: Partial<Record<WeaponType, ReadonlySet<TaskType>>> = {
+  [WeaponType.Radar]: new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots]),
+  [WeaponType.Dew]: new Set<TaskType>([TaskType.AttackBase]),
+};
 
 /**
- * Whether assigning `task` to a robot carrying `weaponType` should be refused.
- * A radar has nothing to fight with — walking it into "Attack Base"/"Attack
- * Robots" just marches it forward to stand there uselessly (and die). The
+ * Whether assigning `task` to a robot carrying `weaponType` should be refused —
+ * marching it forward to stand there uselessly (and die) helps nobody. The
  * caller should leave the robot's current script untouched when this is true.
  */
 export function isTaskBlockedForWeapon(weaponType: WeaponType | undefined, task: TaskType): boolean {
-  return weaponType === WeaponType.Radar && FORBIDDEN_FOR_RADAR.has(task);
+  if (weaponType === undefined) return false;
+  return FORBIDDEN_TASKS[weaponType]?.has(task) ?? false;
 }
 
 /**

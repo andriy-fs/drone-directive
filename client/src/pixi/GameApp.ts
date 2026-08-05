@@ -245,8 +245,20 @@ export class GameApp {
     const store = useGameStore.getState;
     this.busUnsubs.push(
       bus.on('projectileFired', ({ weapon }) => {
-        if (weapon === WeaponType.Missiles) sfx.missileShot();
-        else sfx.cannonShot();
+        // One case per weapon with a cue of its own; the cannon report is the
+        // fallback for everything else (a `bomb` never gets here — it detonates
+        // rather than firing).
+        switch (weapon) {
+          case WeaponType.Missiles:
+            sfx.missileShot();
+            break;
+          case WeaponType.Dew:
+            sfx.dewShot();
+            break;
+          default:
+            sfx.cannonShot();
+            break;
+        }
       }),
     );
     this.busUnsubs.push(bus.on('entityDestroyed', () => sfx.explosion()));

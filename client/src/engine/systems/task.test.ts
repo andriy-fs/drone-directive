@@ -12,6 +12,12 @@ import { visionSystem } from './vision';
 
 const DT = gameConfig.fixedDt;
 
+/** Clear the generated terrain so a mountain can't break line of sight. */
+function openGround(ctx: GameContext): void {
+  const { width, height } = gameConfig.grid;
+  ctx.sightBlockers = Array.from({ length: height }, () => new Array<boolean>(width).fill(false));
+}
+
 describe('taskSystem — targeting respects detection', () => {
   it('does not target an undetected (out-of-sight) enemy', () => {
     const ctx = makeCtx(2);
@@ -160,12 +166,6 @@ describe('taskSystem — Guard patrols its post', () => {
 });
 
 describe('taskSystem — anti-air is a last resort', () => {
-  /** Clear the generated terrain so a mountain can't break line of sight. */
-  function openGround(ctx: GameContext): void {
-    const { width, height } = gameConfig.grid;
-    ctx.sightBlockers = Array.from({ length: height }, () => new Array<boolean>(width).fill(false));
-  }
-
   it('a missile robot with nothing else to shoot engages an enemy drone in range', () => {
     const ctx = makeCtx(2);
     openGround(ctx);
@@ -246,5 +246,101 @@ describe('taskSystem — anti-air is a last resort', () => {
     taskSystem(ctx, DT);
 
     expect(aa.targetId).toBe(carrier.id); // the hull, never the passenger
+  });
+});
+
+describe('taskSystem — the directed-energy knock-out', () => {
+  it('does not run the program of a disabled robot', () => {
+    const ctx = makeCtx(2);
+    const hunter = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    hunter.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    spawnRobot(ctx.world, Owner.AI, { x: 110, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    hunter.disabled = { left: 8 };
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(hunter.targetId).toBeUndefined();
+  });
+
+  it('counts the knock-out down and drops it when it runs out', () => {
+    const ctx = makeCtx(2);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    robot.disabled = { left: gameConfig.robots.weapons.dew.freezeDuration };
+
+    // Bounded either side rather than pinned to an exact tick: summing `dt` 240
+    // times leaves a sub-picosecond residue, which costs one extra frame. It is
+    // the same residue on every peer, so it is harmless — just not exact.
+    const ticks = Math.ceil(gameConfig.robots.weapons.dew.freezeDuration / DT);
+    for (let i = 0; i < ticks - 1; i++) taskSystem(ctx, DT);
+    expect(robot.disabled).toBeDefined();
+
+    taskSystem(ctx, DT);
+    taskSystem(ctx, DT);
+    expect(robot.disabled).toBeUndefined();
+  });
+
+  it('an idle gun finishes off a disabled enemy inside its range', () => {
+    // Regression: a directed-energy hit used to *protect* its target from idle
+    // guns. Idle only shoots whoever is shooting it, so silencing the enemy also
+    // ended the under-fire window that was the sole reason anyone was firing.
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    expect(gun.script!.programId).toBe(TaskType.Idle);
+    foe.disabled = { left: 8 };
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBe(foe.id);
+  });
+
+  it('but does not chase one that is out of range — idle still holds position', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    // Inside the tracks hull's 190px sight, well outside the cannon's 120px reach.
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 560, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    foe.disabled = { left: 8 };
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBeUndefined();
+    expect(gun.movement!.goal).toBeUndefined();
+  });
+
+  it('a dew gun holds its shot rather than re-freezing an already frozen target', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Dew);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    foe.disabled = { left: 8 };
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBeUndefined();
+  });
+
+  it('resumes the order it was given while it was out', () => {
+    const ctx = makeCtx(2);
+    const hunter = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 110, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    hunter.disabled = { left: DT }; // one tick left
+    // The order lands while it is still out; nothing may overwrite it.
+    hunter.script = { programId: TaskType.AttackRobots, blackboard: {} };
+
+    // Vision has to be re-run each step like the real pipeline does: while it is
+    // out, the hunter spots nothing, so its side's intel is empty until it wakes.
+    visionSystem(ctx);
+    taskSystem(ctx, DT); // recovers on this tick
+    expect(hunter.targetId).toBeUndefined(); // …but saw nothing while it was out
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(hunter.targetId).toBe(foe.id);
   });
 });

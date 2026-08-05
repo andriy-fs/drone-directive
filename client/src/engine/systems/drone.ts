@@ -6,7 +6,8 @@ import type { Entity } from '../ecs/entity';
 import { spawnProjectile } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { isBlockedGrid, tileOf } from '../obstacles';
-import { detonateBomb } from './combat';
+import { canEngage, detonateBomb } from './combat';
+import { isDisabled } from './status';
 import { enemyBases, enemyRobots, findById, nearest } from './targeting';
 
 /**
@@ -66,6 +67,7 @@ function tryPossess(ctx: GameContext, drone: Entity): boolean {
       (r) =>
         r.owner === drone.owner &&
         (r.hp ?? 0) > 0 &&
+        !isDisabled(r) && // nothing to steer: its controls are down
         r.script?.programId === TaskType.Idle &&
         distance(pos.x, pos.y, r.position!.x, r.position!.y) <= gameConfig.drone.possessRadius,
     );
@@ -89,6 +91,10 @@ function drivePossessed(
 
   if (release) {
     drone.drone!.possessedId = undefined;
+  } else if (isDisabled(robot)) {
+    // Knocked out under the pilot: the drone keeps riding (and can still bail
+    // out with `release`), but the hull answers neither the stick nor the trigger.
+    robot.targetId = undefined;
   } else {
     // Manual-only fire: never let the Idle-under-fire resolver auto-fire this robot.
     robot.targetId = undefined;
@@ -124,12 +130,12 @@ function blockedAt(ctx: GameContext, x: number, y: number): boolean {
 /** Fires the possessed robot's weapon once: kamikaze detonates, others shoot the nearest foe in range. */
 function fireManual(ctx: GameContext, robot: Entity): void {
   const w = robot.weapon;
-  if (!w) return;
+  if (!w || isDisabled(robot)) return;
   if (w.explosionRadius > 0) {
     detonateBomb(ctx, robot); // kamikaze: blast on demand, self-destruct
     return;
   }
-  if (w.range <= 0 || w.damage <= 0 || w.cooldownLeft > 0) return;
+  if (!canEngage(w) || w.cooldownLeft > 0) return;
 
   const pos = robot.position!;
   const foes = [...enemyRobots(ctx, robot.owner!), ...enemyBases(ctx, robot.owner!)].filter(

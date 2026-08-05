@@ -6,6 +6,7 @@ import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { tileOf } from '../obstacles';
 import { findPath } from '../pathfinding';
+import { isDisabled } from './status';
 import { baseFootprintContains } from './targeting';
 
 /**
@@ -40,6 +41,21 @@ export function clearGoal(entity: Entity): void {
 export function movementSystem(ctx: GameContext, dt: number): void {
   for (const e of ctx.world.with('robot', 'position', 'movement')) {
     const m = e.movement!;
+
+    // Knocked out by a directed-energy hit: it doesn't drive. The anti-jam
+    // bookkeeping is kept current anyway — left stale, standing still for eight
+    // seconds would read as a jam and send the robot into a retreat the instant
+    // it recovers. Separation still shoves it around, on purpose: a frozen
+    // cluster must not become a wall its own side has to path around.
+    if (isDisabled(e)) {
+      m.prevX = e.position!.x;
+      m.prevY = e.position!.y;
+      m.stuckTime = 0;
+      m.retreatTime = 0;
+      m.state = RobotState.Idle;
+      continue;
+    }
+
     // Net progress is measured over a *full* tick: compare the start-of-tick
     // position against last tick's start (which folds in the robot's own
     // movement plus any separation push). Recording it post-move would only

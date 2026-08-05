@@ -96,6 +96,9 @@ export const gameConfig = {
      * `canHitAir` marks a surface-to-air weapon: only those can shoot an enemy
      * observer drone down (a howitzer plainly can't). Today that's `missiles`
      * alone — a dedicated AA weapon would just be another entry with the flag on.
+     * `freezeDuration` (seconds) only matters for `dew` — how long a hit leaves
+     * the target disabled; it is also what makes a zero-damage weapon count as
+     * armed at all (see `canEngage` in `systems/combat.ts`).
      */
     weapons: {
       none: {
@@ -106,6 +109,7 @@ export const gameConfig = {
         sightMultiplier: 1,
         jamRadius: 0,
         canHitAir: false,
+        freezeDuration: 0,
       },
       cannon: {
         range: 120,
@@ -115,6 +119,7 @@ export const gameConfig = {
         sightMultiplier: 1,
         jamRadius: 0,
         canHitAir: false,
+        freezeDuration: 0,
       },
       // The only surface-to-air weapon: doubles as this side's answer to an enemy drone.
       missiles: {
@@ -125,6 +130,7 @@ export const gameConfig = {
         sightMultiplier: 1,
         jamRadius: 0,
         canHitAir: true,
+        freezeDuration: 0,
       },
       // Kamikaze: closes to `range` then detonates, dealing `damage` in `explosionRadius`, destroying itself.
       // range (60) must exceed a base's half-footprint (48px) so it can trigger at the base's edge, not only inside it.
@@ -137,6 +143,7 @@ export const gameConfig = {
         sightMultiplier: 1,
         jamRadius: 0,
         canHitAir: false,
+        freezeDuration: 0,
       },
       /** Unarmed spotter: no damage, but doubles detection radius. */
       radar: {
@@ -147,6 +154,7 @@ export const gameConfig = {
         sightMultiplier: 2,
         jamRadius: 0,
         canHitAir: false,
+        freezeDuration: 0,
       },
       /** Unarmed jammer: no damage, but halves the effective sight range of enemy scouts within `jamRadius`. */
       ew: {
@@ -157,6 +165,20 @@ export const gameConfig = {
         sightMultiplier: 1,
         jamRadius: 150,
         canHitAir: false,
+        freezeDuration: 0,
+      },
+      // Directed-energy weapon: the cannon's reach and price, but it deals no damage at
+      // all — a hit disables the target for `freezeDuration` seconds instead. Control,
+      // not attrition, so the long cooldown is the whole balance lever.
+      dew: {
+        range: 120,
+        damage: 0,
+        cooldown: 5,
+        explosionRadius: 0,
+        sightMultiplier: 1,
+        jamRadius: 0,
+        canHitAir: false,
+        freezeDuration: 8,
       },
     },
   },
@@ -253,7 +275,7 @@ export const gameConfig = {
     /** Build cost by ChassisType value. */
     chassisCost: { tracks: 60, wheels: 50, legs: 80 },
     /** Build cost by WeaponType value. */
-    weaponCost: { none: 0, cannon: 40, missiles: 70, bomb: 90, radar: 20, ew: 25 },
+    weaponCost: { none: 0, cannon: 40, missiles: 70, bomb: 90, radar: 20, ew: 25, dew: 40 },
   },
 
   /** Enemy AI behaviour. */

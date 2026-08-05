@@ -97,3 +97,33 @@ describe('movementSystem — anti-jam retreat', () => {
     expect(robot.movement!.retreatTime).toBeGreaterThan(0);
   });
 });
+
+describe('movementSystem — disabled robots', () => {
+  it('does not move a robot that has been knocked out, goal or no goal', () => {
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    robot.movement!.goal = { x: 900, y: 400 };
+    robot.movement!.destination = { x: 900, y: 400 };
+    robot.disabled = { left: 8 };
+    const start = { ...robot.position! };
+
+    for (let i = 0; i < 60; i++) movementSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.position).toEqual(start);
+  });
+
+  it('does not mistake the standstill for a jam once it recovers', () => {
+    // Anti-jam measures net progress against last tick's position. Left stale
+    // through the knock-out, eight seconds of standing still would read as a
+    // jam and fling the robot backwards the moment it came back.
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    robot.movement!.goal = { x: 900, y: 400 };
+    robot.disabled = { left: 8 };
+
+    for (let i = 0; i < 60; i++) movementSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.movement!.stuckTime).toBe(0);
+    expect(robot.movement!.retreatTime ?? 0).toBe(0);
+  });
+});

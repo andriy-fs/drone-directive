@@ -2,9 +2,10 @@ import { gameConfig } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { distance } from '../../utils/math';
 import { spawnExplosion, spawnProjectile } from '../ecs/factory';
-import type { Entity } from '../ecs/entity';
+import type { Entity, WeaponComp } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
+import { applyDisable, isDisabled } from './status';
 import { findById, isEnemy, isTargetableDrone } from './targeting';
 
 /**
@@ -16,7 +17,9 @@ import { findById, isEnemy, isTargetableDrone } from './targeting';
  * `ctx.sightBlockers`, not `ctx.obstacles` — shots cross a crater that robots
  * still have to drive around). A `bomb` weapon
  * (`explosionRadius > 0`) detonates on contact instead of firing (see
- * `detonateBomb`); a `radar` weapon (range 0) never engages — it only spots.
+ * `detonateBomb`); a `radar` weapon (range 0) never engages — it only spots; a
+ * `dew` weapon fires an ordinary projectile that deals no damage and knocks the
+ * robot it hits out for `freezeDuration` seconds instead (see `canEngage`).
  * Observer drones are hit only by a deliberate surface-to-air shot — see
  * `hitsAimedDrone`.
  */
@@ -25,9 +28,12 @@ export function combatSystem(ctx: GameContext, dt: number): void {
 
   for (const e of [...world.with('robot', 'position', 'weapon')]) {
     const w = e.weapon!;
+    // Knocked out: no fire, and no reloading either — the whole hull is dead
+    // weight until it recovers, so the cooldown must not tick down here.
+    if (isDisabled(e)) continue;
     if (w.cooldownLeft > 0) w.cooldownLeft -= dt;
     if ((e.hp ?? 0) <= 0) continue; // already caught in another bomb's blast this tick
-    if (w.range <= 0 || w.damage <= 0 || w.cooldownLeft > 0) continue;
+    if (!canEngage(w) || w.cooldownLeft > 0) continue;
 
     const target = currentTarget(ctx, e);
     if (!target?.position) continue;
@@ -46,6 +52,17 @@ export function combatSystem(ctx: GameContext, dt: number): void {
   }
 
   stepProjectiles(ctx, dt);
+}
+
+/**
+ * Whether a weapon is worth pointing at anything: it needs reach, plus *some*
+ * effect on what it hits. Deliberately duck-typed off the stats rather than
+ * switched on `WeaponType`, so a support weapon is defined by what it does —
+ * `dew` deals no damage at all and is armed purely by `freezeDuration`, while a
+ * `radar`/`ew` hull (range 0) still counts as unarmed.
+ */
+export function canEngage(w: WeaponComp): boolean {
+  return w.range > 0 && (w.damage > 0 || w.freezeDuration > 0);
 }
 
 /**
@@ -139,11 +156,16 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
       continue;
     }
 
+    // The firing weapon's stats, not the projectile's — `weaponType` is stamped
+    // on every shot precisely so its effect survives the shooter's death.
+    const fired = gameConfig.robots.weapons[p.weaponType!];
+
     let hit = false;
     for (const r of world.with('robot', 'position')) {
       if ((r.hp ?? 0) <= 0 || !isEnemy(p.owner, r.owner)) continue;
       if (distance(pos.x, pos.y, r.position!.x, r.position!.y) <= radius + pr) {
         r.hp = (r.hp ?? 0) - (p.damage ?? 0);
+        if (fired.freezeDuration > 0) applyDisable(r, fired.freezeDuration);
         // Remember the attacker so the resolver can dodge / return fire.
         if (!r.threat) r.threat = { underFireLeft: 0 };
         r.threat.attackerId = p.sourceId;
@@ -152,7 +174,10 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
         break;
       }
     }
-    if (!hit) {
+    // A harmless round (dew) flies straight over a base rather than being eaten
+    // by it: buildings have no crew to knock out, so a hit there is a dud, and
+    // absorbing the shot would only make the weapon feel broken.
+    if (!hit && (p.damage ?? 0) > 0) {
       for (const b of world.with('base', 'position')) {
         if ((b.hp ?? 0) <= 0 || !isEnemy(p.owner, b.owner)) continue;
         if (hitsBase(pos, b)) {

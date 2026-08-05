@@ -21,6 +21,12 @@ export const programs: Record<TaskType, Program> = {
     directives: [
       // Even while idle, shoot back at whoever hits us (self-defence, no chasing).
       { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
+      // A knocked-out enemy standing in our own weapon range is a free kill at no
+      // risk — even a passive unit takes it. Without this, a directed-energy hit
+      // would *protect* its target from idle guns: silencing it also ends the
+      // under-fire window that was the only reason they were shooting. Still no
+      // move intent, so "idle doesn't chase" holds.
+      { when: { type: 'disabledEnemyWithin' }, do: { type: 'finishDisabled' } },
       { when: { type: 'always' }, do: { type: 'idle' } },
     ],
   },

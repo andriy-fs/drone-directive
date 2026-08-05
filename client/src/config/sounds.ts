@@ -16,6 +16,7 @@ const PUBLIC_BASE = import.meta.env.BASE_URL;
 export type SoundName =
   | 'shot-cannon'
   | 'shot-missile'
+  | 'shot-dew'
   | 'explosion'
   | 'chat-message'
   | 'chat-send'
@@ -48,6 +49,9 @@ export const soundDefs: Record<SoundName, SoundDef> = {
   // Out of line with the rest on purpose: this source peaks 4.8 dB below the
   // others (−5.7 vs −1 dBFS), so 0.22 / 0.58 ≈ 0.38. Swap the file → reset to 0.22.
   'shot-cannon': { src: src('sci-fi/laserSmall_000'), volume: 0.38 },
+  // Directed energy: a rising electrical whine rather than a report, so a
+  // knock-out shot is audibly not a kill even off-screen.
+  'shot-dew': { src: src('digital/phaserUp3'), volume: 0.35 },
   'select-base': { src: src('sci-fi/doorOpen_001'), volume: 0.42 },
   'select-tracks': { src: src('sci-fi/impactMetal_003'), volume: 0.4 },
   'select-wheels': { src: src('digital/phaserUp5'), volume: 0.4 },

@@ -110,6 +110,10 @@ export const sfx = {
     play('shot-missile');
   },
 
+  dewShot(): void {
+    play('shot-dew');
+  },
+
   /**
    * A reap can destroy a dozen entities inside one fixed step, and the bus
    * dispatches those synchronously: identical buffers starting on the same

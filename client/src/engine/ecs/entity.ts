@@ -38,6 +38,8 @@ export interface WeaponComp {
   jamRadius: number;
   /** Surface-to-air: may engage an enemy observer drone as well as ground targets. */
   canHitAir: boolean;
+  /** Seconds a hit disables its target for (dew); 0 = an ordinary weapon that only deals damage. */
+  freezeDuration: number;
 }
 
 /** Base production component. */
@@ -71,6 +73,16 @@ export interface Threat {
   attackerId?: string;
   /** Seconds remaining in the under-fire window (decays each tick). */
   underFireLeft: number;
+}
+
+/**
+ * Temporary knock-out from a directed-energy hit: while `left > 0` the robot does
+ * nothing at all — no movement, no fire, no reloading, no spotting, and the drone
+ * can't land on it. Only ever created/advanced through `systems/status.ts`.
+ */
+export interface Disabled {
+  /** Seconds left of the knock-out (decays each tick in `taskSystem`). */
+  left: number;
 }
 
 /**
@@ -128,6 +140,8 @@ export interface Entity {
   script?: RobotScript;
   targetId?: string;
   threat?: Threat;
+  /** Present only while knocked out by a directed-energy hit — see `systems/status.ts`. */
+  disabled?: Disabled;
 
   // Base
   production?: Production;

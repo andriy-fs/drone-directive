@@ -61,6 +61,34 @@ describe('droneSystem — possession', () => {
     expect(drone.drone!.possessedId).toBe(robot.id);
   });
 
+  it('will not possess a disabled robot (there is nothing left to steer)', () => {
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    robot.disabled = { left: 8 };
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 405, y: 400 });
+    setControl(ctx, { x: 0, y: 0 }, true);
+
+    droneSystem(ctx, 1);
+
+    expect(drone.drone!.possessedId).toBeUndefined();
+  });
+
+  it('a robot knocked out under the pilot answers neither stick nor trigger', () => {
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.None);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone!.possessedId = robot.id;
+    robot.disabled = { left: 8 };
+    setControl(ctx, { x: 1, y: 0 }, false, true);
+
+    droneSystem(ctx, 1);
+
+    expect(robot.position!.x).toBe(400);
+    expect(ctx.world.with('projectile').entities.length).toBe(0);
+    expect(drone.drone!.possessedId).toBe(robot.id); // still riding it
+  });
+
   it('will not possess a non-idle robot', () => {
     const ctx = makeCtx(1);
     const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);

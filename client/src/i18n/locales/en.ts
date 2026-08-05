@@ -153,14 +153,17 @@ export const en: Dict = {
     bomb: 'Bomb',
     radar: 'Radar',
     ew: 'EW',
+    dew: 'DEW',
     statsRange: 'Range',
     statsDamage: 'Damage',
+    statsReload: 'Reload',
     radarNote: 'No weapon — doubles sight radius',
     ewNote: 'No weapon — jams enemy sight within',
     bombNote: 'Self-destructs on impact, blast radius',
     cannonNote: 'Balanced rate of fire and range — a reliable all-rounder',
     missilesNote:
       'Longer range and heavier damage, at the cost of a slower reload. The only weapon that can shoot down an enemy observer drone',
+    dewNote: 'Directed-energy weapon: deals no damage — knocks the target out, s:',
   },
   aria: {
     resume: 'Resume',

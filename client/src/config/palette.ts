@@ -35,6 +35,11 @@ export const palette = {
     /** Kamikaze blast-radius ring, shown on every bomb-armed robot, both sides. */
     zone: 0xef4444,
   },
+  /** Temporary status effects drawn on a robot. */
+  status: {
+    /** Directed-energy knock-out: the arc over a robot whose electronics are down. */
+    disabled: 0x7dd3fc,
+  },
   /** Selection + orders the local player has given (robots, base, rally point). */
   selection: {
     /** Outline around a selected robot or base. */

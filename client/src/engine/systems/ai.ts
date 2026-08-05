@@ -15,6 +15,7 @@ import type { Entity } from '../ecs/entity';
 import { buildCost, canAfford, spend } from '../economy';
 import type { AiState, GameContext } from '../game/context';
 import { makeAttackBase, makeAttackRobots, makeAttackTarget, makeGuard } from '../tasks/taskDefinitions';
+import { isDisabled } from './status';
 import { isEnemy, knownEnemyRobots } from './targeting';
 import { atRobotCap } from './production';
 
@@ -115,7 +116,11 @@ function assignIdleUnits(ctx: GameContext, owner: Owner, state: AiState, base: E
     return;
   }
 
-  const idle = aiRobots.filter((e) => e.script!.programId === TaskType.Idle);
+  // Knocked-out robots are left out of the *assignment* slices but stay in
+  // `aiRobots` for the counts below: they're still force on the board, they just
+  // can't be given a new job this tick (and re-rolling their program every tick
+  // while they sit there would only churn).
+  const idle = aiRobots.filter((e) => e.script!.programId === TaskType.Idle && !isDisabled(e));
   if (idle.length === 0) return;
 
   const posture = forcePosture(ctx, owner);
@@ -252,6 +257,7 @@ function rollAttackGroup(rng: Rng): number {
 function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots: Entity[]): void {
   const massRush = nearbyEnemyCount(ctx, owner, base) >= gameConfig.ai.massRushThreshold;
   for (const robot of aiRobots) {
+    if (isDisabled(robot)) continue; // can't take an order until its electronics come back
     if (robot.weaponType === WeaponType.Ew) continue; // unarmed — nothing to fight with, stays put
     const programId = robot.script!.programId;
     if (programId === TaskType.AttackRobots) continue; // already mobilized — don't reset its blackboard/roamTarget

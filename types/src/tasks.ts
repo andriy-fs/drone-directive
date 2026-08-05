@@ -19,6 +19,8 @@ export type BehaviorCondition =
   | { type: 'underFire' }
   /** A *known* (detected) enemy robot is within `range` px (default: weapon range). */
   | { type: 'enemyRobotWithin'; range?: number }
+  /** A *known* enemy robot that is currently knocked out stands within `range` px (default: weapon range). */
+  | { type: 'disabledEnemyWithin'; range?: number }
   /** Any *known* (detected by this robot's team) enemy robot exists. */
   | { type: 'enemyRobotsExist' }
   /** Any *known* (detected by this robot's team) enemy base exists. */
@@ -32,6 +34,8 @@ export type BehaviorAction =
   | { type: 'attackNearestBase' }
   /** Fire at whoever last hit us (fire-only; no move) — the return-fire reaction. */
   | { type: 'attackAttacker' }
+  /** Fire at a knocked-out enemy already inside weapon range (fire-only; never chases). */
+  | { type: 'finishDisabled' }
   /** Strafe perpendicular to incoming fire (move-only) — the dodge reaction. */
   | { type: 'evade' }
   /** Patrol near a post (perimeter defence), engaging enemies that come into range without chasing far. */

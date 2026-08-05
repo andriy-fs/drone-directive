@@ -43,6 +43,8 @@ export const WeaponType = {
   Bomb: 'bomb',
   Radar: 'radar',
   Ew: 'ew',
+  /** Directed-energy weapon — not to be confused with `Ew`: that jams sight with an aura, this one shoots and disables. */
+  Dew: 'dew',
 } as const;
 export type WeaponType = (typeof WeaponType)[keyof typeof WeaponType];
 
