@@ -16,6 +16,7 @@ import { movementSystem } from '../../systems/movement';
 import { refreshNavObstacles } from '../../navGrid';
 import { productionSystem } from '../../systems/production';
 import { reapSystem } from '../../systems/reap';
+import { regenSystem } from '../../systems/regen';
 import { separationSystem } from '../../systems/separation';
 import { taskSystem } from '../../systems/task';
 import { visionSystem } from '../../systems/vision';
@@ -101,6 +102,9 @@ export class GameScene implements Scene {
     separationSystem(ctx);
     combatSystem(ctx, dt);
     reapSystem(ctx);
+    // Also after reap: everything at hp<=0 has already been removed, so passive
+    // repair can never pull something back from the dead before reap sees it.
+    regenSystem(ctx, dt);
     // After reap: a drone shot down this tick is already gone, so the respawn
     // clock sees the side is missing its eye on the very tick it lost it.
     droneRespawnSystem(ctx, dt);

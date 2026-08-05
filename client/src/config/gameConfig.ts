@@ -57,6 +57,13 @@ export const gameConfig = {
     ] as BasePlacement[],
     /** Detection radius (px): a base's own "radar" — enemies within this become known. */
     sightRange: 260,
+    /**
+     * Passive repair, hp/second — 1 hp every 2.5 s, twice the robot rate (a base
+     * has crews and spare parts on site). At 600 hp a full rebuild still takes
+     * ~25 minutes, so it rewards surviving a raid rather than tanking one.
+     * Suspended for `combat.regenDelay` after every hit — see `systems/regen.ts`.
+     */
+    regenPerSecond: 0.4,
   },
 
   /** Observer drone: the player's flying "eye" (see systems/drone.ts). */
@@ -81,6 +88,13 @@ export const gameConfig = {
     radius: 11,
     /** Distance (px) within which a robot is considered to have arrived. */
     arrivalThreshold: 2,
+    /**
+     * Passive repair, hp/second — 1 hp every 5 s, deliberately slow: 6–13 minutes
+     * to rebuild a 70–160 hp chassis, so pulling a damaged unit out of the line
+     * is worth doing but never replaces building a new one. Suspended for
+     * `combat.regenDelay` after every hit — see `systems/regen.ts`.
+     */
+    regenPerSecond: 0.2,
     /** Stats keyed by ChassisType value. speed is px/second, sight is detection radius in px. */
     chassis: {
       tracks: { hp: 120, speed: 60, sight: 190 },
@@ -195,6 +209,12 @@ export const gameConfig = {
     unarmedStandoff: 40,
     /** EW jamming aura: multiplies an enemy scout's effective sightRange while inside an `ew` robot's `jamRadius`. */
     jamMultiplier: 0.5,
+    /**
+     * Seconds without passive repair after taking a hit. Lives here rather than
+     * in `behavior` because it is a property of being damaged — it applies to
+     * bases too, which have no directives at all.
+     */
+    regenDelay: 6,
   },
 
   /** Reactive behaviour tunables (used by the directive resolver). */

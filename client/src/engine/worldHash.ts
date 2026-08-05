@@ -16,6 +16,12 @@ import type { EcsWorld } from './ecs/world';
  * directed-energy knock-out is quantised the same way and for the same reason:
  * peers that disagree on who is disabled will disagree on positions one tick
  * later, and leaving it out would hide the divergence until it had spread.
+ *
+ * hp is quantised to 1/1000 too, not to whole points: passive repair
+ * (`systems/regen.ts`) moves it in fractions of a point per tick, and rounding
+ * to integers would hide a regeneration mismatch for seconds. That fine grain is
+ * also why the repair lock itself needs no field of its own here — it is only
+ * ever observable through hp, which now diverges on the very next tick.
  */
 export function worldHash(world: EcsWorld): number {
   const parts: string[] = [];
@@ -25,7 +31,8 @@ export function worldHash(world: EcsWorld): number {
     const x = e.position ? Math.round(e.position.x * 1000) : 0;
     const y = e.position ? Math.round(e.position.y * 1000) : 0;
     const off = Math.round((e.disabled?.left ?? 0) * 1000);
-    parts.push(`${e.id}:${e.owner ?? '-'}:${x}:${y}:${Math.round(e.hp ?? 0)}:${e.script?.programId ?? '-'}:${off}`);
+    const hp = Math.round((e.hp ?? 0) * 1000);
+    parts.push(`${e.id}:${e.owner ?? '-'}:${x}:${y}:${hp}:${e.script?.programId ?? '-'}:${off}`);
   }
   // Entity order comes from the ECS store and should already match, but sorting
   // makes the hash a statement about *contents* rather than iteration order.

@@ -86,6 +86,17 @@ export interface Disabled {
 }
 
 /**
+ * Suspended passive repair: while `left > 0` the entity does not regenerate hp.
+ * Stamped on *anything* that takes damage — bases have no `threat`, but they
+ * must stop repairing under assault just as robots do. Only ever created/
+ * advanced through `systems/status.ts`.
+ */
+export interface RegenLock {
+  /** Seconds left before repair resumes (decays each tick in `regenSystem`). */
+  left: number;
+}
+
+/**
  * Observer-drone component — doubles as the `drone` archetype tag (its presence,
  * an object, is what `world.with('drone', ...)` matches). The player's flying eye:
  * flies free of obstacles, and while `possessedId` is set it is steering that robot.
@@ -126,6 +137,8 @@ export interface Entity {
   // Health
   hp?: number;
   maxHp?: number;
+  /** Present only while passive repair is suspended by a recent hit — see `systems/status.ts`. */
+  regenLock?: RegenLock;
 
   // Robot build identity (render + production)
   chassis?: ChassisType;
