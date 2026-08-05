@@ -28,8 +28,16 @@ const NEIGHBOURS: readonly (readonly [number, number])[] = [
   [0, -1],
 ];
 
-/** Directives that count as an advancing "vanguard" for Overwatch to trail behind. */
-const ADVANCING_TASKS = new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots, TaskType.AttackTarget]);
+/**
+ * Directives that count as an advancing "vanguard" — what Overwatch trails
+ * behind, and what `systems/ai.ts` counts to decide whether a push is under way
+ * for a support unit to join.
+ */
+export const ADVANCING_TASKS = new Set<TaskType>([
+  TaskType.AttackBase,
+  TaskType.AttackRobots,
+  TaskType.AttackTarget,
+]);
 
 /**
  * Behaviour resolver. Each robot runs a priority-ordered directive program

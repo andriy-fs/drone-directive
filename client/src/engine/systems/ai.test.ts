@@ -448,3 +448,139 @@ describe('aiSystem — force posture', () => {
     expect(bomber.script!.programId).toBe(TaskType.Guard);
   });
 });
+
+describe('aiSystem — directed-energy escort discipline', () => {
+  /** An AI base plus one dew hull sitting next to it, and a matched player force. */
+  function seedDew(ctx: ReturnType<typeof makeCtx>) {
+    ctx.resources.ai = 0; // starve production so only assignment runs
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    const dew = spawnRobot(
+      ctx.world,
+      Owner.AI,
+      { x: base.position!.x, y: base.position!.y + 40 },
+      ChassisType.Wheels,
+      WeaponType.Dew,
+    );
+    return { base, dew };
+  }
+
+  /** `n` AI cannons already marching on the enemy base — the escort a dew waits for. */
+  function seedEscort(ctx: ReturnType<typeof makeCtx>, base: ReturnType<typeof spawnBase>, n: number) {
+    for (let i = 0; i < n; i++) {
+      const r = spawnRobot(
+        ctx.world,
+        Owner.AI,
+        { x: base.position!.x + 60 + i * 4, y: base.position!.y },
+        ChassisType.Tracks,
+        WeaponType.Cannon,
+      );
+      r.script = { programId: TaskType.AttackBase, blackboard: {} };
+    }
+  }
+
+  it('holds a lone dew at home rather than sending it off to die for one freeze', () => {
+    const ctx = makeCtx(1);
+    const { dew } = seedDew(ctx);
+
+    aiSystem(ctx, 100);
+
+    expect(dew.script!.programId).toBe(TaskType.Guard);
+  });
+
+  it('still holds it when the push is too thin to escort it', () => {
+    const ctx = makeCtx(1);
+    const { base, dew } = seedDew(ctx);
+    seedEscort(ctx, base, gameConfig.ai.dewEscortMin - 1);
+
+    aiSystem(ctx, 100);
+
+    expect(dew.script!.programId).toBe(TaskType.Guard);
+  });
+
+  it('does not count unarmed hulls as escort — a dew never escorts a dew', () => {
+    const ctx = makeCtx(1);
+    const { base, dew } = seedDew(ctx);
+    for (let i = 0; i < gameConfig.ai.dewEscortMin; i++) {
+      const other = spawnRobot(
+        ctx.world,
+        Owner.AI,
+        { x: base.position!.x + 60 + i * 4, y: base.position!.y },
+        ChassisType.Wheels,
+        WeaponType.Dew,
+      );
+      other.script = { programId: TaskType.AttackBase, blackboard: {} };
+    }
+
+    aiSystem(ctx, 100);
+
+    expect(dew.script!.programId).toBe(TaskType.Guard);
+  });
+
+  it('sends a loaded dew up with a real push', () => {
+    const ctx = makeCtx(1);
+    const { base, dew } = seedDew(ctx);
+    seedEscort(ctx, base, gameConfig.ai.dewEscortMin);
+
+    aiSystem(ctx, 100);
+
+    expect(dew.script!.programId).toBe(TaskType.AttackRobots);
+  });
+
+  it('drops it out of the vanguard the moment it has fired, then brings it back', () => {
+    const ctx = makeCtx(1);
+    const { base, dew } = seedDew(ctx);
+    seedEscort(ctx, base, gameConfig.ai.dewEscortMin);
+
+    aiSystem(ctx, 100);
+    expect(dew.script!.programId).toBe(TaskType.AttackRobots);
+
+    dew.weapon!.cooldownLeft = gameConfig.robots.weapons.dew.cooldown; // it just took its shot
+    aiSystem(ctx, 100);
+    expect(dew.script!.programId).toBe(TaskType.Overwatch); // trails the group while reloading
+
+    dew.weapon!.cooldownLeft = 0; // reloaded
+    aiSystem(ctx, 100);
+    expect(dew.script!.programId).toBe(TaskType.AttackRobots);
+  });
+
+  it('never lets a dew make up the numbers of an attack wave', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.ai = 0;
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    ctx.ai[Owner.AI]!.groupTarget = 3;
+
+    // The guard quota is already filled by armed hulls, so it can't absorb
+    // anything below and muddy what this test is about.
+    for (let i = 0; i < gameConfig.ai.guardQuota; i++) {
+      const g = spawnRobot(
+        ctx.world,
+        Owner.AI,
+        { x: base.position!.x, y: base.position!.y + 40 + i * 4 },
+        ChassisType.Tracks,
+        WeaponType.Cannon,
+      );
+      g.script = { programId: TaskType.Guard, blackboard: {} };
+    }
+    // Three bodies left over — a full wave by headcount, but two of them are dew
+    // hulls that between them can't destroy anything. No wave may form.
+    spawnRobot(ctx.world, Owner.AI, { x: base.position!.x + 20, y: base.position!.y }, ChassisType.Tracks, WeaponType.Cannon);
+    for (let i = 0; i < 2; i++) {
+      spawnRobot(
+        ctx.world,
+        Owner.AI,
+        { x: base.position!.x + 20, y: base.position!.y + 40 + i * 4 },
+        ChassisType.Wheels,
+        WeaponType.Dew,
+      );
+    }
+    // Matched player force, far away: keeps `forcePosture` at 'balanced' (which
+    // waits for a wave) and out of `threatRange` (which would mobilize instead).
+    for (let i = 0; i < 6; i++) {
+      spawnRobot(ctx.world, Owner.Player, { x: 40 + i * 4, y: 40 }, ChassisType.Tracks, WeaponType.Cannon);
+    }
+
+    aiSystem(ctx, 100);
+
+    expect(aiRobots(ctx).filter((r) => r.script!.programId === TaskType.AttackBase).length).toBe(0);
+  });
+});

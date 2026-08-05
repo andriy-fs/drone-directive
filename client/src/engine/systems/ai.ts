@@ -14,8 +14,9 @@ import type { Rng } from '../../utils/rng';
 import type { Entity } from '../ecs/entity';
 import { buildCost, canAfford, spend } from '../economy';
 import type { AiState, GameContext } from '../game/context';
-import { makeAttackBase, makeAttackRobots, makeAttackTarget, makeGuard } from '../tasks/taskDefinitions';
+import { makeAttackBase, makeAttackRobots, makeAttackTarget, makeGuard, scriptForTask } from '../tasks/taskDefinitions';
 import { isDisabled } from './status';
+import { ADVANCING_TASKS } from './task';
 import { isEnemy, knownEnemyRobots } from './targeting';
 import { atRobotCap } from './production';
 
@@ -49,7 +50,63 @@ function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): voi
 
   ensureEwRobot(ctx, owner, base);
   updateProduction(ctx, owner, state, base, dt);
+  // Ahead of the generic assignment: `dew` hulls are governed by their own rule
+  // for the whole match, not just while idle, so they must be off the table
+  // before waves are formed out of whatever is standing around.
+  positionDewUnits(ctx, owner, base);
   assignIdleUnits(ctx, owner, state, base);
+}
+
+/**
+ * Where the bot's directed-energy hulls belong, re-decided every tick. They deal
+ * no damage, so both halves of this are about not spending one for nothing:
+ *
+ * - **Never alone.** A lone `dew` freezes one enemy and is then killed by the
+ *   rest of them, having traded a whole unit for eight seconds. It only leaves
+ *   base once `dewEscortMin` armed robots are already pushing — the escort is
+ *   what converts the knock-out into a kill.
+ * - **Never in front once it has fired.** With a five-second reload, a `dew`
+ *   standing on the firing line after its shot is just a target. While it
+ *   reloads it drops to `Overwatch`, which walks it back behind the group's
+ *   centroid; when the shot is ready it rejoins the push.
+ *
+ * Both states are existing programs, so this is bot *policy* only — no new
+ * behaviour vocabulary, and nothing here is visible to the player's own units.
+ */
+function positionDewUnits(ctx: GameContext, owner: Owner, base: Entity): void {
+  const units = ctx.world
+    .with('robot', 'position', 'script')
+    .entities.filter((e) => e.owner === owner && (e.hp ?? 0) > 0 && e.weaponType === WeaponType.Dew);
+  if (units.length === 0) return;
+
+  const escorted = advancingCombatCount(ctx, owner) >= gameConfig.ai.dewEscortMin;
+
+  for (const unit of units) {
+    if (isDisabled(unit)) continue; // can't take an order until its electronics come back
+
+    const wanted = !escorted
+      ? TaskType.Guard // no push to join — hold the line at home
+      : (unit.weapon?.cooldownLeft ?? 0) > 0
+        ? TaskType.Overwatch // just fired: fall back behind the group and reload
+        : TaskType.AttackRobots; // loaded: move up with the group and pick a target
+    // Only on an actual change: reassigning every tick would re-roll the guard
+    // post (an rng draw the peer must match) and wipe the roam blackboard.
+    if (unit.script!.programId === wanted) continue;
+    unit.script = wanted === TaskType.Guard ? makeGuard(guardPost(base, ctx.rng)) : scriptForTask(unit.position!, wanted);
+  }
+}
+
+/** This side's living robots that can actually kill something and are currently pushing out. */
+function advancingCombatCount(ctx: GameContext, owner: Owner): number {
+  return ctx.world
+    .with('robot', 'script', 'weapon')
+    .entities.filter(
+      (e) =>
+        e.owner === owner &&
+        (e.hp ?? 0) > 0 &&
+        e.weapon!.damage > 0 &&
+        ADVANCING_TASKS.has(e.script!.programId),
+    ).length;
 }
 
 /**
@@ -132,7 +189,10 @@ function assignIdleUnits(ctx: GameContext, owner: Owner, state: AiState, base: E
     if (posture === 'defensive') bomber.script = makeGuard(guardPost(base, ctx.rng));
     else assignKamikaze(ctx, bomber);
   }
-  const rest = idle.filter((e) => e.weaponType !== WeaponType.Bomb);
+  // `dew` is deliberately absent from the wave logic: `positionDewUnits` owns it,
+  // and counting it toward a wave would let one form out of units that between
+  // them can't destroy anything.
+  const rest = idle.filter((e) => e.weaponType !== WeaponType.Bomb && e.weaponType !== WeaponType.Dew);
 
   const guardQuota =
     posture === 'defensive' ? gameConfig.ai.guardQuota + gameConfig.ai.defensiveGuardBonus : gameConfig.ai.guardQuota;
@@ -259,6 +319,7 @@ function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots:
   for (const robot of aiRobots) {
     if (isDisabled(robot)) continue; // can't take an order until its electronics come back
     if (robot.weaponType === WeaponType.Ew) continue; // unarmed — nothing to fight with, stays put
+    if (robot.weaponType === WeaponType.Dew) continue; // `positionDewUnits` decides where this one stands
     const programId = robot.script!.programId;
     if (programId === TaskType.AttackRobots) continue; // already mobilized — don't reset its blackboard/roamTarget
     const homeBound = programId === TaskType.Idle || programId === TaskType.Guard;
