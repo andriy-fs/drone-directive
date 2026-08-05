@@ -37,14 +37,17 @@ discs never clip when it rotates in-game.
 
 ## Wiring the generated art into the game
 
-1. Export as a transparent PNG and drop it in `public/` as `drone-player.png`.
+1. Export as a transparent PNG into `client/assets-src/sprites/` as
+   `drone-player.png`, then run `node scripts/encode-sprites.mjs` — that writes the
+   `public/drone-player.webp` the game actually loads (see
+   [README.md](README.md#where-the-files-live-masters-vs-what-ships)).
 2. Register it in `src/config/sprites.ts` (add a `droneSprite` export, mirroring
    `obstacleSprite` / `groundSprite`), authored facing up →
    `rotationOffset: Math.PI / 2`, on-field diameter ~40 px (a touch smaller than a
    robot's 46 px — it's a light recon flyer):
    ```ts
    export const droneSprite: SpriteDef | undefined = {
-     src: '/drone-player.png',
+     src: '/drone-player.webp',
      rotationOffset: Math.PI / 2,
      targetSize: 40,
    };

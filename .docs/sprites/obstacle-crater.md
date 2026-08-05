@@ -105,9 +105,10 @@ optional polish, not required.
 
 ## How the tile is wired up
 
-Shipped as `public/obstacle-crater.png` and live in game. **Re-export at 128×128** —
-the current file is 1024×1024 drawn at 32 px per cell, a 32× squeeze that mulches
-the detail.
+Master at `client/assets-src/sprites/obstacle-crater.png`, shipped by
+`scripts/encode-sprites.mjs` as `public/obstacle-crater.webp` at **64×64** — twice
+the 32 px cell it is drawn at. Regenerate at any size; the encoder pins the shipped
+one (and wrap-pads before scaling so the tile still wraps).
 
 The crater is not just a reskin of the mountain — it is a distinct terrain kind:
 

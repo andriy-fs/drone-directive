@@ -58,7 +58,11 @@ lighting, low detail and low contrast. Square image, 1024x1024.
 
 Already done — this is the shape of it, for when the tile gets regenerated.
 
-1. Exported as `public/ground-tile.png` (opaque, seamless, 1024×1024).
+1. Master at `client/assets-src/sprites/ground-tile.png` (opaque, seamless,
+   1024×1024); `scripts/encode-sprites.mjs` ships it as `public/ground-tile.webp`
+   at **512×512** — the tile repeats every 128 px of field, so that is still 4×
+   headroom, and it takes the file from 1.6 MB to 43 KB. The encoder wrap-pads the
+   tile 3×3 before scaling, so the seam survives the downscale.
 2. `groundSprite` in `src/config/sprites.ts` (its `src` is in `spriteSources()` so
    it preloads) and `getGroundTexture()` in `src/pixi/assets.ts` (same cached
    pattern as the other sprites).

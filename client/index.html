@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The title-screen splash is the first thing the player sees, but its URL is
+         built in JS and handed to CSS as a custom property (config/sprites.ts →
+         MainMenu), so without this the fetch cannot even start until the whole
+         bundle has parsed and run. Preloading here moves it into the HTML parser,
+         alongside the bundle instead of behind it.
+         The `/` prefix is required (the file lives in public/); Vite rewrites it to
+         `./menu-backdrop.webp` under `base: './'`, matching what `new URL(...,
+         location.href)` resolves to in sprites.ts — the same URL, hence one fetch. -->
+    <link rel="preload" as="image" href="/menu-backdrop.webp" fetchpriority="high" />
     <title>Drone Directive</title>
     <!-- Boot placeholder: shown while the UI locale chunk loads, before React mounts
          (see src/main.tsx). Inline + literal colours so it needs no stylesheet. -->

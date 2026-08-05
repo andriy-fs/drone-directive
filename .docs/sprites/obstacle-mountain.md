@@ -116,9 +116,11 @@ cell deterministically (e.g. by tile coordinate) — optional polish, not requir
 
 Already done — this is the shape of it, for when the tile gets regenerated.
 
-1. Exported as `public/obstacle-mountain.png` (opaque, seamless). **Re-export at
-   128×128** — the shipped file is 1024×1024 and gets drawn at 32 px per cell, a 32×
-   squeeze that mulches the detail.
+1. Master at `client/assets-src/sprites/obstacle-mountain.png` (opaque, seamless),
+   shipped by `scripts/encode-sprites.mjs` as `public/obstacle-mountain.webp` at
+   **64×64** — twice the 32 px cell it is drawn at. Regenerate at any size; the
+   encoder pins the shipped one (and wrap-pads before scaling so the tile still
+   wraps).
 2. `terrainSprites[TerrainKind.Mountain]` in `src/config/sprites.ts`, with its `src`
    in `spriteSources()` so it preloads.
 3. `createObstaclesGraphic()` in `src/pixi/render/ObstaclesView.ts` places one

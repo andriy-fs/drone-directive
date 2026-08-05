@@ -147,13 +147,17 @@ The plumbing already exists — `weaponSprites` in `client/src/config/sprites.ts
 `RobotView` (which falls back to the drawn Graphics marker when a weapon has no art).
 So adding a module is two steps:
 
-1. Export transparent PNGs to `client/public/`, named `weapon-<type>-<faction>.png`
-   (e.g. `weapon-radar-ai.png`, `weapon-dew-player.png`).
+1. Export transparent PNGs to `client/assets-src/sprites/`, named
+   `weapon-<type>-<faction>.png` (e.g. `weapon-radar-ai.png`,
+   `weapon-dew-player.png`), add the pair to the `SPRITES` table in
+   `client/scripts/encode-sprites.mjs` at `size: 64`, and run the script — modules
+   are drawn at 24 px, so 64² is already generous (see
+   [README.md](README.md#where-the-files-live-masters-vs-what-ships)).
 2. Add the pair to `weaponSprites`, keyed `owner → weapon`, using the shared
    `WEAPON_TARGET` size:
    ```ts
-   player: { dew: { src: '/weapon-dew-player.png', targetSize: WEAPON_TARGET } },
-   ai:     { dew: { src: '/weapon-dew-ai.png',     targetSize: WEAPON_TARGET } },
+   player: { dew: { src: '/weapon-dew-player.webp', targetSize: WEAPON_TARGET } },
+   ai:     { dew: { src: '/weapon-dew-ai.webp',     targetSize: WEAPON_TARGET } },
    ```
    The map is `Partial` on both axes and `spriteSources()` collects whatever is in it,
    so a weapon without art keeps its Graphics marker and the build stays green.
