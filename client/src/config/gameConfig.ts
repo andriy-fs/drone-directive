@@ -327,6 +327,12 @@ export const gameConfig = {
     forceAdvantageMargin: 3,
     /** Extra guard slots (on top of `guardQuota`) filled while in a defensive posture (significantly outnumbered). */
     defensiveGuardBonus: 3,
+    /**
+     * Armed robots that must already be pushing before a `dew` hull joins them.
+     * It deals no damage, so on its own it just freezes one enemy and is killed
+     * by the rest — it is only worth anything as an escorted support unit.
+     */
+    dewEscortMin: 2,
   },
 
   /** HUD snapshot throttle: push roster/HP to the store every N sim ticks. */
