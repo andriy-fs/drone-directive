@@ -5,7 +5,7 @@ import { spawnExplosion, spawnProjectile } from '../ecs/factory';
 import type { Entity, WeaponComp } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
-import { applyDisable, isDisabled } from './status';
+import { applyDisable, blockRegen, isDisabled } from './status';
 import { findById, isEnemy, isTargetableDrone } from './targeting';
 
 /**
@@ -66,6 +66,25 @@ export function canEngage(w: WeaponComp): boolean {
 }
 
 /**
+ * The single place hp is taken off anything. Besides the subtraction it stamps
+ * the two side effects every hit has, which is the reason it exists: a robot
+ * remembers its attacker (so the resolver can dodge / return fire), and *any*
+ * target — robot, base or drone — stops repairing itself for a while.
+ *
+ * Self-destruction (a bomb zeroing its own hp) deliberately does not go through
+ * here: nobody attacked it, and a corpse has nothing left to lock.
+ */
+export function applyDamage(e: Entity, amount: number, sourceId?: string): void {
+  e.hp = (e.hp ?? 0) - amount;
+  if (e.robot) {
+    if (!e.threat) e.threat = { underFireLeft: 0 };
+    e.threat.attackerId = sourceId;
+    e.threat.underFireLeft = gameConfig.behavior.underFireDuration;
+  }
+  blockRegen(e, gameConfig.combat.regenDelay);
+}
+
+/**
  * Kamikaze detonation: deals the bomb's `damage` to every enemy robot/base
  * whose body falls within `explosionRadius`, spawns an oversized blast visual,
  * and marks the bomb itself dead (reap removes it next, plus its death SFX).
@@ -79,15 +98,12 @@ export function detonateBomb(ctx: GameContext, bomb: Entity): void {
   for (const robot of world.with('robot', 'position')) {
     if (robot.id === bomb.id || (robot.hp ?? 0) <= 0 || !isEnemy(bomb.owner, robot.owner)) continue;
     if (distance(pos.x, pos.y, robot.position!.x, robot.position!.y) <= r + bodyR) {
-      robot.hp = (robot.hp ?? 0) - damage;
-      if (!robot.threat) robot.threat = { underFireLeft: 0 };
-      robot.threat.attackerId = bomb.id;
-      robot.threat.underFireLeft = gameConfig.behavior.underFireDuration;
+      applyDamage(robot, damage, bomb.id);
     }
   }
   for (const base of world.with('base', 'position')) {
     if ((base.hp ?? 0) <= 0 || !isEnemy(bomb.owner, base.owner)) continue;
-    if (distanceToBase(pos, base) <= r) base.hp = (base.hp ?? 0) - damage;
+    if (distanceToBase(pos, base) <= r) applyDamage(base, damage, bomb.id);
   }
 
   spawnExplosion(world, pos, r); // oversized blast; reap adds the standard death poof + SFX
@@ -129,7 +145,7 @@ function hitsAimedDrone(ctx: GameContext, p: Entity, pos: Vec2): boolean {
     if (!isEnemy(p.owner, d.owner) || !isTargetableDrone(d)) return false;
     const reach = gameConfig.drone.hitRadius + gameConfig.combat.projectileRadius;
     if (distance(pos.x, pos.y, d.position!.x, d.position!.y) > reach) return false;
-    d.hp = (d.hp ?? 0) - (p.damage ?? 0);
+    applyDamage(d, p.damage ?? 0, p.sourceId);
     return true;
   }
   return false;
@@ -164,12 +180,8 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     for (const r of world.with('robot', 'position')) {
       if ((r.hp ?? 0) <= 0 || !isEnemy(p.owner, r.owner)) continue;
       if (distance(pos.x, pos.y, r.position!.x, r.position!.y) <= radius + pr) {
-        r.hp = (r.hp ?? 0) - (p.damage ?? 0);
+        applyDamage(r, p.damage ?? 0, p.sourceId);
         if (fired.freezeDuration > 0) applyDisable(r, fired.freezeDuration);
-        // Remember the attacker so the resolver can dodge / return fire.
-        if (!r.threat) r.threat = { underFireLeft: 0 };
-        r.threat.attackerId = p.sourceId;
-        r.threat.underFireLeft = gameConfig.behavior.underFireDuration;
         hit = true;
         break;
       }
@@ -181,7 +193,7 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
       for (const b of world.with('base', 'position')) {
         if ((b.hp ?? 0) <= 0 || !isEnemy(p.owner, b.owner)) continue;
         if (hitsBase(pos, b)) {
-          b.hp = (b.hp ?? 0) - (p.damage ?? 0);
+          applyDamage(b, p.damage ?? 0, p.sourceId);
           hit = true;
           break;
         }

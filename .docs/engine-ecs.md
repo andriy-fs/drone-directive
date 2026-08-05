@@ -28,7 +28,9 @@ position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
   a component too, and its absence is the "off" state: a robot knocked out by a
   directed-energy hit carries `disabled: {left}` until it expires, at which point
   the component is dropped rather than zeroed (see `systems/status.ts`, which
-  owns every read and write of it, and decays it in `taskSystem`).
+  owns every read and write of it, and decays it in `taskSystem`). `regenLock:
+  {left}` — the pause on passive repair after a hit — works the same way, but is
+  carried by bases as well as robots and decays in `regenSystem`.
 - **Systems** are plain functions over the world (`client/src/engine/systems/*.ts`,
   each one `fooSystem(ctx, dt)`), run in a fixed order each tick by
   `GameScene.update` (`client/src/engine/game/scenes/gameScene.ts`). Order encodes
