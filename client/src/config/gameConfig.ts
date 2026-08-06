@@ -245,6 +245,13 @@ export const gameConfig = {
     explosionDuration: 0.5,
     /** Explosion peak radius, px. */
     explosionMaxRadius: 30,
+    /**
+     * Directed-energy hit: the discharge ring that snaps out over the target.
+     * Shorter and wider than an explosion — it is the only moment the weapon is
+     * *visible* doing its job, and it has to read against a busy firefight.
+     */
+    empBurstDuration: 0.35,
+    empBurstMaxRadius: 34,
   },
 
   /** Starting robot counts per side, by difficulty. */

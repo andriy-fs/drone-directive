@@ -21,6 +21,7 @@ export class RobotView {
   private readonly ring: Graphics;
   private readonly spotted: Graphics;
   private readonly stunned: Graphics;
+  private readonly stunnedRadius: number;
   private readonly healthBar: HealthBar;
   private readonly isEnemy: boolean;
   private lastClickAt = 0;
@@ -86,18 +87,13 @@ export class RobotView {
     this.spotted.circle(0, 0, outerRadius + 9).stroke({ width: 2, color: palette.vision.spotted });
     this.spotted.visible = false;
 
-    // Knocked out by a directed-energy hit: an arc over the hull. Shown for both
-    // sides — which units are out of the fight right now is the whole point of
-    // the weapon, and it has to be readable at a glance from either end of it.
+    // Knocked out by a directed-energy hit: a caged hull with sparks arcing over
+    // it. Shown for both sides — which units are out of the fight right now is
+    // the whole point of the weapon, and it has to be readable at a glance from
+    // either end of it. Redrawn each frame (see `update`) so it crackles: a
+    // static badge is easy to miss in a moving fight, a flickering one is not.
+    this.stunnedRadius = outerRadius + 4;
     this.stunned = new Graphics();
-    this.stunned
-      .arc(0, 0, outerRadius + 3, Math.PI * 1.15, Math.PI * 1.85)
-      .stroke({ width: 2, color: palette.status.disabled })
-      .moveTo(-4, -(outerRadius + 8))
-      .lineTo(1, -(outerRadius + 4))
-      .lineTo(-1, -(outerRadius + 3))
-      .lineTo(4, -(outerRadius + 9))
-      .stroke({ width: 2, color: palette.status.disabled });
     this.stunned.visible = false;
 
     this.healthBar = new HealthBar(2 * outerRadius + 6, 4);
@@ -143,10 +139,37 @@ export class RobotView {
     this.ring.visible = selected;
     this.spotted.visible = this.isEnemy && visible;
 
-    // "The lights went out": the hull dims and an arc appears while it's disabled.
+    // "The lights went out": the hull dims and sparks crawl over it.
     const off = (robot.disabled?.left ?? 0) > 0;
     this.stunned.visible = off;
-    this.body.alpha = off ? 0.55 : 1;
+    this.body.alpha = off ? 0.45 : 1;
+    if (off) this.drawStunned();
+  }
+
+  /** The crackling cage over a knocked-out hull; re-rolled every frame. */
+  private drawStunned(): void {
+    const r = this.stunnedRadius;
+    const g = this.stunned;
+    g.clear();
+
+    // A broken ring, so it never reads as the (solid) selection or spotted ring.
+    // Each arc is opened with a `moveTo` to its own start: `arc` draws a joining
+    // line from the current point, which would otherwise chain them into a star.
+    for (let i = 0; i < 4; i++) {
+      const from = (Math.PI / 2) * i + Math.random() * 0.25;
+      g.moveTo(Math.cos(from) * r, Math.sin(from) * r).arc(0, 0, r, from, from + Math.PI / 3);
+    }
+    g.stroke({ width: 2, color: palette.status.disabled, alpha: 0.75 + Math.random() * 0.25 });
+
+    // Two bolts snapping across the hull.
+    for (let i = 0; i < 2; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const jitter = () => (Math.random() - 0.5) * r * 0.7;
+      g.moveTo(Math.cos(a) * r, Math.sin(a) * r)
+        .lineTo(jitter(), jitter())
+        .lineTo(Math.cos(a + Math.PI) * r, Math.sin(a + Math.PI) * r);
+    }
+    g.stroke({ width: 1.5, color: 0xffffff, alpha: 0.5 + Math.random() * 0.4 });
   }
 
   destroy(): void {

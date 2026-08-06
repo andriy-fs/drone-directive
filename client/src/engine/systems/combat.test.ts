@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
+import { EffectKind } from '../ecs/entity';
 import { spawnBase, spawnDrone, spawnProjectile, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { combatSystem } from './combat';
@@ -168,6 +169,22 @@ describe('combatSystem — directed-energy weapon', () => {
 
     expect(foe.disabled!.left).toBe(DEW.freezeDuration);
     expect(foe.hp).toBe(foe.maxHp);
+  });
+
+  it('leaves a visible discharge where it lands', () => {
+    // Without this the weapon is invisible in play: no damage, no explosion, and
+    // a shot that lands looks exactly like a shot that missed.
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const shooter = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Dew);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    shooter.targetId = foe.id;
+
+    runUntil(ctx, () => foe.disabled !== undefined);
+
+    const burst = ctx.world.with('explosion', 'effect', 'position').entities.at(-1);
+    expect(burst?.effect!.kind).toBe(EffectKind.Emp);
+    expect(burst?.position!.x).toBeCloseTo(foe.position!.x, 3);
   });
 
   it('a second hit extends the knock-out rather than stacking it', () => {
