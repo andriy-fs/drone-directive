@@ -98,7 +98,7 @@ function App() {
                     </span>
                   )}
                   <span className="hud__row-value">
-                    {base.hp}/{base.maxHp}
+                    {Math.ceil(base.hp)}/{base.maxHp}
                   </span>
                 </li>
               ))}
