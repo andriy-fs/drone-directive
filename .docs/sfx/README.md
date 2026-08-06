@@ -54,8 +54,13 @@ Paths are relative to `client/public/sounds/`.
 | `explosion` | `sci-fi/explosionCrunch_000` | 0.78 s | The shortest of the pack's five explosions on purpose — a reap sends them in bursts. |
 | `chat-message` | `interface/glass_001` | 0.28 s | An arriving message. Roughly a fifth of the volume of anything the game itself makes: noticeable while the player watches the battle, forgettable while they do not. |
 | `chat-send` | `interface/pluck_001` | 0.10 s | Our own message going out — the other half of the pair, and it must not be mistaken for the arriving one. |
-| `button-click` | `interface/click_001` | 0.10 s | Any button in the HUD or the menus. |
-| `modal-open` | `interface/open_002` | 0.31 s | A modal coming up. |
+| `button-click` | `interface/click_001` | 0.10 s | Any button in the HUD or the menus, and the only cue the interface makes. |
+
+A dialog opening is **deliberately silent**. There used to be a `modal-open` cue
+(`interface/open_002`) on the false→true edge in `ui/common/Dialog`, but a modal
+is always the consequence of a button the player just pressed, and `Button` has
+already clicked for it — two cues on one action read as a stutter rather than as
+feedback. Do not add it back without also removing the click.
 
 Two files sit outside the −1 dBFS norm and are compensated in the `volume`
 column of `config/sounds.ts` rather than by re-normalizing the file:

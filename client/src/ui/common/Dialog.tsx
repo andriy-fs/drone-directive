@@ -4,20 +4,14 @@ import {
   DialogPanel as HeadlessDialogPanel,
   DialogTitle as HeadlessDialogTitle,
 } from '@headlessui/react';
-import { useEffect, useRef, type ComponentPropsWithoutRef } from 'react';
-import { sfx } from '../../pixi/audio/sfx';
+import { type ComponentPropsWithoutRef } from 'react';
 
+/**
+ * A dialog opening is deliberately **silent**: it is always the consequence of a
+ * button the player just pressed, and `Button` has already clicked for it. Two
+ * cues on one action read as a stutter, not as feedback.
+ */
 export function Dialog(props: ComponentPropsWithoutRef<typeof HeadlessDialog>) {
-  const wasOpen = useRef(false);
-
-  // `open` is owned by the caller, so the cue hangs off the false→true edge —
-  // reacting to the value itself would replay it on every render of an open dialog.
-  useEffect(() => {
-    const open = props.open ?? false;
-    if (open && !wasOpen.current) sfx.modalOpen();
-    wasOpen.current = open;
-  }, [props.open]);
-
   return <HeadlessDialog {...props} />;
 }
 

@@ -15,13 +15,14 @@ import {
 import type { Command } from '@drone-directive/types/commands';
 import { Controller, Owner, TaskType, WeaponType, type MapSize } from '@drone-directive/types/enums';
 import type { DroneControl, GameContext } from '../engine/game/context';
-import { loadGameAssets, loadSoundAssets } from './assets';
+import { loadGameAssets, loadSoundAssets, warmGameAssets } from './assets';
 import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
 import { LockstepSession, randomRoomCode, setNetDebug, type TickInput } from '@drone-directive/net';
 import { ChatSeat } from '@drone-directive/chat';
 import { attachChat } from '../chat/chatBridge';
 import { lockstepConfig } from '../config/multiplayer';
 import { worldHash } from '../engine/worldHash';
+import { whenIdle } from '../utils/whenIdle';
 import { attachSelectionAudio } from './audio/selectionAudio';
 import { sfx } from './audio/sfx';
 import { Camera } from './Camera';
@@ -70,6 +71,15 @@ export class GameApp {
   /** When the current lockstep stall began (`0` while the match is advancing). */
   private stalledSince = 0;
   private hostResizeObserver: ResizeObserver | null = null;
+  /**
+   * Whether the sprite textures are decoded and a world may be built. Starts
+   * false: `init` only *warms* the sprites, and a match started ahead of them
+   * would keep Graphics placeholders for the rest of the page's life (see
+   * `loadGameAssets`).
+   */
+  private assetsReady = false;
+  /** Whether the full-priority sprite load has been asked for; see `requestAssets`. */
+  private assetsRequested = false;
   private readonly onResize = (width: number, height: number) => this.camera.setViewport(width, height);
 
   /** The side this client plays/views (Player offline & host; AI for the online guest). */
@@ -86,11 +96,18 @@ export class GameApp {
     // narrate the input it drops.
     setNetDebug(import.meta.env.DEV);
 
-    // Not awaited: a dozen small files have no business delaying the first frame,
-    // and starting them here overlaps the fetches with renderer init and the far
-    // larger sprite load rather than queueing them behind it. A cue that isn't
-    // decoded yet is skipped, not queued.
-    void loadSoundAssets();
+    // Nothing on the title screen is drawn from a sprite, so the atlas is warmed
+    // at low priority and never awaited here. Full priority is claimed only when
+    // a match is actually asked for (`requestAssets`, off the gate in `step`) —
+    // calling `Assets.load` now would pause the background loader and put the
+    // sprites right back in front of the backdrop, which is the whole problem.
+    warmGameAssets();
+
+    // The menu tier only — a handful of files for the cues that can sound before a
+    // match exists. Deferred to idle rather than started here: the backdrop is the
+    // one thing the player is actually looking at, and the AudioContext is
+    // suspended until the first pointer press anyway.
+    whenIdle(() => void loadSoundAssets('menu'));
 
     await this.app.init({
       resizeTo: host,
@@ -100,8 +117,6 @@ export class GameApp {
       resolution: window.devicePixelRatio || 1,
     });
     host.appendChild(this.app.canvas);
-
-    await loadGameAssets();
 
     this.layers = createLayers();
     // No ground until a match exists — it is sized off that match's grid, and
@@ -151,9 +166,63 @@ export class GameApp {
     this.loop.start(this.app.ticker);
   }
 
-  /** Menu/lobby: no match to simulate, and nothing queued that would start one. */
+  /**
+   * Claim the sprites at full priority, once. Called the first time a match is
+   * actually asked for: until then they trickle in via `warmGameAssets`, and
+   * `Assets.load` here promotes whatever is left of that queue and awaits the
+   * same promise, so nothing is fetched twice.
+   *
+   * `loadGameAssets` swallows its own failures, so a 404 in the set still flips
+   * `assetsReady` — a broken asset must degrade to a placeholder, never wedge the
+   * gate shut.
+   */
+  private requestAssets(): void {
+    if (this.assetsRequested) return;
+    this.assetsRequested = true;
+    void loadGameAssets().then(() => {
+      this.assetsReady = true;
+      // The loop is only woken by store flags *changing*, and the request that is
+      // waiting on this has not changed since it was raised.
+      this.wake();
+    });
+  }
+
+  /**
+   * A start request `step` has seen but is holding back until the sprites land.
+   *
+   * Reading the store from a getter is fine here — the flags are one-shot and
+   * `step` is the only thing that clears them.
+   */
+  private get startHeld(): boolean {
+    if (this.assetsReady) return false;
+    const store = useGameStore.getState();
+    if (store.menuRequested) return false; // leaving to the menu builds no world
+    return store.restartRequested || this.pendingOnlineStart !== null;
+  }
+
+  /**
+   * Menu/lobby: no match to simulate, and **nothing asked for that a step has yet
+   * to consume**.
+   *
+   * That second half is not belt-and-braces, it is the whole point. The loop is
+   * only ever woken by a store flag **changing** (see the subscription in `init`),
+   * and `requestRestart` writes `true` over `true` — so a request parked before it
+   * was consumed is stranded for good, and pressing Start again does nothing at
+   * all. `GameLoop.park` guards this by refusing until one fixed step has run
+   * since the resume, but one step is not enough once `step` can *hold* a request
+   * instead of consuming it: at 60 Hz against a 30 Hz sim every other frame
+   * renders without stepping, so the frame right after a held step parks on a
+   * request that is still outstanding. Same trap as
+   * `.docs/tasks/menu-start-restart-idle-loop.md`, reached from the other side.
+   *
+   * Keyed off the flags rather than off `startHeld` for exactly that reason:
+   * "waiting for sprites" is a shorter interval than "not consumed yet", and it
+   * was the gap between the two that the bug lived in.
+   */
   private get idle(): boolean {
-    return this.engine.context === null && this.pendingOnlineStart === null;
+    if (this.engine.context !== null || this.pendingOnlineStart !== null) return false;
+    const { restartRequested, menuRequested } = useGameStore.getState();
+    return !restartRequested && !menuRequested;
   }
 
   /**
@@ -294,6 +363,12 @@ export class GameApp {
           this.flush();
         } else {
           store().setStatus('playing');
+          // The one place both routes into a match pass through, solo and online
+          // alike. Deliberately not awaited and not part of the start gate the way
+          // the sprites are: `sfx.play` re-checks readiness on every call, so a cue
+          // still decoding is skipped for that shot and heard on the next one —
+          // there is nothing here to keep the player waiting for.
+          void loadSoundAssets('match');
           // Map size can change between matches — rebuild everything sized off
           // the grid so it reflects the size `applyMapSize` just set.
           this.rebuildGround();
@@ -329,9 +404,19 @@ export class GameApp {
   private step(dt: number): void {
     const store = useGameStore.getState();
 
-    // Online lobby request (host/join/leave), raised by the UI.
+    // Online lobby request (host/join/leave), raised by the UI. Not gated below:
+    // talking to the relay draws nothing.
     const pending = store.consumePendingOnline();
     if (pending) this.applyOnlineRequest(pending);
+
+    // Building a world before its textures exist would leave every unit on its
+    // Graphics placeholder permanently (see `loadGameAssets`). Neither the flag
+    // nor `pendingOnlineStart` is consumed here, so the request simply waits for
+    // a later step — and `idle` knows not to park the loop while it does.
+    if (this.startHeld) {
+      this.requestAssets();
+      return;
+    }
 
     // A networked match whose `start` handshake has arrived.
     if (this.pendingOnlineStart) {

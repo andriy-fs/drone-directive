@@ -93,3 +93,44 @@ Regression coverage lives in `client/src/pixi/GameLoop.test.ts` (fake ticker, no
 - `park()`/`resume()` are idempotent and a stopped loop cannot be resumed.
 
 Both regression tests fail if the guard is removed.
+
+## It came back, from the other side (asset gate)
+
+`GameLoop`'s "at least one `update()` per wake-up" guarantee assumes that one
+`update()` is enough to *consume* the request. The sprite-loading gate (see
+`asset-loading-first-paint.md`, step 3) broke that assumption: while the textures
+are still in flight, `step()` deliberately returns without consuming
+`restartRequested`, so the wake-up's one guaranteed step is spent holding it.
+
+Sequence, with a 60 Hz display against the 30 Hz sim:
+
+1. Start → `restartRequested` flips → `wake()` → the loop resumes.
+2. Frame N steps; the gate holds the request and kicks the full-priority load.
+3. A microtask later the sprites resolve — they had already been warmed in the
+   background, so this is immediate — and the hold is released.
+4. Frame N+1 renders **without** stepping (every other frame does, at 60 Hz), and
+   `park()` now agrees because a step *did* run in frame N. The loop parks on a
+   request that was never consumed.
+5. Nothing revives it. `wake()` fires on a flag **changing**, and `requestRestart`
+   writes `true` over `true`, so pressing Start again is a no-op. Dead until reload.
+
+Intermittent on a cold load (it depends on whether the sprites land in the gap
+between two steps), but **100% reproducible after opening any menu modal** — the
+time spent in the modal is more than enough for the background loader to finish,
+which puts step 3 exactly in that gap every time.
+
+The fix is in `GameApp.idle`, which no longer keys off "waiting for sprites" but
+off "nothing outstanding":
+
+```ts
+private get idle(): boolean {
+  if (this.engine.context !== null || this.pendingOnlineStart !== null) return false;
+  const { restartRequested, menuRequested } = useGameStore.getState();
+  return !restartRequested && !menuRequested;
+}
+```
+
+The lesson generalizes past this one gate: **the loop may only park when there is
+nothing left for a step to consume** — not merely when a step has happened. Any
+future early `return` in `step()` is safe only if `idle` accounts for whatever it
+declined to consume.
