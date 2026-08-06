@@ -1,15 +1,14 @@
 import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js';
-import { gameConfig } from '../../config/gameConfig';
 import type { Entity } from '../../engine/ecs/entity';
 import type { GameEngine } from '../../engine/game/engine';
-import { baseFootprintContains, findById, isEnemy } from '../../engine/systems/targeting';
-import type { GameContext } from '../../engine/game/context';
+import { baseFootprintContains, findById } from '../../engine/systems/targeting';
 import type { Vec2 } from '@drone-directive/types/entities';
-import type { Owner } from '@drone-directive/types/enums';
 import { useGameStore } from '../../store/gameStore';
 import { isTypingTarget } from '../../utils/isTypingTarget';
-import { distance, vecLength } from '../../utils/math';
+import { vecLength } from '../../utils/math';
 import type { Camera } from '../Camera';
+import type { OrderMarkerKind } from '../render/OrderMarkerView';
+import { enemyAt, ownBaseAt } from './hitTest';
 
 /** Below this drag distance (px) a press is treated as a click, not a drag. */
 const CLICK_SLOP = 4;
@@ -39,6 +38,21 @@ const POSSESS_KEY = 'KeyF';
 const FIRE_KEY = 'KeyE';
 
 /**
+ * What the input layer reports back for the sake of on-screen feedback. Kept as
+ * callbacks rather than views so this file never learns what the feedback looks
+ * like: `GameApp` owns the graphics and decides what to do with a cursor position.
+ */
+export interface PointerHooks {
+  /** An order was just issued at `point` — the marker's cue. */
+  onOrder: (point: Vec2, kind: OrderMarkerKind) => void;
+  /**
+   * Where the cursor is, in screen pixels, or `null` when it left the canvas or
+   * is dragging a marquee (no attack preview under a selection box).
+   */
+  onPointerMove: (screen: Vec2 | null) => void;
+}
+
+/**
  * Playfield input:
  * - Left drag = selection marquee (Shift adds); left click on your own base
  *   selects it, left click on empty ground clears the selection.
@@ -50,7 +64,12 @@ const FIRE_KEY = 'KeyE';
  * - Right click on an enemy (robot or base) = order the selection to attack it;
  *   right click on open ground = move the selection there in a compact formation.
  */
-export function attachPointerControls(app: Application, camera: Camera, engine: GameEngine): () => void {
+export function attachPointerControls(
+  app: Application,
+  camera: Camera,
+  engine: GameEngine,
+  hooks: PointerHooks,
+): () => void {
   const stage = app.stage;
   stage.eventMode = 'static';
   stage.hitArea = app.screen;
@@ -67,7 +86,7 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
 
   const onDown = (e: FederatedPointerEvent) => {
     if (e.button === 2) {
-      issueRightClick(camera, engine, e.global.x, e.global.y);
+      issueRightClick(camera, engine, e.global.x, e.global.y, hooks.onOrder);
       return;
     }
     if (e.button !== 0) return;
@@ -79,10 +98,14 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
   };
 
   const onMove = (e: FederatedPointerEvent) => {
+    if (selecting && Math.abs(e.global.x - startX) + Math.abs(e.global.y - startY) > CLICK_SLOP) moved = true;
+    // A marquee is being dragged: the player is picking units, not aiming at one.
+    hooks.onPointerMove(selecting && moved ? null : { x: e.global.x, y: e.global.y });
     if (!selecting) return;
-    if (Math.abs(e.global.x - startX) + Math.abs(e.global.y - startY) > CLICK_SLOP) moved = true;
     if (moved) drawMarquee(marqueeGfx, startX, startY, e.global.x, e.global.y);
   };
+
+  const onLeave = () => hooks.onPointerMove(null);
 
   const onUp = (e: FederatedPointerEvent) => {
     if (selecting) {
@@ -98,6 +121,9 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
       }
     }
     selecting = false;
+    // The marquee suppressed the hover preview; hand the cursor back without
+    // waiting for the player to jiggle the mouse.
+    hooks.onPointerMove({ x: e.global.x, y: e.global.y });
   };
 
   const onContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -148,6 +174,7 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
   stage.on('pointerup', onUp);
   stage.on('pointerupoutside', onUp);
   app.canvas.addEventListener('contextmenu', onContextMenu);
+  app.canvas.addEventListener('pointerleave', onLeave);
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
@@ -158,6 +185,7 @@ export function attachPointerControls(app: Application, camera: Camera, engine: 
     stage.off('pointerup', onUp);
     stage.off('pointerupoutside', onUp);
     app.canvas.removeEventListener('contextmenu', onContextMenu);
+    app.canvas.removeEventListener('pointerleave', onLeave);
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('blur', onBlur);
@@ -221,8 +249,18 @@ function selectBaseOrClear(camera: Camera, engine: GameEngine, globalX: number, 
  * Right click: with your base selected, plant (or, on the base itself, clear)
  * its rally point. Otherwise attack an enemy under the cursor if any, else move
  * the selection there.
+ *
+ * `onOrder` fires only past the empty-selection guard, so a click that ordered
+ * nobody leaves no marker on screen. The rally branch returns before it: that
+ * gesture already draws its own flag.
  */
-function issueRightClick(camera: Camera, engine: GameEngine, globalX: number, globalY: number): void {
+function issueRightClick(
+  camera: Camera,
+  engine: GameEngine,
+  globalX: number,
+  globalY: number,
+  onOrder: PointerHooks['onOrder'],
+): void {
   const ctx = engine.context;
   if (!ctx) return;
   const store = useGameStore.getState();
@@ -250,30 +288,13 @@ function issueRightClick(camera: Camera, engine: GameEngine, globalX: number, gl
   const target = enemyAt(ctx, point, side);
   // Route through the command queue (not direct entity mutation) so both peers
   // apply the order on the same tick in networked matches.
-  if (target) store.enqueueCommand({ kind: 'AttackTarget', robotIds, targetId: target.id });
-  else store.enqueueCommand({ kind: 'MoveRobots', robotIds, point });
-}
-
-/** `side`'s own living base under a world point, or undefined. */
-function ownBaseAt(ctx: GameContext, p: Vec2, side: Owner): Entity | undefined {
-  return ctx.world
-    .with('base', 'position')
-    .entities.find((e) => e.owner === side && (e.hp ?? 0) > 0 && baseFootprintContains(e, p));
-}
-
-/** The living enemy robot or base under a world point (from `side`'s perspective), or undefined. */
-function enemyAt(ctx: GameContext, p: Vec2, side: Owner): Entity | undefined {
-  const robot = ctx.world
-    .with('robot', 'position')
-    .entities.find(
-      (e) =>
-        (e.hp ?? 0) > 0 &&
-        isEnemy(side, e.owner) &&
-        distance(p.x, p.y, e.position!.x, e.position!.y) <= gameConfig.robots.radius + 4,
-    );
-  if (robot) return robot;
-
-  return ctx.world
-    .with('base', 'position')
-    .entities.find((e) => (e.hp ?? 0) > 0 && isEnemy(side, e.owner) && baseFootprintContains(e, p));
+  if (target) {
+    store.enqueueCommand({ kind: 'AttackTarget', robotIds, targetId: target.id });
+    // Marked on the target, not on the click: the point that matters is what is
+    // about to be shot at, and it is rarely exactly under the cursor.
+    onOrder(target.position ?? point, 'attack');
+  } else {
+    store.enqueueCommand({ kind: 'MoveRobots', robotIds, point });
+    onOrder(point, 'move');
+  }
 }

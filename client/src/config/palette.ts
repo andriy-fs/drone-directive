@@ -47,6 +47,17 @@ export const palette = {
     /** The selected base's rally flag and its leader line. */
     rally: 0xfde047,
   },
+  /**
+   * Feedback on the order the player is giving right now: the marker left at a
+   * right-clicked point, and the highlight on the enemy under the cursor. One
+   * colour for "this is a hostile action" — `attack` is shared by both.
+   */
+  order: {
+    /** Move order dropped on open ground. */
+    move: 0x4ade80,
+    /** Attack order, and the hover highlight on a target the selection can attack. */
+    attack: 0xef4444,
+  },
   fog: {
     /** Overlay colour for both fog states (unexplored + remembered). */
     color: 0x0d1117,

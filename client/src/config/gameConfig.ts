@@ -252,6 +252,12 @@ export const gameConfig = {
      */
     empBurstDuration: 0.35,
     empBurstMaxRadius: 34,
+    /** Click-order marker (move/attack ping) lifetime, seconds. */
+    orderMarkerDuration: 0.45,
+    /** Radius (px) the order marker's ring starts at before collapsing onto the point. */
+    orderMarkerRadius: 22,
+    /** Period (seconds) of the alpha pulse on the hovered attack target's highlight. */
+    hoverPulsePeriod: 1.2,
   },
 
   /** Starting robot counts per side, by difficulty. */

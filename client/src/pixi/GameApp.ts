@@ -30,7 +30,10 @@ import { GameLoop } from './GameLoop';
 import { createGround } from './Grid';
 import { createLayers, type Layers } from './layers';
 import { attachPointerControls } from './input/pointer';
+import { enemyAt, selectionCanAttack } from './input/hitTest';
 import { FogView } from './render/FogView';
+import { HoverTargetView, type HoverTarget } from './render/HoverTargetView';
+import { OrderMarkerView } from './render/OrderMarkerView';
 import { RallyView, type RallyMarker } from './render/RallyView';
 import { createObstaclesGraphic } from './render/ObstaclesView';
 import { WorldRenderer } from './render/WorldRenderer';
@@ -48,7 +51,13 @@ export class GameApp {
   private worldRenderer!: WorldRenderer;
   private fogView: FogView | null = null;
   private rallyView: RallyView | null = null;
+  private orderMarkerView: OrderMarkerView | null = null;
+  private hoverView: HoverTargetView | null = null;
   private obstacleGfx: Container | null = null;
+  /** Last known cursor position in screen px, or null when it is off the canvas / dragging a marquee. */
+  private pointerScreen: { x: number; y: number } | null = null;
+  /** Mirrors `canvas.style.cursor` so the style is only written when it actually changes. */
+  private cursorStyle = '';
   private loop!: GameLoop;
   private detachPointer: (() => void) | null = null;
   private storeUnsub: (() => void) | null = null;
@@ -128,6 +137,12 @@ export class GameApp {
     // map has to reveal. No per-match state, so it is never rebuilt.
     this.rallyView = new RallyView();
     this.layers.overlay.addChild(this.rallyView.container);
+    // Order feedback shares the overlay for the same reason, and like the rally
+    // flags it holds no per-match state, so neither is ever rebuilt.
+    this.orderMarkerView = new OrderMarkerView();
+    this.layers.overlay.addChild(this.orderMarkerView.container);
+    this.hoverView = new HoverTargetView();
+    this.layers.overlay.addChild(this.hoverView.container);
     this.camera = new Camera(this.layers.root);
     this.app.stage.addChild(this.camera.view);
     this.camera.setViewport(this.app.screen.width, this.app.screen.height);
@@ -139,7 +154,14 @@ export class GameApp {
     // come off a store subscription rather than out of `wireBus`.
     this.selectionAudioUnsub = attachSelectionAudio(this.engine.world);
 
-    this.detachPointer = attachPointerControls(this.app, this.camera, this.engine);
+    this.detachPointer = attachPointerControls(this.app, this.camera, this.engine, {
+      // No `wake()` needed on either: an order can only be issued inside a match,
+      // and the loop is never parked while one exists.
+      onOrder: (point, kind) => this.orderMarkerView?.add(point, kind),
+      onPointerMove: (screen) => {
+        this.pointerScreen = screen;
+      },
+    });
     this.app.renderer.on('resize', this.onResize);
 
     // `resizeTo` only listens for *window* resizes, so it misses the host shrinking
@@ -255,7 +277,7 @@ export class GameApp {
     if (parked) this.app.render();
   }
 
-  /** Render pass: move the camera, sync views, redraw fog and rally flags. */
+  /** Render pass: move the camera, sync views, redraw fog, rally flags and order feedback. */
   private render(): void {
     this.updateCamera();
     const { selectedRobotIds, selectedBaseId } = useGameStore.getState();
@@ -264,9 +286,48 @@ export class GameApp {
     this.worldRenderer.sync(selected, (e) => this.isVisibleToLocalSide(e));
     this.fogView?.update(this.engine.context?.fog);
     this.rallyView?.update(this.localRallyMarkers());
+    // Wall clock, not sim time: neither effect is simulation state, and both
+    // should keep animating while the match is paused.
+    const now = performance.now();
+    this.orderMarkerView?.update(now);
+    const hovered = this.attackHoverTarget(selectedRobotIds);
+    this.hoverView?.update(hovered, now);
+    this.setCursor(hovered ? 'crosshair' : '');
     // One check covers every way into the menu — first load, Esc, game over, a
     // peer disconnecting — so no transition has to remember to park the loop.
     if (this.idle) this.sleep();
+  }
+
+  /**
+   * The enemy under the cursor that the current selection could attack, or null.
+   *
+   * Recomputed every frame rather than on pointer movement: the cursor can stand
+   * still while a robot drives out from under it, and the highlight has to follow
+   * the target, not the mouse. The fog check is the one thing this adds over the
+   * right-click path — an order may be given at a remembered position, but drawing
+   * a bracket around an enemy this side cannot see would hand out free intel.
+   */
+  private attackHoverTarget(selectedRobotIds: readonly string[]): HoverTarget | null {
+    const ctx = this.engine.context;
+    if (!ctx || !this.pointerScreen || selectedRobotIds.length === 0) return null;
+
+    const side = this.localSide;
+    const p = this.camera.screenToWorld(this.pointerScreen.x, this.pointerScreen.y);
+    const target = enemyAt(ctx, p, side);
+    if (!target?.position || !this.isVisibleToLocalSide(target)) return null;
+    if (!selectionCanAttack(ctx, selectedRobotIds, side, target)) return null;
+
+    const halfSize = target.base
+      ? ((target.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx) / 2
+      : gameConfig.robots.radius;
+    return { pos: target.position, halfSize };
+  }
+
+  /** Swap the canvas cursor, touching the DOM only when it actually changes. */
+  private setCursor(style: string): void {
+    if (this.cursorStyle === style) return;
+    this.cursorStyle = style;
+    this.app.canvas.style.cursor = style;
   }
 
   /**
@@ -801,6 +862,10 @@ export class GameApp {
     this.fogView = null;
     this.rallyView?.destroy();
     this.rallyView = null;
+    this.orderMarkerView?.destroy();
+    this.orderMarkerView = null;
+    this.hoverView?.destroy();
+    this.hoverView = null;
     for (const unsub of this.busUnsubs) unsub();
     this.storeUnsub?.();
     this.storeUnsub = null;
