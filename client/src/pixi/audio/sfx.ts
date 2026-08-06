@@ -184,13 +184,12 @@ export const sfx = {
     play('unit-ready');
   },
 
-  /** Any button in the HUD or the menus. */
+  /**
+   * Any button in the HUD or the menus — and the *only* cue the interface makes.
+   * A dialog opening adds nothing on top of it: the button that opened it has
+   * already spoken (see `ui/common/Dialog`).
+   */
   buttonClick(): void {
     play('button-click');
-  },
-
-  /** A modal coming up. */
-  modalOpen(): void {
-    play('modal-open');
   },
 };

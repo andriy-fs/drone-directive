@@ -7,6 +7,10 @@
  * The upshot: `public/sounds/` is load-bearing. Renaming or pruning anything in
  * it breaks whichever cue points at it, and the game runs silent for that cue.
  *
+ * Each entry also carries a `tier` saying *when* its file is fetched — the table
+ * is the only place that decides, and `pixi/assets.ts` just reads it. See
+ * `SoundTier` below.
+ *
  * Deliberately free of any `@pixi/sound` import: `config/` is reachable from the
  * React layer, and pulling the audio engine into that graph is exactly what
  * `sprites.ts` avoids by importing no Pixi. The player lives in `pixi/audio/`.
@@ -26,8 +30,24 @@ export type SoundName =
   | 'select-legs'
   | 'select-group'
   | 'unit-ready'
-  | 'button-click'
-  | 'modal-open';
+  | 'button-click';
+
+/**
+ * When a cue's file is worth fetching.
+ *
+ * `menu` is everything that can sound before a match exists, and the list is
+ * shorter than it looks: the AudioContext starts suspended, so nothing plays at
+ * all until the first pointer press unlocks it. Chat is in here because
+ * `<ChatPanel/>` mounts unconditionally and `restoreChat` re-attaches to a
+ * week-old conversation on load — a message can land while the player is still
+ * reading the title screen.
+ *
+ * `match` is the rest, fetched when a match starts. Unlike a sprite (whose
+ * absence is memoized into a permanent Graphics placeholder), a cue that has not
+ * decoded yet is simply skipped by `play()` on that call and works on the next
+ * one — so this tier is *started* at match start and never waited for.
+ */
+export type SoundTier = 'menu' | 'match';
 
 export interface SoundDef {
   /** `null` = no file yet; the cue is silently skipped and the build stays green. */
@@ -38,37 +58,38 @@ export interface SoundDef {
    * synthesized version used (its explosion, at 0.18, is the 1.0 reference here).
    */
   volume: number;
+  /** Which load wave fetches this cue. See `SoundTier`. */
+  tier: SoundTier;
 }
 
 /** Where in `public/sounds/` a cue's file lives. */
 const src = (file: string) => `${PUBLIC_BASE}sounds/${file}.ogg`;
 
 export const soundDefs: Record<SoundName, SoundDef> = {
-  explosion: { src: src('sci-fi/explosionCrunch_000'), volume: 1.0 },
-  'shot-missile': { src: src('sci-fi/laserLarge_000'), volume: 0.5 },
+  explosion: { src: src('sci-fi/explosionCrunch_000'), volume: 1.0, tier: 'match' },
+  'shot-missile': { src: src('sci-fi/laserLarge_000'), volume: 0.5, tier: 'match' },
   // Out of line with the rest on purpose: this source peaks 4.8 dB below the
   // others (−5.7 vs −1 dBFS), so 0.22 / 0.58 ≈ 0.38. Swap the file → reset to 0.22.
-  'shot-cannon': { src: src('sci-fi/laserSmall_000'), volume: 0.38 },
+  'shot-cannon': { src: src('sci-fi/laserSmall_000'), volume: 0.38, tier: 'match' },
   // Directed energy: a rising electrical whine rather than a report, so a
   // knock-out shot is audibly not a kill even off-screen.
-  'shot-dew': { src: src('digital/phaserUp3'), volume: 0.35 },
-  'select-base': { src: src('sci-fi/doorOpen_001'), volume: 0.42 },
-  'select-tracks': { src: src('sci-fi/impactMetal_003'), volume: 0.4 },
-  'select-wheels': { src: src('digital/phaserUp5'), volume: 0.4 },
-  'select-legs': { src: src('interface/switch_003'), volume: 0.4 },
-  'select-group': { src: src('digital/lowThreeTone'), volume: 0.3 },
-  'modal-open': { src: src('interface/open_002'), volume: 0.25 },
-  'chat-message': { src: src('interface/glass_001'), volume: 0.19 },
-  'unit-ready': { src: src('interface/confirmation_001'), volume: 0.17 },
-  'button-click': { src: src('interface/click_001'), volume: 0.15 },
-  'chat-send': { src: src('interface/pluck_001'), volume: 0.13 },
+  'shot-dew': { src: src('digital/phaserUp3'), volume: 0.35, tier: 'match' },
+  'select-base': { src: src('sci-fi/doorOpen_001'), volume: 0.42, tier: 'match' },
+  'select-tracks': { src: src('sci-fi/impactMetal_003'), volume: 0.4, tier: 'match' },
+  'select-wheels': { src: src('digital/phaserUp5'), volume: 0.4, tier: 'match' },
+  'select-legs': { src: src('interface/switch_003'), volume: 0.4, tier: 'match' },
+  'select-group': { src: src('digital/lowThreeTone'), volume: 0.3, tier: 'match' },
+  'chat-message': { src: src('interface/glass_001'), volume: 0.19, tier: 'menu' },
+  'unit-ready': { src: src('interface/confirmation_001'), volume: 0.17, tier: 'match' },
+  'button-click': { src: src('interface/click_001'), volume: 0.15, tier: 'menu' },
+  'chat-send': { src: src('interface/pluck_001'), volume: 0.13, tier: 'menu' },
 };
 
-/** The cues that actually have a file, for the loader to fetch. */
-export function soundSources(): { name: SoundName; src: string }[] {
+/** The cues in one tier that actually have a file, for the loader to fetch. */
+export function soundSources(tier: SoundTier): { name: SoundName; src: string }[] {
   const out: { name: SoundName; src: string }[] = [];
   for (const [name, def] of Object.entries(soundDefs) as [SoundName, SoundDef][]) {
-    if (def.src) out.push({ name, src: def.src });
+    if (def.src && def.tier === tier) out.push({ name, src: def.src });
   }
   return out;
 }

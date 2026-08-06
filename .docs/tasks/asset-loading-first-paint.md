@@ -150,7 +150,7 @@ while).
 `robotSprites`, `baseSprites`, `weaponSprites`, `terrainSprites`, `groundSprite`
 and `droneSprite`.
 
-## Step 3 — take the sprite load off the critical path
+## Step 3 — take the sprite load off the critical path — **DONE**
 
 **The invariant that must not break:** `cached()`
 (`client/src/pixi/assets.ts:96-102`) memoizes a **miss as `null` forever**. If the
@@ -174,54 +174,103 @@ use.
 already does (`soundLoad ??= registerSounds()`, `client/src/pixi/assets.ts:45-49`),
 and add `warmGameAssets()` alongside it.
 
-**Gate the match start** — there are two entry points:
+**Gate the match start — one gate, not two.** The plan first said the online path
+was async (a socket callback) and could just `await`. Wrong: the callback only
+sets `pendingOnlineStart` and calls `wake()`; `beginOnlineMatch` runs
+**synchronously from `step()`**, right next to the offline branch. So both routes
+into a match pass the same place and one guard at the top of `step` covers both:
 
-- **Offline** (`client/src/pixi/GameApp.ts:352`, inside the synchronous `step()`):
-  do not consume `restartRequested` until the assets are ready — hold the flag
-  pending and keep the ticker awake. This is the same manoeuvre already documented
-  in `.docs/tasks/menu-start-restart-idle-loop.md`; reuse that guard in `render()`
-  rather than inventing a second one.
-- **Online** (`client/src/pixi/GameApp.ts:592`): that path is already async (a
-  socket callback), so a plain `await loadGameAssets()` before `engine.startMatch`
-  is enough.
+```ts
+if (this.startHeld) {   // a start request, sprites not ready, and not a menu request
+  this.requestAssets();
+  return;               // neither flag consumed — the request waits for a later step
+}
+```
 
-In practice ~300 KB has landed long before anyone clicks Start; the gate is
+**And the gate needs a second half, in `idle`.** `render()` ends on
+`if (this.idle) this.sleep()`, and after a held `step` there is still no world, so
+`idle` would be true and the ticker would park. Nothing would ever restart it:
+`wake()` fires on a store flag **changing** (`GameApp.ts:143`) and the flag has not
+changed — it is still exactly the `true` nobody consumed. That is the Start-does-
+nothing regression from `.docs/tasks/menu-start-restart-idle-loop.md`, reached from
+the other direction. Hence `idle` gained `&& !this.startHeld`, so the loop spins
+for the fraction of a second the fetch takes.
+
+**Priority, the subtle part.** `Assets.load` sets `_backgroundLoader.active = false`
+for its duration (`pixi.js/lib/assets/Assets.mjs:525`). So calling `loadGameAssets()`
+in `init` — the first shape this was written in — silently cancels the whole point
+of `backgroundLoad`: the sprites go straight back to full priority and race the
+backdrop again. Full priority is therefore claimed **only** from `requestAssets()`,
+off the gate, i.e. only once a match is actually asked for. Until then the atlas
+trickles in one file at a time behind everything else.
+
+Consequence, accepted: the first Start always spends one extra fixed step in the
+gate, because `assetsReady` only flips inside `requestAssets`. Even with every
+sprite already cached that is 1/30 s.
+
+`loadGameAssets` swallows its own failures, so a 404 in the set still flips
+`assetsReady` — a broken asset degrades to a placeholder rather than wedging the
+gate shut.
+
+In practice 163 KB has landed long before anyone clicks Start; the gate is
 insurance against a permanent placeholder on a slow link, not the expected path.
 
-## Step 4 — two tiers of sound
+## Step 4 — two tiers of sound — **DONE**
 
-All 14 cues load from `GameApp.init` today (`client/src/pixi/GameApp.ts:93`). The
-AudioContext starts suspended and is only resumed from the Start button
-(`sfx.resume`), so no cue can physically sound before the first gesture — yet the
-14 requests already compete with the backdrop.
+All 14 cues loaded from `GameApp.init` (`client/src/pixi/GameApp.ts:93`). The
+AudioContext starts suspended, so no cue can sound before the first gesture — yet
+the 14 requests already competed with the backdrop.
+
+(13 now: `modal-open` was dropped afterwards. A dialog opening is always the
+consequence of a button that has already clicked, so the second cue read as a
+stutter. `ui/common/Dialog` is a plain pass-through again.)
+
+(The unlock is not `sfx.resume` doing it, as first assumed: `@pixi/sound` installs
+its own capture-phase `mousedown`/`touchstart` listeners on `document` and unlocks
+there — `WebAudioContext.js:30-36`. `sfx.resume` on Start is belt and braces. Which
+is why the menu tier has to exist at all: menu clicks *do* make sound.)
 
 Split `soundSources()` (`client/src/config/sounds.ts:68`) into two tiers by adding
 a tier tag to `SoundDef`, so the table stays the single source of truth:
 
-- **menu** (~44 KB): `button-click`, `modal-open`, `chat-message`, `chat-send`.
+- **menu** (~17 KB): `button-click`, `chat-message`, `chat-send`.
   Chat belongs here on purpose: `<ChatPanel/>` renders unconditionally
   (`client/src/ui/App.tsx:167`) and `restoreChat` pulls history on mount, so
   `sfx.chatMessage()` can fire while the menu is still up.
 - **match** (~152 KB): everything else — shots, the explosion, `select-*`,
   `unit-ready`.
 
-The menu tier loads from a `requestIdleCallback` (falling back to
-`setTimeout(…, 0)`) after the first frame, instead of from `init`. The match tier
-rides the same gate as the sprites (Step 3). Make the `soundLoad ??=` memo
-per-tier. `markSoundReady` and the `ready` set are already per-cue, so the tiering
-needs no change inside `client/src/pixi/audio/sfx.ts`.
+The menu tier loads from `whenIdle` (`client/src/utils/whenIdle.ts` — a
+`requestIdleCallback` with a 2 s timeout, `setTimeout` where it is missing) instead
+of from `init`. The `soundLoad ??=` memo became a `Map<SoundTier, Promise<void>>`.
+`markSoundReady` and the `ready` set were already per-cue, so nothing inside
+`client/src/pixi/audio/sfx.ts` changed.
+
+**The match tier does *not* ride the sprite gate**, contrary to the first draft of
+this plan. Sound has no equivalent of the permanent-placeholder problem: `sfx.play`
+re-checks `ready` on **every call** (`sfx.ts:44`), not once at construction, so a
+cue that is still decoding is skipped for that shot and heard on the next. Making
+the player wait on 152 KB of audio would buy nothing. It is kicked, unawaited, from
+the `sceneChanged` handler's non-menu branch — the single place both the solo and
+the online route into a match pass through.
+
+That is the whole distinction between the two steps: **sprites are waited for
+because a miss is permanent; sound is not because a miss is not.**
 
 The cost: the very first `button-click` may be silent if the player clicks before
-the idle callback runs. Accepted.
+the idle callback runs. Accepted — the first `mousedown` is spent unlocking the
+AudioContext regardless.
 
-## Step 5 — reconcile the docs
+## Step 5 — reconcile the docs — **DONE**
 
-- `CLAUDE.md` says the samples live in `client/public/sfx/`; on disk they are in
-  `client/public/sounds/`. Fix the doc.
-- `.docs/sprites/README.md` — add the masters-in-`assets-src/` + WebP export note
-  from Step 2.
-- The header comment in `client/src/config/sounds.ts` describes one undifferentiated
-  load; update it for the tiers.
+- `CLAUDE.md` said the samples live in `client/public/sfx/`; on disk they are in
+  `client/public/sounds/`. Fixed. Its `client/` bullet also gained the
+  masters-vs-generated split, since `client/assets-src/` is a new top-level
+  directory nothing else would explain.
+- `.docs/sprites/README.md` — new "Where the files live" section plus the encoder
+  step; the per-asset prompt docs point their export at `assets-src/`.
+- `client/src/config/sounds.ts` — header notes that each entry carries a `tier`
+  and that the table is the only thing that decides when a cue is fetched.
 
 ## Verification
 
