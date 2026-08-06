@@ -5,6 +5,9 @@ import type { Entity } from '../../engine/ecs/entity';
 import { WeaponType } from '@drone-directive/types/enums';
 import { ownerColor } from './ownerColor';
 
+/** Head radius of a directed-energy bolt — twice a bullet's, so it reads as energy, not a shell. */
+const DEW_CORE_RADIUS = gameConfig.combat.projectileRadius * 2;
+
 /**
  * Projectile view: cannon fire is a bright tracer dot with a short streak;
  * missiles are a bigger rocket body with a flickering exhaust flame, rotated
@@ -37,14 +40,18 @@ export class ProjectileView {
       this.drawFlicker();
     } else if (projectile.weaponType === WeaponType.Dew) {
       this.kind = 'dew';
-      // Pale core with a jagged discharge whipping around it, no tracer streak.
-      this.flicker = new Graphics();
+      // A bolt, not a bullet. Deliberately the loudest projectile in the game:
+      // it deals no damage, so if the player can't see it land they read the
+      // whole weapon as broken. Halo + white-hot core, with the crackle on top.
+      const halo = new Graphics();
+      halo.circle(0, 0, DEW_CORE_RADIUS * 2.6).fill({ color: palette.status.disabled, alpha: 0.28 });
       const core = new Graphics();
       core
-        .circle(0, 0, gameConfig.combat.projectileRadius)
-        .fill(palette.status.disabled)
-        .stroke({ width: 1, color: 0xffffff, alpha: 0.9 });
-      this.container.addChild(this.flicker, core);
+        .circle(0, 0, DEW_CORE_RADIUS)
+        .fill(0xffffff)
+        .stroke({ width: 2, color: palette.status.disabled, alpha: 0.95 });
+      this.flicker = new Graphics();
+      this.container.addChild(halo, this.flicker, core);
       this.drawFlicker();
     } else {
       this.kind = 'tracer';
@@ -78,15 +85,20 @@ export class ProjectileView {
       return;
     }
 
-    // Dew: a short zigzag arc snapping around the core, re-rolled every tick.
-    const reach = 5 + Math.random() * 4;
-    const jitter = () => (Math.random() - 0.5) * 5;
+    // Dew: a lightning tail whipping behind the core (the container is already
+    // rotated to travel direction, so -x is "behind"), re-rolled every tick.
+    const jitter = () => (Math.random() - 0.5) * 7;
     this.flicker
-      .moveTo(-reach, jitter())
-      .lineTo(-reach * 0.3, jitter())
-      .lineTo(reach * 0.3, jitter())
-      .lineTo(reach, jitter())
-      .stroke({ width: 1.5, color: palette.status.disabled, alpha: 0.55 + Math.random() * 0.35 });
+      .moveTo(DEW_CORE_RADIUS, 0)
+      .lineTo(-6, jitter())
+      .lineTo(-13, jitter())
+      .lineTo(-20, jitter())
+      .stroke({ width: 2, color: palette.status.disabled, alpha: 0.7 + Math.random() * 0.3 })
+      // …plus a short cross-spark through the head, so it reads as charged even
+      // in a still frame.
+      .moveTo(-2, -6 + jitter() * 0.3)
+      .lineTo(4, 6 + jitter() * 0.3)
+      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.5 + Math.random() * 0.4 });
   }
 
   destroy(): void {

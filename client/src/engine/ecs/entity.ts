@@ -61,11 +61,26 @@ export interface Production {
 }
 
 /** Transient effect component (explosions). */
+/**
+ * What a transient effect entity looks like. The simulation treats every kind
+ * identically (`explosionSystem` just ages them); this only tells the renderer
+ * which picture to draw.
+ */
+export const EffectKind = {
+  /** Fireball — a death, or a kamikaze detonation. */
+  Blast: 'blast',
+  /** Directed-energy discharge — a `dew` round landing on a hull. */
+  Emp: 'emp',
+} as const;
+export type EffectKind = (typeof EffectKind)[keyof typeof EffectKind];
+
 export interface Effect {
   age: number;
   duration: number;
   /** Peak visual radius (px) the blast grows to; falls back to the default fx radius. */
   maxRadius?: number;
+  /** Which picture the renderer draws; absent = `Blast` (the original behaviour). */
+  kind?: EffectKind;
 }
 
 /** Combat memory: who last hit this robot and how long it stays "under fire". */

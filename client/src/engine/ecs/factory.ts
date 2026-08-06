@@ -3,7 +3,7 @@ import type { Vec2 } from '@drone-directive/types/entities';
 import { RobotState, TaskType, type ChassisType, type Owner, type WeaponType } from '@drone-directive/types/enums';
 import { nextId } from '../../utils/id';
 import { vecLength } from '../../utils/math';
-import type { Entity } from './entity';
+import { EffectKind, type Entity } from './entity';
 import type { EcsWorld } from './world';
 
 /** Adds a base entity at the given top-left tile; `position` is footprint centre. */
@@ -113,6 +113,26 @@ export function spawnExplosion(world: EcsWorld, pos: Vec2, maxRadius?: number): 
     id: nextId('boom'),
     explosion: true,
     position: { x: pos.x, y: pos.y },
-    effect: { age: 0, duration: gameConfig.fx.explosionDuration, maxRadius },
+    effect: { age: 0, duration: gameConfig.fx.explosionDuration, maxRadius, kind: EffectKind.Blast },
+  });
+}
+
+/**
+ * Adds the discharge ring a directed-energy round leaves on the hull it hits.
+ * Shares the explosion archetype (and so `explosionSystem`'s ageing and the
+ * renderer's view) — only the `kind` differs, because nothing about how a
+ * transient effect *lives* changes, just how it is drawn.
+ */
+export function spawnEmpBurst(world: EcsWorld, pos: Vec2): Entity {
+  return world.add({
+    id: nextId('boom'),
+    explosion: true,
+    position: { x: pos.x, y: pos.y },
+    effect: {
+      age: 0,
+      duration: gameConfig.fx.empBurstDuration,
+      maxRadius: gameConfig.fx.empBurstMaxRadius,
+      kind: EffectKind.Emp,
+    },
   });
 }

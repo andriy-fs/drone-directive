@@ -1,7 +1,7 @@
 import { gameConfig } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { distance } from '../../utils/math';
-import { spawnExplosion, spawnProjectile } from '../ecs/factory';
+import { spawnEmpBurst, spawnExplosion, spawnProjectile } from '../ecs/factory';
 import type { Entity, WeaponComp } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
@@ -177,15 +177,25 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     const fired = gameConfig.robots.weapons[p.weaponType!];
 
     let hit = false;
+    // Where to put the discharge ring, if this round knocked something out. The
+    // spawn waits until the query loop is done — adding entities mid-iteration is
+    // what `detonateBomb` avoids too.
+    let burstAt: Vec2 | undefined;
     for (const r of world.with('robot', 'position')) {
       if ((r.hp ?? 0) <= 0 || !isEnemy(p.owner, r.owner)) continue;
       if (distance(pos.x, pos.y, r.position!.x, r.position!.y) <= radius + pr) {
         applyDamage(r, p.damage ?? 0, p.sourceId);
-        if (fired.freezeDuration > 0) applyDisable(r, fired.freezeDuration);
+        if (fired.freezeDuration > 0) {
+          applyDisable(r, fired.freezeDuration);
+          burstAt = { x: r.position!.x, y: r.position!.y };
+        }
         hit = true;
         break;
       }
     }
+    // The discharge is the only moment this weapon is visibly doing anything: a
+    // round that deals no damage and leaves no mark reads as a shot that missed.
+    if (burstAt) spawnEmpBurst(world, burstAt);
     // A harmless round (dew) flies straight over a base rather than being eaten
     // by it: buildings have no crew to knock out, so a hit there is a dud, and
     // absorbing the shot would only make the weapon feel broken.
