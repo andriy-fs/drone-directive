@@ -56,14 +56,6 @@ export interface BaseSnapshot {
 export type GameStatus = 'menu' | 'playing' | 'won' | 'lost';
 
 /**
- * Online lobby/connection status. `offline` = solo/menu; `connecting` = socket
- * opening; `hosting` = host created a room, waiting for a guest (shows the code);
- * `inMatch` = both connected, simulating; `ended` = the peer left / match over;
- * `error` = connection or join failure (`error` message set).
- */
-export type OnlineStatus = 'offline' | 'connecting' | 'hosting' | 'inMatch' | 'ended' | 'error';
-
-/**
  * Why an online match is standing still, when it is. Lockstep freezes both worlds
  * the moment one side's input for the current tick is missing, so a stall is
  * normal and recoverable — but indistinguishable from a crash unless the HUD says
@@ -72,15 +64,33 @@ export type OnlineStatus = 'offline' | 'connecting' | 'hosting' | 'inMatch' | 'e
  */
 export type OnlineLink = 'ok' | 'stalled' | 'reconnecting';
 
-export interface OnlineState {
-  status: OnlineStatus;
-  /** The room code (host: generated; guest: the one they entered). */
-  roomCode: string | null;
-  /** Human-readable message for the `ended` / `error` states. */
-  error: string | null;
-  /** Transport health while `inMatch`; always `ok` outside a match. */
-  link: OnlineLink;
-}
+/**
+ * Where this client is in the online lifecycle — a discriminated union rather
+ * than a status string beside three independent fields, because only a handful
+ * of the combinations those four fields could spell out are real ones. A room
+ * code with no room, a transport health outside a match, an error message on a
+ * lobby that has not failed: all of them used to be expressible, and were kept
+ * out by convention (`setOnline` patches that remembered to reset the fields the
+ * new status has no use for) rather than by the type.
+ *
+ * Each variant carries exactly what that state has, so a consumer that reads
+ * `link` or `error` has already proved the state it belongs to — and the
+ * transitions below are the only way to move between them.
+ */
+export type OnlineState =
+  /** Solo / menu: there is no session at all. */
+  | { status: 'offline' }
+  /** The socket is opening. The host has no code yet; the guest carries the one they typed. */
+  | { status: 'connecting'; roomCode: string | null }
+  /** The host holds a room and is showing its code, waiting for a guest. */
+  | { status: 'hosting'; roomCode: string }
+  /** Both peers are in and the simulation is running; `link` is the transport's health. */
+  | { status: 'inMatch'; link: OnlineLink }
+  /** The session is over: `ended` = it ran its course, `error` = it failed. Both report `error`. */
+  | { status: 'ended' | 'error'; error: string };
+
+/** The tag of {@link OnlineState} — handy for annotating a status on its own. */
+export type OnlineStatus = OnlineState['status'];
 
 /** One-shot online request the UI raises and the app bridge (GameApp) consumes. */
 export type PendingOnline =
@@ -219,8 +229,23 @@ export interface GameState {
   leaveOnline: () => void;
   /** Bridge-only: take and clear the pending online request. */
   consumePendingOnline: () => PendingOnline | null;
-  /** Bridge-only: merge a patch into the online connection state. */
-  setOnline: (patch: Partial<OnlineState>) => void;
+  /**
+   * The online lifecycle's transitions — the only way `online` ever changes, and
+   * all bridge-only (`GameApp` owns the session; the store just mirrors where it
+   * is). Each one *replaces* the state rather than patching it, which is what
+   * makes the union's promise hold: nothing from the state being left behind can
+   * survive into the next one.
+   */
+  /** The relay created the room: show its code and wait for a guest. */
+  setOnlineHosting: (roomCode: string) => void;
+  /** Both peers are in — the match is running. */
+  setOnlineInMatch: () => void;
+  /** Transport health. Ignored outside a match, where there is no link to have one. */
+  setOnlineLink: (link: OnlineLink) => void;
+  /** The session is over — `isError` tells a failure from an ordinary end. */
+  setOnlineFinished: (error: string, isError: boolean) => void;
+  /** Back to no session at all. */
+  setOnlineOffline: () => void;
   /**
    * Chat setters, all bridge-only (`client/src/chat/chatBridge.ts`) — the UI goes
    * through the bridge rather than here, because opening a panel also has to open
@@ -264,7 +289,7 @@ const initialState = {
   settings: createDefaultSettings(),
   locale: resolveInitialLocale(),
   localSide: Owner.Player as Owner,
-  online: { status: 'offline', roomCode: null, error: null, link: 'ok' } as OnlineState,
+  online: { status: 'offline' } as OnlineState,
   pendingOnline: null as PendingOnline | null,
   chat: {
     open: false,
@@ -354,28 +379,36 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       localSide: Owner.Player,
       pendingOnline: { kind: 'host', mapSize, aiOpponents },
-      online: { status: 'connecting', roomCode: null, error: null, link: 'ok' },
+      online: { status: 'connecting', roomCode: null },
     }),
   joinMatch: (roomCode) => {
     const code = roomCode.toUpperCase();
     set({
       localSide: Owner.AI,
       pendingOnline: { kind: 'join', roomCode: code },
-      online: { status: 'connecting', roomCode: code, error: null, link: 'ok' },
+      online: { status: 'connecting', roomCode: code },
     });
   },
   leaveOnline: () =>
     set({
       localSide: Owner.Player,
       pendingOnline: { kind: 'leave' },
-      online: { status: 'offline', roomCode: null, error: null, link: 'ok' },
+      online: { status: 'offline' },
     }),
   consumePendingOnline: () => {
     const { pendingOnline } = get();
     if (pendingOnline) set({ pendingOnline: null });
     return pendingOnline;
   },
-  setOnline: (patch) => set((s) => ({ online: { ...s.online, ...patch } })),
+  setOnlineHosting: (roomCode) => set({ online: { status: 'hosting', roomCode } }),
+  setOnlineInMatch: () => set({ online: { status: 'inMatch', link: 'ok' } }),
+  // A no-op off the match, and a no-op when nothing changed: the stall watchdog
+  // calls this every tick it runs, and a fresh object each time would wake every
+  // subscriber to `online` for no news.
+  setOnlineLink: (link) =>
+    set((s) => (s.online.status !== 'inMatch' || s.online.link === link ? {} : { online: { status: 'inMatch', link } })),
+  setOnlineFinished: (error, isError) => set({ online: { status: isError ? 'error' : 'ended', error } }),
+  setOnlineOffline: () => set({ online: { status: 'offline' } }),
   setChat: (patch) => set((s) => ({ chat: { ...s.chat, ...patch } })),
   mergeChatHistory: (entries) =>
     set((s) => {

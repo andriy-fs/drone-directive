@@ -191,7 +191,6 @@ export const pl: Dict = {
     waitingOpponent: 'Oczekiwanie na przeciwnika…',
     waitingPeer: 'Czekamy na przeciwnika…',
     reconnecting: 'Utracono połączenie — ponowne łączenie…',
-    matchEnded: 'Mecz zakończony.',
     hostGame: 'Utwórz grę',
     createRoom: 'Utwórz pokój',
     joinGame: 'Dołącz do gry',

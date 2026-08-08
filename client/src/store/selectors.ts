@@ -17,6 +17,13 @@ export const selectDroneStatus = (s: GameState) => s.droneStatus;
 /** Which side this client plays (Player offline/host, AI for the online guest). */
 export const selectLocalSide = (s: GameState) => s.localSide;
 export const selectOnline = (s: GameState) => s.online;
+/**
+ * Transport health, flattened to a value every caller can read without first
+ * proving there is a match. Outside one it is `ok` — no session is not the same
+ * thing as a broken one, and the HUD's "the world is frozen" checks all key off
+ * `!== 'ok'`, so this keeps them from having to spell out both halves.
+ */
+export const selectOnlineLink = (s: GameState) => (s.online.status === 'inMatch' ? s.online.link : 'ok');
 /** Chat with the online opponent — event-driven, and it outlives the match. */
 export const selectChat = (s: GameState) => s.chat;
 export const selectChatMessages = (s: GameState) => s.chat.messages;

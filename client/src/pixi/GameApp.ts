@@ -12,6 +12,7 @@ import {
   type PendingOnline,
   type RobotSnapshot,
 } from '../store/gameStore';
+import { selectOnlineLink } from '../store/selectors';
 import type { Command } from '@drone-directive/types/commands';
 import { Controller, Owner, TaskType, WeaponType, type MapSize } from '@drone-directive/types/enums';
 import type { DroneControl, GameContext } from '../engine/game/context';
@@ -598,15 +599,17 @@ export class GameApp {
     }
     // `reconnecting` is our own socket and outranks this: it says more about the
     // same silence, and the session clears it when the seat is back.
-    if (stalledFor >= gameConfig.online.stallNoticeMs && store.online.link === 'ok') {
-      store.setOnline({ link: 'stalled' });
+    if (stalledFor >= gameConfig.online.stallNoticeMs && selectOnlineLink(store) === 'ok') {
+      store.setOnlineLink('stalled');
     }
   }
 
   /** A step went through: whatever the hold-up was, it is over. */
   private noteRunning(store: GameState): void {
     this.stalledSince = 0;
-    if (store.online.link === 'stalled') store.setOnline({ link: 'ok' });
+    // Only our own stall is ours to clear — `reconnecting` belongs to the session,
+    // which lifts it when the seat is actually back.
+    if (selectOnlineLink(store) === 'stalled') store.setOnlineLink('ok');
   }
 
   /** A side's index in the roster — the same on every peer, so it orders anything canonically. */
@@ -694,7 +697,7 @@ export class GameApp {
     const roomCode = isHost ? randomRoomCode() : req.roomCode;
     this.session = new LockstepSession(
       {
-        onCreated: (code) => useGameStore.getState().setOnline({ status: 'hosting', roomCode: code }),
+        onCreated: (code) => useGameStore.getState().setOnlineHosting(code),
         onStart: (seed, mapSize, aiCount, chatId) => {
           this.pendingOnlineStart = { seed, mapSize, aiCount };
           // Attached here and torn down nowhere below: `endOnline` and
@@ -710,9 +713,9 @@ export class GameApp {
         // A dropped socket is not a dropped match: the relay holds the seat, the
         // session goes back for it, and this client's world is frozen at the same
         // tick the peer's is. All the HUD has to do is stop looking crashed.
-        onLinkDown: () => useGameStore.getState().setOnline({ link: 'reconnecting' }),
+        onLinkDown: () => useGameStore.getState().setOnlineLink('reconnecting'),
         onLinkUp: () => {
-          useGameStore.getState().setOnline({ link: 'ok' });
+          useGameStore.getState().setOnlineLink('ok');
           this.wake(); // the loop may have parked while the socket was away
         },
         onDesync: (tick, mine, theirs) => this.reportDesync(tick, mine, theirs),
@@ -738,7 +741,7 @@ export class GameApp {
     this.engine.startMatch(useGameStore.getState().settings, seed);
     this.engine.setLocalSide(store.localSide);
     this.applyOnlineBaseSetup(store);
-    store.setOnline({ status: 'inMatch', link: 'ok' });
+    store.setOnlineInMatch();
   }
 
   /**
@@ -779,7 +782,9 @@ export class GameApp {
     this.session = null;
     this.resetOnlineRun(store);
     this.engine.toMenu();
-    store.setOnline({ status: isError || !wasInMatch ? 'error' : 'ended', roomCode: null, error: message, link: 'ok' });
+    // Never having got into the match makes any ending a failure: there is no
+    // match to have "just finished", only a lobby that did not become one.
+    store.setOnlineFinished(message, isError || !wasInMatch);
   }
 
   /**
@@ -800,7 +805,7 @@ export class GameApp {
       this.session = null;
       this.resetOnlineRun(store);
     }
-    store.setOnline({ status: 'offline', roomCode: null, error: null, link: 'ok' });
+    store.setOnlineOffline();
   }
 
   /**

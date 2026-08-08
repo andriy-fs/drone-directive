@@ -17,7 +17,7 @@ import { useSelectAllHotkey } from './hooks/useSelectAllHotkey';
 import { restoreChat } from '../chat/chatBridge';
 import { useT } from '../i18n';
 import { useGameStore } from '../store/gameStore';
-import { selectOnline, selectStatus } from '../store/selectors';
+import { selectOnlineLink, selectStatus } from '../store/selectors';
 
 import './App.css';
 
@@ -35,7 +35,7 @@ function App() {
   const t = useT();
   const status = useGameStore(selectStatus);
   const paused = useGameStore((s) => s.paused);
-  const online = useGameStore(selectOnline);
+  const link = useGameStore(selectOnlineLink);
   usePauseHotkey();
   useSelectAllHotkey();
   useControlGroupHotkeys();
@@ -47,8 +47,9 @@ function App() {
   // behind the game-over modal.
   const inMatch = status !== 'menu';
   // Lockstep froze the world waiting for input — the peer's, or our own once the
-  // socket comes back. Not a pause, and not a crash either.
-  const stalled = online.status === 'inMatch' && online.link !== 'ok';
+  // socket comes back. Not a pause, and not a crash either. Only a running match
+  // has a link at all, so anything but `ok` already means there is one.
+  const stalled = link !== 'ok';
 
   return (
     <div className={`app-shell ${inMatch ? '' : 'app-shell--menu'}`.trim()}>
@@ -91,7 +92,7 @@ function App() {
         {status === 'playing' && stalled && (
           <div className="pause-overlay">
             <span className="pause-overlay__label pause-overlay__label--link">
-              <HourglassIcon size={32} /> {t('online', online.link === 'reconnecting' ? 'reconnecting' : 'waitingPeer')}
+              <HourglassIcon size={32} /> {t('online', link === 'reconnecting' ? 'reconnecting' : 'waitingPeer')}
             </span>
           </div>
         )}
