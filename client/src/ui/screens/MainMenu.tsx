@@ -1,5 +1,6 @@
 import { Settings2Icon, HelpCircleIcon, BotIcon, Volume2Icon, VolumeXIcon } from '../common/icons';
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
+import { music } from '../../pixi/audio/music';
 import { sfx } from '../../pixi/audio/sfx';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
@@ -41,6 +42,16 @@ export function MainMenu() {
   // forced open by `online.status`, that turns into a loop with no way out.
   const [modal, setModal] = useState<MenuModal>(null);
   const closeModal = () => setModal(null);
+
+  // The music runs for exactly as long as this component does. `App` mounts the
+  // menu only while the status is `menu`, so the mount/unmount pair already
+  // means "the title screen is/isn't on screen" — including the way back from a
+  // finished match. Nothing here waits for Start: the context is usually still
+  // suspended at mount, and `music` retries itself on the first gesture.
+  useEffect(() => {
+    music.startMenu();
+    return () => music.stopMenu();
+  }, []);
 
   // The lobby outranks the local toggle: a finished match leaves something to
   // report (`ended`/`error`), and that has to reach the player even if they

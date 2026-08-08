@@ -48,8 +48,9 @@ Built with **React 19 · PixiJS 8 · TypeScript · Vite · Zustand**.
 - **Base setup from the menu** — pre-configure continuous auto-production and
   the initial directive given to every new robot.
 - **4 languages** — English, Russian, Ukrainian, Polish.
-- **Pause**, **sound effects** (synthesized, no assets), and a full
-  **menu → match → victory/defeat → replay** loop.
+- **Pause**, **sound effects** (sample files, with per-cue mix balance),
+  **title-screen music**, and a full **menu → match → victory/defeat → replay**
+  loop.
 - **Online 2-player** — host or join a room by a 4-character code and play
   head-to-head over a WebSocket relay. The match runs in **deterministic
   lockstep**: only each player's per-tick orders cross the network, and both
