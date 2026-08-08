@@ -30,6 +30,8 @@ export const en: Dict = {
     fireWeapon: "Fire the possessed robot's weapon",
     units: 'Units',
     unitGuide: 'Unit Guide',
+    singleplayer: 'Singleplayer',
+    matchSetup: 'Match setup',
   },
   difficulty: {
     easy: 'Easy',
@@ -67,14 +69,13 @@ export const en: Dict = {
     playAgain: 'Play Again',
   },
   baseSetup: {
-    title: 'Base Setup',
+    title: 'Auto-Production Setup',
     autoProduce: 'Auto-produce robots',
-    off: 'Off',
-    on: 'On',
     chassis: 'Chassis',
     weapon: 'Weapon',
     newRobotProgram: 'New robot program',
-    done: 'Done',
+    apply: 'Apply',
+    cancel: 'Cancel',
   },
   buildRobot: {
     title: 'Build & Program',
@@ -167,6 +168,8 @@ export const en: Dict = {
     volume: 'Sound volume',
     soundSettings: 'Sound settings',
     directivesHelp: 'About directives',
+    language: 'Language',
+    close: 'Close',
   },
   sound: {
     title: 'Sound',

@@ -737,7 +737,36 @@ export class GameApp {
     store.setPaused(false);
     this.engine.startMatch(useGameStore.getState().settings, seed);
     this.engine.setLocalSide(store.localSide);
+    this.applyOnlineBaseSetup(store);
     store.setOnline({ status: 'inMatch', link: 'ok' });
+  }
+
+  /**
+   * Hand the title screen's base setup to a networked match.
+   *
+   * `gameScene` deliberately skips it online: it applies the *local* settings
+   * directly to the world, and each client only knows its own, so two peers
+   * would build different worlds from the same seed. The setup is per-player
+   * though, not part of the handshake, so it travels the way every other base
+   * change does — as a `SetAutoBuild` on the command queue, screened against the
+   * side that sent it and applied at the same tick on both peers.
+   *
+   * The new-robot directive rides inside the order's `task`, which
+   * `productionSystem` prefers over the base's `defaultTask`. That is the only
+   * route online: there is no command for `defaultTask` itself, so with
+   * auto-production off the directive has nothing to travel on and is left to
+   * the in-match build dialog.
+   */
+  private applyOnlineBaseSetup(store: GameState): void {
+    const { autoBuild, defaultProgram } = useGameStore.getState().settings.base;
+    if (!autoBuild) return;
+    const base = this.engine.world.with('base').entities.find((e) => e.owner === store.localSide);
+    if (!base) return;
+    store.enqueueCommand({
+      kind: 'SetAutoBuild',
+      baseId: base.id,
+      order: { ...autoBuild, task: defaultProgram },
+    });
   }
 
   /** End an online match (peer left / error / disconnect) and return to the menu. */

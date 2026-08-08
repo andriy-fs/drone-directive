@@ -142,14 +142,6 @@
   -webkit-user-select: none;
 }
 
-/* Reserves room for the longest translation (wraps to 3 lines in some languages, 2 in
-   others) so the menu doesn't change height when the player switches language. */
-.menu__intro {
-  min-height: 60px;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
 .hud__status {
   margin: 0;
   font-family: var(--mono);
@@ -353,6 +345,28 @@
   cursor: not-allowed;
 }
 
+/* The one call to action on a screen — currently only Start. After `.btn` on
+   purpose: same specificity, so these overrides only land by coming later. */
+.btn--primary {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  color: var(--text-h);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Must follow `.btn--primary` *and* out-rank `.btn:hover`, which ties it on
+   specificity and would otherwise repaint the button grey under the cursor —
+   the same trap `.tile--on` documents further down. */
+.btn--primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 /* Status / command panel */
 .status-panel {
   display: flex;
@@ -476,8 +490,48 @@
 
 .chip--on {
   background: #2b3650;
-  border-color: #3b82f6;
+  border-color: var(--accent);
   color: var(--text-h);
+}
+
+/* Card variant of a picker row: icon over label instead of a strip of text, for
+   option sets you scan rather than read (the build modal's three rows). Chips
+   take a third of the row and wrap, so the same class lays out 3 chassis as one
+   row, 6 weapons as 3+3, and 5 directives as a centred 3+2. */
+.picker--cards {
+  justify-content: center;
+}
+
+.picker--cards .chip {
+  flex: 0 1 calc(33.333% - 4px);
+  flex-direction: column;
+  gap: 6px;
+  min-height: 66px;
+  padding: 10px 6px;
+  background: #161b26;
+  font-size: 12px;
+  line-height: 1.2;
+  text-transform: none;
+}
+
+.picker--cards .chip:hover {
+  background: #232c40;
+  border-color: #3a4a63;
+}
+
+/* Doubled with `:hover` so the active card keeps its blue under the cursor —
+   `.btn:hover` outranks a lone `--on` class and would repaint it grey. Same trap
+   `.tile--on` documents below. */
+.picker--cards .chip--on,
+.picker--cards .chip--on:hover {
+  background: #16233a;
+  border-color: var(--accent);
+  color: var(--text-h);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.picker--cards .chip--on .chip__icon {
+  color: var(--accent);
 }
 
 /* The sidebar's icon tiles — the directive grid, and the Command section's two
@@ -519,13 +573,13 @@
 .tile--on,
 .tile--on:hover {
   background: #16233a;
-  border-color: #3b82f6;
+  border-color: var(--accent);
   color: var(--text-h);
-  box-shadow: 0 0 10px rgb(59 130 246 / 18%);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .tile--on .tile__icon {
-  color: #3b82f6;
+  color: var(--accent);
 }
 
 .modal__buttons {
@@ -537,6 +591,72 @@
 .modal__buttons .btn {
   min-width: 96px;
   text-align: center;
+}
+
+/* Three buttons of unequal weight: the way out sits alone on the left, the two
+   ways to commit group on the right. */
+.modal__buttons--split {
+  justify-content: flex-start;
+}
+
+.modal__buttons--split .btn--ghost {
+  margin-right: auto;
+}
+
+/* `.btn--primary` is written for the menu's full-width Start button; in a button
+   row it has to size to its label like its neighbours. After `.btn--primary` on
+   purpose — it ties on specificity and only wins by coming later. */
+.modal__buttons .btn--primary {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+/* The least-weight action on a surface: no fill, no border, until hovered. */
+.btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+
+.btn--ghost:hover {
+  background: transparent;
+  border-color: var(--panel-border);
+  color: var(--text-h);
+}
+
+/* Cost vs. wallet, read as two numbers rather than a sentence. */
+.build-cost {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+}
+
+.build-cost__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+
+.build-cost__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.build-cost__value {
+  font-family: var(--mono);
+  font-size: 20px;
+  line-height: 1.1;
+  color: var(--text-h);
+}
+
+/* Can't afford this model — the one thing that explains the disabled Build Once. */
+.build-cost__value--short {
+  color: #ef4444;
 }
 
 .viewport {
@@ -611,9 +731,335 @@
   -webkit-user-select: none;
 }
 
-.menu {
+/* Wider than a plain `.modal`: three rows of cards, three across, need the room. */
+.modal--build {
+  max-width: min(92vw, 560px);
+}
+
+/* Title plus its close button. The title keeps the left edge rather than the
+   centre `.modal` gives it, so it lines up with the section labels beneath. */
+.modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.modal__close {
+  flex: none;
+  padding: 6px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+
+.modal__close:hover {
+  background: transparent;
+  border-color: var(--panel-border);
+  color: var(--text-h);
+}
+
+/* ── Title screen ──────────────────────────────────────────────────────────
+   Not a `.modal`: the menu is a plain panel (see MainMenu for why it must not
+   be a dialog) and it is the only surface in the app laid out in two columns.
+   Translucent over the splash art, as the single-column menu was. */
+.menu-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(94vw, 800px);
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 28px 32px;
   background: rgba(12, 17, 26, 0.4);
   backdrop-filter: blur(3px);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.menu-shell__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Fixed nav column rather than `auto`, so the panel keeps its proportions when
+   the player switches language and every label changes length — the same
+   reasoning as `.modal--wide`'s fixed width.
+
+   `min-height` reserves the tallest panel's height (Multiplayer's chooser: two
+   chip rows, base setup, Create, and the join row). Without it the shell resizes
+   under the cursor on every tab switch, and again on each step of hosting —
+   `connecting` and `hosting` are only a line or two tall. Same reservation the
+   Directives card makes for its own tallest state. */
+.menu-shell__body {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  min-height: 340px;
+}
+
+/* Global settings — language, sound, help. Pinned to the far end of the header,
+   away from the match rules, because they outlive any single match. */
+.menu-bar {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.menu-bar__btn {
+  padding: 8px;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.menu-bar__btn:hover {
+  color: var(--text-h);
+}
+
+/* The language dropdown. `MenuItems` is portalled and anchored, so it needs its
+   own opaque surface — it does not inherit the shell's blur. */
+.menu-lang__items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 4px;
+  min-width: 96px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  z-index: 12;
+}
+
+.menu-lang__item {
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border-color: transparent;
+  font-size: 13px;
+}
+
+.menu-lang__item:hover {
+  background: #232c40;
+  border-color: var(--accent);
+}
+
+/* Zone B: what kind of game. Vertical rail, ruled off from the setup column. */
+.menu-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 16px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.menu-nav__item {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  border-color: transparent;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  color: var(--text-dim);
+  text-align: left;
+}
+
+.menu-nav__item:hover {
+  background: #1a2130;
+  border-color: transparent;
+  border-left-color: var(--panel-border);
+  color: var(--text);
+}
+
+/* Doubled with `:hover` so the active entry keeps its accent under the cursor —
+   `.btn:hover` out-ranks a lone `.menu-nav__item--on` and would grey it out. */
+.menu-nav__item--on,
+.menu-nav__item--on:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-left-color: var(--accent);
+  color: var(--text-h);
+}
+
+/* Tertiary: reference material, not a game to start. Pushed to the foot of the
+   rail and ruled off, so it doesn't read as a third mode. */
+.menu-nav__item--tertiary {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--panel-border);
+  border-radius: 0;
+}
+
+.menu-nav__label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.menu-nav__sub {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Zone C: the match's own rules, and the button that plays it. */
+.menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.menu-panel__heading {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+/* Start sits at the foot of the column whatever the rows above it come to, so
+   it is always the last thing on the screen and never below the fold. */
+.menu-panel__cta {
+  margin-top: auto;
+}
+
+/* Joining a room: the code and the button that uses it, on one line — the code
+   is useless on its own, so splitting them over two rows only made the panel
+   taller. */
+.join-row {
+  display: flex;
+  gap: 8px;
+}
+
+.join-row__code {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  background: #0b0e13;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.join-row__code:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Chips butted into one control: a single row of alternatives reads as one
+   choice, where gaps read as several buttons. */
+.picker--segmented {
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
+.picker--segmented .chip {
+  margin-left: -1px; /* collapse the shared border between neighbours */
+  border-radius: 0;
+}
+
+.picker--segmented .chip:first-child {
+  margin-left: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.picker--segmented .chip:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+/* Lift the selected chip so its accent border isn't clipped by the neighbour
+   whose own border overlaps it. */
+.picker--segmented .chip--on {
+  position: relative;
+  z-index: 1;
+}
+
+/* The auto-production row: a label, its switch, and the gear to everything else
+   the base setup dialog holds. */
+.setup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.setup-row__label {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.setup-row__gear {
+  padding: 8px;
+}
+
+/* Headless UI stamps `data-checked` on the rendered button, which is the only
+   thing distinguishing the two states here. */
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  background: #1a2130;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.switch[data-checked] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--text-h);
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+
+.switch[data-checked] .switch__knob {
+  transform: translateX(18px);
+}
+
+/* Below this the two columns can't both hold a row of chips, so they stack and
+   the rail turns into a strip above the setup it filters. */
+@media (max-width: 760px) {
+  .menu-shell__body {
+    grid-template-columns: 1fr;
+  }
+
+  .menu-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding-right: 0;
+    padding-bottom: 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .menu-nav__item--tertiary {
+    margin-top: 0;
+    padding-top: 10px;
+    border-top: none;
+  }
 }
 
 /* Wider variant: for modals whose content needs more than one row of chips to fit (see
@@ -698,7 +1144,7 @@
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
-  color: #3b82f6;
+  color: var(--accent);
   flex-shrink: 0;
 }
 
@@ -721,8 +1167,22 @@
 
 .unit-guide__item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* The unit's own field sprite, boxed so rows line up whatever the art's aspect
+   ratio is; weapons without art fall back to the build card's glyph. */
+.unit-guide__art {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.unit-guide__art--glyph {
+  padding: 8px;
+  color: var(--text-dim);
 }
 
 .unit-guide__name {

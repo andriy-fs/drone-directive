@@ -1,3 +1,5 @@
+import { cardLabel } from '../common/cardLabel';
+import type { ChipOption } from '../common/Picker';
 import type { T } from '../../i18n';
 import { TaskType } from '@drone-directive/types/enums';
 import {
@@ -68,12 +70,29 @@ export function taskHint(task: TaskType, t: T): string | undefined {
   return key ? t('programs', key) : undefined;
 }
 
-/** Build/setup options: the assignable programs plus a "None" (null) choice. */
-export function programOptions(t: T): { value: TaskType | null; label: string }[] {
+/**
+ * The build modal's directive cards: the five assignable programs and nothing
+ * else. There is deliberately no "None" here — a robot ordered from the factory
+ * always leaves with a standing order of its own (see `programOptions` for the
+ * pre-game setting, which may still say "no directive").
+ */
+export function directiveOptions(t: T): ChipOption<TaskType>[] {
   const labels = taskLabels(t);
+  return ASSIGNABLE_TASKS.map((task) => ({
+    value: task,
+    label: cardLabel(TASK_ICONS[task], labels[task]),
+    hint: taskHint(task, t),
+  }));
+}
+
+/**
+ * Pre-game setup options: the assignable programs plus a "None" (null) choice,
+ * meaning a produced robot falls back to whatever its base's default is.
+ */
+export function programOptions(t: T): ChipOption<TaskType | null>[] {
   return [
-    { value: null, label: t('programs', 'none') },
-    ...ASSIGNABLE_TASKS.map((task) => ({ value: task, label: labels[task] })),
+    { value: null, label: cardLabel(TASK_ICONS[TaskType.Idle], t('programs', 'none')) },
+    ...directiveOptions(t),
   ];
 }
 

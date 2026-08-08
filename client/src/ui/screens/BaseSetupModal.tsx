@@ -1,33 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { defaultBuildOrder } from '../../config/gameSettings';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
-import { ChassisType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, type TaskType, WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
-import { ChassisPicker } from '../hud/ChassisPicker';
-import { ProgramPicker } from '../hud/ProgramPicker';
-import { WeaponPicker } from '../hud/WeaponPicker';
+import { ChipPicker, PickerGroup } from '../common/Picker';
+import { programOptions } from '../hud/programOptions';
+import { chassisOptions, weaponOptions } from '../hud/unitOptions';
 
 /**
- * Pre-game base configuration, opened from the main menu's gear button. Holds
- * the auto-produced model and the initial program for produced robots — and is
- * the place to grow further base settings. Writes straight to store settings.
+ * Pre-game base configuration, opened from the gear on `BaseSetupRow`: the
+ * auto-produced model and the initial program for produced robots — and the
+ * place to grow further base settings.
+ *
+ * Whether auto-production runs at all is *not* asked here — that switch lives on
+ * the row this dialog opens from, and having it in both places meant one setting
+ * with two homes. What follows from that: applying a model is what turns
+ * auto-production on, so opening the gear while it is off and pressing Apply
+ * enables it (settings hold the model and its on/off as one nullable field).
+ *
+ * Everything is edited as a draft and committed in one write on Apply, so Cancel
+ * — and Esc, and a click on the backdrop — genuinely discard.
  */
 export function BaseSetupModal({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const defaultProgram = useGameStore((s) => s.settings.base.defaultProgram);
   const updateSettings = useGameStore((s) => s.updateSettings);
-  const initialAuto = useGameStore.getState().settings.base.autoBuild;
+  const base = useGameStore.getState().settings.base;
 
-  const [autoOn, setAutoOn] = useState(initialAuto !== null);
-  const [chassis, setChassis] = useState<ChassisType>(initialAuto?.chassis ?? defaultBuildOrder.chassis);
-  const [weapon, setWeapon] = useState<WeaponType>(initialAuto?.weapon ?? defaultBuildOrder.weapon);
+  const [chassis, setChassis] = useState<ChassisType>(base.autoBuild?.chassis ?? defaultBuildOrder.chassis);
+  const [weapon, setWeapon] = useState<WeaponType>(base.autoBuild?.weapon ?? defaultBuildOrder.weapon);
+  const [program, setProgram] = useState<TaskType | null>(base.defaultProgram);
 
-  // Keep the settings' auto-build model in sync with the local controls.
-  useEffect(() => {
-    updateSettings({ base: { autoBuild: autoOn ? { chassis, weapon } : null } });
-  }, [autoOn, chassis, weapon, updateSettings]);
+  const apply = () => {
+    updateSettings({ base: { autoBuild: { chassis, weapon }, defaultProgram: program } });
+    onClose();
+  };
 
   return (
     <Dialog open={true} onClose={onClose}>
@@ -39,42 +47,32 @@ export function BaseSetupModal({ onClose }: { onClose: () => void }) {
         >
           <DialogTitle className="modal__title">{t('baseSetup', 'title')}</DialogTitle>
 
-          <div className="picker-group">
-            <span className="picker__label">{t('baseSetup', 'autoProduce')}</span>
-            <div className="picker">
-              <Button className={`chip ${!autoOn ? 'chip--on' : ''}`.trim()} onClick={() => setAutoOn(false)}>
-                {t('baseSetup', 'off')}
-              </Button>
-              <Button className={`chip ${autoOn ? 'chip--on' : ''}`.trim()} onClick={() => setAutoOn(true)}>
-                {t('baseSetup', 'on')}
-              </Button>
-            </div>
-          </div>
+          <PickerGroup label={t('baseSetup', 'chassis')}>
+            <ChipPicker className="picker--cards" options={chassisOptions(t)} value={chassis} onChange={setChassis} />
+          </PickerGroup>
+          <PickerGroup label={t('baseSetup', 'weapon')}>
+            <ChipPicker className="picker--cards" options={weaponOptions(t)} value={weapon} onChange={setWeapon} />
+          </PickerGroup>
 
-          {autoOn && (
-            <>
-              <div className="picker-group">
-                <span className="picker__label">{t('baseSetup', 'chassis')}</span>
-                <ChassisPicker value={chassis} onChange={setChassis} />
-              </div>
-              <div className="picker-group">
-                <span className="picker__label">{t('baseSetup', 'weapon')}</span>
-                <WeaponPicker value={weapon} onChange={setWeapon} />
-              </div>
-            </>
-          )}
-
-          <div className="picker-group">
-            <span className="picker__label">{t('baseSetup', 'newRobotProgram')}</span>
-            <ProgramPicker
-              value={defaultProgram}
-              onChange={(task) => updateSettings({ base: { defaultProgram: task } })}
+          {/* Unlike the in-match build dialog, this one keeps its "None" card: a
+              base may legitimately produce robots with no directive of their own. */}
+          <PickerGroup label={t('baseSetup', 'newRobotProgram')}>
+            <ChipPicker<TaskType | null>
+              className="picker--cards"
+              options={programOptions(t)}
+              value={program}
+              onChange={setProgram}
             />
-          </div>
+          </PickerGroup>
 
-          <Button className="modal__action" onClick={onClose}>
-            {t('baseSetup', 'done')}
-          </Button>
+          <div className="modal__buttons modal__buttons--split">
+            <Button className="btn--ghost" onClick={onClose}>
+              {t('baseSetup', 'cancel')}
+            </Button>
+            <Button className="btn--primary" onClick={apply}>
+              {t('baseSetup', 'apply')}
+            </Button>
+          </div>
         </DialogPanel>
       </div>
     </Dialog>

@@ -7,10 +7,12 @@ not a full robot per chassis×weapon combination. This matches how the engine
 draws weapons today (a marker on top of the chassis) and scales cleanly as
 weapons are added.
 
-Covered here: **radar**, **bomb (kamikaze)** and **DEW (directed-energy weapon)** —
-the weapons without art yet (`cannon`/`missiles` currently use simple drawn markers;
-add them the same way if you want sprite parity). The full weapon list is
-`types/src/enums.ts` → `WeaponType`.
+Covered here: **every** buildable weapon — **radar**, **bomb (kamikaze)**, **DEW
+(directed-energy weapon)**, **cannon**, **missiles** and **EW (jammer)**. The full
+weapon list is `types/src/enums.ts` → `WeaponType` (`none` is the unarmed payload
+and never draws a module). All six now ship art for both factions; the drawn
+Graphics markers in `RobotView` remain only as the fallback for a weapon added
+later.
 
 ## Module-specific spec (in addition to the [Shared spec](README.md#shared-spec-applies-to-every-prompt--do-not-vary))
 
@@ -23,6 +25,11 @@ add them the same way if you want sprite parity). The full weapon list is
 - **Rotation-friendly:** make it roughly **radially balanced / readable from any
   angle** — the module may inherit the robot's heading rotation, so avoid a
   strong single "front."
+  **Exception — barrelled weapons.** `cannon` and `missiles` can't hide a muzzle,
+  so those two are authored **facing up (north)** like the robots, and their
+  entries in `weaponSprites` need `rotationOffset: Math.PI / 2` so the barrel
+  points where the robot is heading. Every other module here stays symmetric and
+  needs no offset.
 - **Faction palette** follows the same
   [faction language](README.md#faction-visual-language-this-is-how-enemies-look-different)
   as robots (player = blue/teal/clean, enemy = red/gunmetal/aggressive), so a
@@ -140,6 +147,133 @@ even padding.
 
 ---
 
+## Cannon — light direct-fire gun (the cheap default weapon)
+
+The workhorse: short reach (120 px), small damage (12) on a fast 0.8 s cooldown, no
+splash and no anti-air. It should read as the **plain, sturdy, unremarkable gun** — the
+baseline every other module is a deviation from, so keep it simpler and less exotic
+than the missile pod or the DEW coil. **Directional:** author it with the barrel
+pointing **up (north)**; see the rotation note in the spec above.
+
+### Player (allied) — `weapon-cannon-player.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact autocannon turret module that bolts onto
+the central hardpoint of a combat robot, viewed from directly above. A small round
+armored turret on a mount plate with a single short stubby gun barrel pointing straight
+up toward the top of the frame, a slim recoil sleeve and a small ammo box on the side.
+Allied faction design: cool blue and teal plating with brushed steel, a dark gunmetal
+barrel and a small cyan status light. Plain, sturdy, utilitarian — clearly a simple
+projectile gun, not a missile launcher and not an energy weapon. Bold readable
+silhouette, semi-flat stylized art with light cel shading, soft top lighting. Fully
+transparent background, no ground, no shadow, no text, no muzzle flash. Centered, the
+module filling about 65% of a 512x512 frame with generous even padding.
+```
+
+### Enemy (AI / hostile) — `weapon-cannon-ai.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact autocannon turret module that bolts onto
+the central hardpoint of a combat robot, viewed from directly above. A crude angular
+armored turret on a jagged mount plate with a single short stubby gun barrel pointing
+straight up toward the top of the frame, a battered recoil sleeve and a dented ammo box
+on the side. Hostile enemy faction design: dark gunmetal and red-orange plating, rust
+streaks, scorch marks around the muzzle and a glaring red status light. Crude, brutal,
+utilitarian — clearly a simple projectile gun, not a missile launcher and not an energy
+weapon. Bold readable silhouette, semi-flat stylized art with light cel shading, soft
+top lighting. Fully transparent background, no ground, no shadow, no text, no muzzle
+flash. Centered, the module filling about 65% of a 512x512 frame with generous even
+padding.
+```
+
+---
+
+## Missiles — guided launcher, the only surface-to-air weapon
+
+The heavy hitter and this side's **only answer to an enemy observer drone** (`canHitAir`):
+longest reach (170 px), biggest per-shot damage (22), slow 1.6 s cooldown, priciest gun
+in the list. It must read as **missiles, not a gun** — visible tube mouths / warhead
+noses, no long rifled barrel — and it should look meaningfully **heavier and more
+expensive** than the cannon. A slight upward tilt of the tubes is welcome as an anti-air
+cue. **Directional:** tubes point **up (north)**; see the rotation note in the spec above.
+
+### Player (allied) — `weapon-missiles-player.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact guided-missile launcher module that bolts
+onto the central hardpoint of a combat robot, viewed from directly above. A boxy armored
+launcher pod on a mount plate holding a two-by-two cluster of open missile tubes aimed
+straight up toward the top of the frame, the pointed warhead noses visible inside the
+tube mouths, with a small guidance radar fin on the side. Allied faction design: cool
+blue and teal plating with brushed steel, dark tube interiors and small cyan seeker
+lights on the warhead tips. Clearly a missile pod, not a gun barrel — heavier and more
+elaborate than a simple cannon. Bold readable silhouette, semi-flat stylized art with
+light cel shading, soft top lighting. Fully transparent background, no ground, no shadow,
+no text, no smoke and no exhaust trails. Centered, the module filling about 65% of a
+512x512 frame with generous even padding.
+```
+
+### Enemy (AI / hostile) — `weapon-missiles-ai.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact guided-missile launcher module that bolts
+onto the central hardpoint of a combat robot, viewed from directly above. A crude angular
+armored launcher pod on a jagged mount plate holding a two-by-two cluster of open missile
+tubes aimed straight up toward the top of the frame, the pointed warhead noses visible
+inside the tube mouths, with a bent guidance antenna on the side. Hostile enemy faction
+design: dark gunmetal and red-orange plating, rust streaks, soot-blackened tube mouths
+and glowing red seeker lights on the warhead tips. Clearly a missile pod, not a gun
+barrel — heavier and more menacing than a simple cannon. Bold readable silhouette,
+semi-flat stylized art with light cel shading, soft top lighting. Fully transparent
+background, no ground, no shadow, no text, no smoke and no exhaust trails. Centered, the
+module filling about 65% of a 512x512 frame with generous even padding.
+```
+
+---
+
+## EW — electronic-warfare jammer module (no damage; blinds enemy scouts)
+
+An unarmed support module: it halves the effective sight range of enemy scouts inside a
+150 px aura (`jamRadius` + `combat.jamMultiplier`). It has to read as an **emitter of
+noise, not of energy or shells** — a mast of antennas and whip aerials with faint
+concentric interference rings. Keep it clearly distinct from its two neighbours: `radar`
+is a **dish that listens**, `dew` is a **coil ring that arcs**, `ew` is an **antenna mast
+that broadcasts static**.
+
+### Player (allied) — `weapon-ew-player.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact electronic-warfare jammer module that
+bolts onto the central hardpoint of a combat robot, viewed from directly above. A small
+armored mount plate carrying a short central antenna mast ringed by four thin whip
+aerials and a cluster of tiny emitter panels, with faint concentric rings of broadcast
+interference radiating outward. Allied faction design: cool blue and teal plating with
+brushed steel and soft cyan signal glow on the aerial tips. No dish, no coils, no barrel
+and no warhead — clearly a signal jammer, distinct from a radar dish and from an energy
+emitter. Radially balanced so it reads from any angle. Bold readable silhouette,
+semi-flat stylized art with light cel shading, soft top lighting. Fully transparent
+background, no ground, no shadow, no text. Centered, the module filling about 65% of a
+512x512 frame with generous even padding.
+```
+
+### Enemy (AI / hostile) — `weapon-ew-ai.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact electronic-warfare jammer module that
+bolts onto the central hardpoint of a combat robot, viewed from directly above. A jagged
+armored mount plate carrying a crooked central antenna mast ringed by four bent spiky
+whip aerials and a cluster of battered emitter panels, with harsh concentric rings of
+broadcast interference radiating outward. Hostile enemy faction design: dark gunmetal and
+red-orange plating, rust streaks and a sickly magenta-red signal glow on the aerial tips.
+No dish, no coils, no barrel and no warhead — clearly a sinister signal jammer, distinct
+from a radar dish and from an energy emitter. Radially balanced so it reads from any
+angle. Bold readable silhouette, semi-flat stylized art with light cel shading, soft top
+lighting. Fully transparent background, no ground, no shadow, no text. Centered, the
+module filling about 65% of a 512x512 frame with generous even padding.
+```
+
+---
+
 ## Wiring generated weapon modules into the game
 
 The plumbing already exists — `weaponSprites` in `client/src/config/sprites.ts`,
@@ -161,3 +295,12 @@ So adding a module is two steps:
    ```
    The map is `Partial` on both axes and `spriteSources()` collects whatever is in it,
    so a weapon without art keeps its Graphics marker and the build stays green.
+   For the two **barrelled** modules add the heading correction as well, exactly as the
+   robot entries do — without it the barrel always points east:
+   ```ts
+   player: { cannon: { src: '…', targetSize: WEAPON_TARGET, rotationOffset: Math.PI / 2 } },
+   ```
+
+`UnitsGuideModal` reads the same `weaponSprites` table for its player-faction thumbnails,
+so a weapon gains its picture in the reference the moment it gains one on the field —
+there is no second list to update.

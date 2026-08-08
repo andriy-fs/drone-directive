@@ -29,6 +29,8 @@ export const uk: Dict = {
     fireWeapon: 'Постріл зброєю керованого робота',
     units: 'Юніти',
     unitGuide: 'Довідник юнітів',
+    singleplayer: 'Одиночна гра',
+    matchSetup: 'Налаштування матчу',
   },
   difficulty: {
     easy: 'Легкий',
@@ -66,14 +68,13 @@ export const uk: Dict = {
     playAgain: 'Грати знову',
   },
   baseSetup: {
-    title: 'Налаштування бази',
+    title: 'Налаштування автовиробництва',
     autoProduce: 'Автовиробництво роботів',
-    off: 'Вимк',
-    on: 'Увімк',
     chassis: 'Шасі',
     weapon: 'Зброя',
     newRobotProgram: 'Директива для нових роботів',
-    done: 'Готово',
+    apply: 'Застосувати',
+    cancel: 'Скасувати',
   },
   buildRobot: {
     title: 'Побудова і директива',
@@ -168,6 +169,8 @@ export const uk: Dict = {
     volume: 'Гучність звуку',
     soundSettings: 'Налаштування звуку',
     directivesHelp: 'Про директиви',
+    language: 'Мова',
+    close: 'Закрити',
   },
   sound: {
     title: 'Звук',

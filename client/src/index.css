@@ -6,6 +6,12 @@
   --text-h: #eef2f7;
   --text-dim: #6b7686;
 
+  /* The one brand colour, in two weights: `--accent` marks whatever is currently
+     active or hovered, `--accent-deep` is the resting fill of a primary action —
+     which brightens to `--accent` under the cursor. */
+  --accent: #3b82f6;
+  --accent-deep: #1e3a8a;
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 

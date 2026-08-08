@@ -23,6 +23,18 @@ import {
   Crosshair as LucideCrosshair,
   Factory as LucideFactory,
   SquareDashedMousePointer as LucideSquareDashedMousePointer,
+  Globe as LucideGlobe,
+  User as LucideUser,
+  Users as LucideUsers,
+  BookOpen as LucideBookOpen,
+  Truck as LucideTruck,
+  CircleDashed as LucideCircleDashed,
+  Target as LucideTarget,
+  Rocket as LucideRocket,
+  Bomb as LucideBomb,
+  SatelliteDish as LucideSatelliteDish,
+  Ear as LucideEar,
+  Zap as LucideZap,
 } from 'lucide-react';
 
 /** The shape every icon here has — so callers can take one as a prop without importing lucide. */
@@ -57,3 +69,24 @@ export const CrosshairIcon = LucideCrosshair;
 /* The Command section's two action tiles. */
 export const FactoryIcon = LucideFactory;
 export const SelectAllIcon = LucideSquareDashedMousePointer;
+
+/* The title screen: the global settings bar, then one per navigation entry. */
+export const GlobeIcon = LucideGlobe;
+export const UserIcon = LucideUser;
+export const UsersIcon = LucideUsers;
+export const BookOpenIcon = LucideBookOpen;
+
+/* The build modal's chassis cards (see CHASSIS_ICONS); legs reuse BotIcon above. */
+export const TruckIcon = LucideTruck;
+export const CircleDashedIcon = LucideCircleDashed;
+
+/* The build modal's weapon cards (see WEAPON_ICONS). Two of them dodge a glyph that
+   already means something one row below: the cannon takes Target rather than Swords
+   (= Attack Robots), and the radar takes a dish rather than RadarIcon (= Search &
+   Detect) — the same symbol must not stand for two things in one dialog. */
+export const TargetIcon = LucideTarget;
+export const RocketIcon = LucideRocket;
+export const BombIcon = LucideBomb;
+export const SatelliteDishIcon = LucideSatelliteDish;
+export const EarIcon = LucideEar;
+export const ZapIcon = LucideZap;

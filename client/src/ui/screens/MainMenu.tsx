@@ -1,4 +1,3 @@
-import { Settings2Icon, HelpCircleIcon, BotIcon, Volume2Icon, VolumeXIcon } from '../common/icons';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { music } from '../../pixi/audio/music';
 import { sfx } from '../../pixi/audio/sfx';
@@ -6,40 +5,41 @@ import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { selectOnline } from '../../store/selectors';
 import { menuBackdropSrc } from '../../config/sprites';
-import { Button } from '../common/Button';
-import { ChipPicker, PickerGroup } from '../common/Picker';
 import { BaseSetupModal } from './BaseSetupModal';
 import { ControlsModal } from './ControlsModal';
-import { OnlineLobby } from './OnlineLobby';
+import { GlobalSettingsBar } from './GlobalSettingsBar';
+import { MatchSetupPanel } from './MatchSetupPanel';
+import { MenuNav, type MenuMode } from './MenuNav';
+import { OnlinePanel } from './OnlinePanel';
 import { SoundSettingsModal } from './SoundSettingsModal';
 import { UnitsGuideModal } from './UnitsGuideModal';
-import { LANGUAGE_OPTIONS, difficultyOptions, mapSizeOptions, opponentOptions } from './menuOptions';
 
 /** Which overlay the title screen is showing, or `null` for the menu itself. */
-type MenuModal = 'setup' | 'controls' | 'units' | 'online' | 'sound' | null;
+type MenuModal = 'setup' | 'controls' | 'units' | 'sound' | null;
 
 /**
- * Title screen: pick language/difficulty/roster, open Base Setup (auto-produce +
- * robot program) or the guides, then Start rebuilds the world with the chosen
- * settings. `App` mounts this only while the status is `menu`, which is what
- * keeps the dialog state below from surviving into (and out of) a match.
+ * Title screen. Three zones rather than one list: global preferences (language,
+ * sound, help) as an icon bar in the header, what kind of game you want in the
+ * left rail, and that game's own setup — plus its primary action — in the right
+ * column.
  *
- * Start does nothing here but raise the store's one-shot `restartRequested`;
- * consuming it — and beginning the match — is `GameApp.step()`'s job.
+ * The split is the whole point of the layout: app-wide settings and match rules
+ * used to sit in the same vertical stack, which made them look like the same
+ * kind of choice and pushed Start below nine rows of controls.
+ *
+ * This component owns the mode, the modal slot and the music; every setting is
+ * read and written by the panel that shows it. Start does nothing here but raise
+ * the store's one-shot `restartRequested` — consuming it, and beginning the
+ * match, is `GameApp.step()`'s job.
  */
 export function MainMenu() {
   const t = useT();
-  const difficulty = useGameStore((s) => s.settings.match.difficulty);
-  const mapSize = useGameStore((s) => s.settings.match.mapSize);
-  const aiOpponents = useGameStore((s) => s.settings.match.aiOpponents);
-  const updateSettings = useGameStore((s) => s.updateSettings);
   const requestRestart = useGameStore((s) => s.requestRestart);
-  const locale = useGameStore((s) => s.locale);
-  const setLocale = useGameStore((s) => s.setLocale);
+  const leaveOnline = useGameStore((s) => s.leaveOnline);
   const online = useGameStore(selectOnline);
+  const [requestedMode, setRequestedMode] = useState<MenuMode>('single');
   // One slot, not four flags: the menu's modals are alternatives, and letting
-  // several be open at once means closing one reveals the next — with the lobby
-  // forced open by `online.status`, that turns into a loop with no way out.
+  // several be open at once means closing one reveals the next.
   const [modal, setModal] = useState<MenuModal>(null);
   const closeModal = () => setModal(null);
 
@@ -53,10 +53,19 @@ export function MainMenu() {
     return () => music.stopMenu();
   }, []);
 
-  // The lobby outranks the local toggle: a finished match leaves something to
-  // report (`ended`/`error`), and that has to reach the player even if they
-  // never opened the lobby themselves.
-  const showOnline = modal === 'online' || online.status !== 'offline';
+  // A live session outranks the tab the player last pressed: a finished match
+  // leaves something to report (`ended`/`error`), and that has to reach them even
+  // if they never opened the panel themselves — which is the case coming back
+  // here from an online match. Derived rather than an effect, so there is no
+  // frame where the menu shows Singleplayer over a session that still exists.
+  const mode: MenuMode = online.status === 'offline' ? requestedMode : 'online';
+
+  // Leaving the tab is leaving the session — the same thing the lobby's Close
+  // used to do. Without this, `mode` above would simply pin the player back.
+  const selectMode = (next: MenuMode) => {
+    if (next === 'single' && online.status !== 'offline') leaveOnline();
+    setRequestedMode(next);
+  };
 
   const start = () => {
     sfx.resume();
@@ -69,85 +78,38 @@ export function MainMenu() {
           (no Escape, no click-outside), so it gained nothing from one — while
           being a dialog made every modal below a *nested* dialog. React runs a
           child's effects before its parent's, so when the menu and a modal mount
-          in the same commit (returning here from a finished online match) the
-          modal registers in Headless UI's stack first and the menu ends up "on
-          top": the modal is painted but inert, and the menu behind it stays
-          clickable. As a plain panel the menu sits inside #root, so an open
-          modal inerts it the ordinary way. */}
+          in the same commit the modal registers in Headless UI's stack first and
+          the menu ends up "on top": the modal is painted but inert, and the menu
+          behind it stays clickable. As a plain panel the menu sits inside #root,
+          so an open modal inerts it the ordinary way.
+
+          The online lobby used to be that same-commit modal — forced open by a
+          non-`offline` status while the menu mounted. It is a panel now (see
+          `OnlinePanel`), which is why nothing below opens by itself. */}
       <div
         className="dialog-backdrop dialog-backdrop--splash"
         style={{ '--splash-image': `url(${menuBackdropSrc})` } as CSSProperties}
       />
       <div className="dialog-frame dialog-frame--menu">
-        <div className="modal menu">
-          <h1 className="menu__title">{t('mainMenu', 'title')}</h1>
+        <div className="menu-shell">
+          <header className="menu-shell__header">
+            <h1 className="menu__title">{t('mainMenu', 'title')}</h1>
+            <GlobalSettingsBar onOpenSound={() => setModal('sound')} onOpenControls={() => setModal('controls')} />
+          </header>
 
-          <PickerGroup label={t('mainMenu', 'language')}>
-            <ChipPicker options={LANGUAGE_OPTIONS} value={locale} onChange={setLocale} />
-          </PickerGroup>
-
-          <PickerGroup label={t('mainMenu', 'difficulty')}>
-            <ChipPicker
-              options={difficultyOptions(t)}
-              value={difficulty}
-              onChange={(value) => updateSettings({ match: { difficulty: value } })}
-            />
-          </PickerGroup>
-
-          <PickerGroup label={t('mainMenu', 'opponents')}>
-            <ChipPicker
-              options={opponentOptions(t)}
-              value={aiOpponents}
-              onChange={(value) => updateSettings({ match: { aiOpponents: value } })}
-            />
-          </PickerGroup>
-
-          <PickerGroup label={t('mapSize', 'label')}>
-            <ChipPicker
-              options={mapSizeOptions(t)}
-              value={mapSize}
-              onChange={(value) => updateSettings({ match: { mapSize: value } })}
-            />
-          </PickerGroup>
-
-          <PickerGroup label={t('mainMenu', 'baseSetup')}>
-            <Button onClick={() => setModal('setup')}>
-              <Settings2Icon size={16} /> {t('mainMenu', 'autoProduceProgram')}
-            </Button>
-          </PickerGroup>
-
-          <PickerGroup label={t('sound', 'title')}>
-            <Button onClick={() => setModal('sound')}>
-              {sfx.isMuted() ? <VolumeXIcon size={16} /> : <Volume2Icon size={16} />} {t('sound', 'settings')}
-            </Button>
-          </PickerGroup>
-
-          <PickerGroup label={t('mainMenu', 'help')}>
-            <Button onClick={() => setModal('controls')}>
-              <HelpCircleIcon size={16} /> {t('mainMenu', 'controls')}
-            </Button>
-          </PickerGroup>
-
-          <PickerGroup label={t('mainMenu', 'units')}>
-            <Button onClick={() => setModal('units')}>
-              <BotIcon size={16} /> {t('mainMenu', 'unitGuide')}
-            </Button>
-          </PickerGroup>
-
-          <PickerGroup label={t('online', 'multiplayer')}>
-            <Button onClick={() => setModal('online')}>{t('online', 'online2p')}</Button>
-          </PickerGroup>
-
-          <Button className="modal__action" onClick={start}>
-            {t('mainMenu', 'start')}
-          </Button>
+          <div className="menu-shell__body">
+            <MenuNav mode={mode} onSelectMode={selectMode} onOpenUnits={() => setModal('units')} />
+            {mode === 'online' ? (
+              <OnlinePanel onOpenBaseSetup={() => setModal('setup')} />
+            ) : (
+              <MatchSetupPanel onOpenBaseSetup={() => setModal('setup')} onStart={start} />
+            )}
+          </div>
         </div>
       </div>
 
       {/* Exactly one of these, ever — see `modal` above. */}
-      {showOnline ? (
-        <OnlineLobby onClose={closeModal} />
-      ) : modal === 'setup' ? (
+      {modal === 'setup' ? (
         <BaseSetupModal onClose={closeModal} />
       ) : modal === 'units' ? (
         <UnitsGuideModal onClose={closeModal} />
