@@ -209,6 +209,48 @@ describe('resuming a dropped seat', () => {
   });
 });
 
+/**
+ * The phases themselves, rather than what happens inside one. These are the
+ * promises `SessionState` makes structurally — that a match being reconnected is
+ * still a match, that a scheduled attempt cannot outlive the session that wanted
+ * it, and that the phase only moves forward once.
+ */
+describe('session phases', () => {
+  it('still counts as started while it is reclaiming its seat', () => {
+    const { session, socket } = startedSession();
+    expect(session.isStarted).toBe(true);
+
+    socket.drop();
+    // The host keeps stepping through a reconnect — neither world has advanced
+    // past the tick they both stopped on, so this is a stall, not an ending.
+    expect(session.isStarted).toBe(true);
+  });
+
+  it('drops a scheduled attempt when the caller hangs up first', () => {
+    const onClose = vi.fn();
+    const { session, socket } = startedSession({ onClose });
+
+    socket.drop();
+    session.disconnect();
+    vi.advanceTimersByTime(30_000);
+
+    expect(FakeSocket.instances).toHaveLength(1); // the pending retry went with the session
+    expect(onClose).not.toHaveBeenCalled();
+    expect(session.isStarted).toBe(false);
+  });
+
+  it('ignores a second start rather than restarting a match in progress', () => {
+    const onStart = vi.fn();
+    const { socket } = startedSession({ onStart });
+    expect(onStart).toHaveBeenCalledOnce();
+
+    // The relay does not send one — `acceptResume` replays the missed ticks and
+    // nothing else — and acting on one would rebuild the world mid-match.
+    socket.deliver(startFrame());
+    expect(onStart).toHaveBeenCalledOnce();
+  });
+});
+
 describe('replayed peer frames', () => {
   it('ignores a tick the simulation has already consumed', () => {
     const { session, socket } = startedSession();

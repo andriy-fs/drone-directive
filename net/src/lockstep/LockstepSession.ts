@@ -15,6 +15,52 @@ import type { LockstepConfig, LockstepHandlers, TickInput } from './types';
 const RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000];
 
 /**
+ * Where the session is in its life, and what only that phase has.
+ *
+ * This used to be six independent fields — `started`, `resumeToken`, `linkDown`,
+ * `retryIndex`, `retryTimer`, `resumeDeadline` — written from five different
+ * methods. Between them they could spell out states no session is ever in: a
+ * retry scheduled with no seat left to reclaim, a link "down" before the match
+ * began, a deadline belonging to a resume nobody is attempting. Each of those was
+ * ruled out by a check at the top of whichever method would have tripped over it.
+ *
+ * As one field the phases are exclusive by construction, and each carries exactly
+ * what it needs — a resume attempt cannot exist without the token it presents or
+ * the deadline that ends it, because they are the same object.
+ *
+ * The socket is deliberately **not** in here. It is the identity of the current
+ * attempt rather than a phase, and every state may or may not have one open:
+ * `idle` still holds a live socket after a refused resume, until the host gets
+ * round to `disconnect()`. Keeping it out is what lets `ws !== this.ws` stay the
+ * one-line test for "a socket we already replaced or gave up on".
+ */
+type SessionState =
+  /** No session: freshly constructed, disconnected, or given up on. */
+  | { k: 'idle' }
+  /**
+   * A socket is opening and the match has not begun. Host and guest share this
+   * one phase: `created` tells the lobby its room code without changing anything
+   * here, because nothing about the transport differs between waiting for a guest
+   * and waiting for `start`.
+   */
+  | { k: 'connecting'; roomCode: string }
+  /** In a match. `resumeToken` names the seat to come back to if the socket drops. */
+  | { k: 'live'; roomCode: string; resumeToken: string }
+  /**
+   * The socket dropped mid-match and the seat is being reclaimed: how many
+   * attempts have gone (indexing `RETRY_DELAYS_MS`), when the relay stops holding
+   * the seat, and the pending attempt while one is scheduled.
+   */
+  | {
+      k: 'resuming';
+      roomCode: string;
+      resumeToken: string;
+      retryIndex: number;
+      deadline: number;
+      timer: ReturnType<typeof setTimeout> | null;
+    };
+
+/**
  * Client-side lockstep transport: owns the relay WebSocket, buffers both the local
  * and the peer's per-tick inputs by tick number, and answers "are both sides ready
  * for tick N?". `GameApp.step()` drives it — scheduling local input for
@@ -32,8 +78,10 @@ const RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000];
  */
 export class LockstepSession {
   readonly inputDelay = INPUT_DELAY_TICKS;
+  /** Which phase this session is in, and everything that phase alone owns. */
+  private state: SessionState = { k: 'idle' };
+  /** The socket of the current attempt — see `SessionState` for why it sits outside it. */
   private ws: WebSocket | null = null;
-  private started = false;
   private readonly handlers: LockstepHandlers;
   private readonly config: LockstepConfig;
   private readonly localBuffer = new Map<number, TickInput>();
@@ -45,38 +93,34 @@ export class LockstepSession {
   private desyncReported = false;
 
   // --- Resuming a dropped seat ------------------------------------------------
-  /** Which room to re-attach to, and the token proving which seat is ours. */
-  private roomCode = '';
-  private resumeToken: string | null = null;
   /** Every tick frame sent but not yet provably received; replayed on resume. */
   private readonly outbox = new Map<number, Uint8Array<ArrayBuffer>>();
   /** Highest tick the peer has sent — how far it got, which is what it acknowledges. */
   private peerHighTick = -1;
   /** Highest tick already consumed by `take`; anything at or below it is history. */
   private consumedThrough = -1;
-  private retryIndex = 0;
-  private retryTimer: ReturnType<typeof setTimeout> | null = null;
-  /** When the relay stops holding our seat. Set the moment the link goes down. */
-  private resumeDeadline = 0;
-  /** True between the drop and the successful re-attach — keeps the callbacks paired. */
-  private linkDown = false;
 
   constructor(handlers: LockstepHandlers, config: LockstepConfig) {
     this.handlers = handlers;
     this.config = config;
   }
 
+  /**
+   * Is there a match to step? A reconnect in progress still counts: neither world
+   * has advanced past the tick they both stopped on, so the host keeps stepping
+   * (and stalling) exactly as it does for a slow peer.
+   */
   get isStarted(): boolean {
-    return this.started;
+    return this.state.k === 'live' || this.state.k === 'resuming';
   }
 
   connectHost(roomCode: string, mapSize: MapSize, aiCount: number): void {
-    this.roomCode = roomCode;
+    this.state = { k: 'connecting', roomCode };
     this.open(() => connectUrl(this.config.relayUrl, { room: roomCode, create: true, mapSize, aiCount }));
   }
 
   connectGuest(roomCode: string): void {
-    this.roomCode = roomCode;
+    this.state = { k: 'connecting', roomCode };
     this.open(() => connectUrl(this.config.relayUrl, { room: roomCode }));
   }
 
@@ -107,13 +151,16 @@ export class LockstepSession {
    * the socket in that case and the frames go nowhere.
    */
   private onOpen(ws: WebSocket): void {
-    if (ws !== this.ws || !this.linkDown) return; // the first connect has nothing to replay
+    const state = this.state;
+    if (ws !== this.ws || state.k !== 'resuming') return; // the first connect has nothing to replay
     for (const tick of [...this.outbox.keys()].sort((a, b) => a - b)) {
       const frameBytes = this.outbox.get(tick);
       if (frameBytes) this.send(frameBytes);
     }
-    this.linkDown = false;
-    this.retryIndex = 0;
+    // Back to plain `live`: the attempt count, the deadline and any timer belonged
+    // to the drop, and go with it rather than being reset one by one.
+    this.clearRetry(state);
+    this.state = { k: 'live', roomCode: state.roomCode, resumeToken: state.resumeToken };
     this.handlers.onLinkUp?.();
   }
 
@@ -125,13 +172,18 @@ export class LockstepSession {
       case 'created':
         this.handlers.onCreated?.(msg.roomCode);
         break;
-      case 'start':
-        this.started = true;
-        this.resumeToken = msg.resumeToken;
+      case 'start': {
+        // Only ever the first one. `Room.acceptResume` replays the frames the drop
+        // swallowed and nothing else — a second `start` is not something the relay
+        // sends, and acting on one would restart a match already in progress.
+        const state = this.state;
+        if (state.k !== 'connecting') break;
+        this.state = { k: 'live', roomCode: state.roomCode, resumeToken: msg.resumeToken };
         // No coercion left to do: the schema pinned `seed` to a u32 and `mapSize`
         // to one of three tags, which the codec already turned into a `MapSize`.
         this.handlers.onStart?.(msg.seed, msg.mapSize, msg.aiCount, msg.chatId);
         break;
+      }
       case 'tick':
         // A resumed socket replays frames we may already have consumed; they are
         // dropped here rather than left to settle in a buffer nothing reads.
@@ -140,13 +192,13 @@ export class LockstepSession {
         if (msg.check) this.checkPeerHash(msg.check);
         break;
       case 'opponentLeft':
-        this.abandonResume();
+        this.abandon();
         this.handlers.onOpponentLeft?.();
         break;
       case 'error':
         // Including a refused resume: whatever the relay objects to at this point,
         // retrying it would only produce the same answer.
-        this.abandonResume();
+        this.abandon();
         this.handlers.onError?.(msg.code, msg.message);
         break;
     }
@@ -252,50 +304,71 @@ export class LockstepSession {
   private onSocketClosed(ws: WebSocket): void {
     if (ws !== this.ws) return; // a socket we already replaced or gave up on
     this.ws = null;
-    if (!this.started || !this.resumeToken) {
-      this.handlers.onClose?.();
-      return;
+    const state = this.state;
+    switch (state.k) {
+      case 'idle':
+      case 'connecting':
+        // Nothing to resume: there is no seat yet, or there is no longer one.
+        this.state = { k: 'idle' };
+        this.handlers.onClose?.();
+        return;
+      case 'live':
+        // The seat is held for `RESUME_GRACE_MS` from right now — which is the one
+        // moment that deadline can be set, and the only state that can set it.
+        this.state = {
+          k: 'resuming',
+          roomCode: state.roomCode,
+          resumeToken: state.resumeToken,
+          retryIndex: 0,
+          deadline: Date.now() + RESUME_GRACE_MS,
+          timer: null,
+        };
+        this.handlers.onLinkDown?.();
+        this.scheduleRetry();
+        return;
+      case 'resuming':
+        // An attempt that closed on us; `onLinkDown` has already been sent.
+        this.scheduleRetry();
+        return;
     }
-    if (!this.linkDown) {
-      this.linkDown = true;
-      this.retryIndex = 0;
-      this.resumeDeadline = Date.now() + RESUME_GRACE_MS;
-      this.handlers.onLinkDown?.();
-    }
-    this.scheduleRetry();
   }
 
   private scheduleRetry(): void {
-    if (this.retryTimer !== null) return;
-    const delay = RETRY_DELAYS_MS[Math.min(this.retryIndex, RETRY_DELAYS_MS.length - 1)];
-    this.retryIndex += 1;
+    const state = this.state;
+    if (state.k !== 'resuming' || state.timer !== null) return;
+    const delay = RETRY_DELAYS_MS[Math.min(state.retryIndex, RETRY_DELAYS_MS.length - 1)];
+    state.retryIndex += 1;
     // An attempt landing after the relay has dropped the seat can only be refused,
     // so stop at the deadline rather than spend a round trip proving it.
-    if (Date.now() + delay >= this.resumeDeadline) {
-      this.abandonResume();
+    if (Date.now() + delay >= state.deadline) {
+      this.abandon();
       this.handlers.onClose?.();
       return;
     }
-    this.retryTimer = setTimeout(() => {
-      this.retryTimer = null;
-      const token = this.resumeToken;
-      if (!token) return; // given up while the timer was pending
-      this.open(() => connectUrl(this.config.relayUrl, { room: this.roomCode, resume: token }));
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      // Anything that ended this attempt — a refusal, the deadline, the host
+      // hanging up — replaced the state object, and this timer is its leftover.
+      if (this.state !== state) return;
+      this.open(() => connectUrl(this.config.relayUrl, { room: state.roomCode, resume: state.resumeToken }));
     }, delay);
   }
 
-  /** Stop trying to come back: the seat is gone, refused, or no longer wanted. */
-  private abandonResume(): void {
-    this.resumeToken = null;
-    this.linkDown = false;
-    if (this.retryTimer !== null) {
-      clearTimeout(this.retryTimer);
-      this.retryTimer = null;
-    }
+  /** Cancel the pending attempt, if the state we are leaving has one. */
+  private clearRetry(state: SessionState): void {
+    if (state.k !== 'resuming' || state.timer === null) return;
+    clearTimeout(state.timer);
+    state.timer = null;
+  }
+
+  /** Stop: the seat is gone, refused, or no longer wanted — and there is no other way back. */
+  private abandon(): void {
+    this.clearRetry(this.state);
+    this.state = { k: 'idle' };
   }
 
   disconnect(): void {
-    this.started = false;
+    this.abandon();
     this.localBuffer.clear();
     this.peerBuffer.clear();
     this.localHashes.clear();
@@ -304,7 +377,6 @@ export class LockstepSession {
     this.desyncReported = false;
     this.peerHighTick = -1;
     this.consumedThrough = -1;
-    this.abandonResume();
     const ws = this.ws;
     this.ws = null;
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {

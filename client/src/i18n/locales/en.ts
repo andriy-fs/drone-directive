@@ -190,7 +190,6 @@ export const en: Dict = {
     waitingOpponent: 'Waiting for an opponent to join…',
     waitingPeer: 'Waiting for the opponent…',
     reconnecting: 'Connection lost — reconnecting…',
-    matchEnded: 'The match ended.',
     hostGame: 'Host a game',
     createRoom: 'Create room',
     joinGame: 'Join a game',

@@ -191,7 +191,6 @@ export const ru: Dict = {
     waitingOpponent: 'Ожидание соперника…',
     waitingPeer: 'Ждём соперника…',
     reconnecting: 'Соединение потеряно — переподключение…',
-    matchEnded: 'Матч завершён.',
     hostGame: 'Создать игру',
     createRoom: 'Создать комнату',
     joinGame: 'Присоединиться к игре',

@@ -202,7 +202,6 @@ export interface Dict {
     waitingPeer: string;
     /** Mid-match, our own socket dropped and the session is reclaiming its seat. */
     reconnecting: string;
-    matchEnded: string;
     hostGame: string;
     createRoom: string;
     joinGame: string;

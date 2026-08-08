@@ -31,7 +31,7 @@ const COPIED_FEEDBACK_MS = 1500;
  * none` (the whole title screen is), so this button is the only way to get it
  * out of the page and into a chat window.
  */
-function RoomCode({ code }: { code: string | null }) {
+function RoomCode({ code }: { code: string }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
 
@@ -40,8 +40,6 @@ function RoomCode({ code }: { code: string | null }) {
     const id = setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
     return () => clearTimeout(id);
   }, [copied]);
-
-  if (!code) return null;
 
   return (
     <div className="room-code">
@@ -97,7 +95,10 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
   };
 
   const busy = online.status === 'connecting' || online.status === 'hosting';
-  const failed = online.status === 'error' || online.status === 'ended';
+  // Why the session stopped, or null while it hasn't. `ended` and `error` differ
+  // in cause, not in what this panel does about it — both have their say and then
+  // hand the player back the chooser — so they collapse into one message here.
+  const finished = online.status === 'ended' || online.status === 'error' ? online.error : null;
 
   const mapSizeOptions: ChipOption<MapSize>[] = MAP_SIZES.map((o) => ({
     value: o.value,
@@ -118,7 +119,7 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
         </>
       )}
 
-      {failed && <p className="modal__body">{online.error ?? t('online', 'matchEnded')}</p>}
+      {finished !== null && <p className="modal__body">{finished}</p>}
 
       {online.status === 'offline' && (
         <>
@@ -168,7 +169,7 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
       {/* One button for two jobs, because they are the same one: drop whatever
           the session is currently doing and come back to the chooser. Mid-connect
           that is a cancel; after a match it is dismissing the outcome. */}
-      {(busy || failed) && (
+      {(busy || finished !== null) && (
         <Button className="menu-panel__cta" onClick={() => leaveOnline()}>
           {busy ? t('online', 'cancel') : t('mainMenu', 'close')}
         </Button>
