@@ -65,6 +65,25 @@ export interface SoundDef {
 /** Where in `public/sounds/` a cue's file lives. */
 const src = (file: string) => `${PUBLIC_BASE}sounds/${file}.ogg`;
 
+/**
+ * The title screen's music bed — deliberately *not* a `SoundName`.
+ *
+ * Every cue above is a one-shot fired and forgotten; this one loops, needs a
+ * handle to fade and stop, and is two orders of magnitude larger than any of
+ * them, so it gets its own player (`pixi/audio/music.ts`) and its own lazy
+ * fetch instead of a tier. It lives in `public/music/`, not `public/sounds/` —
+ * that directory is the Kenney packs as downloaded, and this is not one.
+ *
+ * `volume` is the one number to turn. The track masters at −12.9 LUFS with peaks
+ * at 0 dBFS (the cues are short transients peaking at −1), so at 1.0 it would
+ * bury every one of them; 0.25 puts the bed around −27 LUFS, which reads as
+ * background under a `button-click` at 0.15.
+ */
+export const menuMusic = {
+  src: `${PUBLIC_BASE}music/terminal-standby.ogg`,
+  volume: 0.25,
+} as const;
+
 export const soundDefs: Record<SoundName, SoundDef> = {
   explosion: { src: src('sci-fi/explosionCrunch_000'), volume: 1.0, tier: 'match' },
   'shot-missile': { src: src('sci-fi/laserLarge_000'), volume: 0.5, tier: 'match' },

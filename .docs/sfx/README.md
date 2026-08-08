@@ -73,6 +73,53 @@ starts to drag, the shorter sibling `digital/threeTone2` (0.87 s) keeps the
 three-event character, and `digital/spaceTrash3` (1.54 s) is the most literally
 chaotic option in the packs if length stops mattering.
 
+## The music
+
+One track, and only on the title screen: `client/public/music/terminal-standby.ogg`
+(2:53, Ogg Vorbis ~256 kb/s, 4.2 MB). It is **not** in `public/sounds/` and not a
+`SoundName` — that directory is the Kenney packs as downloaded, and everything in
+the table above is a one-shot the player never gets a handle on.
+
+| | Cue | Music |
+| --- | --- | --- |
+| Table | `soundDefs` in `config/sounds.ts` | `menuMusic` in the same file |
+| Player | `pixi/audio/sfx.ts` | `pixi/audio/music.ts` |
+| Fetch | by `SoundTier`, with the rest of its wave | its own lazy `Assets.load`, at idle |
+| Lifetime | fire and forget | one looping instance, held and faded |
+| Driven by | the EventBus, `selectionAudio`, `ui/common/` | `MainMenu`'s mount/unmount |
+
+Three things about it are load-bearing:
+
+- **It starts on the first gesture, not on Start.** Autoplay policy keeps the
+  AudioContext suspended, and the first thing a player touches is usually a
+  difficulty chip — so `music.ts` arms a one-shot `pointerdown`/`keydown`
+  listener and retries there. Hanging it off `sfx.resume()` in Start would mean
+  the music only ever began as the menu was leaving.
+- **Mute and master volume are not re-implemented for it.** `sound.muteAll()`
+  and `sound.volumeAll` act on the shared `WebAudioContext`; the music instance
+  is downstream of it, so the existing Sound settings already govern it. The
+  consequence worth knowing: the settings dialog labels that switch *Effects*,
+  and it now silences the music too.
+- **`menuMusic.volume` (0.25) is the only mix number.** The track masters at
+  −12.9 LUFS with peaks at 0 dBFS, where the cues are transients peaking at −1 —
+  at 1.0 it buries all of them. 0.25 puts the bed near −27 LUFS, under a
+  `button-click` at 0.15. Swap the file → re-measure
+  (`ffmpeg -i file -af ebur128 -f null -`) and reset this.
+
+The brief it was generated from — the prompt, the negative prompt, why each
+constraint is there, and what to re-measure after regenerating — is
+[`music-prompt.md`](music-prompt.md). Same role as the cue descriptions above:
+it is what the track is *supposed* to be, and it outlives the file.
+
+The track is a linear piece rather than a composed loop, so `loop: true` repeats
+it over an audible seam. A 1.2 s fade-in and a 0.6 s fade-out cover the entry and
+the exit; nothing covers the wrap, and at 2:53 few players will still be on the
+menu to hear it.
+
+Its 4.2 MB is roughly a third of what the deployed site weighs, and it buys
+nothing over the 192 kb/s MP3 it was transcoded from — re-encoding at `-q:a 3`
+(~112 kb/s, ~2.4 MB) is transparent for a bed at this level if that ever matters.
+
 ## Rules for a replacement file
 
 If you swap a cue, the replacement must hold to these — they are what separate a
