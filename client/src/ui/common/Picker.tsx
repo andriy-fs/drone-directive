@@ -30,18 +30,23 @@ export interface ChipOption<T> {
  *
  * Values are compared by identity, so the option list may be rebuilt per render
  * (labels come from the active locale) as long as the values are primitives.
+ *
+ * `className` picks a variant of the row itself — `picker--segmented` on the
+ * title screen, where the chips butt together into one segmented control.
  */
 export function ChipPicker<T>({
   options,
   value,
   onChange,
+  className = '',
 }: {
   options: ChipOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  className?: string;
 }) {
   return (
-    <div className="picker">
+    <div className={`picker ${className}`.trim()}>
       {options.map((option) => (
         <Button
           key={String(option.value)}

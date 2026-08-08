@@ -118,11 +118,23 @@ export const droneSprite: SpriteDef | undefined = {
 /**
  * Weapon module sprites keyed by **owner → weapon**, overlaid on a robot's
  * central hardpoint (see `.docs/sprites/weapons.md`). A missing entry falls back
- * to the Graphics marker in `RobotView`. Modules are radially balanced, so no
- * `rotationOffset` is needed even though they inherit the robot's heading.
+ * to the Graphics marker in `RobotView`. Most modules are radially balanced and
+ * need no `rotationOffset` even though they inherit the robot's heading; the two
+ * barrelled ones (`cannon`, `missiles`) can't be, so they are authored facing up
+ * like the robots and carry the same `Math.PI / 2` correction.
  */
 export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, SpriteDef>>>> = {
   [Owner.Player]: {
+    cannon: {
+      src: `${PUBLIC_BASE}weapon-cannon-player.webp`,
+      rotationOffset: Math.PI / 2,
+      targetSize: WEAPON_TARGET,
+    },
+    missiles: {
+      src: `${PUBLIC_BASE}weapon-missiles-player.webp`,
+      rotationOffset: Math.PI / 2,
+      targetSize: WEAPON_TARGET,
+    },
     radar: {
       src: `${PUBLIC_BASE}weapon-radar-player.webp`,
       targetSize: WEAPON_TARGET,
@@ -131,18 +143,36 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
       src: `${PUBLIC_BASE}weapon-bomb-player.webp`,
       targetSize: WEAPON_TARGET,
     },
+    ew: {
+      src: `${PUBLIC_BASE}weapon-ew-player.webp`,
+      targetSize: WEAPON_TARGET,
+    },
     dew: {
       src: `${PUBLIC_BASE}weapon-dew-player.webp`,
       targetSize: WEAPON_TARGET,
     },
   },
   [Owner.AI]: {
+    cannon: {
+      src: `${PUBLIC_BASE}weapon-cannon-ai.webp`,
+      rotationOffset: Math.PI / 2,
+      targetSize: WEAPON_TARGET,
+    },
+    missiles: {
+      src: `${PUBLIC_BASE}weapon-missiles-ai.webp`,
+      rotationOffset: Math.PI / 2,
+      targetSize: WEAPON_TARGET,
+    },
     radar: {
       src: `${PUBLIC_BASE}weapon-radar-ai.webp`,
       targetSize: WEAPON_TARGET,
     },
     bomb: {
       src: `${PUBLIC_BASE}weapon-bomb-ai.webp`,
+      targetSize: WEAPON_TARGET,
+    },
+    ew: {
+      src: `${PUBLIC_BASE}weapon-ew-ai.webp`,
       targetSize: WEAPON_TARGET,
     },
     dew: {

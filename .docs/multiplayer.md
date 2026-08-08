@@ -370,7 +370,7 @@ The client-side pieces the online path touches:
 | `client/src/engine/game/context.ts`          | `createGameContext` takes the shared seed as a parameter instead of calling `Date.now()`.                      |
 | `client/src/engine/game/scenes/gameScene.ts` | Builds the world from `ctx.roster`, so `aiSystem` needs no online gate.                                        |
 | `client/src/store/gameStore.ts`              | `localSide` + lobby status (`connecting`/`hosting`/`inMatch`/`ended`/`error`) and actions.                     |
-| `client/src/ui/screens/OnlineLobby.tsx`      | Create/join-room screen, wired from `MainMenu.tsx`.                                                            |
+| `client/src/ui/screens/OnlinePanel.tsx`      | Create/join-room panel — the title screen's Multiplayer tab, not a dialog (see `MainMenu.tsx`).                |
 | `client/src/ui/hooks/usePauseHotkey.ts`      | Disabled while online — pause is not synchronized.                                                             |
 | `client/src/chat/chatBridge.ts`              | Owns the `ChatSession`. Outside `pixi/` on purpose — it must not die with the match.                           |
 | `client/src/chat/chatStorage.ts`             | The chat addresses this browser knows. Without it a reload loses a chat the server still holds.                |

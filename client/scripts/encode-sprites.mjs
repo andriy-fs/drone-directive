@@ -48,7 +48,7 @@ const SPRITES = [
   // Bases — on-field 96 px (BASE_TARGET), already the smallest sensible master.
   ...['player', 'ai'].map((side) => ({ name: `base-${side}`, size: 256, quality: 90 })),
   // Weapon modules — on-field 24 px (WEAPON_TARGET), the biggest overshoot in the set.
-  ...['bomb', 'dew', 'radar'].flatMap((weapon) =>
+  ...['bomb', 'cannon', 'dew', 'ew', 'missiles', 'radar'].flatMap((weapon) =>
     ['player', 'ai'].map((side) => ({ name: `weapon-${weapon}-${side}`, size: 64, quality: 90 })),
   ),
   // Observer drone — on-field 40 px (DRONE_TARGET).

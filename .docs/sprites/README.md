@@ -7,8 +7,9 @@ robot chassis or base types are added, so art can be regenerated consistently.
 - **[robots.md](robots.md)** — one prompt per chassis × faction (player / enemy).
 - **[drone.md](drone.md)** — the player's flying observer drone (single sprite).
 - **[bases.md](bases.md)** — player base + AI (enemy) base.
-- **[weapons.md](weapons.md)** — top-mounted weapon module overlays (radar, bomb
-  kamikaze) × faction, rendered on the robot's central hardpoint.
+- **[weapons.md](weapons.md)** — top-mounted weapon module overlays (cannon,
+  missiles, bomb kamikaze, radar, EW jammer, DEW emitter) × faction, rendered on
+  the robot's central hardpoint.
 - **[obstacle-mountain.md](obstacle-mountain.md)** — impassable-terrain tile (one
   32 px cell, seamlessly tileable): a **mountain** massif. Blocks movement _and_
   line of fire.
@@ -36,9 +37,9 @@ are drawn as a small marker _on top_ of the chassis by the engine, so a sprite i
 | `legs`   | walker / bruiser | tall articulated mech, imposing |
 
 Bases: one per side (`player`, `ai`). Weapons (`cannon`, `missiles`, `bomb`,
-`radar`) are **top-mounted modules**, not baked into the chassis — leave a clear
-central dorsal hardpoint on each robot where the module/marker overlays it. See
-[weapons.md](weapons.md) for the radar and bomb module prompts.
+`radar`, `ew`, `dew`) are **top-mounted modules**, not baked into the chassis —
+leave a clear central dorsal hardpoint on each robot where the module/marker
+overlays it. See [weapons.md](weapons.md) for a prompt pair per module.
 
 When a new chassis/base is added: copy the closest prompt block, swap the
 silhouette description, keep every "Shared spec" rule below identical.

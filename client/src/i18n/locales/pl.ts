@@ -29,6 +29,8 @@ export const pl: Dict = {
     fireWeapon: 'Strzał z broni opanowanego robota',
     units: 'Jednostki',
     unitGuide: 'Przewodnik po jednostkach',
+    singleplayer: 'Gra jednoosobowa',
+    matchSetup: 'Ustawienia rozgrywki',
   },
   difficulty: {
     easy: 'Łatwy',
@@ -66,14 +68,13 @@ export const pl: Dict = {
     playAgain: 'Zagraj ponownie',
   },
   baseSetup: {
-    title: 'Ustawienia bazy',
+    title: 'Ustawienia autoprodukcji',
     autoProduce: 'Autoprodukcja robotów',
-    off: 'Wył',
-    on: 'Wł',
     chassis: 'Podwozie',
     weapon: 'Broń',
     newRobotProgram: 'Dyrektywa dla nowych robotów',
-    done: 'Gotowe',
+    apply: 'Zastosuj',
+    cancel: 'Anuluj',
   },
   buildRobot: {
     title: 'Budowa i dyrektywa',
@@ -168,6 +169,8 @@ export const pl: Dict = {
     volume: 'Głośność dźwięku',
     soundSettings: 'Ustawienia dźwięku',
     directivesHelp: 'O dyrektywach',
+    language: 'Język',
+    close: 'Zamknij',
   },
   sound: {
     title: 'Dźwięk',

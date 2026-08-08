@@ -28,6 +28,9 @@ export interface Dict {
     fireWeapon: string;
     units: string;
     unitGuide: string;
+    /** The title screen's navigation rail: the active mode, and the panel it opens. */
+    singleplayer: string;
+    matchSetup: string;
   };
   difficulty: {
     easy: string;
@@ -66,13 +69,14 @@ export interface Dict {
   };
   baseSetup: {
     title: string;
+    /** The title screen's switch — the dialog only labels the model behind it. */
     autoProduce: string;
-    off: string;
-    on: string;
     chassis: string;
     weapon: string;
     newRobotProgram: string;
-    done: string;
+    /** Commits the dialog's draft; also what turns auto-production on. */
+    apply: string;
+    cancel: string;
   };
   buildRobot: {
     title: string;
@@ -167,6 +171,10 @@ export interface Dict {
     soundSettings: string;
     /** The Directives card's header button, which opens the directives reference. */
     directivesHelp: string;
+    /** The title screen's globe button, which opens the language menu. */
+    language: string;
+    /** A modal's corner [X] — the label the button's icon can't provide. */
+    close: string;
   };
   /**
    * Sound settings — one dialog, reachable from the HUD and from the title

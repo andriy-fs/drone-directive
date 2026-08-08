@@ -29,6 +29,8 @@ export const ru: Dict = {
     fireWeapon: 'Выстрел оружием управляемого робота',
     units: 'Юниты',
     unitGuide: 'Справочник юнитов',
+    singleplayer: 'Одиночная игра',
+    matchSetup: 'Настройки матча',
   },
   difficulty: {
     easy: 'Лёгкий',
@@ -66,14 +68,13 @@ export const ru: Dict = {
     playAgain: 'Играть снова',
   },
   baseSetup: {
-    title: 'Настройка базы',
+    title: 'Настройка автопроизводства',
     autoProduce: 'Автопроизводство роботов',
-    off: 'Выкл',
-    on: 'Вкл',
     chassis: 'Шасси',
     weapon: 'Оружие',
     newRobotProgram: 'Директива для новых роботов',
-    done: 'Готово',
+    apply: 'Применить',
+    cancel: 'Отмена',
   },
   buildRobot: {
     title: 'Постройка и директива',
@@ -168,6 +169,8 @@ export const ru: Dict = {
     volume: 'Громкость звука',
     soundSettings: 'Настройки звука',
     directivesHelp: 'О директивах',
+    language: 'Язык',
+    close: 'Закрыть',
   },
   sound: {
     title: 'Звук',
