@@ -9,7 +9,6 @@ export const selectStatus = (s: GameState) => s.status;
 export const selectBases = (s: GameState) => s.bases;
 export const selectRobots = (s: GameState) => s.robots;
 export const selectResources = (s: GameState) => s.resources;
-export const selectSides = (s: GameState) => s.sides;
 export const selectSelectedIds = (s: GameState) => s.selectedRobotIds;
 /** The selected base, or null — mutually exclusive with the robot selection. */
 export const selectSelectedBaseId = (s: GameState) => s.selectedBaseId;

@@ -4,7 +4,6 @@ import type { Dict } from '../dict';
 export const en: Dict = {
   mainMenu: {
     title: 'Drone Directive',
-    intro: 'Build robots, program their orders, and be the last base standing.',
     difficulty: 'Difficulty',
     opponents: 'Opponents',
     opponentsHint: 'Every side fights every other',
@@ -51,27 +50,13 @@ export const en: Dict = {
   },
   hud: {
     title: 'Drone Directive',
-    statusPrefix: 'Status',
     command: 'Command',
-    bases: 'Bases',
     units: 'Units',
-    directive: 'Directive',
+    directive: 'Directives',
     drone: 'Drone',
-    player: 'Player',
-    ai: 'AI',
-    ai1: 'AI 1',
-    ai2: 'AI 2',
-    ai3: 'AI 3',
-    opponent: 'Opponent',
     piloting: 'Piloting a robot',
     observing: 'Observing',
-    hint: 'Drag to box-select · click a robot to select · Shift+click/drag to add · Ctrl+A all · right-click to move · WASD/arrows fly the drone · F land/take off · E fire/detonate · Esc/Space to pause.',
     paused: 'Paused',
-    ownerNeutral: 'neutral',
-    statusMenu: 'menu',
-    statusPlaying: 'playing',
-    statusWon: 'won',
-    statusLost: 'lost',
   },
   gameOver: {
     victory: 'Victory',
@@ -109,8 +94,8 @@ export const en: Dict = {
     idle: 'Nothing in queue',
     auto: 'Auto',
     stop: 'Stop',
-    buildProgram: 'Build & Program',
-    drone: 'Observer drone',
+    buildProgram: 'Build',
+    selectAll: 'Select all',
     droneDown: 'Drone lost · rebuilding',
   },
   programming: {
@@ -118,7 +103,6 @@ export const en: Dict = {
     enemyUnit: 'Enemy unit — cannot program.',
     robotsSelected: 'robots selected',
     weapon: 'Weapon',
-    health: 'Health',
     baseSelected: 'Base',
     baseProgram: 'New units',
     rallyPoint: 'Rally point',
@@ -134,6 +118,16 @@ export const en: Dict = {
     attackTarget: 'Attack Target',
     overwatch: 'Overwatch',
     none: 'None',
+    intro: 'A directive is a standing order: the unit carries it out on its own until you assign a different one.',
+    guardNote: 'Holds the spot where it got the order, patrolling around it. Dodges and returns fire when attacked, but never gives chase.',
+    attackBaseNote:
+      'Advances on the nearest enemy base the team has found, clearing robots that get in the way. Searches the map while no base is known.',
+    attackRobotsNote:
+      'Hunts down every enemy robot the team has spotted, then turns on their base. Searches the map while nothing is known.',
+    scoutNote:
+      'Roams the map and reveals it for the whole team. Fights only what wanders into range — the job is to find the enemy, not to hunt them.',
+    overwatchNote:
+      'Trails an advancing group, or holds near your base. Falls back the moment it is hit — the role for units carrying no weapon.',
   },
   chassis: {
     tracks: 'Tracks',
@@ -172,6 +166,7 @@ export const en: Dict = {
     mute: 'Mute',
     volume: 'Sound volume',
     soundSettings: 'Sound settings',
+    directivesHelp: 'About directives',
   },
   sound: {
     title: 'Sound',

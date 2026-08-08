@@ -14,7 +14,19 @@ import {
   Bell as LucideBell,
   BellOff as LucideBellOff,
   Hourglass as LucideHourglass,
+  ClipboardCheck as LucideClipboardCheck,
+  Shield as LucideShield,
+  Castle as LucideCastle,
+  Swords as LucideSwords,
+  Radar as LucideRadar,
+  Eye as LucideEye,
+  Crosshair as LucideCrosshair,
+  Factory as LucideFactory,
+  SquareDashedMousePointer as LucideSquareDashedMousePointer,
 } from 'lucide-react';
+
+/** The shape every icon here has — so callers can take one as a prop without importing lucide. */
+export type { LucideIcon } from 'lucide-react';
 
 export const PauseIcon = LucidePause;
 export const PlayIcon = LucidePlay;
@@ -32,3 +44,16 @@ export const BellIcon = LucideBell;
 export const BellOffIcon = LucideBellOff;
 /** A networked match standing still — waiting on the peer, or on our own socket. */
 export const HourglassIcon = LucideHourglass;
+
+/* The HUD's Directives card: its header, then one icon per program (see TASK_ICONS). */
+export const ClipboardCheckIcon = LucideClipboardCheck;
+export const ShieldIcon = LucideShield;
+export const CastleIcon = LucideCastle;
+export const SwordsIcon = LucideSwords;
+export const RadarIcon = LucideRadar;
+export const EyeIcon = LucideEye;
+export const CrosshairIcon = LucideCrosshair;
+
+/* The Command section's two action tiles. */
+export const FactoryIcon = LucideFactory;
+export const SelectAllIcon = LucideSquareDashedMousePointer;

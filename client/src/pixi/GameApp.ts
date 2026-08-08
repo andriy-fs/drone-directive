@@ -166,7 +166,7 @@ export class GameApp {
 
     // `resizeTo` only listens for *window* resizes, so it misses the host shrinking
     // on its own — which is exactly what happens when the HUD column mounts at match
-    // start and takes 260px off the viewport's width. The renderer would keep the
+    // start and takes 300px off the viewport's width. The renderer would keep the
     // menu-width screen for the whole match: the canvas overhangs its clipped host,
     // and the camera clamps against a viewport wider than what is actually on screen,
     // so the drone flies into that hidden strip near the right edge of the map. Height

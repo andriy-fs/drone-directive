@@ -67,7 +67,7 @@ the backdrop would otherwise have destroyed the only copy.
 
 The leading `/` is required, not a slip: the file lives in `public/`, and Vite
 rewrites such a reference to `./menu-backdrop.webp` under `base: './'` — exactly
-what it already does to `/favicon.svg` (confirmed in the built `dist/index.html`).
+what it already does to `/favicon.ico` (confirmed in the built `dist/index.html`).
 The request then leaves the HTML parser, in parallel with the bundle, instead of
 waiting for it to execute.
 

@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Both files are generated from `assets-src/favicon.png` by
+         `scripts/encode-favicon.mjs` — don't hand-edit them, and don't add a
+         `sizes` list: the .ico already carries 16/32/48 and browsers pick.
+         The touch icon is opaque because iOS composites a transparent one onto
+         black, which would eat this mark's dark outline. -->
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- The title-screen splash is the first thing the player sees, but its URL is
          built in JS and handed to CSS as a custom property (config/sprites.ts →

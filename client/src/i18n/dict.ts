@@ -2,7 +2,6 @@
 export interface Dict {
   mainMenu: {
     title: string;
-    intro: string;
     difficulty: string;
     opponents: string;
     opponentsHint: string;
@@ -49,27 +48,13 @@ export interface Dict {
   };
   hud: {
     title: string;
-    statusPrefix: string;
     command: string;
-    bases: string;
     units: string;
     directive: string;
     drone: string;
-    player: string;
-    ai: string;
-    ai1: string;
-    ai2: string;
-    ai3: string;
-    opponent: string;
     piloting: string;
     observing: string;
-    hint: string;
     paused: string;
-    ownerNeutral: string;
-    statusMenu: string;
-    statusPlaying: string;
-    statusWon: string;
-    statusLost: string;
   };
   gameOver: {
     victory: string;
@@ -107,10 +92,11 @@ export interface Dict {
     idle: string;
     auto: string;
     stop: string;
+    /** The tile that opens the build dialog (whose own title is `buildRobot.title`). */
     buildProgram: string;
-    /** Label above the observer drone's hull bar. */
-    drone: string;
-    /** Label above the rebuild bar while the drone is shot down. */
+    /** The tile that does what Ctrl+A does, for a player who doesn't know Ctrl+A. */
+    selectAll: string;
+    /** The Drone section's status line while the drone is shot down (see DronePanel). */
     droneDown: string;
   };
   programming: {
@@ -118,7 +104,6 @@ export interface Dict {
     enemyUnit: string;
     robotsSelected: string;
     weapon: string;
-    health: string;
     baseSelected: string;
     baseProgram: string;
     rallyPoint: string;
@@ -134,6 +119,14 @@ export interface Dict {
     attackTarget: string;
     overwatch: string;
     none: string;
+    /** Opening line of the directives reference modal. */
+    intro: string;
+    /** What each assignable directive makes a unit do — listed in that modal. */
+    guardNote: string;
+    attackBaseNote: string;
+    attackRobotsNote: string;
+    scoutNote: string;
+    overwatchNote: string;
   };
   chassis: {
     tracks: string;
@@ -172,6 +165,8 @@ export interface Dict {
     volume: string;
     /** The HUD/menu button that opens the sound settings. */
     soundSettings: string;
+    /** The Directives card's header button, which opens the directives reference. */
+    directivesHelp: string;
   };
   /**
    * Sound settings — one dialog, reachable from the HUD and from the title
