@@ -1,5 +1,15 @@
 import type { T } from '../../i18n';
 import { TaskType } from '@drone-directive/types/enums';
+import {
+  CastleIcon,
+  CrosshairIcon,
+  EyeIcon,
+  type LucideIcon,
+  PauseIcon,
+  RadarIcon,
+  ShieldIcon,
+  SwordsIcon,
+} from '../common/icons';
 
 /** Programs a player can actively assign to a live unit (Idle is engine-internal). */
 export const ASSIGNABLE_TASKS: TaskType[] = [
@@ -21,6 +31,41 @@ export function taskLabels(t: T): Record<TaskType, string> {
     [TaskType.AttackTarget]: t('programs', 'attackTarget'),
     [TaskType.Overwatch]: t('programs', 'overwatch'),
   };
+}
+
+/**
+ * Glyph for every program id. Only `ASSIGNABLE_TASKS` are ever drawn, but the map
+ * is total so adding a TaskType can't silently leave a tile without an icon.
+ */
+export const TASK_ICONS: Record<TaskType, LucideIcon> = {
+  [TaskType.Idle]: PauseIcon,
+  [TaskType.Guard]: ShieldIcon,
+  [TaskType.AttackBase]: CastleIcon,
+  [TaskType.AttackRobots]: SwordsIcon,
+  [TaskType.Scout]: RadarIcon,
+  [TaskType.AttackTarget]: CrosshairIcon,
+  [TaskType.Overwatch]: EyeIcon,
+};
+
+/**
+ * Dictionary key describing what each assignable directive actually makes a unit
+ * do — see `config/programs.ts` for the behaviour these summarise. Partial by
+ * design: `Idle` and `AttackTarget` are reached by gesture, never offered as a
+ * choice, so there is nothing to hover over.
+ */
+const TASK_NOTES: Partial<Record<TaskType, 'guardNote' | 'attackBaseNote' | 'attackRobotsNote' | 'scoutNote' | 'overwatchNote'>> =
+  {
+    [TaskType.Guard]: 'guardNote',
+    [TaskType.AttackBase]: 'attackBaseNote',
+    [TaskType.AttackRobots]: 'attackRobotsNote',
+    [TaskType.Scout]: 'scoutNote',
+    [TaskType.Overwatch]: 'overwatchNote',
+  };
+
+/** Tooltip for a directive tile, or undefined for a program the player can't pick. */
+export function taskHint(task: TaskType, t: T): string | undefined {
+  const key = TASK_NOTES[task];
+  return key ? t('programs', key) : undefined;
 }
 
 /** Build/setup options: the assignable programs plus a "None" (null) choice. */

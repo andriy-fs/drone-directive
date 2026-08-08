@@ -3,7 +3,6 @@ import type { Dict } from '../dict';
 export const pl: Dict = {
   mainMenu: {
     title: 'Drone Directive',
-    intro: 'Buduj roboty, wydawaj im dyrektywy i zostań ostatnią stojącą bazą.',
     difficulty: 'Poziom trudności',
     opponents: 'Przeciwnicy',
     opponentsHint: 'Każdy walczy z każdym',
@@ -50,27 +49,13 @@ export const pl: Dict = {
   },
   hud: {
     title: 'Drone Directive',
-    statusPrefix: 'Status',
     command: 'Dowodzenie',
-    bases: 'Bazy',
     units: 'Jednostki',
-    directive: 'Dyrektywa',
+    directive: 'Dyrektywy',
     drone: 'Dron',
-    player: 'Gracz',
-    ai: 'SI',
-    ai1: 'SI 1',
-    ai2: 'SI 2',
-    ai3: 'SI 3',
-    opponent: 'Przeciwnik',
     piloting: 'Sterowanie robotem',
     observing: 'Obserwacja',
-    hint: 'Przeciągnij, aby zaznaczyć · kliknij robota, aby wybrać · Shift+klik/przeciągnięcie, aby dodać · Ctrl+A zaznacza wszystkie · PPM, aby się poruszyć · WASD/strzałki sterują dronem · F ląduje/startuje · E strzela/detonuje · Esc/Spacja pauzuje.',
     paused: 'Pauza',
-    ownerNeutral: 'neutralny',
-    statusMenu: 'menu',
-    statusPlaying: 'gra',
-    statusWon: 'wygrana',
-    statusLost: 'przegrana',
   },
   gameOver: {
     victory: 'Zwycięstwo',
@@ -108,8 +93,8 @@ export const pl: Dict = {
     idle: 'Kolejka pusta',
     auto: 'Auto',
     stop: 'Stop',
-    buildProgram: 'Budowa i dyrektywa',
-    drone: 'Dron obserwacyjny',
+    buildProgram: 'Budowa',
+    selectAll: 'Zaznacz wszystkie',
     droneDown: 'Dron zestrzelony · odbudowa',
   },
   programming: {
@@ -117,7 +102,6 @@ export const pl: Dict = {
     enemyUnit: 'Jednostka wroga — nie można wydać dyrektywy.',
     robotsSelected: 'robotów zaznaczonych',
     weapon: 'Broń',
-    health: 'Zdrowie',
     baseSelected: 'Baza',
     baseProgram: 'Nowe jednostki',
     rallyPoint: 'Punkt zbiórki',
@@ -134,6 +118,17 @@ export const pl: Dict = {
     attackTarget: 'Atak celu',
     overwatch: 'Osłona',
     none: 'Brak',
+    intro: 'Dyrektywa to stały rozkaz: jednostka wykonuje go samodzielnie, dopóki nie przydzielisz innego.',
+    guardNote:
+      'Utrzymuje miejsce, w którym otrzymał rozkaz, patrolując wokół niego. Pod ostrzałem unika i odpowiada ogniem, ale nie podejmuje pościgu.',
+    attackBaseNote:
+      'Naciera na najbliższą znaną drużynie bazę wroga, rozprawiając się z robotami po drodze. Dopóki bazy nie odnaleziono — przeszukuje mapę.',
+    attackRobotsNote:
+      'Poluje na wszystkie wykryte przez drużynę roboty wroga, potem przechodzi na ich bazę. Dopóki nic nie jest znane — przeszukuje mapę.',
+    scoutNote:
+      'Przemierza mapę i odsłania ją dla całej drużyny. Walczy tylko z tym, co samo wejdzie w zasięg — jego zadaniem jest znaleźć wroga, nie ścigać.',
+    overwatchNote:
+      'Trzyma się za nacierającą grupą albo blisko własnej bazy. Wycofuje się, gdy tylko oberwie — rola dla jednostek bez broni.',
   },
   chassis: {
     tracks: 'Gąsienice',
@@ -172,6 +167,7 @@ export const pl: Dict = {
     mute: 'Wycisz',
     volume: 'Głośność dźwięku',
     soundSettings: 'Ustawienia dźwięku',
+    directivesHelp: 'O dyrektywach',
   },
   sound: {
     title: 'Dźwięk',

@@ -1,6 +1,6 @@
 .app-shell {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 300px 1fr;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
@@ -157,12 +157,6 @@
   text-transform: capitalize;
 }
 
-.hud__hint {
-  margin: auto 0 0;
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
 .hud__section {
   border-top: 1px solid var(--panel-border);
   padding-top: 12px;
@@ -176,13 +170,63 @@
   margin: 0 0 8px;
 }
 
-.hud__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* The card chrome the sidebar is moving onto, section by section — see HudCard.
+   It sits a shade above the sidebar so the panel reads as a raised surface. */
+.hud-card {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: #141924;
+}
+
+.hud-card__header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--panel-border);
+  color: var(--text-dim);
+}
+
+.hud-card__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Pinned right, whatever the title's length. */
+.hud-card__action {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+/* Sized against the 11px header rather than the sidebar's other icon buttons —
+   `.sound-toggle`'s 34px would tower over the caption beside it. */
+.hud-card__help {
+  min-width: 0;
+  padding: 2px 4px;
+  border-color: transparent;
+  background: none;
+  color: var(--text-dim);
+}
+
+.hud-card__help:hover {
+  border-color: transparent;
+  background: none;
+  color: var(--text-h);
+}
+
+.hud-card__body {
+  padding: 10px;
+}
+
+/* Reserve the tallest state's height (five directive tiles). The selection changes
+   with every click on the map, and without this the card — and everything under it
+   — would resize under the cursor each time. */
+.hud-card--directives .hud-card__body {
+  min-height: 232px;
 }
 
 .hud__row {
@@ -203,73 +247,26 @@
   color: var(--text-dim);
 }
 
-.hud__build {
-  margin-left: auto;
-  font-size: 12px;
-  color: #f59e0b;
-}
-
-.hud__build + .hud__row-value {
-  margin-left: 10px;
-}
-
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  flex: none;
-}
-
-.dot--player {
-  background: #3b82f6;
-}
-
-/* Opposing sides, in seating order — must match `palette.opponents`. */
-.dot--foe1 {
-  background: #ef4444;
-}
-
-.dot--foe2 {
-  background: #f59e0b;
-}
-
-.dot--foe3 {
-  background: #a855f7;
-}
-
-.dot--neutral {
-  background: #9ca3af;
-}
-
-/* A side that has been knocked out: its row stays for the tally, but greys out. */
-.hud__row--out {
-  opacity: 0.45;
-}
-
-.hud__selected {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  text-transform: capitalize;
-}
-
 .hud__muted {
   margin: 0;
   font-size: 14px;
   color: var(--text-dim);
 }
 
-.hud__task {
-  color: var(--text-h);
-  font-family: var(--mono);
-  text-transform: none;
-}
-
 .programming {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* The panel's last slot: two stat rows for a base, one for a robot, a muted line
+   when there is nothing selected — and the height of the tallest of those always,
+   so switching between them never shifts the sidebar below. */
+.programming__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 48px;
 }
 
 /* Single-unit stat rows (weapon / health) */
@@ -291,17 +288,38 @@
   text-transform: capitalize;
 }
 
-.task-picker {
+/* Selection readout: what is selected on the left, its pooled health on the right. */
+.selection-head {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-/* Directive chips stack vertically here, so opt out of the horizontal picker's
-   equal-width growth (`.chip { flex: 1 }`) — it would stretch them by height. */
-.task-picker .chip {
-  flex: none;
+/* Both halves share one line in a 300px column, and both can grow: the title with
+   translation ("0 ROBOTS SELECTED" → "0 РОБОТОВ ВЫДЕЛЕНО"), the readout with the
+   size of the selection ("2400 / 3000 HP"). The numbers are the part that must
+   stay whole, so the title is the one that gives way. */
+.selection-head__title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-h);
 }
+
+.selection-head__hp {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 
 .btn {
   display: inline-flex;
@@ -354,8 +372,14 @@
   opacity: 0.45;
 }
 
-/* Drone shot down: the label reads as an alert, not as ordinary status. */
-.build-progress--down .hud__muted {
+.drone-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Drone shot down: the status line reads as an alert, not as ordinary status. */
+.drone-panel--down .hud__status {
   color: #f87171;
 }
 
@@ -378,6 +402,7 @@
 }
 
 .bar {
+  position: relative;
   height: 6px;
   background: #0b0e13;
   border-radius: 3px;
@@ -388,6 +413,27 @@
   height: 100%;
   background: #22c55e;
   transition: width 0.1s linear;
+}
+
+/* The selection's health, read at a glance rather than measured: a taller bar cut
+   into pips by an overlay, so the fill underneath needs no extra markup. */
+.bar--segments {
+  height: 10px;
+  border-radius: 4px;
+}
+
+/* No selection to report on. Drawn full rather than empty, in a grey that reads as
+   "this control has no subject" instead of "your units are dead". */
+.bar--idle .bar__fill {
+  background: #39414f;
+}
+
+.bar--segments::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 9px, var(--panel-bg) 9px 12px);
+  pointer-events: none;
 }
 
 /* Chassis / weapon pickers */
@@ -432,6 +478,54 @@
   background: #2b3650;
   border-color: #3b82f6;
   color: var(--text-h);
+}
+
+/* The sidebar's icon tiles — the directive grid, and the Command section's two
+   actions, which are the same control in a different place. After `.btn` on
+   purpose: same specificity, so these overrides only land by coming later. */
+.tile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.tile {
+  /* `.btn` lays its content out in a row; a tile stacks icon over label. The
+     fixed height is what keeps a two-line label — most of them, once translated
+     — from making its row taller than the one beside it. */
+  flex-direction: column;
+  gap: 6px;
+  min-height: 74px;
+  padding: 10px 6px;
+  background: #161b26;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* Odd tile out: it takes the whole row rather than leaving a hole beside it, and
+   with the width to spare its icon moves alongside the label. */
+.tile--wide {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  gap: 8px;
+  min-height: 0;
+  padding: 8px 10px;
+}
+
+/* Doubled with `:hover` so the active tile keeps its blue under the cursor —
+   `.btn:hover` outranks a lone `.tile--on` and would repaint it grey. */
+.tile--on,
+.tile--on:hover {
+  background: #16233a;
+  border-color: #3b82f6;
+  color: var(--text-h);
+  box-shadow: 0 0 10px rgb(59 130 246 / 18%);
+}
+
+.tile--on .tile__icon {
+  color: #3b82f6;
 }
 
 .modal__buttons {
@@ -647,6 +741,27 @@
 .unit-guide__heading {
   display: block;
   margin: 4px 0 2px;
+}
+
+/* Directives reference: the same tile icon beside its name and description, so
+   the modal and the grid are recognisably the same five things. */
+.directive-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.directive-guide__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.directive-guide__icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-dim);
 }
 
 /* ---------------------------------------------------------------------------

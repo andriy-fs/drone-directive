@@ -81,7 +81,6 @@ export function MainMenu() {
       <div className="dialog-frame dialog-frame--menu">
         <div className="modal menu">
           <h1 className="menu__title">{t('mainMenu', 'title')}</h1>
-          <p className="modal__body menu__intro">{t('mainMenu', 'intro')}</p>
 
           <PickerGroup label={t('mainMenu', 'language')}>
             <ChipPicker options={LANGUAGE_OPTIONS} value={locale} onChange={setLocale} />
