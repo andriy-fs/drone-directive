@@ -1,5 +1,5 @@
 import { gameConfig } from '../../config/gameConfig';
-import { Controller, type Owner } from '@drone-directive/types/enums';
+import type { Owner } from '@drone-directive/types/enums';
 import { spawnDrone } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { ownBase } from './targeting';
@@ -16,14 +16,12 @@ import { ownBase } from './targeting';
  * stays generic and a mid-match reload of state can't leave a stale timer.
  * Runs right after `reapSystem` so the drone destroyed this tick is already gone.
  *
- * Only human sides fly one (bots never had a drone), and a side whose base has
- * fallen builds nothing — it is out of the match anyway.
+ * Every side rebuilds on the same clock, bots included — a bot's eye is shot
+ * down by the same anti-air fire and costs it the same blind stretch. A side
+ * whose base has fallen builds nothing: it is out of the match anyway.
  */
 export function droneRespawnSystem(ctx: GameContext, dt: number): void {
-  for (const side of ctx.roster) {
-    if (side.controller !== Controller.Human) continue;
-    step(ctx, side.owner, dt);
-  }
+  for (const side of ctx.roster) step(ctx, side.owner, dt);
 }
 
 function step(ctx: GameContext, owner: Owner, dt: number): void {

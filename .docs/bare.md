@@ -109,6 +109,9 @@ from.
   position that survives the wire with less precision than it had is a desync a
   few ticks later. There is a test for it.
 - **`u32`/`u8`, not `uint`/`u64`** — the latter generate `bigint`.
+- **A union's member order _is_ its tag numbering.** Append a new variant last, or
+  every existing one silently renumbers. The version bump makes that harmless
+  either way, but a packet dump is much easier to read when the tags hold still.
 - Editing the schema is four steps: edit → `npm run codegen -w protocol` →
   **commit** the output → bump `PROTOCOL_VERSION`. Nothing in CI does it for you.
 

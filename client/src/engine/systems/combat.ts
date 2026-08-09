@@ -5,12 +5,13 @@ import { spawnEmpBurst, spawnExplosion, spawnProjectile } from '../ecs/factory';
 import type { Entity, WeaponComp } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
+import { absorbShieldDamage, isShielded } from './shield';
 import { applyDisable, blockRegen, isDisabled } from './status';
 import { findById, isEnemy, isTargetableDrone } from './targeting';
 
 /**
  * Firing + projectile flight/collision. Runs after movement so shots use
- * post-movement positions. A robot fires at its current `targetId` (set by the
+ * post-movement positions. A shooter fires at its current `targetId` (set by the
  * behaviour resolver) whenever it is in range, in line of sight, and off
  * cooldown — independent of movement, so it can fire while dodging or advancing.
  * Mountains block line of fire and absorb projectiles; craters do not (hence
@@ -22,36 +23,47 @@ import { findById, isEnemy, isTargetableDrone } from './targeting';
  * robot it hits out for `freezeDuration` seconds instead (see `canEngage`).
  * Observer drones are hit only by a deliberate surface-to-air shot — see
  * `hitsAimedDrone`.
+ *
+ * **Two passes, one rule.** Bases carry a built-in battery
+ * (`gameConfig.bases.weapon`) and go through the very same `fireWeapon` as a
+ * robot — a second query rather than a second mechanism, because the archetype
+ * tag is the only thing that differs. Everything in there stays duck-typed off
+ * the weapon stats, so nothing has to know which kind of thing pulled the
+ * trigger.
  */
 export function combatSystem(ctx: GameContext, dt: number): void {
-  const world = ctx.world;
-
-  for (const e of [...world.with('robot', 'position', 'weapon')]) {
-    const w = e.weapon!;
-    // Knocked out: no fire, and no reloading either — the whole hull is dead
-    // weight until it recovers, so the cooldown must not tick down here.
-    if (isDisabled(e)) continue;
-    if (w.cooldownLeft > 0) w.cooldownLeft -= dt;
-    if ((e.hp ?? 0) <= 0) continue; // already caught in another bomb's blast this tick
-    if (!canEngage(w) || w.cooldownLeft > 0) continue;
-
-    const target = currentTarget(ctx, e);
-    if (!target?.position) continue;
-    const pos = e.position!;
-    if (distance(pos.x, pos.y, target.position.x, target.position.y) > w.range) continue;
-    if (!hasLineOfSight(ctx.sightBlockers, pos, target.position)) continue;
-
-    if (w.explosionRadius > 0) {
-      detonateBomb(ctx, e); // kamikaze: AOE blast + self-destruct, no projectile
-      continue;
-    }
-
-    spawnProjectile(world, e.owner!, pos, target.position, target.id, w.damage, e.id, e.weaponType!);
-    w.cooldownLeft = w.cooldown;
-    ctx.bus.emit('projectileFired', { owner: e.owner!, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType! });
-  }
+  for (const e of [...ctx.world.with('robot', 'position', 'weapon')]) fireWeapon(ctx, e, dt);
+  for (const e of [...ctx.world.with('base', 'position', 'weapon')]) fireWeapon(ctx, e, dt);
 
   stepProjectiles(ctx, dt);
+}
+
+/** One shooter's turn: reload, then fire at `targetId` if it is reachable. */
+function fireWeapon(ctx: GameContext, e: Entity, dt: number): void {
+  const world = ctx.world;
+  const w = e.weapon!;
+  // Knocked out: no fire, and no reloading either — the whole hull is dead
+  // weight until it recovers, so the cooldown must not tick down here. (Always
+  // false for a base: a directed-energy round has no crew to knock out.)
+  if (isDisabled(e)) return;
+  if (w.cooldownLeft > 0) w.cooldownLeft -= dt;
+  if ((e.hp ?? 0) <= 0) return; // already caught in another bomb's blast this tick
+  if (!canEngage(w) || w.cooldownLeft > 0) return;
+
+  const target = currentTarget(ctx, e);
+  if (!target?.position) return;
+  const pos = e.position!;
+  if (distance(pos.x, pos.y, target.position.x, target.position.y) > w.range) return;
+  if (!hasLineOfSight(ctx.sightBlockers, pos, target.position)) return;
+
+  if (w.explosionRadius > 0) {
+    detonateBomb(ctx, e); // kamikaze: AOE blast + self-destruct, no projectile
+    return;
+  }
+
+  spawnProjectile(world, e.owner!, pos, target.position, target.id, w.damage, e.id, e.weaponType!);
+  w.cooldownLeft = w.cooldown;
+  ctx.bus.emit('projectileFired', { owner: e.owner!, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType! });
 }
 
 /**
@@ -75,7 +87,18 @@ export function canEngage(w: WeaponComp): boolean {
  * here: nobody attacked it, and a corpse has nothing left to lock.
  */
 export function applyDamage(e: Entity, amount: number, sourceId?: string): void {
-  e.hp = (e.hp ?? 0) - amount;
+  // A base's energy dome is armor, not a wall: whatever route the damage took to
+  // get here — a round on the footprint, a kamikaze that drove underneath — the
+  // dome eats it first. Doing it in this one place rather than in each collision
+  // test is what makes that a single unconditional rule; entities with no dome
+  // get their `amount` back untouched, so nothing else has to know.
+  const spill = absorbShieldDamage(e, amount);
+  // Swallowed whole: the building was never touched, so its passive repair must
+  // not be suspended either. A dome that stopped the base mending would cost the
+  // defender hp on top of their single charge.
+  if (spill <= 0) return;
+
+  e.hp = (e.hp ?? 0) - spill;
   if (e.robot) {
     if (!e.threat) e.threat = { underFireLeft: 0 };
     e.threat.attackerId = sourceId;
@@ -110,10 +133,10 @@ export function detonateBomb(ctx: GameContext, bomb: Entity): void {
   bomb.hp = 0;
 }
 
-function currentTarget(ctx: GameContext, robot: Entity): Entity | undefined {
-  if (!robot.targetId) return undefined;
-  const t = findById(ctx, robot.targetId);
-  if (t && (t.hp ?? 0) > 0 && isEnemy(robot.owner, t.owner)) return t;
+function currentTarget(ctx: GameContext, shooter: Entity): Entity | undefined {
+  if (!shooter.targetId) return undefined;
+  const t = findById(ctx, shooter.targetId);
+  if (t && (t.hp ?? 0) > 0 && isEnemy(shooter.owner, t.owner)) return t;
   return undefined;
 }
 
@@ -124,6 +147,30 @@ function distanceToBase(p: Vec2, base: Entity): number {
   const cx = Math.max(bp.x - half, Math.min(p.x, bp.x + half));
   const cy = Math.max(bp.y - half, Math.min(p.y, bp.y + half));
   return distance(p.x, p.y, cx, cy);
+}
+
+/** Distance from `p` to a base's footprint *centre* — the energy dome is a circle, not the AABB. */
+function distanceToBaseCentre(p: Vec2, base: Entity): number {
+  const bp = base.position!;
+  return distance(p.x, p.y, bp.x, bp.y);
+}
+
+/**
+ * Whether a round dies on `base`'s energy dome instead of reaching the roof.
+ *
+ * Gated on what the round was *aimed at*, the same rule (and the same reason) as
+ * `hitsAimedDrone`: a blanket radius test would swallow every shot fired at a
+ * robot standing under the dome, turning it into a bubble of cover, which is
+ * exactly what it is not. Note this decides only *where the round is seen to
+ * stop* — the absorption itself is `applyDamage`'s job, so a stray shot that
+ * reaches the footprint still lands on the dome either way.
+ */
+function hitsDome(p: Entity, pos: Vec2, base: Entity): boolean {
+  return (
+    isShielded(base) &&
+    p.targetId === base.id &&
+    distanceToBaseCentre(pos, base) <= gameConfig.bases.shield.radius
+  );
 }
 
 function hitsBase(p: Vec2, base: Entity): boolean {
@@ -202,6 +249,14 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     if (!hit && (p.damage ?? 0) > 0) {
       for (const b of world.with('base', 'position')) {
         if ((b.hp ?? 0) <= 0 || !isEnemy(p.owner, b.owner)) continue;
+        // Ahead of `hitsBase`, and while a dome stands it is the only branch a
+        // round aimed at that base can take: the dome (112) reaches well past
+        // the footprint (48), so the roof is simply out of reach.
+        if (hitsDome(p, pos, b)) {
+          applyDamage(b, p.damage ?? 0, p.sourceId);
+          hit = true;
+          break;
+        }
         if (hitsBase(pos, b)) {
           applyDamage(b, p.damage ?? 0, p.sourceId);
           hit = true;

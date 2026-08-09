@@ -1,4 +1,4 @@
-import { Owner, type MapSize } from '@drone-directive/types/enums';
+import { Owner, WeaponType, type MapSize } from '@drone-directive/types/enums';
 import type { Rng } from '../utils/rng';
 
 /** Where one side's base starts; `tx`/`ty` is its top-left tile. */
@@ -58,12 +58,57 @@ export const gameConfig = {
     /** Detection radius (px): a base's own "radar" — enemies within this become known. */
     sightRange: 260,
     /**
+     * Built-in missile battery: one launcher, statted exactly like a robot's
+     * `missiles` (see `robots.weapons`). Range is measured from the footprint
+     * centre — so is a robot's shot at the base — which keeps the duel even
+     * rather than handing the building a free stand-off advantage. There is
+     * deliberately no second barrel: a cannon on top would make storming a base
+     * unrealistic, and the battery exists to answer the observer drone, which
+     * nothing else on a base could touch.
+     */
+    weapon: WeaponType.Missiles,
+    /**
      * Passive repair, hp/second — 1 hp every 2.5 s, twice the robot rate (a base
      * has crews and spare parts on site). At 600 hp a full rebuild still takes
      * ~25 minutes, so it rewards surviving a raid rather than tanking one.
      * Suspended for `combat.regenDelay` after every hit — see `systems/regen.ts`.
      */
     regenPerSecond: 0.4,
+    /**
+     * "Last hope": one energy dome per base per match, and the only thing in the
+     * game that answers a full assault. It is **armor, not a wall** — nothing
+     * about pathing, line of sight or collision changes; every point of damage
+     * aimed at the *building* comes off the dome first, from any source and any
+     * position, and the overkill on the hit that breaks it spills through. See
+     * `systems/shield.ts`.
+     *
+     * The numbers, against a 15 dps chassis: a raid of four is denied outright,
+     * seven crack the dome at ~12 s (base survives 17.5 s instead of 5.7 s),
+     * twelve still break through in 6 s. A kamikaze stays the most efficient way
+     * to push it over (300 for 90 resources) — it just stops being a way *past*
+     * it.
+     */
+    shield: {
+      /**
+       * Dome radius (px) from the footprint centre. 112 = half the footprint
+       * (48) plus `production.spawnOffsetTiles * grid.tilePx` (64) — deliberately
+       * the very ring newly built robots appear on, so the dome visibly covers
+       * the factory door instead of cutting it in half.
+       */
+      radius: 112,
+      /** Seconds the dome stands before powering down on its own. */
+      duration: 20,
+      /** Dome strength: damage aimed at the base comes off this until it runs out. */
+      hp: 1000,
+      /**
+       * Dome self-repair, hp/second. Runs only while the dome is up and — unlike
+       * the base's own `regenPerSecond` — is never suspended by a hit: a shield
+       * that stopped mending under fire would be a shield that only works out of
+       * combat. This is the knob that sets how many attackers the dome shrugs
+       * off entirely (20 hp/s ≈ 1.3 chassis).
+       */
+      regenPerSecond: 20,
+    },
   },
 
   /** Observer drone: the player's flying "eye" (see systems/drone.ts). */
@@ -265,6 +310,14 @@ export const gameConfig = {
      */
     empBurstDuration: 0.35,
     empBurstMaxRadius: 34,
+    /**
+     * The two ways a base's energy dome can end, and they must never read alike:
+     * the player has to know whether it was beaten down or simply ran out.
+     * Shattered is short and hard (with shards); powering down is longer and
+     * softer (a contracting ring, no shards) — see `pixi/render/ExplosionView.ts`.
+     */
+    shieldBreakDuration: 0.5,
+    shieldExpireDuration: 0.9,
     /** Click-order marker (move/attack ping) lifetime, seconds. */
     orderMarkerDuration: 0.45,
     /** Radius (px) the order marker's ring starts at before collapsing onto the point. */
@@ -344,6 +397,13 @@ export const gameConfig = {
     threatRange: 220,
     /** Enemy robots within `threatRange` at once, at/above which the AI recalls its whole force (including active attackers) to defend, not just home-based units. */
     massRushThreshold: 5,
+    /**
+     * Base hp fraction below which a bot spends its one energy dome (the other
+     * trigger is a rush of `massRushThreshold` known enemies inside
+     * `threatRange`). Bot *policy*, so it lives here rather than in
+     * `bases.shield`, which holds the dome's own stats — see `systems/ai.ts`.
+     */
+    shieldHpThreshold: 0.45,
     /** Minimum other known enemy robots huddled within the bomb's blast radius before a kamikaze bothers with a cluster run. */
     kamikazeClusterMin: 2,
     /** Chance a freshly-idle kamikaze picks a big enough cluster over rushing the base outright. */
@@ -358,6 +418,30 @@ export const gameConfig = {
      * by the rest — it is only worth anything as an escorted support unit.
      */
     dewEscortMin: 2,
+
+    /**
+     * Bot observer-drone pilot (`systems/aiDrone.ts`). The bot flies the same
+     * drone the player does — it just never lands on a robot and never fires.
+     *
+     * `droneDangerRange`: an enemy surface-to-air robot or an enemy base this
+     * close (px) makes it break contact. Comfortably above the 170 px both of
+     * them reach, because a drone that starts running at the edge of the
+     * envelope is already inside it by the time it turns around.
+     */
+    droneDangerRange: 230,
+    /** How far (px) ahead of its own advancing group's centroid the drone scouts. */
+    droneScoutLead: 200,
+    /**
+     * Below this fraction of hp the drone stops scouting and pickets its own
+     * base instead. Drones do not repair (`systems/regen.ts` excludes them by
+     * construction), so a damaged one is spent goods: holding it back as early
+     * warning is worth more than trading it for one more sweep.
+     */
+    droneCautiousHp: 0.34,
+    /** Radius (px) around its own base the drone patrols in that cautious mode. */
+    dronePicketRadius: 300,
+    /** Within this distance (px) of its sweep waypoint, the drone picks the next one. */
+    droneWaypointRadius: 90,
   },
 
   /** HUD snapshot throttle: push roster/HP to the store every N sim ticks. */

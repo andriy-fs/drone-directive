@@ -24,6 +24,7 @@ import {
   Crosshair as LucideCrosshair,
   Factory as LucideFactory,
   SquareDashedMousePointer as LucideSquareDashedMousePointer,
+  Hexagon as LucideHexagon,
   Globe as LucideGlobe,
   User as LucideUser,
   Users as LucideUsers,
@@ -68,9 +69,13 @@ export const RadarIcon = LucideRadar;
 export const EyeIcon = LucideEye;
 export const CrosshairIcon = LucideCrosshair;
 
-/* The Command section's two action tiles. */
+/* The Command section's three action tiles. The dome deliberately does NOT take
+   ShieldIcon/ShieldCheckIcon — both already stand for a directive one card below,
+   and the same glyph must not mean two things in one sidebar. A hexagon reads as
+   a force field and is spoken for by nothing. */
 export const FactoryIcon = LucideFactory;
 export const SelectAllIcon = LucideSquareDashedMousePointer;
+export const DomeIcon = LucideHexagon;
 
 /* The title screen: the global settings bar, then one per navigation entry. */
 export const GlobeIcon = LucideGlobe;

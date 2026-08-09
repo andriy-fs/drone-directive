@@ -658,3 +658,85 @@ describe('aiSystem — directed-energy escort discipline', () => {
     expect(grouping[0].weaponType).toBe(WeaponType.Cannon);
   });
 });
+
+describe('aiSystem — the energy dome', () => {
+  /** A bot base with an empty bank, so nothing here trips the production path. */
+  function botBase(ctx: ReturnType<typeof makeCtx>) {
+    ctx.resources.ai = 0;
+    return spawnBase(ctx.world, Owner.AI, 33, 4);
+  }
+
+  /** `count` player robots inside the bot's `threatRange`, spotted or not. */
+  function raiders(ctx: ReturnType<typeof makeCtx>, base: ReturnType<typeof spawnBase>, count: number) {
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      out.push(
+        spawnRobot(
+          ctx.world,
+          Owner.Player,
+          { x: base.position!.x + 60 + i, y: base.position!.y + 60 },
+          ChassisType.Tracks,
+          WeaponType.Cannon,
+        ),
+      );
+    }
+    return out;
+  }
+
+  /** Marks `robots` as spotted by the bot, which `visionSystem` would normally do. */
+  function spotted(ctx: ReturnType<typeof makeCtx>, robots: { id: string }[]) {
+    ctx.intel[Owner.AI].visibleRobotIds = new Set(robots.map((r) => r.id));
+  }
+
+  it('raises it once the base is chewed below the hp threshold', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    base.hp = base.maxHp! * gameConfig.ai.shieldHpThreshold - 1;
+
+    aiSystem(ctx, 0);
+
+    expect(base.shield).toBeDefined();
+  });
+
+  it('raises it for a rush it can actually see', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    spotted(ctx, raiders(ctx, base, gameConfig.ai.massRushThreshold));
+
+    aiSystem(ctx, 0);
+
+    expect(base.shield).toBeDefined();
+  });
+
+  it('does not raise it for a rush it has not spotted — the bot pays for scouting too', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    raiders(ctx, base, gameConfig.ai.massRushThreshold); // present, unseen
+
+    aiSystem(ctx, 0);
+
+    expect(base.shield).toBeUndefined();
+  });
+
+  it('holds its fire below the rush threshold', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    spotted(ctx, raiders(ctx, base, gameConfig.ai.massRushThreshold - 1));
+
+    aiSystem(ctx, 0);
+
+    expect(base.shield).toBeUndefined();
+  });
+
+  it('never raises a second one', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    base.hp = 1;
+
+    aiSystem(ctx, 0);
+    base.shield!.hp = 10;
+    aiSystem(ctx, 0);
+
+    expect(base.shield!.hp).toBe(10);
+  });
+});

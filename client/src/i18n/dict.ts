@@ -102,6 +102,12 @@ export interface Dict {
     selectAll: string;
     /** The Drone section's status line while the drone is shot down (see DronePanel). */
     droneDown: string;
+    /** The energy-dome tile before the match's single charge has been used. */
+    shield: string;
+    /** Same tile, and the readout above it, while the dome is standing. */
+    shieldUp: string;
+    /** Same tile once the charge is gone: still there, permanently dead. */
+    shieldSpent: string;
   };
   programming: {
     selectUnits: string;
@@ -237,5 +243,7 @@ export interface Dict {
     intro: string;
     chassisHeading: string;
     weaponsHeading: string;
+    baseHeading: string;
+    baseNote: string;
   };
 }

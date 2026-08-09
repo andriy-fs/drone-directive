@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import { worldPixelSize } from '../../config/gameConfig';
+import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { spawnBase, spawnRobot } from '../ecs/factory';
 import { makeGuard } from '../tasks/taskDefinitions';
 import { commandsSystem, isCommandFrom } from './commands';
@@ -132,5 +132,55 @@ describe('isCommandFrom — a side may only command what it owns', () => {
     expect(isCommandFrom(ctx, { kind: 'AssignTask', robotId: 'robot:gone', task: TaskType.Guard }, Owner.Player)).toBe(
       false,
     );
+  });
+});
+
+describe('commandsSystem — ActivateShield', () => {
+  it('raises the dome on an owned base and burns the charge', () => {
+    const ctx = makeCtx();
+    const base = spawnBase(ctx.world, Owner.Player, 2, 2);
+    ctx.commands.push({ kind: 'ActivateShield', baseId: base.id });
+    commandsSystem(ctx);
+    expect(base.shield).toEqual({ hp: gameConfig.bases.shield.hp, left: gameConfig.bases.shield.duration });
+    expect(base.shieldSpent).toBe(true);
+  });
+
+  it('raises it with no enemy in sight at all — the engine does not re-check the HUD gate', () => {
+    // Deliberate, and pinned here so nobody "fixes" it: pre-casting only wastes
+    // the player's own single charge, whereas dropping a panic-button press
+    // would be indistinguishable from the game freezing.
+    const ctx = makeCtx();
+    const base = spawnBase(ctx.world, Owner.Player, 2, 2);
+    expect(ctx.intel[Owner.Player].visibleRobotIds.size).toBe(0);
+    ctx.commands.push({ kind: 'ActivateShield', baseId: base.id });
+    commandsSystem(ctx);
+    expect(base.shield).toBeDefined();
+  });
+
+  it('is a silent no-op the second time, and for a dead or unknown base', () => {
+    const ctx = makeCtx();
+    const base = spawnBase(ctx.world, Owner.Player, 2, 2);
+    ctx.commands.push({ kind: 'ActivateShield', baseId: base.id });
+    commandsSystem(ctx);
+    base.shield!.hp = 10;
+
+    ctx.commands.push({ kind: 'ActivateShield', baseId: base.id });
+    ctx.commands.push({ kind: 'ActivateShield', baseId: 'base:gone' });
+    commandsSystem(ctx);
+    expect(base.shield!.hp).toBe(10);
+
+    const dead = spawnBase(ctx.world, Owner.Player, 10, 10);
+    dead.hp = 0;
+    ctx.commands.push({ kind: 'ActivateShield', baseId: dead.id });
+    commandsSystem(ctx);
+    expect(dead.shield).toBeUndefined();
+  });
+
+  it('belongs to the side that owns the base, like every other base command', () => {
+    const ctx = makeCtx();
+    const mine = spawnBase(ctx.world, Owner.Player, 2, 2);
+    const theirs = spawnBase(ctx.world, Owner.AI, 20, 20);
+    expect(isCommandFrom(ctx, { kind: 'ActivateShield', baseId: mine.id }, Owner.Player)).toBe(true);
+    expect(isCommandFrom(ctx, { kind: 'ActivateShield', baseId: theirs.id }, Owner.Player)).toBe(false);
   });
 });

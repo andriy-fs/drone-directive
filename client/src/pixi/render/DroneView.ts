@@ -2,18 +2,26 @@ import { Container, Graphics, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { Entity } from '../../engine/ecs/entity';
+import { useGameStore } from '../../store/gameStore';
 import { getDroneTexture } from '../assets';
 import { HealthBar } from './HealthBar';
+import { ownerColor } from './ownerColor';
 
 /** Bar width (px) and how far above the drone it floats. */
 const HP_BAR_WIDTH = 22;
 const HP_BAR_OFFSET = 18;
 
 /**
- * View for the player's observer drone: a small diamond marker (so it reads as
- * a flyer, not a ground unit). Lives on the `overlay` layer so it draws above
- * fog and units. `body` rotates with heading; an HP bar appears only once the
- * drone has taken anti-air damage, so an untouched one stays uncluttered.
+ * View for a side's observer drone: a small diamond marker (so it reads as a
+ * flyer, not a ground unit). Lives on the `overlay` layer so it draws above fog
+ * and units. `body` rotates with heading; an HP bar appears only once the drone
+ * has taken anti-air damage, so an untouched one stays uncluttered.
+ *
+ * Every side flies one, and there is only **one** drone art set — unlike robots
+ * and bases, which have two, so `teamTint` leaves those alone in a 1v1. An
+ * untinted enemy drone would therefore look pixel-for-pixel like your own,
+ * which is misinformation rather than a missing polish pass. So the local side
+ * keeps the authored look and every other side is recoloured by `ownerColor`.
  */
 export class DroneView {
   readonly container: Container;
@@ -27,6 +35,9 @@ export class DroneView {
     // for robots in the units layer beneath it.
     this.container.eventMode = 'none';
 
+    // undefined = leave the art exactly as authored (the local side's own eye).
+    const tint = drone.owner === useGameStore.getState().localSide ? undefined : ownerColor(drone.owner);
+
     this.body = new Container();
     const sprite = getDroneTexture();
     if (sprite) {
@@ -37,14 +48,15 @@ export class DroneView {
       img.anchor.set(0.5);
       img.scale.set(target / dim);
       img.rotation = def.rotationOffset ?? 0;
+      if (tint !== undefined) img.tint = tint;
       this.body.addChild(img);
     } else {
       const r = gameConfig.robots.radius * 0.9;
       const g = new Graphics();
       g.poly([0, -r, r, 0, 0, r, -r, 0])
-        .fill({ color: palette.drone.body })
-        .stroke({ width: 2, color: palette.drone.edge });
-      g.circle(0, 0, 2.5).fill(palette.drone.edge);
+        .fill({ color: tint ?? palette.drone.body })
+        .stroke({ width: 2, color: tint ?? palette.drone.edge });
+      g.circle(0, 0, 2.5).fill(tint ?? palette.drone.edge);
       this.body.addChild(g);
     }
     this.container.addChild(this.body);

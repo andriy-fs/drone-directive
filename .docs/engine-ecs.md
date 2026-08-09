@@ -17,6 +17,14 @@ and die via `reapSystem`; robots and the drone both have `position` and
 `heading`), and some behaviours only apply to entities that happen to have
 certain data (only entities with `movement` path through the pathfinder).
 
+The base's built-in missile battery is the cleanest illustration of the payoff.
+Making a *building* shoot cost no new mechanism at all: `spawnBase` grew a
+`weapon` component (the same one `spawnRobot` builds, through a shared
+`weaponComp`), `taskSystem` grew a short pass that writes `targetId` on bases the
+way it already did on robots, and `combatSystem` grew a second query over the
+`base` archetype feeding the *same* `fireWeapon`. No class had to learn that a
+building is now a kind of shooter — it simply has the components a shooter has.
+
 ECS fits this directly:
 
 - **Entities** are just an `id` plus whichever optional components they carry
@@ -30,7 +38,16 @@ position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
   the component is dropped rather than zeroed (see `systems/status.ts`, which
   owns every read and write of it, and decays it in `taskSystem`). `regenLock:
   {left}` — the pause on passive repair after a hit — works the same way, but is
-  carried by bases as well as robots and decays in `regenSystem`.
+  carried by bases as well as robots and decays in `regenSystem`. A base's
+  energy dome, `shield: {hp,left}`, is the same idea taken one step further: it
+  is not merely temporary, it is a **query tag**, so raising and losing it moves
+  the base in and out of `world.with('base','position','shield')` and the Pixi
+  view is created and destroyed by that membership change alone. That is also
+  the one rule about it — miniplex only re-evaluates a query through
+  `world.addComponent`/`world.removeComponent`, so `systems/shield.ts` is the
+  sole owner of both calls, and a direct `base.shield = {...}` would be invisible
+  to every query in the game. Its companion `shieldSpent` is *not* transient: it
+  has to outlive the dome, because there is only one per match.
 - **Systems** are plain functions over the world (`client/src/engine/systems/*.ts`,
   each one `fooSystem(ctx, dt)`), run in a fixed order each tick by
   `GameScene.update` (`client/src/engine/game/scenes/gameScene.ts`). Order encodes
@@ -85,8 +102,9 @@ What's used, and where:
   `clearWorld(world)`).
 - **Reactive queries — `query.onEntityAdded` / `query.onEntityRemoved`** —
   used _outside_ the engine, in the Pixi bridge
-  (`client/src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds five `world.with(...)`
-  queries (bases/robots/projectiles/explosions/drones) and subscribes to their
+  (`client/src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds six `world.with(...)`
+  queries (bases/robots/projectiles/explosions/drones, plus bases whose energy
+  dome is currently up) and subscribes to their
   add/remove events to create/destroy the matching Pixi view object
   (`BaseView`/`RobotView`/etc.) exactly when an entity enters/leaves that
   archetype — so view lifecycle is driven by ECS membership changes rather

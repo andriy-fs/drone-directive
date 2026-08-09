@@ -35,6 +35,17 @@ export const palette = {
     /** Kamikaze blast-radius ring, shown on every bomb-armed robot, both sides. */
     zone: 0xef4444,
   },
+  /**
+   * The one-shot energy dome over a base (`pixi/render/ShieldDomeView.ts`). Only
+   * the *energy* is coloured here — the dome's ring takes `ownerColor`, so yours
+   * reads blue and a rival's red without a second decision.
+   */
+  shield: {
+    /** Inner shimmer and fill: cold and faint enough to tint what is under it, not hide it. */
+    glow: 0x7dd3fc,
+    /** The snap when a round is absorbed — white, so it reads against any owner colour. */
+    hit: 0xffffff,
+  },
   /** Temporary status effects drawn on a robot. */
   status: {
     /** Directed-energy knock-out: the arc over a robot whose electronics are down. */
@@ -66,9 +77,18 @@ export const palette = {
     /** Explored-but-not-currently-visible tiles: dimmed, terrain remembered. */
     dimAlpha: 0.5,
   },
-  /** The player's observer drone marker. */
+  /**
+   * A side's observer drone marker. Every side flies one, so the local drone
+   * keeps these colours and the others are recoloured by owner — see
+   * `pixi/render/DroneView.ts`.
+   */
   drone: {
     body: 0x22d3ee,
     edge: 0x0e7490,
+  },
+  /** The launcher of a base's built-in missile battery, drawn over the body. */
+  turret: {
+    body: 0x9aa4b2,
+    edge: 0x0b0e13,
   },
 } as const;

@@ -59,6 +59,8 @@ export function commandToWire(command: Command): wire.Command {
         baseId: command.baseId,
         point: command.point === null ? null : { x: command.point.x, y: command.point.y },
       };
+    case 'ActivateShield':
+      return { tag: 'ActivateShield', baseId: command.baseId };
   }
 }
 
@@ -86,5 +88,8 @@ export function commandFromWire(command: wire.Command): Command {
         baseId: command.baseId,
         point: command.point === null ? null : { ...command.point },
       };
+    // Nothing to copy: the only field is a string.
+    case 'ActivateShield':
+      return { kind: 'ActivateShield', baseId: command.baseId };
   }
 }

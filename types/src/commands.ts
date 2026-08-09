@@ -21,4 +21,12 @@ export type Command =
    * Idle and Guard units obey it: every other program's own priority takes over
    * on the tick they roll out, so a rally point would never survive it.
    */
-  | { kind: 'SetRallyPoint'; baseId: string; point: Vec2 | null };
+  | { kind: 'SetRallyPoint'; baseId: string; point: Vec2 | null }
+  /**
+   * Raise a base's one-shot energy dome. No payload beyond the base: activation
+   * is free, and the engine deliberately does not re-check the threat condition
+   * the HUD gates the button on. A client that pre-casts only wastes its own
+   * single charge — which punishes itself — whereas silently dropping a
+   * panic-button press would be indistinguishable from the game having frozen.
+   */
+  | { kind: 'ActivateShield'; baseId: string };

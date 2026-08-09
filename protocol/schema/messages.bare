@@ -111,13 +111,23 @@ type SetRallyPoint struct {
     point: optional<Vec2>
 }
 
+# Raise a base's one-shot energy dome. No payload: activation is free, and the
+# engine checks only that the base is alive with its charge unspent.
+type ActivateShield struct {
+    baseId: str
+}
+
+# Union order *is* the tag numbering, so a new command is appended last and the
+# ones already out there keep the tags they had. That is a courtesy to whoever
+# reads a packet dump, not compatibility: PROTOCOL_VERSION is bumped regardless.
 type Command union {
     AssignTask |
     BuildRobot |
     SetAutoBuild |
     MoveRobots |
     AttackTarget |
-    SetRallyPoint
+    SetRallyPoint |
+    ActivateShield
 }
 
 # ---------------------------------------------------------------------------

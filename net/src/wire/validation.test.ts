@@ -32,6 +32,7 @@ const valid: Record<Command['kind'], Command> = {
   MoveRobots: { kind: 'MoveRobots', robotIds: ['robot_1', 'robot_2'], point: inBounds },
   AttackTarget: { kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_2' },
   SetRallyPoint: { kind: 'SetRallyPoint', baseId: 'base_1', point: inBounds },
+  ActivateShield: { kind: 'ActivateShield', baseId: 'base_1' },
 };
 
 const parse = (raw: unknown, over: Partial<CommandLimits> = {}) => parseCommands(raw, 'peer', { ...limits, ...over });
@@ -97,6 +98,17 @@ describe('parseCommands', () => {
     // Exactly at the cap is still a legal order.
     const atCap = { kind: 'MoveRobots', robotIds: tooMany.slice(0, limits.maxRobots), point: inBounds };
     expect(parse([atCap])).toHaveLength(1);
+  });
+
+  it('rejects a shield activation whose base id is empty or oversized', () => {
+    const junk = [
+      { kind: 'ActivateShield', baseId: '' },
+      { kind: 'ActivateShield', baseId: 'b'.repeat(65) },
+      { kind: 'ActivateShield', baseId: 7 },
+      { kind: 'ActivateShield' },
+    ];
+    expect(parse(junk)).toEqual([]);
+    expect(parse([{ kind: 'ActivateShield', baseId: 'b'.repeat(64) }])).toHaveLength(1);
   });
 
   it('rejects move destinations that are not real points on the map', () => {

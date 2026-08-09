@@ -499,6 +499,31 @@ export function writeSetRallyPoint(bc: bare.ByteCursor, x: SetRallyPoint): void 
     write2(bc, x.point)
 }
 
+/**
+ * Raise a base's one-shot energy dome. No payload: activation is free, and the
+ * engine checks only that the base is alive with its charge unspent.
+ */
+export type ActivateShield = {
+    readonly tag: "ActivateShield"
+    readonly baseId: string
+}
+
+export function readActivateShield(bc: bare.ByteCursor): ActivateShield {
+    return {
+        tag: "ActivateShield",
+        baseId: bare.readString(bc),
+    }
+}
+
+export function writeActivateShield(bc: bare.ByteCursor, x: ActivateShield): void {
+    bare.writeString(bc, x.baseId)
+}
+
+/**
+ * Union order *is* the tag numbering, so a new command is appended last and the
+ * ones already out there keep the tags they had. That is a courtesy to whoever
+ * reads a packet dump, not compatibility: PROTOCOL_VERSION is bumped regardless.
+ */
 export type Command =
     | AssignTask
     | BuildRobot
@@ -506,6 +531,7 @@ export type Command =
     | MoveRobots
     | AttackTarget
     | SetRallyPoint
+    | ActivateShield
 
 export function readCommand(bc: bare.ByteCursor): Command {
     const offset = bc.offset
@@ -523,6 +549,8 @@ export function readCommand(bc: bare.ByteCursor): Command {
             return readAttackTarget(bc)
         case 5:
             return readSetRallyPoint(bc)
+        case 6:
+            return readActivateShield(bc)
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -560,6 +588,11 @@ export function writeCommand(bc: bare.ByteCursor, x: Command): void {
         case "SetRallyPoint": {
             bare.writeU8(bc, 5)
             writeSetRallyPoint(bc, x)
+            break
+        }
+        case "ActivateShield": {
+            bare.writeU8(bc, 6)
+            writeActivateShield(bc, x)
             break
         }
     }

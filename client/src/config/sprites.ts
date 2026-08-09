@@ -105,9 +105,10 @@ export const groundSprite: SpriteDef | undefined = {
 };
 
 /**
- * The player's observer drone (single faction). Whole-image art authored facing
- * up → `rotationOffset: Math.PI / 2`. Undefined → the Graphics diamond in
- * `DroneView`. See `.docs/sprites/drone.md`.
+ * The observer drone — **one** art set for every side, unlike the robot and base
+ * sprites. `DroneView` recolours it per owner so an enemy drone can't be mistaken
+ * for your own. Whole-image art authored facing up → `rotationOffset: Math.PI / 2`.
+ * Undefined → the Graphics diamond in `DroneView`. See `.docs/sprites/drone.md`.
  */
 export const droneSprite: SpriteDef | undefined = {
   src: `${PUBLIC_BASE}drone-player.webp`,

@@ -8,6 +8,7 @@ import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileCentre, tileOf } from '../obstacles';
 import { nearestFreeTile, type Tile } from '../pathfinding';
+import { canEngage } from './combat';
 import { clearGoal, setGoal } from './movement';
 import { decayDisabled, isDisabled } from './status';
 import {
@@ -65,6 +66,11 @@ export function isAdvancing(e: Entity): boolean {
  * under-fire window. A knocked-out robot's program simply doesn't run — which is
  * what makes an order issued to it *stick* and take effect the moment it comes
  * back, since nothing here overwrites the script it was given.
+ *
+ * Bases get a second, much smaller pass. They have no `script` and no
+ * `movement`, so they can't run a program — but their built-in battery still
+ * needs a `targetId`, and this is the one place in the engine that hands one
+ * out (`combat.ts` only ever consumes it).
  */
 export function taskSystem(ctx: GameContext, dt: number): void {
   for (const e of ctx.world.with('robot', 'position', 'script', 'movement')) {
@@ -78,6 +84,46 @@ export function taskSystem(ctx: GameContext, dt: number): void {
     }
     runProgram(ctx, e);
   }
+
+  for (const b of ctx.world.with('base', 'position', 'weapon')) {
+    if ((b.hp ?? 0) <= 0) {
+      b.targetId = undefined;
+      continue;
+    }
+    b.targetId = baseTurretTarget(ctx, b);
+    const target = b.targetId ? findById(ctx, b.targetId) : undefined;
+    if (target?.position) {
+      b.heading = Math.atan2(target.position.y - b.position!.y, target.position.x - b.position!.x);
+    }
+  }
+}
+
+/**
+ * What the base's built-in battery points at. **Air first**: the battery exists
+ * precisely because a base could not touch an observer drone, and a ground-first
+ * rule would be defeated by parking one expendable robot inside the radius. The
+ * price of that priority is deliberate and accepted — while a drone is in reach
+ * the battery is busy with it, so a kamikaze gets an easier run at the wall.
+ *
+ * Reads `known*` only, so the building is no more omniscient than a robot: its
+ * 260 px sight comfortably covers the 170 px it shoots, *unless* an enemy `ew`
+ * halves it to 130 — jamming a base's battery blind at the edge of its own range
+ * is emergent counter-play the weapon already earns, not a special case.
+ */
+function baseTurretTarget(ctx: GameContext, base: Entity): string | undefined {
+  const w = base.weapon;
+  if (!w || !canEngage(w)) return undefined;
+
+  const pos = base.position!;
+  const inReach = (e: Entity): boolean =>
+    distance(pos.x, pos.y, e.position!.x, e.position!.y) <= w.range &&
+    hasLineOfSight(ctx.sightBlockers, pos, e.position!);
+
+  if (w.canHitAir) {
+    const drone = nearest(pos, knownEnemyDrones(ctx, base.owner!).filter(inReach));
+    if (drone) return drone.id;
+  }
+  return nearest(pos, knownEnemyRobots(ctx, base.owner!).filter(inReach))?.id;
 }
 
 type MoveIntent = { kind: 'goal'; x: number; y: number } | { kind: 'hold' };
@@ -506,7 +552,7 @@ function overwatchOutcome(ctx: GameContext, e: Entity): Outcome {
 }
 
 /** Centre of mass of a list of positioned entities (assumed non-empty). */
-function centroidOf(list: Entity[]): Vec2 {
+export function centroidOf(list: Entity[]): Vec2 {
   let sx = 0;
   let sy = 0;
   for (const r of list) {

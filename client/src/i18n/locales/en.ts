@@ -98,6 +98,9 @@ export const en: Dict = {
     buildProgram: 'Build',
     selectAll: 'Select all',
     droneDown: 'Drone lost · rebuilding',
+    shield: 'Energy shield',
+    shieldUp: 'Dome up',
+    shieldSpent: 'Shield spent',
   },
   programming: {
     selectUnits: 'Select unit(s) to program.',
@@ -223,5 +226,8 @@ export const en: Dict = {
     intro: 'Robots are assembled from a chassis (mobility) and a weapon (firepower).',
     chassisHeading: 'Chassis',
     weaponsHeading: 'Weapons',
+    baseHeading: 'Base',
+    baseNote:
+      'Built-in missile battery, one launcher: it defends itself. Air targets first — an observer drone in reach is fired on before anything on the ground.',
   },
 };

@@ -22,6 +22,14 @@ import type { EcsWorld } from './ecs/world';
  * to integers would hide a regeneration mismatch for seconds. That fine grain is
  * also why the repair lock itself needs no field of its own here — it is only
  * ever observable through hp, which now diverges on the very next tick.
+ *
+ * A base's energy dome is the exception that proves that rule: it *prevents* hp
+ * from moving, so it is not observable through hp at all and has to be hashed on
+ * both its axes — how much of it is left, and how long it still stands, since
+ * either changes what the next hit does. `shieldSpent` goes in too: peers that
+ * disagree about whether the one charge is gone will disagree about a *second*
+ * dome later, which is precisely the kind of divergence that stays invisible
+ * until it decides a match.
  */
 export function worldHash(world: EcsWorld): number {
   const parts: string[] = [];
@@ -32,7 +40,16 @@ export function worldHash(world: EcsWorld): number {
     const y = e.position ? Math.round(e.position.y * 1000) : 0;
     const off = Math.round((e.disabled?.left ?? 0) * 1000);
     const hp = Math.round((e.hp ?? 0) * 1000);
-    parts.push(`${e.id}:${e.owner ?? '-'}:${x}:${y}:${hp}:${e.script?.programId ?? '-'}:${off}`);
+    // Quantised to 1/1000 for the same reason as hp: the dome mends by 0.667 and
+    // its clock moves by 0.033 per tick, so whole numbers would hide a
+    // divergence for a second or more — long enough for one peer to absorb a
+    // volley the other took on the chin. '-' for no dome, so "none" stays
+    // distinguishable from "at zero".
+    const dome = e.shield ? `${Math.round(e.shield.hp * 1000)}/${Math.round(e.shield.left * 1000)}` : '-';
+    const spent = e.shieldSpent ? '1' : '0';
+    parts.push(
+      `${e.id}:${e.owner ?? '-'}:${x}:${y}:${hp}:${e.script?.programId ?? '-'}:${off}:${dome}:${spent}`,
+    );
   }
   // Entity order comes from the ECS store and should already match, but sorting
   // makes the hash a statement about *contents* rather than iteration order.

@@ -71,6 +71,10 @@ export const EffectKind = {
   Blast: 'blast',
   /** Directed-energy discharge — a `dew` round landing on a hull. */
   Emp: 'emp',
+  /** A base's energy dome collapsing under fire — a hard shatter, with shards. */
+  ShieldBreak: 'shieldBreak',
+  /** The same dome powering down on schedule — a soft contraction, no shards. */
+  ShieldExpire: 'shieldExpire',
 } as const;
 export type EffectKind = (typeof EffectKind)[keyof typeof EffectKind];
 
@@ -112,9 +116,32 @@ export interface RegenLock {
 }
 
 /**
+ * A base's "last hope" energy dome, present **only while the dome is up** — its
+ * presence is the archetype tag, so `world.with('base', 'position', 'shield')`
+ * reads as "domes standing right now" and hands the renderer a view lifecycle
+ * for free (the `Drone` pattern below).
+ *
+ * Being a query tag is also the one rule about it: it must be attached and
+ * detached through `world.addComponent`/`world.removeComponent` and nothing
+ * else, which is why `systems/shield.ts` is the only file allowed to do either.
+ * A plain `base.shield = {...}` compiles and even absorbs damage correctly, but
+ * no query ever sees it — the dome would never tick and never be drawn.
+ */
+export interface Shield {
+  /** Dome strength left. Reaching 0 shatters it (`systems/shield.ts` clears the component). */
+  hp: number;
+  /** Seconds of dome left; decays exactly once per tick in `shieldSystem`. */
+  left: number;
+}
+
+/**
  * Observer-drone component — doubles as the `drone` archetype tag (its presence,
- * an object, is what `world.with('drone', ...)` matches). The player's flying eye:
+ * an object, is what `world.with('drone', ...)` matches). A side's flying eye:
  * flies free of obstacles, and while `possessedId` is set it is steering that robot.
+ *
+ * Every side has one. A human pilots theirs by hand; a bot's is flown by
+ * `systems/aiDrone.ts`, which deliberately never possesses or fires — so a bot's
+ * drone is the one that is *always* exposed.
  *
  * A drone carries `hp` and can be shot down by surface-to-air fire — but only in
  * free flight: while it possesses a robot it rides inside that hull and is
@@ -174,6 +201,14 @@ export interface Entity {
   // Base
   production?: Production;
   footprint?: number;
+  /** Present only while the energy dome is up — see `systems/shield.ts`. */
+  shield?: Shield;
+  /**
+   * The dome's single charge is gone — raised at some point this match, whether
+   * it still stands or fell long ago. Outliving `shield` is the whole reason it
+   * is a second component instead of a field on it.
+   */
+  shieldSpent?: true;
 
   // Projectile
   velocity?: Vec2;

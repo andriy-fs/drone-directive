@@ -41,6 +41,26 @@ export interface RobotSnapshot {
   maxHp: number;
 }
 
+/** HUD-facing view of a base's one-shot energy dome (see `engine/systems/shield.ts`). */
+export interface BaseShieldSnapshot {
+  /** The dome is up right now — flips what the readout and the tile mean. */
+  active: boolean;
+  /** Dome strength and its cap; only meaningful while `active`. */
+  hp: number;
+  maxHp: number;
+  /** Seconds of dome left; 0 when it is not up. */
+  secondsLeft: number;
+  /** The single charge is gone — standing now, or already ended. */
+  spent: boolean;
+  /**
+   * A known enemy robot is inside the base's detection radius: the button's
+   * gate. Always false for a base that isn't the local side's — it is derived
+   * from that side's private intel, and the HUD has no business holding a
+   * rival's.
+   */
+  threatNear: boolean;
+}
+
 /** HUD-facing view of a base. */
 export interface BaseSnapshot {
   id: string;
@@ -55,6 +75,8 @@ export interface BaseSnapshot {
   defaultTask: TaskType | null;
   /** Where newly produced Idle/Guard robots gather, or null = no rally point. */
   rally: Vec2 | null;
+  /** The one-shot energy dome: whether it stands, how much of it is left, and whether it can still be raised. */
+  shield: BaseShieldSnapshot;
 }
 
 /**

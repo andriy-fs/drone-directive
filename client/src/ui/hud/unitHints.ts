@@ -65,6 +65,21 @@ export function weaponNote(weapon: WeaponType, t: T): string {
   }
 }
 
+/**
+ * The base's own line for the units guide: HP, sight, and the built-in battery's
+ * numbers. Built from config rather than written into the dictionaries, so a
+ * balance pass can't leave the reference lying about what the building does.
+ */
+export function baseStats(t: T): string {
+  const { maxHp, sightRange, weapon } = gameConfig.bases;
+  const w = gameConfig.robots.weapons[weapon];
+  return [
+    `${t('chassis', 'statsHp')}: ${maxHp}`,
+    `${t('chassis', 'statsSight')}: ${sightRange}`,
+    `${t('weapons', weapon)} — ${t('weapons', 'statsRange')}: ${w.range} · ${t('weapons', 'statsDamage')}: ${w.damage}`,
+  ].join(' · ');
+}
+
 /** Stats plus the note on one line — the weapon picker's tooltip. */
 export function weaponHint(weapon: WeaponType, t: T): string {
   const note = weaponNote(weapon, t);

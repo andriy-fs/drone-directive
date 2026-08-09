@@ -97,6 +97,9 @@ export const pl: Dict = {
     buildProgram: 'Budowa',
     selectAll: 'Zaznacz wszystkie',
     droneDown: 'Dron zestrzelony · odbudowa',
+    shield: 'Tarcza energetyczna',
+    shieldUp: 'Kopuła aktywna',
+    shieldSpent: 'Tarcza zużyta',
   },
   programming: {
     selectUnits: 'Wybierz jednostkę/i, aby wydać dyrektywę.',
@@ -223,5 +226,8 @@ export const pl: Dict = {
     intro: 'Robot składa się z podwozia (mobilność) i broni (siła ognia).',
     chassisHeading: 'Podwozie',
     weaponsHeading: 'Broń',
+    baseHeading: 'Baza',
+    baseNote:
+      'Wbudowana wyrzutnia rakiet, jedna: baza broni się sama. Priorytet mają cele powietrzne — dron obserwacyjny w zasięgu dostaje ogień przed wszystkim, co jest na ziemi.',
   },
 };

@@ -51,6 +51,9 @@ Paths are relative to `client/public/sounds/`.
 | `shot-cannon` | `sci-fi/laserSmall_000` | 0.24 s | Short: robots fire constantly. |
 | `shot-missile` | `sci-fi/laserLarge_000` | 0.68 s | Heavier and longer than the cannon. |
 | `shot-dew` | `digital/phaserUp3` | 0.52 s | The directed-energy weapon. A rising electrical whine rather than a report — a knock-out shot must be audibly *not* a kill, even off-screen. |
+| `shield-up` | `sci-fi/forceField_000` | 0.95 s | The base's one-shot energy dome coming up. A generator catching and a field settling — the longest cue in the game after the group order, because it is announcing twenty seconds of changed rules. Fires at most once per base per match. |
+| `shield-break` | `sci-fi/lowFrequency_explosion_001` | 1.00 s | That dome beaten to zero. Deliberately **not** a force field and deliberately not `explosion`: it must be unmistakable both from the dome simply timing out and from any unit dying. Deep and collapsing — the loudest of the three, because it is the one that means someone lost something. |
+| `shield-down` | `sci-fi/forceField_002` | 0.96 s | The dome powering down on schedule. Same family as `shield-up` on purpose (the field letting go rather than failing), and the quietest of the three: nothing broke, the clock simply ran out. **The pair that must never be confused is this one and `shield-break`** — the player has to know by ear whether they were beaten or ran out. |
 | `explosion` | `sci-fi/explosionCrunch_000` | 0.78 s | The shortest of the pack's five explosions on purpose — a reap sends them in bursts. |
 | `chat-message` | `interface/glass_001` | 0.28 s | An arriving message. Roughly a fifth of the volume of anything the game itself makes: noticeable while the player watches the battle, forgettable while they do not. |
 | `chat-send` | `interface/pluck_001` | 0.10 s | Our own message going out — the other half of the pair, and it must not be mistaken for the arriving one. |

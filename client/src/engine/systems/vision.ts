@@ -38,7 +38,8 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
     ...ctx.world.with('robot', 'position').entities.filter(isMine),
     ...ctx.world.with('base', 'position').entities.filter(isMine),
     // The observer drone spots enemies too (additive) — it isn't a robot, so it
-    // needs its own pass. Bot sides have no drone, so this is empty for them.
+    // needs its own pass. Every side has one, bots included (a bot's is flown by
+    // `systems/aiDrone.ts`), so this is where a drone's reach becomes intel.
     ...ctx.world.with('drone', 'position').entities.filter(isMine),
   ];
   // Enemy `ew` robots jamming this side's scouts.
