@@ -10,15 +10,17 @@ import { ownerColor, teamTint } from './ownerColor';
 
 /**
  * View for a base entity: its faction sprite (or an owner-tinted square + cross
- * placeholder if no art is loaded), an HP bar above it and a selection outline,
- * positioned at the base's world-space centre. Double-clicking your own base
- * opens the build & program dialog (same one as the HUD button); selecting it
- * is handled by the stage handler in `input/pointer.ts`, not here.
+ * placeholder if no art is loaded), the built-in missile battery's launcher, an
+ * HP bar above it and a selection outline, positioned at the base's world-space
+ * centre. Double-clicking your own base opens the build & program dialog (same
+ * one as the HUD button); selecting it is handled by the stage handler in
+ * `input/pointer.ts`, not here.
  */
 export class BaseView {
   readonly container: Container;
   private readonly healthBar: HealthBar;
   private readonly ring: Graphics;
+  private readonly turret: Graphics;
   private lastClickAt = 0;
 
   constructor(base: Entity) {
@@ -50,6 +52,12 @@ export class BaseView {
     } else {
       this.container.addChild(drawBody(base, size, half));
     }
+
+    // The launcher, above the body: the only thing on screen that says *where*
+    // the base's fire is coming from. A shot with no visible source reads as a
+    // bug, so the barrel tracks the current target every tick.
+    this.turret = drawTurret();
+    this.container.addChild(this.turret);
 
     this.healthBar = new HealthBar(size);
     this.healthBar.container.position.set(0, -half - 12);
@@ -87,12 +95,25 @@ export class BaseView {
   update(base: Entity, visible: boolean, selected: boolean): void {
     this.container.visible = visible;
     this.ring.visible = selected;
+    this.turret.rotation = base.heading ?? 0;
     this.healthBar.set((base.hp ?? 0) / (base.maxHp ?? 1));
   }
 
   destroy(): void {
     this.container.destroy({ children: true });
   }
+}
+
+/**
+ * The missile battery's launcher: a turntable with a twin barrel pointing along
+ * +x, so `rotation = heading` (the `atan2` the resolver stores) aims it. Small
+ * on purpose — it marks the base's one weapon without competing with the art.
+ */
+function drawTurret(): Graphics {
+  const g = new Graphics();
+  g.circle(0, 0, 7).fill({ color: palette.turret.body }).stroke({ width: 1.5, color: palette.turret.edge });
+  g.rect(2, -4, 14, 2.5).rect(2, 1.5, 14, 2.5).fill({ color: palette.turret.edge });
+  return g;
 }
 
 /** Owner-tinted square + cross placeholder, used when no base sprite is loaded. */

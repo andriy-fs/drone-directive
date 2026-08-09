@@ -3,7 +3,7 @@ import { selectLocalSide, selectPlayerBase, selectResources, selectRobots } from
 import { useGameStore } from '../../store/gameStore';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
-import { FactoryIcon, SelectAllIcon } from '../common/icons';
+import { DomeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
 import { selectAllOwnRobots } from '../hooks/useSelectAllHotkey';
 import { BuildRobotModal } from './BuildRobotModal';
 import { programLabel } from './programOptions';
@@ -37,6 +37,19 @@ export function StatusPanel() {
   const stopAuto = () => {
     if (playerBase) enqueueCommand({ kind: 'SetAutoBuild', baseId: playerBase.id, order: null });
   };
+
+  const shield = playerBase?.shield;
+  const shieldOn = shield?.active ?? false;
+  // The gate is the engine's, projected through the snapshot: a known enemy robot
+  // inside the base's own detection radius. The engine does not re-check it when
+  // the command lands — pre-casting merely burns the player's single charge.
+  const canRaiseShield = !!shield && !shield.spent && shield.threatNear;
+  const raiseShield = () => {
+    if (playerBase) enqueueCommand({ kind: 'ActivateShield', baseId: playerBase.id });
+  };
+  let shieldLabel = t('statusPanel', 'shield');
+  if (shieldOn) shieldLabel = t('statusPanel', 'shieldUp');
+  else if (shield?.spent) shieldLabel = t('statusPanel', 'shieldSpent');
 
   return (
     <div className="status-panel">
@@ -78,7 +91,18 @@ export function StatusPanel() {
         </div>
       )}
 
-      {/* The same tiles as the directive grid: the two things a player starts from
+      {/* Strength on the bar, seconds on the label: while the dome stands both
+          are what the player is deciding against, and neither alone is enough. */}
+      {shieldOn && shield && (
+        <div className="shield-status">
+          <span className="hud__muted">
+            {t('statusPanel', 'shieldUp')} · {Math.ceil(shield.secondsLeft)}s
+          </span>
+          <Bar value={shield.hp / shield.maxHp} />
+        </div>
+      )}
+
+      {/* The same tiles as the directive grid: the things a player starts from
           this section, one of which (select-all) is otherwise a shortcut they have
           to know about before they can use it. */}
       <div className="tile-grid">
@@ -89,6 +113,17 @@ export function StatusPanel() {
         <Button className="tile" onClick={selectAllOwnRobots} disabled={myRobotCount === 0}>
           <SelectAllIcon className="tile__icon" size={22} />
           <span>{t('statusPanel', 'selectAll')}</span>
+        </Button>
+        {/* Odd tile out, so it takes the whole row. Dark until an enemy is
+            actually at the door, and dark for good once used — there is exactly
+            one of these per match. */}
+        <Button
+          className={`tile tile--wide ${shieldOn ? 'tile--on' : ''}`.trim()}
+          onClick={raiseShield}
+          disabled={!canRaiseShield}
+        >
+          <DomeIcon className="tile__icon" size={22} />
+          <span>{shieldLabel}</span>
         </Button>
       </div>
 

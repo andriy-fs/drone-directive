@@ -4,7 +4,9 @@ import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
 import { EffectKind } from '../ecs/entity';
 import { spawnBase, spawnDrone, spawnProjectile, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
+import { tileOf } from '../obstacles';
 import { combatSystem } from './combat';
+import { raiseShield } from './shield';
 import { makeCtx } from './testkit';
 
 const DT = gameConfig.fixedDt;
@@ -225,5 +227,143 @@ describe('combatSystem — directed-energy weapon', () => {
 
     expect(ctx.world.with('projectile').entities.length).toBe(0);
     expect(shooter.weapon!.cooldownLeft).toBe(0.5);
+  });
+});
+
+describe('combatSystem — the base battery', () => {
+  const MISSILES = gameConfig.robots.weapons.missiles;
+
+  /** Puts `e` at `dist` px from the base centre, along +x, and clears the terrain. */
+  function stage(ctx: GameContext) {
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    return { base, at: (dist: number) => ({ x: base.position!.x + dist, y: base.position!.y }) };
+  }
+
+  it('shoots a robot its target pass has picked', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+    base.targetId = foe.id;
+
+    runUntil(ctx, () => (foe.hp ?? 0) < foe.maxHp!);
+
+    expect(foe.hp!).toBe(foe.maxHp! - MISSILES.damage);
+  });
+
+  it('stamps the base as the attacker, so the victim can shoot back at it', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+    base.targetId = foe.id;
+
+    runUntil(ctx, () => (foe.hp ?? 0) < foe.maxHp!);
+
+    expect(foe.threat!.attackerId).toBe(base.id);
+  });
+
+  it('cannot reach past its weapon range, measured from the footprint centre', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(MISSILES.range + 10), ChassisType.Tracks, WeaponType.Cannon);
+    base.targetId = foe.id;
+
+    for (let i = 0; i < 60; i++) combatSystem(ctx, DT);
+
+    expect(foe.hp).toBe(foe.maxHp);
+    expect(ctx.world.with('projectile').entities.length).toBe(0);
+  });
+
+  it('reloads between shots instead of emptying the launcher in one tick', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Legs, WeaponType.Cannon);
+    base.targetId = foe.id;
+
+    // Just under one reload: exactly one round should have left the tube.
+    let fired = 0;
+    ctx.bus.on('projectileFired', () => (fired += 1));
+    for (let i = 0; i < Math.floor(MISSILES.cooldown / DT); i++) combatSystem(ctx, DT);
+
+    expect(fired).toBe(1);
+  });
+
+  it('a mountain between base and target blocks the shot', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+    base.targetId = foe.id;
+    const wall = tileOf({ x: base.position!.x + 60, y: base.position!.y });
+    ctx.sightBlockers[wall.ty][wall.tx] = true;
+
+    for (let i = 0; i < 60; i++) combatSystem(ctx, DT);
+
+    expect(foe.hp).toBe(foe.maxHp);
+  });
+
+  it('a destroyed base does not keep firing', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+    base.targetId = foe.id;
+    base.hp = 0;
+
+    for (let i = 0; i < 60; i++) combatSystem(ctx, DT);
+
+    expect(foe.hp).toBe(foe.maxHp);
+  });
+});
+
+describe('combatSystem — a base under its energy dome', () => {
+  const DOME = gameConfig.bases.shield;
+  const CANNON = gameConfig.robots.weapons.cannon.damage;
+
+  /** An AI base with its dome up, plus a helper for points along +x from its centre. */
+  function domed(ctx: GameContext) {
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.AI, 4, 4);
+    raiseShield(ctx, base);
+    return { base, at: (dist: number) => ({ x: base.position!.x + dist, y: base.position!.y }) };
+  }
+
+  it('a round aimed at the base dies on the dome, well short of the roof', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = domed(ctx);
+    spawnProjectile(ctx.world, Owner.Player, at(300), base.position!, base.id, CANNON, 'shooter', WeaponType.Cannon);
+    const shot = ctx.world.with('projectile').entities[0];
+
+    for (let i = 0; i < 60 && ctx.world.with('projectile').entities.length > 0; i++) combatSystem(ctx, DT);
+
+    expect(ctx.world.with('projectile').entities).toHaveLength(0);
+    expect(base.hp).toBe(base.maxHp);
+    expect(base.shield!.hp).toBe(DOME.hp - CANNON);
+    // Stopped at the shell, not on the building: the last position it reached is
+    // still out near the dome radius, far outside the 48 px footprint.
+    expect(shot.position!.x - base.position!.x).toBeGreaterThan(DOME.radius - 15);
+  });
+
+  it('a kamikaze that drives under the dome still spends itself on it — and still kills what is beside it', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = domed(ctx);
+    const bomb = spawnRobot(ctx.world, Owner.Player, at(50), ChassisType.Wheels, WeaponType.Bomb);
+    bomb.targetId = base.id;
+    const bystander = spawnRobot(ctx.world, Owner.AI, at(60), ChassisType.Tracks, WeaponType.Cannon);
+
+    combatSystem(ctx, DT);
+
+    expect(base.hp).toBe(base.maxHp);
+    expect(base.shield!.hp).toBe(DOME.hp - gameConfig.robots.weapons.bomb.damage);
+    expect(bystander.hp).toBeLessThan(bystander.maxHp!);
+  });
+
+  it('a dew round is still a dud over a domed base, not something for the dome to eat', () => {
+    const ctx = makeCtx(1);
+    const { base, at } = domed(ctx);
+    spawnProjectile(ctx.world, Owner.Player, at(200), base.position!, base.id, 0, 'shooter', WeaponType.Dew);
+
+    for (let i = 0; i < 20; i++) combatSystem(ctx, DT);
+
+    expect(base.hp).toBe(base.maxHp);
+    expect(base.shield!.hp).toBe(DOME.hp);
   });
 });

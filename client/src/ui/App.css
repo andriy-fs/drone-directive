@@ -415,6 +415,19 @@
   padding: 3px 8px;
 }
 
+/* The energy dome's readout, shown only while it stands: seconds on the label,
+   strength on the bar. Stacked rather than inline like `.auto-build`, because the
+   bar has to be full width to be read at a glance under fire. */
+.shield-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shield-status .hud__muted {
+  color: var(--accent);
+}
+
 .bar {
   position: relative;
   height: 6px;

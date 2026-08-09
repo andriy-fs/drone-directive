@@ -31,7 +31,10 @@ ProjectileView.ts`'s flame flicker and `client/src/pixi/audio/sfx.ts`'s noise
   were converted to `MoveRobots` / `AttackTarget` commands so every order is
   networked and deterministic. A base's rally point goes the same way, as
   `SetRallyPoint` — it is base state that changes what production does, so it has
-  to be applied on the same tick by both peers, not held locally in the HUD.)
+  to be applied on the same tick by both peers, not held locally in the HUD. So
+  does the base's one-shot energy dome, as `ActivateShield`: it decides what the
+  next twenty seconds of damage do, and a peer that raised it a tick later would
+  be playing a different match.)
 
 Two things were _not_ deterministic and had to be fixed — RNG seeding from
 `Date.now()` and a process-global entity-id counter; see [Determinism
@@ -280,6 +283,11 @@ them before simulating that tick:
   same reason positions do: peers that disagree on who is currently disabled by a
   directed-energy hit will disagree on where everyone is one tick later, so the
   hash carries the remaining knock-out time alongside position, hp and program.
+  A base's energy dome is in there too, and it is the case that shows why the rule
+  is about *state*, not about hp: the dome exists precisely to stop hp from
+  moving, so a peer whose dome is a little stronger, or a little older, or already
+  spent, shows nothing at all through hp until the base dies on one side only.
+  Both its axes and the spent flag are hashed.
 
 ## Chat: a second socket to a second object
 

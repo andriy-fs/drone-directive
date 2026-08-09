@@ -174,3 +174,20 @@ describe('visionSystem — disabled scouts', () => {
     expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(false);
   });
 });
+
+describe('visionSystem — a bot side scouts with its drone too', () => {
+  it('a bot drone spots an enemy nothing on the ground can reach', () => {
+    const ctx = makeCtx(1);
+    // The bot's ground force is parked in one corner; the target sits far away,
+    // so only the drone can possibly account for the detection.
+    spawnRobot(ctx.world, Owner.AI, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    const foe = spawnRobot(ctx.world, Owner.Player, { x: 1200, y: 1200 }, ChassisType.Tracks, WeaponType.Cannon);
+
+    visionSystem(ctx);
+    expect(ctx.intel.ai.visibleRobotIds.has(foe.id)).toBe(false);
+
+    spawnDrone(ctx.world, Owner.AI, { x: 1200, y: 1300 });
+    visionSystem(ctx);
+    expect(ctx.intel.ai.visibleRobotIds.has(foe.id)).toBe(true);
+  });
+});

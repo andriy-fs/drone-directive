@@ -66,14 +66,18 @@ describe('droneRespawnSystem', () => {
     expect(ctx.droneRespawn[Owner.Player]).toBe(0);
   });
 
-  it('never gives a bot side a drone', () => {
+  it('rebuilds a bot side’s drone on the same clock as a human’s', () => {
     const ctx = makeCtx(1);
     ctx.roster = [{ owner: Owner.AI, controller: Controller.Bot }];
     spawnBase(ctx.world, Owner.AI, 33, 4);
 
-    advance(ctx, gameConfig.drone.respawnTime * 2);
+    // One tick short of the clock: still nothing in the air.
+    advance(ctx, gameConfig.drone.respawnTime - gameConfig.fixedDt);
+    expect(droneOf(ctx, Owner.AI)).toBeUndefined();
 
-    expect(ctx.world.with('drone').entities).toHaveLength(0);
+    advance(ctx, gameConfig.fixedDt * 2);
+
+    expect(droneOf(ctx, Owner.AI)).toBeDefined();
     expect(ctx.droneRespawn[Owner.AI]).toBe(0);
   });
 });

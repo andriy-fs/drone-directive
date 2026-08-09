@@ -2,9 +2,10 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dial
 import { useT } from '../../i18n';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
-import { chassisNote, chassisStats, weaponNote, weaponStats } from '../hud/unitHints';
+import { baseStats, chassisNote, chassisStats, weaponNote, weaponStats } from '../hud/unitHints';
 import { CHASSIS_ICONS, WEAPON_ICONS } from '../hud/unitOptions';
-import { robotSprites, weaponSprites } from '../../config/sprites';
+import { baseSprites, robotSprites, weaponSprites } from '../../config/sprites';
+import { gameConfig } from '../../config/gameConfig';
 import type { LucideIcon } from '../common/icons';
 
 const CHASSIS_OPTIONS: ChassisType[] = [ChassisType.Tracks, ChassisType.Wheels, ChassisType.Legs];
@@ -97,6 +98,20 @@ export function UnitsGuideModal({ onClose }: { onClose: () => void }) {
                 stats={weaponStats(weapon, t)}
               />
             ))}
+          </div>
+
+          {/* The base is not a buildable unit, but it shoots — and a player who
+              only learns that by losing a drone to it has been ambushed by a
+              rule, not outplayed. */}
+          <span className="picker__label unit-guide__heading">{t('unitsGuide', 'baseHeading')}</span>
+          <div className="unit-guide">
+            <GuideItem
+              src={baseSprites[Owner.Player]?.src}
+              Icon={WEAPON_ICONS[gameConfig.bases.weapon]}
+              name={t('unitsGuide', 'baseHeading')}
+              note={t('unitsGuide', 'baseNote')}
+              stats={baseStats(t)}
+            />
           </div>
 
           <Button className="modal__action" onClick={onClose}>

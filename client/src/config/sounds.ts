@@ -30,6 +30,9 @@ export type SoundName =
   | 'select-legs'
   | 'select-group'
   | 'unit-ready'
+  | 'shield-up'
+  | 'shield-break'
+  | 'shield-down'
   | 'button-click';
 
 /**
@@ -93,6 +96,16 @@ export const soundDefs: Record<SoundName, SoundDef> = {
   // Directed energy: a rising electrical whine rather than a report, so a
   // knock-out shot is audibly not a kill even off-screen.
   'shot-dew': { src: src('digital/phaserUp3'), volume: 0.35, tier: 'match' },
+  // The energy dome's three moments. `shield-break` deliberately does *not* share
+  // a family with the other two: raising and powering down are both a force
+  // field, so they may sound related, but being beaten down must not be mistaken
+  // for the timer running out — that is the one distinction the player has to
+  // make by ear. It is also the loudest of the three; a shatter is the bigger
+  // event. Loud enough to carry, quiet enough that a dome is not the loudest
+  // thing in a fight.
+  'shield-up': { src: src('sci-fi/forceField_000'), volume: 0.5, tier: 'match' },
+  'shield-break': { src: src('sci-fi/lowFrequency_explosion_001'), volume: 0.7, tier: 'match' },
+  'shield-down': { src: src('sci-fi/forceField_002'), volume: 0.35, tier: 'match' },
   'select-base': { src: src('sci-fi/doorOpen_001'), volume: 0.42, tier: 'match' },
   'select-tracks': { src: src('sci-fi/impactMetal_003'), volume: 0.4, tier: 'match' },
   'select-wheels': { src: src('digital/phaserUp5'), volume: 0.4, tier: 'match' },

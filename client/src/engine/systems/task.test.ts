@@ -531,3 +531,111 @@ describe('taskSystem — the directed-energy knock-out', () => {
     expect(hunter.targetId).toBe(foe.id);
   });
 });
+
+describe('taskSystem — the base battery picks its own target', () => {
+  const RANGE = gameConfig.robots.weapons[gameConfig.bases.weapon].range;
+
+  /** A base with clear ground around it, plus a helper for "N px along +x". */
+  function stage(ctx: GameContext) {
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    return { base, at: (dist: number) => ({ x: base.position!.x + dist, y: base.position!.y }) };
+  }
+
+  function resolve(ctx: GameContext): void {
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+  }
+
+  it('takes a spotted enemy robot inside its range', () => {
+    const ctx = makeCtx(3);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+
+    resolve(ctx);
+
+    expect(base.targetId).toBe(foe.id);
+  });
+
+  it('prefers an enemy drone over a ground robot both in range', () => {
+    const ctx = makeCtx(3);
+    const { base, at } = stage(ctx);
+    // The robot is the *closer* of the two: only the air-first rule can explain
+    // the drone winning, so this cannot pass by accident on distance.
+    spawnRobot(ctx.world, Owner.AI, at(60), ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.AI, at(140));
+
+    resolve(ctx);
+
+    expect(base.targetId).toBe(drone.id);
+  });
+
+  it('ignores a drone riding a robot — it is inside that hull, not in the air', () => {
+    const ctx = makeCtx(3);
+    const { base, at } = stage(ctx);
+    const carrier = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.AI, at(120));
+    drone.drone!.possessedId = carrier.id;
+
+    resolve(ctx);
+
+    expect(base.targetId).toBe(carrier.id);
+  });
+
+  it('leaves an enemy outside its range alone even though it can see it', () => {
+    const ctx = makeCtx(3);
+    const { base, at } = stage(ctx);
+    // Inside the base's 260 px sight, outside the battery's reach.
+    const foe = spawnRobot(ctx.world, Owner.AI, at(RANGE + 40), ChassisType.Tracks, WeaponType.Cannon);
+
+    resolve(ctx);
+
+    expect(gameConfig.bases.sightRange).toBeGreaterThan(RANGE); // the premise of the test
+    expect(ctx.intel[Owner.Player].visibleRobotIds.has(foe.id)).toBe(true);
+    expect(base.targetId).toBeUndefined();
+  });
+
+  it('will not fire on an enemy nobody has spotted', () => {
+    const ctx = makeCtx(3);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+    // Skip visionSystem: intel stays empty, as if the base were blinded.
+    ctx.intel[Owner.Player].visibleRobotIds = new Set();
+    taskSystem(ctx, DT);
+
+    expect(base.targetId).toBeUndefined();
+    expect(foe.hp).toBe(foe.maxHp);
+  });
+
+  it('never picks a friendly', () => {
+    const ctx = makeCtx(3);
+    const { base, at } = stage(ctx);
+    spawnRobot(ctx.world, Owner.Player, at(120), ChassisType.Tracks, WeaponType.Cannon);
+
+    resolve(ctx);
+
+    expect(base.targetId).toBeUndefined();
+  });
+
+  it('turns the launcher toward whatever it picked', () => {
+    const ctx = makeCtx(3);
+    const { base, at } = stage(ctx);
+    spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+
+    resolve(ctx);
+
+    expect(base.heading).toBeCloseTo(0, 5); // due east, where the target stands
+  });
+
+  it('a fallen base holds no target', () => {
+    const ctx = makeCtx(3);
+    const { base, at } = stage(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, at(120), ChassisType.Tracks, WeaponType.Cannon);
+    base.targetId = foe.id;
+    base.hp = 0;
+
+    resolve(ctx);
+
+    expect(base.targetId).toBeUndefined();
+  });
+});

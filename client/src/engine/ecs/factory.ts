@@ -3,10 +3,33 @@ import type { Vec2 } from '@drone-directive/types/entities';
 import { RobotState, TaskType, type ChassisType, type Owner, type WeaponType } from '@drone-directive/types/enums';
 import { nextId } from '../../utils/id';
 import { vecLength } from '../../utils/math';
-import { EffectKind, type Entity } from './entity';
+import { EffectKind, type Entity, type WeaponComp } from './entity';
 import type { EcsWorld } from './world';
 
-/** Adds a base entity at the given top-left tile; `position` is footprint centre. */
+/**
+ * A fresh weapon component off the config stats. Shared by robots and bases so
+ * the eight fields can't drift apart between them — a new stat has to be added
+ * in exactly one place.
+ */
+function weaponComp(weapon: WeaponType): WeaponComp {
+  const w = gameConfig.robots.weapons[weapon];
+  return {
+    range: w.range,
+    damage: w.damage,
+    cooldown: w.cooldown,
+    cooldownLeft: 0,
+    explosionRadius: w.explosionRadius,
+    jamRadius: w.jamRadius,
+    canHitAir: w.canHitAir,
+    freezeDuration: w.freezeDuration,
+  };
+}
+
+/**
+ * Adds a base entity at the given top-left tile; `position` is footprint centre.
+ * Every base carries the built-in missile battery (`gameConfig.bases.weapon`):
+ * `taskSystem` picks its target, `combatSystem` fires it, exactly as for a robot.
+ */
 export function spawnBase(world: EcsWorld, owner: Owner, tx: number, ty: number): Entity {
   const { tilePx } = gameConfig.grid;
   const size = gameConfig.bases.footprintTiles;
@@ -15,10 +38,13 @@ export function spawnBase(world: EcsWorld, owner: Owner, tx: number, ty: number)
     base: true,
     owner,
     position: { x: (tx + size / 2) * tilePx, y: (ty + size / 2) * tilePx },
+    heading: 0,
     hp: gameConfig.bases.maxHp,
     maxHp: gameConfig.bases.maxHp,
     footprint: size,
     sightRange: gameConfig.bases.sightRange,
+    weaponType: gameConfig.bases.weapon,
+    weapon: weaponComp(gameConfig.bases.weapon),
     production: {
       queue: [],
       progress: 0,
@@ -46,16 +72,7 @@ export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: Ch
     chassis,
     weaponType: weapon,
     movement: { speed: stats.speed, state: RobotState.Idle },
-    weapon: {
-      range: w.range,
-      damage: w.damage,
-      cooldown: w.cooldown,
-      cooldownLeft: 0,
-      explosionRadius: w.explosionRadius,
-      jamRadius: w.jamRadius,
-      canHitAir: w.canHitAir,
-      freezeDuration: w.freezeDuration,
-    },
+    weapon: weaponComp(weapon),
     // Radar (and any future spotter) scales the chassis sight radius; others = 1.
     sightRange: stats.sight * w.sightMultiplier,
     script: { programId: TaskType.Idle, blackboard: {} },
@@ -63,7 +80,7 @@ export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: Ch
   });
 }
 
-/** Adds the player's observer drone at `pos` (the base "roof" at match start, or on respawn). */
+/** Adds a side's observer drone at `pos` (the base "roof" at match start, or on respawn). */
 export function spawnDrone(world: EcsWorld, owner: Owner, pos: Vec2): Entity {
   return world.add({
     id: nextId('drone'),
@@ -123,6 +140,31 @@ export function spawnExplosion(world: EcsWorld, pos: Vec2, maxRadius?: number): 
  * renderer's view) — only the `kind` differs, because nothing about how a
  * transient effect *lives* changes, just how it is drawn.
  */
+/**
+ * Adds the mark a base's energy dome leaves as it goes. Shares the explosion
+ * archetype for the same reason `spawnEmpBurst` does — nothing about how a
+ * transient effect *lives* changes, only how it is drawn.
+ *
+ * `shattered` is the whole point of the function: beaten down under fire and run
+ * out of time are the two endings the player must never confuse, so they get
+ * different kinds and different durations rather than one effect with a flag the
+ * renderer might ignore.
+ */
+export function spawnShieldEnd(world: EcsWorld, pos: Vec2, shattered: boolean): Entity {
+  const { shieldBreakDuration, shieldExpireDuration } = gameConfig.fx;
+  return world.add({
+    id: nextId('boom'),
+    explosion: true,
+    position: { x: pos.x, y: pos.y },
+    effect: {
+      age: 0,
+      duration: shattered ? shieldBreakDuration : shieldExpireDuration,
+      maxRadius: gameConfig.bases.shield.radius,
+      kind: shattered ? EffectKind.ShieldBreak : EffectKind.ShieldExpire,
+    },
+  });
+}
+
 export function spawnEmpBurst(world: EcsWorld, pos: Vec2): Entity {
   return world.add({
     id: nextId('boom'),

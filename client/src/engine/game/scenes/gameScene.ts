@@ -18,6 +18,7 @@ import { productionSystem } from '../../systems/production';
 import { reapSystem } from '../../systems/reap';
 import { regenSystem } from '../../systems/regen';
 import { separationSystem } from '../../systems/separation';
+import { shieldSystem } from '../../systems/shield';
 import { taskSystem } from '../../systems/task';
 import { visionSystem } from '../../systems/vision';
 import type { GameContext } from '../context';
@@ -70,10 +71,11 @@ export class GameScene implements Scene {
       playerBase.production.defaultTask = this.ctx.settings.base.defaultProgram;
     }
 
-    // Observer drones go to the human sides only — bots don't fly one, and
-    // online each human gets their own to pilot through the lockstep channel.
+    // Every side gets an observer drone — a human pilots theirs by hand (online,
+    // through the lockstep channel), a bot flies its own from `systems/aiDrone.ts`.
+    // The drone is the same entity either way; only who writes its `DroneControl`
+    // differs, which is what keeps the eye a symmetric advantage.
     for (const side of this.ctx.roster) {
-      if (side.controller === Controller.Bot) continue;
       const base = world.with('base', 'position').entities.find((b) => b.owner === side.owner);
       if (base) spawnDrone(world, side.owner, base.position);
     }
@@ -101,6 +103,12 @@ export class GameScene implements Scene {
     movementSystem(ctx, dt);
     separationSystem(ctx);
     combatSystem(ctx, dt);
+    // Between combat and reap, deliberately: combat has already handed this
+    // tick's damage to the domes, so one beaten to zero shatters on the very
+    // tick it was broken — and doing it *before* reap means a base finished off
+    // by the spill-through still shows its dome coming apart, instead of the
+    // whole thing vanishing silently with the entity.
+    shieldSystem(ctx, dt);
     reapSystem(ctx);
     // Also after reap: everything at hp<=0 has already been removed, so passive
     // repair can never pull something back from the dead before reap sees it.

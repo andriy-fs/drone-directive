@@ -60,7 +60,8 @@ export const buildPresets: Record<BuildPresetType, BuildPreset> = {
    * juicier is around.
    *
    * "No forced program" means the base's `defaultTask` applies, which for a bot
-   * base is `DefendBase` (see `gameScene`) — never Idle.
+   * base is `DefendBase` — pinned every tick by `ensureFactoryDefault` in
+   * `systems/ai.ts`, not by the scene — so never Idle.
    */
   [BuildPresetType.AiAssault]: {
     id: BuildPresetType.AiAssault,

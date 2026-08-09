@@ -9,6 +9,7 @@ import type { GameContext } from '../game/context';
 import { isTaskBlockedForWeapon, makeAttackTarget, makeIdle, scriptForTask } from '../tasks/taskDefinitions';
 import { setGoal } from './movement';
 import { atRobotCap } from './production';
+import { raiseShield } from './shield';
 import { findById } from './targeting';
 
 /**
@@ -28,6 +29,7 @@ export function isCommandFrom(ctx: GameContext, command: Command, side: Owner): 
     case 'BuildRobot':
     case 'SetAutoBuild':
     case 'SetRallyPoint':
+    case 'ActivateShield':
       return ownedBySide(command.baseId);
     case 'MoveRobots':
     case 'AttackTarget':
@@ -96,6 +98,17 @@ function applyCommand(ctx: GameContext, command: Command): void {
             y: clamp(command.point.y, 0, worldPixelSize.height),
           }
         : null;
+      break;
+    }
+    case 'ActivateShield': {
+      const base = findById(ctx, command.baseId);
+      // Only what a check on world state can settle: it exists, it is a base, it
+      // is alive — `raiseShield` owns the remaining "and the charge is unspent".
+      // The threat condition the HUD gates the button on is deliberately NOT
+      // re-checked here (see the command's doc in `@drone-directive/types`), and
+      // ownership is `isCommandFrom`'s job, applied by the app bridge before
+      // anything reaches this queue — in solo play too.
+      if (base?.base && (base.hp ?? 0) > 0) raiseShield(ctx, base);
       break;
     }
   }

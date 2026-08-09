@@ -11,16 +11,18 @@ import { isDisabled } from './status';
 import { enemyBases, enemyRobots, findById, nearest } from './targeting';
 
 /**
- * The player's observer drone. It free-flies ignoring obstacles (it never
+ * Observer-drone flight. A drone free-flies ignoring obstacles (it never
  * pathfinds), and can land on an idle friendly robot to possess it — then it
  * steers that robot directly (obstacle-checked, so the robot still stops at
  * walls) and fires/detonates its weapon on demand (fully manual — no auto-fire).
  *
  * Runs after `taskSystem` so it can override the target the Idle resolver set,
- * keeping a possessed robot's fire strictly manual. Each drone is driven by its
- * owner's slot in `ctx.droneControl`, which the app bridge fills from local input
- * (and, online, the peer's networked input) each step. Offline there is one drone
- * (the player's); online each side has its own.
+ * keeping a possessed robot's fire strictly manual. Every side has a drone, and
+ * each is driven by its owner's slot in `ctx.droneControl`: the app bridge fills
+ * a human's from local input (and, online, the peer's networked input), while a
+ * bot's is filled by `systems/aiDrone.ts` earlier in the same tick. This system
+ * cannot tell the difference, which is the point — possession and manual fire
+ * work identically for whoever is on the stick.
  */
 export function droneSystem(ctx: GameContext, dt: number): void {
   for (const drone of [...ctx.world.with('drone', 'position').entities]) driveDrone(ctx, dt, drone);

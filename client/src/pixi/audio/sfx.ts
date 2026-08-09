@@ -185,6 +185,25 @@ export const sfx = {
   },
 
   /**
+   * The energy dome coming up. No coalescing anywhere in this trio: there is one
+   * dome per base per match, so these can fire at most a handful of times in a
+   * whole game and every one of them is worth hearing.
+   */
+  shieldUp(): void {
+    play('shield-up');
+  },
+
+  /** The dome beaten down under fire. The one of the three that means someone lost something. */
+  shieldBreak(): void {
+    play('shield-break');
+  },
+
+  /** The dome powering down on schedule — the same protection ending, but nobody's doing. */
+  shieldDown(): void {
+    play('shield-down');
+  },
+
+  /**
    * Any button in the HUD or the menus — and the *only* cue the interface makes.
    * A dialog opening adds nothing on top of it: the button that opened it has
    * already spoken (see `ui/common/Dialog`).

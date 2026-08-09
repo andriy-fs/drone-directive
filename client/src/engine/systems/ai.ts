@@ -20,6 +20,8 @@ import {
   makeGroupAttack,
   scriptForTask,
 } from '../tasks/taskDefinitions';
+import { pilotDrone } from './aiDrone';
+import { canRaiseShield, raiseShield } from './shield';
 import { isDisabled } from './status';
 import { isAdvancing } from './task';
 import { isEnemy, knownEnemyRobots } from './targeting';
@@ -43,9 +45,9 @@ export function aiSystem(ctx: GameContext, dt: number): void {
 }
 
 /**
- * One bot's turn: resource-gated escalating production off a build preset, plus
- * task assignment (defence quota → everything else into a gathering attack group
- * → intercept threats). Recomputed from live counts.
+ * One bot's turn: resource-gated escalating production off a build preset, task
+ * assignment (defence quota → everything else into a gathering attack group →
+ * intercept threats), then flying its observer drone. Recomputed from live counts.
  *
  * **A bot robot is never left on `Idle`.** Idle is a passive program — it only
  * ever shoots back at whoever already hit it, and only for the length of the
@@ -55,11 +57,17 @@ export function aiSystem(ctx: GameContext, dt: number): void {
  * to get here, it does not end this tick idle.
  */
 function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): void {
+  // Ahead of the base check: a side whose base has fallen still has a drone in
+  // the air for a moment, and leaving a stale `dir` on it would have the wreck
+  // of a match fly on by itself.
+  pilotDrone(ctx, owner, state);
+
   const base = ctx.world
     .with('base', 'position', 'production')
     .entities.find((e) => e.owner === owner && (e.hp ?? 0) > 0);
   if (!base) return;
 
+  maybeRaiseShield(ctx, owner, base);
   ensureFactoryDefault(base);
   ensureEwRobot(ctx, owner, base);
   updateProduction(ctx, owner, state, base, dt);
@@ -376,6 +384,37 @@ function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots:
     if (isAdvancing(robot)) continue;
     if (programId !== TaskType.DefendBase) robot.script = makeDefendBase();
   }
+}
+
+/**
+ * The bot's one energy dome, spent on the two situations it cannot recover from
+ * otherwise: the base is already being chewed through, or a rush is inside the
+ * defence radius in numbers the line will not hold.
+ *
+ * Counts *known* enemies rather than reusing the omniscient `nearbyEnemyCount`,
+ * and that is a deliberate departure. Elsewhere the bot's omniscience is a
+ * tuning shortcut for where its units stand; here it would let a bot answer an
+ * ambush it has never seen while the player's own button stays dark against the
+ * same ambush. The dome is the one control both sides hold, so both pay for
+ * scouting.
+ *
+ * Reads last tick's intel — `aiSystem` runs ahead of `visionSystem` — exactly as
+ * `assignKamikaze` does. One tick stale and identical on every peer, which is
+ * all determinism asks; do not "fix" it by reordering the pipeline.
+ */
+function maybeRaiseShield(ctx: GameContext, owner: Owner, base: Entity): void {
+  if (!canRaiseShield(base)) return;
+  const hurt = (base.hp ?? 0) < (base.maxHp ?? 1) * gameConfig.ai.shieldHpThreshold;
+  const swarmed = knownNearbyEnemyCount(ctx, owner, base) >= gameConfig.ai.massRushThreshold;
+  if (hurt || swarmed) raiseShield(ctx, base);
+}
+
+/** `nearbyEnemyCount`'s intel-limited twin — see `maybeRaiseShield` for why it exists. */
+function knownNearbyEnemyCount(ctx: GameContext, owner: Owner, base: Entity): number {
+  const bp = base.position!;
+  return knownEnemyRobots(ctx, owner).filter(
+    (r) => distance(r.position!.x, r.position!.y, bp.x, bp.y) < gameConfig.ai.threatRange,
+  ).length;
 }
 
 function isThreatened(ctx: GameContext, owner: Owner, base: Entity): boolean {

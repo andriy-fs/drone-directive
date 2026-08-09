@@ -53,6 +53,7 @@ describe('command round-trip', () => {
       { kind: 'AttackTarget', robotIds: ['robot_4'], targetId: 'base_1' },
       { kind: 'SetRallyPoint', baseId: 'base_1', point: { x: 640.75, y: 320.5 } },
       { kind: 'SetRallyPoint', baseId: 'base_1', point: null },
+      { kind: 'ActivateShield', baseId: 'base_1' },
     ];
     expect(roundTrip(commands).commands).toEqual(commands);
   });

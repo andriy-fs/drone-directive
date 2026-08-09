@@ -97,11 +97,20 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
       baseId: idSchema,
       point: v.nullable(worldPointSchema),
     }),
+    ActivateShield: v.object({
+      kind: v.literal('ActivateShield'),
+      baseId: idSchema,
+    }),
   } satisfies Record<Command['kind'], v.GenericSchema>;
 
   // The annotation is the other half of the guarantee: the parsed result must be
   // assignable to the game's own `Command`, so a schema that drifts from the
   // domain type fails the build instead of letting a wrong shape through.
+  //
+  // This list, unlike the record above, is NOT checked for completeness — a kind
+  // missing here compiles and then silently vanishes at runtime, working
+  // perfectly offline and never arriving online. `validation.test.ts` walks the
+  // exhaustive `Record<Command['kind'], Command>` sample precisely to catch that.
   return v.variant('kind', [
     commandSchemas.AssignTask,
     commandSchemas.BuildRobot,
@@ -109,6 +118,7 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
     commandSchemas.MoveRobots,
     commandSchemas.AttackTarget,
     commandSchemas.SetRallyPoint,
+    commandSchemas.ActivateShield,
   ]);
 }
 

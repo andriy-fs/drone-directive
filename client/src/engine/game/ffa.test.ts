@@ -61,9 +61,9 @@ describe('free-for-all roster', () => {
     expect(start(3, true).context!.roster).toHaveLength(4);
   });
 
-  it('gives every human side a drone and no bot one', () => {
+  it('gives every side a drone, bots included', () => {
     const drones = start(2, true).world.with('drone').entities.map((d) => d.owner);
-    expect(new Set(drones)).toEqual(new Set([Owner.Player, Owner.AI]));
+    expect(new Set(drones)).toEqual(new Set([Owner.Player, Owner.AI, Owner.AI2, Owner.AI3]));
   });
 
   it('keeps every base reachable from every other', () => {

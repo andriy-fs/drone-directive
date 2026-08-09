@@ -4,9 +4,17 @@ import { palette } from '../config/palette';
 import type { Entity } from '../engine/ecs/entity';
 import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
+import { canActivateShield, isShielded } from '../engine/systems/shield';
 import { useGameStore } from '../store/gameStore';
 import { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus } from '../store/enums';
-import type { BaseSnapshot, DroneStatus, GameState, PendingOnline, RobotSnapshot } from '../store/types';
+import type {
+  BaseShieldSnapshot,
+  BaseSnapshot,
+  DroneStatus,
+  GameState,
+  PendingOnline,
+  RobotSnapshot,
+} from '../store/types';
 import { selectOnlineLink } from '../store/selectors';
 import type { Command } from '@drone-directive/types/commands';
 import { Controller, Owner, TaskType, WeaponType, type MapSize } from '@drone-directive/types/enums';
@@ -279,12 +287,14 @@ export class GameApp {
     const { selectedRobotIds, selectedBaseId } = useGameStore.getState();
     const selected = new Set(selectedRobotIds);
     if (selectedBaseId) selected.add(selectedBaseId);
-    this.worldRenderer.sync(selected, (e) => this.isVisibleToLocalSide(e));
+    // Wall clock, not sim time: none of what it drives is simulation state, and
+    // all of it should keep animating while the match is paused. Read once and
+    // shared, so every pulse on screen — the dome, the order marker, the hover
+    // reticle — is in the same phase.
+    const now = performance.now();
+    this.worldRenderer.sync(selected, (e) => this.isVisibleToLocalSide(e), now);
     this.fogView?.update(this.engine.context?.fog);
     this.rallyView?.update(this.localRallyMarkers());
-    // Wall clock, not sim time: neither effect is simulation state, and both
-    // should keep animating while the match is paused.
-    const now = performance.now();
     this.orderMarkerView?.update(now);
     const hovered = this.attackHoverTarget(selectedRobotIds);
     this.hoverView?.update(hovered, now);
@@ -405,6 +415,26 @@ export class GameApp {
       }),
     );
     this.busUnsubs.push(bus.on('entityDestroyed', () => this.pushSnapshot()));
+    // The dome's three moments. Gated on *knowledge* rather than ownership,
+    // unlike the factory pip above: a dome is a large thing happening on screen,
+    // so once its base has been found, hearing it come up and hearing it fail is
+    // information the player has already earned.
+    this.busUnsubs.push(
+      bus.on('shieldRaised', ({ owner, baseId }) => {
+        if (this.hearsBase(owner, baseId)) sfx.shieldUp();
+      }),
+    );
+    this.busUnsubs.push(
+      bus.on('shieldEnded', ({ owner, baseId, shattered }) => {
+        if (!this.hearsBase(owner, baseId)) return;
+        if (shattered) sfx.shieldBreak();
+        else sfx.shieldDown();
+      }),
+    );
+    // Raising and losing a dome both change what the Command tile offers, and
+    // neither waits for the next throttled push to be worth showing.
+    this.busUnsubs.push(bus.on('shieldRaised', () => this.pushSnapshot()));
+    this.busUnsubs.push(bus.on('shieldEnded', () => this.pushSnapshot()));
     this.busUnsubs.push(
       bus.on('sceneChanged', ({ scene }) => {
         store().clearSelection();
@@ -816,6 +846,16 @@ export class GameApp {
     store.setPaused(false);
   }
 
+  /**
+   * Whether a base's own events are audible here: ours always, anyone else's
+   * only once we have found their base. Bases are discovered permanently, so
+   * this never flickers — unlike unit visibility.
+   */
+  private hearsBase(owner: Owner, baseId: string): boolean {
+    if (owner === this.localSide) return true;
+    return this.engine.context?.intel[this.localSide].knownBaseIds.has(baseId) ?? false;
+  }
+
   /** Fog of war: the local side's own units are always visible; every rival's only once detected. */
   private isVisibleToLocalSide(e: Entity): boolean {
     const side = this.localSide;
@@ -833,9 +873,11 @@ export class GameApp {
     const store = useGameStore.getState();
     const world = this.engine.world;
     const bases = world.with('base').entities;
-    store.setBases(bases.map(toBaseSnapshot));
     store.setRobots(world.with('robot').entities.map(toRobotSnapshot));
     const ctx = this.engine.context;
+    // Bases need the context: the dome's `threatNear` is read off this side's
+    // intel, which only exists while a match does.
+    store.setBases(ctx ? bases.map((b) => toBaseSnapshot(b, ctx, store.localSide)) : []);
     if (ctx) {
       store.setSides(
         ctx.roster.map((s) => ({
@@ -938,7 +980,7 @@ function droneStatusOf(drones: Entity[], ctx: GameContext, side: Owner): DroneSt
   };
 }
 
-function toBaseSnapshot(e: Entity): BaseSnapshot {
+function toBaseSnapshot(e: Entity, ctx: GameContext, localSide: Owner): BaseSnapshot {
   return {
     id: e.id,
     owner: e.owner ?? Owner.Neutral,
@@ -949,6 +991,21 @@ function toBaseSnapshot(e: Entity): BaseSnapshot {
     autoBuild: e.production?.autoBuild ?? null,
     defaultTask: e.production?.defaultTask ?? null,
     rally: e.production?.rally ?? null,
+    shield: baseShieldOf(e, ctx, localSide),
+  };
+}
+
+function baseShieldOf(e: Entity, ctx: GameContext, localSide: Owner): BaseShieldSnapshot {
+  return {
+    active: isShielded(e),
+    hp: e.shield?.hp ?? 0,
+    maxHp: gameConfig.bases.shield.hp,
+    secondsLeft: e.shield?.left ?? 0,
+    spent: !!e.shieldSpent,
+    // Own base only: this comes straight off `ctx.intel[owner]`, that side's
+    // private knowledge of the battlefield, and the store is not the place to
+    // keep a rival's.
+    threatNear: e.owner === localSide && canActivateShield(ctx, e),
   };
 }
 

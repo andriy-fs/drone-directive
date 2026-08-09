@@ -52,6 +52,40 @@ describe('worldHash', () => {
     expect(worldHash(a.world)).not.toBe(before);
   });
 
+  // The energy dome is the one piece of simulation state not observable through
+  // hp — it exists precisely to stop hp from moving — so if it fell out of the
+  // hash a peer could absorb a volley the other took on the chin and nothing
+  // would say so until the base died on one side only.
+  it('notices a dome raised on one peer and not the other', () => {
+    const a = peer(Owner.Player, 1, 120);
+    const before = worldHash(a.world);
+    const base = a.world.with('base', 'position').entities[0];
+    a.world.addComponent(base, 'shield', { hp: 1000, left: 20 });
+    expect(worldHash(a.world)).not.toBe(before);
+  });
+
+  it('notices a dome a thousandth of a point weaker, or a thousandth of a second older', () => {
+    const a = peer(Owner.Player, 1, 120);
+    const base = a.world.with('base', 'position').entities[0];
+    a.world.addComponent(base, 'shield', { hp: 1000, left: 20 });
+    const before = worldHash(a.world);
+
+    base.shield!.hp -= 0.001;
+    const weaker = worldHash(a.world);
+    expect(weaker).not.toBe(before);
+
+    base.shield!.left -= 0.001;
+    expect(worldHash(a.world)).not.toBe(weaker);
+  });
+
+  it('notices a charge spent on one peer only', () => {
+    const a = peer(Owner.Player, 1, 120);
+    const before = worldHash(a.world);
+    const base = a.world.with('base', 'position').entities[0];
+    a.world.addComponent(base, 'shieldSpent', true);
+    expect(worldHash(a.world)).not.toBe(before);
+  });
+
   it('ignores presentation state, which legitimately differs per client', () => {
     const a = peer(Owner.Player, 1, 120);
     const before = worldHash(a.world);
