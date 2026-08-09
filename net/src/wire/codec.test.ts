@@ -77,6 +77,15 @@ describe('command round-trip', () => {
       robotId: 'robot_1',
       task,
     }));
+    // `BuildTask` is its own enum (it flattens the tri-state), so every task has
+    // to make the trip through a build order as well, not just through AssignTask.
+    for (const task of Object.values(TaskType)) {
+      commands.push({
+        kind: 'BuildRobot',
+        baseId: 'base_1',
+        order: { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon, task },
+      });
+    }
     for (const chassis of Object.values(ChassisType)) {
       for (const weapon of Object.values(WeaponType)) {
         commands.push({ kind: 'BuildRobot', baseId: 'base_1', order: { chassis, weapon } });

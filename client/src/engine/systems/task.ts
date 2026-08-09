@@ -40,6 +40,20 @@ export const ADVANCING_TASKS = new Set<TaskType>([
 ]);
 
 /**
+ * Whether a robot is part of a push right now. `GroupAttack` is the one program
+ * that is only *sometimes* advancing — a group still gathering at base is
+ * holding the line, not leading a charge, and counting it would have Overwatch
+ * trail a stationary huddle and let a `dew` leave home behind units that haven't
+ * moved yet.
+ */
+export function isAdvancing(e: Entity): boolean {
+  const script = e.script;
+  if (!script) return false;
+  if (script.programId === TaskType.GroupAttack) return script.blackboard.committed === true;
+  return ADVANCING_TASKS.has(script.programId);
+}
+
+/**
  * Behaviour resolver. Each robot runs a priority-ordered directive program
  * (see config/programs.ts). Every tick we walk its directives top-down and take
  * the first *move* intent and the first *fire* intent independently — so a robot
@@ -199,7 +213,95 @@ function resolveAction(ctx: GameContext, e: Entity, action: BehaviorAction): Out
       return retreatToBaseOutcome(ctx, e);
     case 'overwatch':
       return overwatchOutcome(ctx, e);
+    case 'defendBase':
+      return defendBaseOutcome(ctx, e, action.range);
+    case 'groupAttack':
+      return groupAttackOutcome(ctx, e, action.size);
   }
+}
+
+/**
+ * Base perimeter defence. The difference from `guard` is the whole point of the
+ * program: the intercept test is "is an enemy near **my base**", not "is an
+ * enemy in **my** weapon range", and the answer is to *move* onto it. So a
+ * single attacker poking the perimeter is met by everyone posted there rather
+ * than trading free shots against whoever it picked — and once it is gone the
+ * defenders go back to the base instead of chasing it across the map.
+ */
+function defendBaseOutcome(ctx: GameContext, e: Entity, range?: number): Outcome {
+  const home = ownBase(ctx, e.owner!);
+  if (!home?.position) return {}; // no base left to defend — let a lower-priority directive decide
+  const post = home.position;
+
+  // Nothing to intercept *with*: a radar or an EW jammer that drove at an
+  // intruder would only die at it. It still patrols, which is what its sight
+  // aura is for — early warning for the units that can shoot.
+  if ((e.weapon?.range ?? 0) > 0) {
+    const reach = range ?? gameConfig.behavior.defendBaseRadius;
+    const foe = nearest(
+      post,
+      knownEnemyRobots(ctx, e.owner!).filter(
+        (r) => distance(post.x, post.y, r.position!.x, r.position!.y) <= reach,
+      ),
+    );
+    if (foe) return engageOutcome(ctx, e, foe);
+  }
+
+  return roamOutcome(e, () => randomPointNear(ctx, post, gameConfig.behavior.defendPatrolRadius));
+}
+
+/**
+ * Attack in a body. A unit on this directive holds the base line until enough
+ * allies on the same directive have gathered around the base, at which point the
+ * *whole* group latches `committed` and advances together.
+ *
+ * Two details carry the behaviour:
+ *
+ * - **Only units that haven't left yet are counted.** Counting the wave already
+ *   out on the map would keep the threshold permanently satisfied, and every new
+ *   robot would trickle out alone — exactly what attacking in groups is meant to
+ *   avoid.
+ * - **The group commits in one pass, not one robot at a time.** The pool of
+ *   waiting units shrinks as it commits, so committing individually would leave
+ *   the tail below the threshold — stuck at base forever, waiting for a group
+ *   that can no longer form.
+ */
+function groupAttackOutcome(ctx: GameContext, e: Entity, size?: number): Outcome {
+  const bb = e.script!.blackboard;
+
+  if (!bb.committed) {
+    const home = ownBase(ctx, e.owner!);
+    // No base to gather at: there is nothing left to defend and nothing to wait
+    // for, so the group requirement is moot — go.
+    if (!home?.position) bb.committed = true;
+    else {
+      const radius = gameConfig.behavior.groupGatherRadius;
+      const hp = home.position;
+      const mates = ctx.world
+        .with('robot', 'position', 'script')
+        .entities.filter(
+          (r) =>
+            r.owner === e.owner &&
+            (r.hp ?? 0) > 0 &&
+            !isDisabled(r) &&
+            r.script!.programId === TaskType.GroupAttack &&
+            !r.script!.blackboard.committed &&
+            distance(hp.x, hp.y, r.position!.x, r.position!.y) <= radius,
+        );
+      if (mates.length >= (size ?? gameConfig.behavior.groupAttackSize)) {
+        for (const mate of mates) mate.script!.blackboard.committed = true;
+      }
+    }
+  }
+
+  // Still gathering — hold the base line rather than stand around as a free kill.
+  if (!bb.committed) return defendBaseOutcome(ctx, e);
+
+  const base = nearest(e.position!, knownEnemyBases(ctx, e.owner!));
+  if (base) return engageOutcome(ctx, e, base);
+  const foe = nearest(e.position!, knownEnemyRobots(ctx, e.owner!));
+  if (foe) return engageOutcome(ctx, e, foe);
+  return searchOutcome(ctx, e); // nothing known yet — go find it
 }
 
 /** Focus-fire the specific ordered target (robot or base); hold once it's gone. */
@@ -382,7 +484,7 @@ function overwatchOutcome(ctx: GameContext, e: Entity): Outcome {
   const vanguard = ctx.world
     .with('robot', 'position', 'script')
     .entities.filter(
-      (r) => r.id !== e.id && r.owner === e.owner && (r.hp ?? 0) > 0 && ADVANCING_TASKS.has(r.script!.programId),
+      (r) => r.id !== e.id && r.owner === e.owner && (r.hp ?? 0) > 0 && isAdvancing(r),
     );
 
   if (vanguard.length > 0) {

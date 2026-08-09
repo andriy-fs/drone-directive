@@ -122,11 +122,14 @@ export interface Dict {
     scout: string;
     attackTarget: string;
     overwatch: string;
+    defendBase: string;
+    groupAttack: string;
     none: string;
     /** Opening line of the directives reference modal. */
     intro: string;
     /** What each assignable directive makes a unit do — listed in that modal. */
     guardNote: string;
+    defendBaseNote: string;
     attackBaseNote: string;
     attackRobotsNote: string;
     scoutNote: string;

@@ -120,6 +120,34 @@ export const programs: Record<TaskType, Program> = {
       { when: { type: 'always' }, do: { type: 'overwatch' } },
     ],
   },
+
+  [TaskType.DefendBase]: {
+    id: TaskType.DefendBase,
+    label: 'Defend Base',
+    directives: [
+      // Under fire: dodge while shooting back, same reflexes as any combat program.
+      { when: { type: 'underFire' }, do: { type: 'evade' } },
+      { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
+      // The job: anything inside the base's defence radius gets intercepted —
+      // the trigger is *the base's* perimeter, not this robot's weapon range, so
+      // the whole line moves on one intruder instead of the one unit that
+      // happens to have it in reach. Patrols the base when there is nobody.
+      { when: { type: 'always' }, do: { type: 'defendBase' } },
+    ],
+  },
+
+  [TaskType.GroupAttack]: {
+    id: TaskType.GroupAttack,
+    label: 'Group Attack',
+    directives: [
+      { when: { type: 'underFire' }, do: { type: 'evade' } },
+      { when: { type: 'underFire' }, do: { type: 'attackAttacker' } },
+      // While still gathering, don't ignore something that walked into range.
+      { when: { type: 'enemyRobotWithin' }, do: { type: 'attackNearestRobot' } },
+      // Wait for the group, then advance with it (holds the base line meanwhile).
+      { when: { type: 'always' }, do: { type: 'groupAttack' } },
+    ],
+  },
 };
 
 /** The directive program for a task id (falls back to Idle for safety). */

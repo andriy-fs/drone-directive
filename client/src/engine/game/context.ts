@@ -43,15 +43,17 @@ export function buildRoster(match: GameSettings['match']): Roster {
   }));
 }
 
-/** Mutable bot production + attack-wave state (per bot side, per match). */
+/**
+ * Mutable bot production state (per bot side, per match). Attack-group size is
+ * *not* here: it belongs to the `GroupAttack` program, which counts its own
+ * gathering units — see `systems/task.ts`.
+ */
 export interface AiState {
   timer: number;
   nextIn: number;
   interval: number;
   /** Cursor into the AI's build preset sequence (wraps). */
   buildStep: number;
-  /** Size of the next attack wave to release, or 0 = roll one on demand. */
-  groupTarget: number;
 }
 
 /**
@@ -82,7 +84,6 @@ function emptyAiState(): AiState {
     nextIn: gameConfig.ai.firstSpawnDelay,
     interval: gameConfig.ai.spawnInterval,
     buildStep: 0,
-    groupTarget: 0,
   };
 }
 

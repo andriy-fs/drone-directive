@@ -3,10 +3,10 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dial
 import { defaultBuildOrder } from '../../config/gameSettings';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
-import { ChassisType, type TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { ChipPicker, PickerGroup } from '../common/Picker';
-import { programOptions } from '../hud/programOptions';
+import { directiveOptions } from '../hud/programOptions';
 import { chassisOptions, weaponOptions } from '../hud/unitOptions';
 
 /**
@@ -30,7 +30,9 @@ export function BaseSetupModal({ onClose }: { onClose: () => void }) {
 
   const [chassis, setChassis] = useState<ChassisType>(base.autoBuild?.chassis ?? defaultBuildOrder.chassis);
   const [weapon, setWeapon] = useState<WeaponType>(base.autoBuild?.weapon ?? defaultBuildOrder.weapon);
-  const [program, setProgram] = useState<TaskType | null>(base.defaultProgram);
+  // The picker no longer offers "None", so seed it with a real directive; the
+  // stored setting stays nullable because the domain still has that state.
+  const [program, setProgram] = useState<TaskType>(base.defaultProgram ?? TaskType.Guard);
 
   const apply = () => {
     updateSettings({ base: { autoBuild: { chassis, weapon }, defaultProgram: program } });
@@ -54,12 +56,10 @@ export function BaseSetupModal({ onClose }: { onClose: () => void }) {
             <ChipPicker className="picker--cards" options={weaponOptions(t)} value={weapon} onChange={setWeapon} />
           </PickerGroup>
 
-          {/* Unlike the in-match build dialog, this one keeps its "None" card: a
-              base may legitimately produce robots with no directive of their own. */}
           <PickerGroup label={t('baseSetup', 'newRobotProgram')}>
-            <ChipPicker<TaskType | null>
+            <ChipPicker<TaskType>
               className="picker--cards"
-              options={programOptions(t)}
+              options={directiveOptions(t)}
               value={program}
               onChange={setProgram}
             />

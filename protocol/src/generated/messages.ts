@@ -145,6 +145,8 @@ export enum TaskType {
     Scout = "Scout",
     AttackTarget = "AttackTarget",
     Overwatch = "Overwatch",
+    DefendBase = "DefendBase",
+    GroupAttack = "GroupAttack",
 }
 
 export function readTaskType(bc: bare.ByteCursor): TaskType {
@@ -165,6 +167,10 @@ export function readTaskType(bc: bare.ByteCursor): TaskType {
             return TaskType.AttackTarget
         case 6:
             return TaskType.Overwatch
+        case 7:
+            return TaskType.DefendBase
+        case 8:
+            return TaskType.GroupAttack
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -202,6 +208,14 @@ export function writeTaskType(bc: bare.ByteCursor, x: TaskType): void {
             bare.writeU8(bc, 6)
             break
         }
+        case TaskType.DefendBase: {
+            bare.writeU8(bc, 7)
+            break
+        }
+        case TaskType.GroupAttack: {
+            bare.writeU8(bc, 8)
+            break
+        }
     }
 }
 
@@ -221,6 +235,8 @@ export enum BuildTask {
     Scout = "Scout",
     AttackTarget = "AttackTarget",
     Overwatch = "Overwatch",
+    DefendBase = "DefendBase",
+    GroupAttack = "GroupAttack",
 }
 
 export function readBuildTask(bc: bare.ByteCursor): BuildTask {
@@ -245,6 +261,10 @@ export function readBuildTask(bc: bare.ByteCursor): BuildTask {
             return BuildTask.AttackTarget
         case 8:
             return BuildTask.Overwatch
+        case 9:
+            return BuildTask.DefendBase
+        case 10:
+            return BuildTask.GroupAttack
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -288,6 +308,14 @@ export function writeBuildTask(bc: bare.ByteCursor, x: BuildTask): void {
         }
         case BuildTask.Overwatch: {
             bare.writeU8(bc, 8)
+            break
+        }
+        case BuildTask.DefendBase: {
+            bare.writeU8(bc, 9)
+            break
+        }
+        case BuildTask.GroupAttack: {
+            bare.writeU8(bc, 10)
             break
         }
     }

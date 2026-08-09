@@ -1,6 +1,5 @@
 import { getBuildPreset } from '../../config/buildPresets';
 import { gameConfig } from '../../config/gameConfig';
-import type { Vec2 } from '@drone-directive/types/entities';
 import {
   BuildPresetType,
   ChassisType,
@@ -10,13 +9,19 @@ import {
   type Owner,
 } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
-import type { Rng } from '../../utils/rng';
 import type { Entity } from '../ecs/entity';
 import { buildCost, canAfford, spend } from '../economy';
 import type { AiState, GameContext } from '../game/context';
-import { makeAttackBase, makeAttackRobots, makeAttackTarget, makeGuard, scriptForTask } from '../tasks/taskDefinitions';
+import {
+  makeAttackBase,
+  makeAttackRobots,
+  makeAttackTarget,
+  makeDefendBase,
+  makeGroupAttack,
+  scriptForTask,
+} from '../tasks/taskDefinitions';
 import { isDisabled } from './status';
-import { ADVANCING_TASKS } from './task';
+import { isAdvancing } from './task';
 import { isEnemy, knownEnemyRobots } from './targeting';
 import { atRobotCap } from './production';
 
@@ -39,8 +44,15 @@ export function aiSystem(ctx: GameContext, dt: number): void {
 
 /**
  * One bot's turn: resource-gated escalating production off a build preset, plus
- * staged task assignment (guard quota → hold offensive units back → release them
- * in waves of 2–4 → intercept threats). Recomputed from live counts.
+ * task assignment (defence quota → everything else into a gathering attack group
+ * → intercept threats). Recomputed from live counts.
+ *
+ * **A bot robot is never left on `Idle`.** Idle is a passive program — it only
+ * ever shoots back at whoever already hit it, and only for the length of the
+ * under-fire window — so a unit parked on it is a discount target that also
+ * contributes nothing. `DefendBase` is the bot's waiting state instead, and
+ * `sweepIdle` at the end is the structural guarantee: whatever route a unit took
+ * to get here, it does not end this tick idle.
  */
 function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): void {
   const base = ctx.world
@@ -48,13 +60,37 @@ function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): voi
     .entities.find((e) => e.owner === owner && (e.hp ?? 0) > 0);
   if (!base) return;
 
+  ensureFactoryDefault(base);
   ensureEwRobot(ctx, owner, base);
   updateProduction(ctx, owner, state, base, dt);
   // Ahead of the generic assignment: `dew` hulls are governed by their own rule
-  // for the whole match, not just while idle, so they must be off the table
-  // before waves are formed out of whatever is standing around.
-  positionDewUnits(ctx, owner, base);
-  assignIdleUnits(ctx, owner, state, base);
+  // for the whole match, not just while waiting, so they must be off the table
+  // before groups are formed out of whatever is standing around.
+  positionDewUnits(ctx, owner);
+  assignUnits(ctx, owner, base);
+  sweepIdle(ctx, owner);
+}
+
+/**
+ * The first half of the no-idle rule, applied at the factory door: a bot's units
+ * roll out defending the base. `AiAssault` sets no `task` on its steps, so
+ * without this a robot built after `assignUnits` has already run for the tick
+ * would spend a whole tick on `Idle` before anything picked it up.
+ */
+function ensureFactoryDefault(base: Entity): void {
+  const prod = base.production!;
+  if (prod.defaultTask !== TaskType.DefendBase) prod.defaultTask = TaskType.DefendBase;
+}
+
+/**
+ * The other half: anything that still reached `Idle` — a starter robot from
+ * `spawnStarters`, a program refused for its weapon — takes up the base line.
+ */
+function sweepIdle(ctx: GameContext, owner: Owner): void {
+  for (const robot of ctx.world.with('robot', 'script').entities) {
+    if (robot.owner !== owner || (robot.hp ?? 0) <= 0) continue;
+    if (robot.script!.programId === TaskType.Idle) robot.script = makeDefendBase();
+  }
 }
 
 /**
@@ -73,7 +109,7 @@ function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): voi
  * Both states are existing programs, so this is bot *policy* only — no new
  * behaviour vocabulary, and nothing here is visible to the player's own units.
  */
-function positionDewUnits(ctx: GameContext, owner: Owner, base: Entity): void {
+function positionDewUnits(ctx: GameContext, owner: Owner): void {
   const units = ctx.world
     .with('robot', 'position', 'script')
     .entities.filter((e) => e.owner === owner && (e.hp ?? 0) > 0 && e.weaponType === WeaponType.Dew);
@@ -85,14 +121,14 @@ function positionDewUnits(ctx: GameContext, owner: Owner, base: Entity): void {
     if (isDisabled(unit)) continue; // can't take an order until its electronics come back
 
     const wanted = !escorted
-      ? TaskType.Guard // no push to join — hold the line at home
+      ? TaskType.DefendBase // no push to join — hold the line at home
       : (unit.weapon?.cooldownLeft ?? 0) > 0
         ? TaskType.Overwatch // just fired: fall back behind the group and reload
         : TaskType.AttackRobots; // loaded: move up with the group and pick a target
-    // Only on an actual change: reassigning every tick would re-roll the guard
-    // post (an rng draw the peer must match) and wipe the roam blackboard.
+    // Only on an actual change: reassigning every tick would wipe the roam
+    // blackboard and restart the patrol leg it is part-way through.
     if (unit.script!.programId === wanted) continue;
-    unit.script = wanted === TaskType.Guard ? makeGuard(guardPost(base, ctx.rng)) : scriptForTask(unit.position!, wanted);
+    unit.script = scriptForTask(unit.position!, wanted);
   }
 }
 
@@ -100,19 +136,13 @@ function positionDewUnits(ctx: GameContext, owner: Owner, base: Entity): void {
 function advancingCombatCount(ctx: GameContext, owner: Owner): number {
   return ctx.world
     .with('robot', 'script', 'weapon')
-    .entities.filter(
-      (e) =>
-        e.owner === owner &&
-        (e.hp ?? 0) > 0 &&
-        e.weapon!.damage > 0 &&
-        ADVANCING_TASKS.has(e.script!.programId),
-    ).length;
+    .entities.filter((e) => e.owner === owner && (e.hp ?? 0) > 0 && e.weapon!.damage > 0 && isAdvancing(e)).length;
 }
 
 /**
  * Keeps one EW jammer alive/queued at all times — cheapest hull (wheels) since
- * it's a support unit, not a combatant, and it's ordered to Guard so it stays
- * near the base instead of wandering off with an attack wave. Runs every tick
+ * it's a support unit, not a combatant, and it's ordered to defend the base so
+ * it stays home instead of wandering off with an attack group. Runs every tick
  * (not gated by the normal production cadence) so a dead jammer gets replaced
  * as soon as the AI can afford one, independent of whatever else is queued.
  */
@@ -124,7 +154,7 @@ function ensureEwRobot(ctx: GameContext, owner: Owner, base: Entity): void {
   if (hasEw) return;
   if (base.production!.queue.some((o) => o.weapon === WeaponType.Ew)) return;
 
-  const order = { chassis: ChassisType.Wheels, weapon: WeaponType.Ew, task: TaskType.Guard };
+  const order = { chassis: ChassisType.Wheels, weapon: WeaponType.Ew, task: TaskType.DefendBase };
   const cost = buildCost(order);
   if (!canAfford(ctx.resources, owner, cost)) return;
 
@@ -155,17 +185,27 @@ function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: 
 }
 
 /**
- * Assigns programs to Idle AI robots. Under threat, `mobilizeDefense` takes over
- * (checked before the Idle-only slice below, so a base defended purely by
- * Guards — no Idle units at all — still responds). Otherwise behaviour depends
- * on `forcePosture`: outnumbered → turtle up (bigger guard line, no offensive
- * wave, kamikaze stays home too); significantly ahead → press the advantage
- * immediately instead of waiting for a full wave; roughly even → the original
- * behaviour — fill the guard quota, *stage* the rest near base, and only
- * release once a full wave (2–4) has gathered, so the AI attacks in groups
- * instead of trickling out one robot at a time.
+ * Assigns programs to the bot's units that are between jobs. Under threat,
+ * `mobilizeDefense` takes over. Otherwise behaviour depends on `forcePosture`:
+ * outnumbered → turtle up (bigger defence line, no attack group, kamikaze stays
+ * home too); significantly ahead → press the advantage immediately instead of
+ * waiting for a group; roughly even → fill the defence quota and put everything
+ * else on `GroupAttack`, which gathers and sets off on its own.
+ *
+ * The pool is `Idle` **or `DefendBase`** rather than Idle alone. Idle only shows
+ * up for a unit that has just been built, and the bot doesn't leave anything
+ * there; the defence line is the standing reserve it actually draws attackers
+ * from once the quota is covered.
+ *
+ * Waves used to be staged here: units over the quota were parked on `Idle` and
+ * released once the pool reached a per-wave random size. That size was rolled up
+ * to `attackGroupMax` while the robot cap, the defence quota, the EW jammer and
+ * the `dew` hull between them capped the pool well below it — so a high roll
+ * could never be met and the pool sat at base, idle, for the rest of the match.
+ * `GroupAttack` replaces the whole mechanism: the threshold is a fixed small
+ * number the program checks itself, so it cannot outrun the force available.
  */
-function assignIdleUnits(ctx: GameContext, owner: Owner, state: AiState, base: Entity): void {
+function assignUnits(ctx: GameContext, owner: Owner, base: Entity): void {
   const aiRobots = ctx.world.with('robot', 'position', 'script').entities.filter((e) => e.owner === owner);
 
   if (isThreatened(ctx, owner, base)) {
@@ -177,51 +217,55 @@ function assignIdleUnits(ctx: GameContext, owner: Owner, state: AiState, base: E
   // `aiRobots` for the counts below: they're still force on the board, they just
   // can't be given a new job this tick (and re-rolling their program every tick
   // while they sit there would only churn).
-  const idle = aiRobots.filter((e) => e.script!.programId === TaskType.Idle && !isDisabled(e));
-  if (idle.length === 0) return;
+  const available = aiRobots.filter((e) => !isDisabled(e) && REASSIGNABLE.has(e.script!.programId));
+  if (available.length === 0) return;
 
   const posture = forcePosture(ctx, owner);
 
-  const bombers = idle.filter((e) => e.weaponType === WeaponType.Bomb);
-  for (const bomber of bombers) {
+  for (const bomber of available.filter((e) => e.weaponType === WeaponType.Bomb)) {
     // Outnumbered: keep the kamikaze home as an extra defender rather than
     // spending it on a run the AI may not survive to benefit from.
-    if (posture === 'defensive') bomber.script = makeGuard(guardPost(base, ctx.rng));
+    if (posture === 'defensive') bomber.script = makeDefendBase();
     else assignKamikaze(ctx, bomber);
   }
-  // `dew` is deliberately absent from the wave logic: `positionDewUnits` owns it,
-  // and counting it toward a wave would let one form out of units that between
-  // them can't destroy anything.
-  const rest = idle.filter((e) => e.weaponType !== WeaponType.Bomb && e.weaponType !== WeaponType.Dew);
+  // `dew` is deliberately absent from the group logic: `positionDewUnits` owns
+  // it, and counting it toward a group would let one form out of units that
+  // between them can't destroy anything.
+  const rest = available.filter((e) => e.weaponType !== WeaponType.Bomb && e.weaponType !== WeaponType.Dew);
 
-  const guardQuota =
+  const defenceQuota =
     posture === 'defensive' ? gameConfig.ai.guardQuota + gameConfig.ai.defensiveGuardBonus : gameConfig.ai.guardQuota;
 
-  let guards = aiRobots.filter((e) => e.script!.programId === TaskType.Guard).length;
-  const staged: Entity[] = [];
-  for (const robot of rest) {
-    if (guards < guardQuota) {
-      robot.script = makeGuard(guardPost(base, ctx.rng));
-      guards += 1;
-    } else {
-      staged.push(robot); // hold near base until a wave forms (or posture calls for one)
+  // Units already holding the line come first, so the quota is filled by the
+  // robots that are standing there rather than churning between whoever is free
+  // — and a defender that keeps its post keeps its patrol leg with it.
+  const onPost = rest.filter((e) => e.script!.programId === TaskType.DefendBase);
+  const spare = rest.filter((e) => e.script!.programId !== TaskType.DefendBase);
+
+  let defenders = 0;
+  for (const robot of [...onPost, ...spare]) {
+    const holding = robot.script!.programId === TaskType.DefendBase;
+    if (defenders < defenceQuota) {
+      if (!holding) robot.script = makeDefendBase();
+      defenders += 1;
+      continue;
     }
-  }
-
-  if (posture === 'defensive') return; // significantly outnumbered — hold everything back, no offensive wave
-
-  if (posture === 'offensive' && staged.length > 0) {
-    // Significantly ahead — press it now instead of waiting for a full wave to form.
-    for (const robot of staged) robot.script = makeAttackBase();
-    return;
-  }
-
-  if (state.groupTarget <= 0) state.groupTarget = rollAttackGroup(ctx.rng);
-  if (staged.length >= state.groupTarget) {
-    for (const robot of staged.slice(0, state.groupTarget)) robot.script = makeAttackBase();
-    state.groupTarget = rollAttackGroup(ctx.rng); // size the next wave
+    // Significantly outnumbered — everything holds; nobody is sent out.
+    if (posture === 'defensive') {
+      if (!holding) robot.script = makeDefendBase();
+      continue;
+    }
+    // Significantly ahead — press it now instead of waiting for a group to form.
+    robot.script = posture === 'offensive' ? makeAttackBase() : makeGroupAttack();
   }
 }
+
+/**
+ * Programs the bot considers "between jobs" and may reassign: a freshly built
+ * unit, and the standing defence line it draws attackers from. Everything else
+ * (an attack group, a kamikaze run, an `Overwatch` reload lap) is mid-task.
+ */
+const REASSIGNABLE = new Set<TaskType>([TaskType.Idle, TaskType.DefendBase]);
 
 type ForcePosture = 'offensive' | 'defensive' | 'balanced';
 
@@ -301,18 +345,19 @@ function juiciestCluster(ctx: GameContext, bomber: Entity): { targetId: string; 
   return best ? { targetId: best.id, count: bestCount } : undefined;
 }
 
-/** A random attack-wave size in [attackGroupMin, attackGroupMax]. */
-function rollAttackGroup(rng: Rng): number {
-  const { attackGroupMin: lo, attackGroupMax: hi } = gameConfig.ai;
-  return lo + rng.int(hi - lo + 1);
-}
-
 /**
- * Reassigns AI robots when the base is under threat. Below `massRushThreshold`
- * only "home-based" robots (Idle/Guard) join the fight, so a minor skirmish
- * doesn't derail an attack wave already under way; at/above it, the AI recalls
- * everything it can fight with — including robots mid-attack — since losing the
- * base outright is worse than losing offensive tempo.
+ * Reassigns AI robots when the base is under threat.
+ *
+ * Below `massRushThreshold` the home-based units go to `DefendBase`, which
+ * intercepts anything inside the base's defence radius and then goes back on
+ * post. They used to be switched to `AttackRobots` here, which is a one-way
+ * ticket — nothing in the engine ends a task, so a defender sent after one
+ * raider hunted robots across the map for the rest of the match and the base was
+ * left thinner than before the skirmish.
+ *
+ * At/above the threshold the AI still recalls everything it can fight with —
+ * including units mid-attack — as `AttackRobots`: losing the base outright is
+ * worse than losing offensive tempo, and at that point chasing is the point.
  */
 function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots: Entity[]): void {
   const massRush = nearbyEnemyCount(ctx, owner, base) >= gameConfig.ai.massRushThreshold;
@@ -321,9 +366,15 @@ function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots:
     if (robot.weaponType === WeaponType.Ew) continue; // unarmed — nothing to fight with, stays put
     if (robot.weaponType === WeaponType.Dew) continue; // `positionDewUnits` decides where this one stands
     const programId = robot.script!.programId;
-    if (programId === TaskType.AttackRobots) continue; // already mobilized — don't reset its blackboard/roamTarget
-    const homeBound = programId === TaskType.Idle || programId === TaskType.Guard;
-    if (massRush || homeBound) robot.script = makeAttackRobots();
+
+    if (massRush) {
+      if (programId !== TaskType.AttackRobots) robot.script = makeAttackRobots(); // don't reset an existing hunt
+      continue;
+    }
+    // A group that has already set off is left alone; one still gathering at
+    // base is home-based like any reserve and joins the defence.
+    if (isAdvancing(robot)) continue;
+    if (programId !== TaskType.DefendBase) robot.script = makeDefendBase();
   }
 }
 
@@ -348,10 +399,3 @@ function nearbyEnemyCount(ctx: GameContext, owner: Owner, base: Entity): number 
     ).length;
 }
 
-function guardPost(base: Entity, rng: Rng): Vec2 {
-  const bp = base.position!;
-  const half = ((base.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx) / 2;
-  const angle = rng.next() * Math.PI * 2;
-  const dist = half + 20 + rng.next() * gameConfig.ai.guardRadius;
-  return { x: bp.x + Math.cos(angle) * dist, y: bp.y + Math.sin(angle) * dist };
-}
