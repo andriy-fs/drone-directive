@@ -7,7 +7,7 @@ import { ASSIGNABLE_TASKS, TASK_ICONS, taskHint, taskLabels } from '../hud/progr
  * Reference modal for the directive tiles, opened from the Directives card's
  * header. These descriptions used to be tooltips on the tiles themselves, which
  * served the first match and got in the way of every one after it — a player who
- * has learned the five orders shouldn't have text popping up every time the
+ * has learned the orders shouldn't have text popping up every time the
  * cursor crosses the grid.
  */
 export function DirectivesModal({ onClose }: { onClose: () => void }) {

@@ -1214,7 +1214,7 @@
 }
 
 /* Directives reference: the same tile icon beside its name and description, so
-   the modal and the grid are recognisably the same five things. */
+   the modal and the grid are recognisably the same set of things. */
 .directive-guide {
   display: flex;
   flex-direction: column;

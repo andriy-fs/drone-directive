@@ -115,7 +115,7 @@ describe('aiSystem — defense mobilization', () => {
     return robots;
   }
 
-  it('pulls a Guard into the fight, not just Idle units', () => {
+  it('puts a home-based unit on base defence when a raider turns up', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
@@ -134,10 +134,12 @@ describe('aiSystem — defense mobilization', () => {
 
     aiSystem(ctx, 0);
 
-    expect(guard.script!.programId).toBe(TaskType.AttackRobots);
+    // Not `AttackRobots`: nothing in the engine ends a task, so hunting one
+    // raider across the map would cost the base a defender permanently.
+    expect(guard.script!.programId).toBe(TaskType.DefendBase);
   });
 
-  it('mobilizes even when every AI robot is a Guard (no Idle units at all)', () => {
+  it('mobilizes even when no AI robot is idle', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
@@ -153,7 +155,35 @@ describe('aiSystem — defense mobilization', () => {
 
     aiSystem(ctx, 0);
 
-    expect(guard.script!.programId).toBe(TaskType.AttackRobots);
+    expect(guard.script!.programId).toBe(TaskType.DefendBase);
+  });
+
+  it('pulls in a group that is still gathering, but not one that has set off', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.ai = 0;
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    const gathering = spawnRobot(
+      ctx.world,
+      Owner.AI,
+      { x: base.position!.x, y: base.position!.y + 40 },
+      ChassisType.Tracks,
+      WeaponType.Cannon,
+    );
+    gathering.script = { programId: TaskType.GroupAttack, blackboard: { committed: false } };
+    const departed = spawnRobot(
+      ctx.world,
+      Owner.AI,
+      { x: base.position!.x + 500, y: base.position!.y },
+      ChassisType.Tracks,
+      WeaponType.Cannon,
+    );
+    departed.script = { programId: TaskType.GroupAttack, blackboard: { committed: true } };
+    spawnPlayerRobotsNear(ctx, base, 1);
+
+    aiSystem(ctx, 0);
+
+    expect(gathering.script!.programId).toBe(TaskType.DefendBase);
+    expect(departed.script!.programId).toBe(TaskType.GroupAttack); // already on its way
   });
 
   it('leaves an active attacker alone below the mass-rush threshold', () => {
@@ -315,19 +345,18 @@ describe('aiSystem — group attacks', () => {
 
   // Far from the AI base (well outside threatRange) so these don't trip
   // `isThreatened` — only here to keep `forcePosture` at 'balanced' so these
-  // tests exercise the wave-threshold mechanic on its own (posture behaviour
-  // has its own describe block below).
+  // tests exercise the assignment split on its own (posture behaviour has its
+  // own describe block below).
   function matchAiCount(ctx: ReturnType<typeof makeCtx>, count: number) {
     for (let i = 0; i < count; i++) {
       spawnRobot(ctx.world, Owner.Player, { x: 40 + i, y: 40 }, ChassisType.Tracks, WeaponType.Cannon);
     }
   }
 
-  it('releases offensive units in a wave once enough have gathered', () => {
+  it('fills the defence quota, then puts everything else on Group Attack', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0; // starve production so only assignment runs
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai[Owner.AI]!.groupTarget = 3;
     const count = gameConfig.ai.guardQuota + 3;
     seedIdleAi(ctx, base, count);
     matchAiCount(ctx, count);
@@ -336,42 +365,76 @@ describe('aiSystem — group attacks', () => {
 
     const robots = aiRobots(ctx);
     const by = (t: TaskType) => robots.filter((r) => r.script!.programId === t).length;
-    expect(by(TaskType.Guard)).toBe(gameConfig.ai.guardQuota);
-    expect(by(TaskType.AttackBase)).toBe(3); // a full wave marched off together
+    expect(by(TaskType.DefendBase)).toBe(gameConfig.ai.guardQuota);
+    expect(by(TaskType.GroupAttack)).toBe(3);
     expect(by(TaskType.Idle)).toBe(0);
   });
 
-  it('holds units back (no attack) until the wave size is reached', () => {
+  it('never leaves a robot idle, whatever the force ratio', () => {
+    // The original bug: units over the quota were parked on Idle and released
+    // only when the pool reached a wave size rolled as high as 10 — which the
+    // robot cap, the quota, the EW jammer and the dew hull made unreachable, so
+    // they idled at base for the rest of the match. Nothing may sit on Idle now.
+    for (const seed of [1, 2, 3]) {
+      const ctx = makeCtx(seed);
+      spawnBase(ctx.world, Owner.AI, 33, 4);
+      spawnBase(ctx.world, Owner.Player, 4, 33);
+
+      for (let tick = 0; tick < 400; tick++) {
+        aiSystem(ctx, 0.5);
+        productionSystem(ctx, 0.5);
+        const idle = aiRobots(ctx).filter((r) => (r.hp ?? 0) > 0 && r.script!.programId === TaskType.Idle);
+        expect(idle).toHaveLength(0);
+      }
+      // ...and the run actually built an army, so the assertion had something to bite on.
+      expect(aiRobots(ctx).length).toBeGreaterThan(gameConfig.ai.guardQuota);
+    }
+  });
+
+  it('keeps forming groups at the robot cap — the deadlock this replaced', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai[Owner.AI]!.groupTarget = 3;
-    const count = gameConfig.ai.guardQuota + 2; // only 2 staged, below the wave size
+    // A full army: under the old staged-wave logic a high roll could never be
+    // met out of this, and the surplus stood idle forever.
+    const count = gameConfig.production.maxRobots;
     seedIdleAi(ctx, base, count);
     matchAiCount(ctx, count);
 
     aiSystem(ctx, 100);
 
-    const robots = aiRobots(ctx);
-    const by = (t: TaskType) => robots.filter((r) => r.script!.programId === t).length;
-    expect(by(TaskType.AttackBase)).toBe(0); // nothing released yet
-    expect(by(TaskType.Idle)).toBe(2); // still staged near base
+    const attackers = aiRobots(ctx).filter((r) => r.script!.programId === TaskType.GroupAttack);
+    expect(attackers.length).toBe(count - gameConfig.ai.guardQuota);
   });
 
-  it('sizes each wave within the configured group range', () => {
-    const ctx = makeCtx(3);
+  it('keeps the same robots on the defence line instead of churning the quota', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai[Owner.AI]!.groupTarget = 0; // force a roll
-    const count = gameConfig.ai.guardQuota + gameConfig.ai.attackGroupMax;
+    const count = gameConfig.ai.guardQuota + 2;
     seedIdleAi(ctx, base, count);
     matchAiCount(ctx, count);
-    ctx.resources.ai = 0;
 
     aiSystem(ctx, 100);
+    const first = aiRobots(ctx)
+      .filter((r) => r.script!.programId === TaskType.DefendBase)
+      .map((r) => r.id);
+    // Give them a patrol leg in progress, which a needless reassignment would wipe.
+    for (const r of aiRobots(ctx)) {
+      if (r.script!.programId === TaskType.DefendBase) r.script!.blackboard.roamTarget = { x: 1, y: 2 };
+    }
 
-    const attackers = aiRobots(ctx).filter((r) => r.script!.programId === TaskType.AttackBase).length;
-    expect(attackers).toBeGreaterThanOrEqual(gameConfig.ai.attackGroupMin);
-    expect(attackers).toBeLessThanOrEqual(gameConfig.ai.attackGroupMax);
+    aiSystem(ctx, 100);
+    const second = aiRobots(ctx)
+      .filter((r) => r.script!.programId === TaskType.DefendBase)
+      .map((r) => r.id);
+
+    expect(second).toEqual(first);
+    for (const r of aiRobots(ctx)) {
+      if (r.script!.programId === TaskType.DefendBase) {
+        expect(r.script!.blackboard.roamTarget).toEqual({ x: 1, y: 2 });
+      }
+    }
   });
 });
 
@@ -400,21 +463,23 @@ describe('aiSystem — force posture', () => {
     return robots;
   }
 
-  it('presses the attack immediately when significantly ahead, without waiting for a full wave', () => {
+  it('presses the attack immediately when significantly ahead, without waiting for a group', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai[Owner.AI]!.groupTarget = 10; // would normally hold back until 10 have gathered
-    seedIdleAi(ctx, base, gameConfig.ai.guardQuota + 1); // only 1 staged, no player robots at all
+    // One unit over the quota, no player robots at all: it goes straight out
+    // rather than waiting for a group that a lopsided fight doesn't need.
+    seedIdleAi(ctx, base, gameConfig.ai.guardQuota + 1);
 
     aiSystem(ctx, 100);
 
     const robots = aiRobots(ctx);
     expect(robots.filter((r) => r.script!.programId === TaskType.AttackBase).length).toBe(1);
+    expect(robots.filter((r) => r.script!.programId === TaskType.GroupAttack).length).toBe(0);
     expect(robots.filter((r) => r.script!.programId === TaskType.Idle).length).toBe(0);
   });
 
-  it('turtles up and expands the guard line when significantly outnumbered', () => {
+  it('turtles up and expands the defence line when significantly outnumbered', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
@@ -426,8 +491,9 @@ describe('aiSystem — force posture', () => {
 
     const robots = aiRobots(ctx);
     const by = (t: TaskType) => robots.filter((r) => r.script!.programId === t).length;
-    expect(by(TaskType.Guard)).toBe(gameConfig.ai.guardQuota + gameConfig.ai.defensiveGuardBonus);
+    expect(by(TaskType.DefendBase)).toBe(count); // the surplus holds too, nobody is sent out
     expect(by(TaskType.AttackBase)).toBe(0);
+    expect(by(TaskType.GroupAttack)).toBe(0);
   });
 
   it('keeps a kamikaze at home instead of sending it off when significantly outnumbered', () => {
@@ -445,7 +511,7 @@ describe('aiSystem — force posture', () => {
 
     aiSystem(ctx, 100);
 
-    expect(bomber.script!.programId).toBe(TaskType.Guard);
+    expect(bomber.script!.programId).toBe(TaskType.DefendBase);
   });
 });
 
@@ -484,7 +550,7 @@ describe('aiSystem — directed-energy escort discipline', () => {
 
     aiSystem(ctx, 100);
 
-    expect(dew.script!.programId).toBe(TaskType.Guard);
+    expect(dew.script!.programId).toBe(TaskType.DefendBase);
   });
 
   it('still holds it when the push is too thin to escort it', () => {
@@ -494,7 +560,7 @@ describe('aiSystem — directed-energy escort discipline', () => {
 
     aiSystem(ctx, 100);
 
-    expect(dew.script!.programId).toBe(TaskType.Guard);
+    expect(dew.script!.programId).toBe(TaskType.DefendBase);
   });
 
   it('does not count unarmed hulls as escort — a dew never escorts a dew', () => {
@@ -513,7 +579,7 @@ describe('aiSystem — directed-energy escort discipline', () => {
 
     aiSystem(ctx, 100);
 
-    expect(dew.script!.programId).toBe(TaskType.Guard);
+    expect(dew.script!.programId).toBe(TaskType.DefendBase);
   });
 
   it('sends a loaded dew up with a real push', () => {
@@ -543,13 +609,12 @@ describe('aiSystem — directed-energy escort discipline', () => {
     expect(dew.script!.programId).toBe(TaskType.AttackRobots);
   });
 
-  it('never lets a dew make up the numbers of an attack wave', () => {
+  it('never lets a dew make up the numbers of an attack group', () => {
     const ctx = makeCtx(1);
     ctx.resources.ai = 0;
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
-    ctx.ai[Owner.AI]!.groupTarget = 3;
 
-    // The guard quota is already filled by armed hulls, so it can't absorb
+    // The defence quota is already filled by armed hulls, so it can't absorb
     // anything below and muddy what this test is about.
     for (let i = 0; i < gameConfig.ai.guardQuota; i++) {
       const g = spawnRobot(
@@ -559,11 +624,18 @@ describe('aiSystem — directed-energy escort discipline', () => {
         ChassisType.Tracks,
         WeaponType.Cannon,
       );
-      g.script = { programId: TaskType.Guard, blackboard: {} };
+      g.script = { programId: TaskType.DefendBase, blackboard: {} };
     }
-    // Three bodies left over — a full wave by headcount, but two of them are dew
-    // hulls that between them can't destroy anything. No wave may form.
-    spawnRobot(ctx.world, Owner.AI, { x: base.position!.x + 20, y: base.position!.y }, ChassisType.Tracks, WeaponType.Cannon);
+    // Three bodies left over — a full group by headcount, but two of them are
+    // dew hulls that between them can't destroy anything. `positionDewUnits`
+    // owns those, so only the one cannon may end up waiting for a group.
+    spawnRobot(
+      ctx.world,
+      Owner.AI,
+      { x: base.position!.x + 20, y: base.position!.y },
+      ChassisType.Tracks,
+      WeaponType.Cannon,
+    );
     for (let i = 0; i < 2; i++) {
       spawnRobot(
         ctx.world,
@@ -573,14 +645,16 @@ describe('aiSystem — directed-energy escort discipline', () => {
         WeaponType.Dew,
       );
     }
-    // Matched player force, far away: keeps `forcePosture` at 'balanced' (which
-    // waits for a wave) and out of `threatRange` (which would mobilize instead).
+    // Matched player force, far away: keeps `forcePosture` at 'balanced' and out
+    // of `threatRange` (which would mobilize instead).
     for (let i = 0; i < 6; i++) {
       spawnRobot(ctx.world, Owner.Player, { x: 40 + i * 4, y: 40 }, ChassisType.Tracks, WeaponType.Cannon);
     }
 
     aiSystem(ctx, 100);
 
-    expect(aiRobots(ctx).filter((r) => r.script!.programId === TaskType.AttackBase).length).toBe(0);
+    const grouping = aiRobots(ctx).filter((r) => r.script!.programId === TaskType.GroupAttack);
+    expect(grouping).toHaveLength(1);
+    expect(grouping[0].weaponType).toBe(WeaponType.Cannon);
   });
 });

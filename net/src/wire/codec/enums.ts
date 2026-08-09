@@ -32,6 +32,8 @@ export const TASK_TO_WIRE: Record<TaskType, wire.TaskType> = {
   [TaskType.Scout]: wire.TaskType.Scout,
   [TaskType.AttackTarget]: wire.TaskType.AttackTarget,
   [TaskType.Overwatch]: wire.TaskType.Overwatch,
+  [TaskType.DefendBase]: wire.TaskType.DefendBase,
+  [TaskType.GroupAttack]: wire.TaskType.GroupAttack,
 };
 
 /**
@@ -47,6 +49,8 @@ export const TASK_TO_BUILD_TASK: Record<TaskType, wire.BuildTask> = {
   [TaskType.Scout]: wire.BuildTask.Scout,
   [TaskType.AttackTarget]: wire.BuildTask.AttackTarget,
   [TaskType.Overwatch]: wire.BuildTask.Overwatch,
+  [TaskType.DefendBase]: wire.BuildTask.DefendBase,
+  [TaskType.GroupAttack]: wire.BuildTask.GroupAttack,
 };
 
 export const MAP_SIZE_TO_WIRE: Record<MapSize, wire.MapSize> = {

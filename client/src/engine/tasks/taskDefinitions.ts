@@ -4,14 +4,19 @@ import type { RobotScript } from '@drone-directive/types/tasks';
 
 /**
  * Attack directives a given weapon has no business accepting. A radar has
- * nothing to fight with at all (0 range, 0 damage), so both offensive programs
- * are out; a `dew` fights robots perfectly well but cannot touch a building —
- * its shot deals no damage and there is no crew to knock out — so only "Attack
- * Base" is refused. Anything not listed here may take any program.
+ * nothing to fight with at all (0 range, 0 damage), so every offensive program
+ * is out; a `dew` fights robots perfectly well but cannot touch a building —
+ * its shot deals no damage and there is no crew to knock out — so the
+ * base-seeking ones are refused. "Group Attack" advances on a base once its
+ * group forms, which puts it in the same bracket for both.
+ *
+ * "Defend Base" is refused to nobody: a robot with no weapon simply patrols
+ * instead of intercepting (see `defendBaseOutcome`), which is a real job for a
+ * radar. Anything not listed here may take any program.
  */
 const FORBIDDEN_TASKS: Partial<Record<WeaponType, ReadonlySet<TaskType>>> = {
-  [WeaponType.Radar]: new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots]),
-  [WeaponType.Dew]: new Set<TaskType>([TaskType.AttackBase]),
+  [WeaponType.Radar]: new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots, TaskType.GroupAttack]),
+  [WeaponType.Dew]: new Set<TaskType>([TaskType.AttackBase, TaskType.GroupAttack]),
 };
 
 /**
@@ -60,6 +65,20 @@ export function makeOverwatch(): RobotScript {
   return { programId: TaskType.Overwatch, blackboard: {} };
 }
 
+/** Hold the base perimeter, intercepting anything that comes near it. */
+export function makeDefendBase(): RobotScript {
+  return { programId: TaskType.DefendBase, blackboard: {} };
+}
+
+/**
+ * Gather at base, then advance with the group. Always starts uncommitted — the
+ * program latches `committed` itself once the group is strong enough, so
+ * re-issuing this order is what puts a unit back in the waiting pool.
+ */
+export function makeGroupAttack(): RobotScript {
+  return { programId: TaskType.GroupAttack, blackboard: { committed: false } };
+}
+
 /**
  * Resolves a *generic* program id into a concrete script; `pos` seeds a guard
  * post. `AttackTarget` needs a target id (not available here), so it isn't a
@@ -77,6 +96,10 @@ export function scriptForTask(pos: Vec2, task: TaskType): RobotScript {
       return makeScout();
     case TaskType.Overwatch:
       return makeOverwatch();
+    case TaskType.DefendBase:
+      return makeDefendBase();
+    case TaskType.GroupAttack:
+      return makeGroupAttack();
     case TaskType.AttackTarget:
     case TaskType.Idle:
       return makeIdle();

@@ -45,8 +45,8 @@ export function TaskPicker({ robots }: { robots: RobotSnapshot[] }) {
     for (const robot of robots) enqueueCommand({ kind: 'AssignTask', robotId: robot.id, task });
   };
 
-  // Read off `options`, not the five of ASSIGNABLE_TASKS: a lone radar hides the
-  // attack orders and leaves an even two, with nothing to widen.
+  // Read off `options`, not ASSIGNABLE_TASKS: a lone radar hides the attack
+  // orders, which changes the parity and so which tile (if any) has to widen.
   const oddCount = options.length % 2 === 1;
 
   return (

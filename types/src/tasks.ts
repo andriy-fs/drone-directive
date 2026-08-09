@@ -48,6 +48,20 @@ export type BehaviorAction =
   | { type: 'retreatToBase' }
   /** Trail behind an advancing friendly group, or hold near base for early warning if none is advancing. */
   | { type: 'overwatch' }
+  /**
+   * Intercept the nearest *known* enemy robot standing within `range` px of this
+   * side's **own base** (default: `behavior.defendBaseRadius`), then go back to
+   * patrolling it. The trigger is proximity to the base rather than to this
+   * robot, so the whole defensive line converges on one intruder.
+   */
+  | { type: 'defendBase'; range?: number }
+  /**
+   * Gather near this side's own base until `size` allies on this same directive
+   * (default: `behavior.groupAttackSize`) — counting only those that have not
+   * left yet — have assembled, then commit the whole group at once and advance.
+   * Holds the base line (`defendBase`) while it waits.
+   */
+  | { type: 'groupAttack'; size?: number }
   /** Do nothing (hold position, no target). */
   | { type: 'idle' };
 
@@ -78,5 +92,11 @@ export interface RobotScript {
     roamTarget?: Vec2;
     /** AttackTarget: id of the specific enemy (robot or base) this robot was ordered to attack. */
     attackTargetId?: string;
+    /**
+     * GroupAttack: the group reached strength and set off. A latch — never
+     * cleared, because a wave that takes losses mid-map would otherwise drop
+     * back below the threshold and turn around.
+     */
+    committed?: boolean;
   };
 }

@@ -228,6 +228,19 @@ export const gameConfig = {
     /** Overwatch: distance (px) behind an advancing friendly group's centroid an unarmed spotter trails at. */
     overwatchTrailDistance: 180,
     /**
+     * DefendBase: an enemy this close (px) to the robot's **own base** is
+     * intercepted. Deliberately wider than `ai.threatRange` (220), so the
+     * defence line is already moving by the time the bot calls itself
+     * threatened, and wide enough to cover a ranged unit shooting from outside.
+     */
+    defendBaseRadius: 280,
+    /** DefendBase: radius (px) around the base it patrols while there is nobody to intercept. */
+    defendPatrolRadius: 200,
+    /** GroupAttack: allies on the same directive (still gathering) needed before the group sets off. */
+    groupAttackSize: 3,
+    /** GroupAttack: radius (px) around the base inside which waiting units count as one gathering group. */
+    groupGatherRadius: 300,
+    /**
      * Anti-jam: a robot with a non-idle program that wants to move (has a goal)
      * or is trapped inside a base, yet makes < `stuckEpsilon` px net progress for
      * `stuckAfter` s, backs off — it drives back the way it came (or straight out
@@ -321,17 +334,16 @@ export const gameConfig = {
     intervalDecay: 0.92,
     /** Interval floor, seconds. */
     minInterval: 2.5,
-    /** Guards to station before switching new units to offense. */
+    /**
+     * Units held on `DefendBase` before the rest are sent out on `GroupAttack`.
+     * The group size itself lives in `behavior.groupAttackSize` — the program
+     * owns it, so the quota can never starve a group that will never form.
+     */
     guardQuota: 3,
-    /** Spread radius (px) for guard posts around the base. */
-    guardRadius: 240,
     /** Enemy within this range (px) of the AI base triggers a defensive unit. */
     threatRange: 220,
     /** Enemy robots within `threatRange` at once, at/above which the AI recalls its whole force (including active attackers) to defend, not just home-based units. */
     massRushThreshold: 5,
-    /** Offensive units are staged near base and released together in a wave of this size (inclusive). */
-    attackGroupMin: 3,
-    attackGroupMax: 10,
     /** Minimum other known enemy robots huddled within the bomb's blast radius before a kamikaze bothers with a cluster run. */
     kamikazeClusterMin: 2,
     /** Chance a freshly-idle kamikaze picks a big enough cluster over rushing the base outright. */

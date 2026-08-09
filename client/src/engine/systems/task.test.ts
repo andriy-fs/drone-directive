@@ -4,7 +4,7 @@ import { ChassisType, Owner, RobotState, TaskType, WeaponType } from '@drone-dir
 import { distance } from '../../utils/math';
 import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
-import { makeAttackTarget, makeGuard, makeOverwatch } from '../tasks/taskDefinitions';
+import { makeAttackTarget, makeDefendBase, makeGroupAttack, makeGuard, makeOverwatch } from '../tasks/taskDefinitions';
 import { makeCtx } from './testkit';
 import { taskSystem } from './task';
 import { movementSystem } from './movement';
@@ -162,6 +162,193 @@ describe('taskSystem — Guard patrols its post', () => {
     expect(seen.size).toBeGreaterThan(3); // actually moves, not frozen
     expect(guard.movement!.state).not.toBe(RobotState.Dead);
     expect(maxDist).toBeLessThanOrEqual(gameConfig.behavior.guardPatrolRadius + gameConfig.grid.tilePx * 2);
+  });
+});
+
+describe('taskSystem — DefendBase holds the base, not the robot', () => {
+  it('drives out to meet an intruder near the base that is out of its own weapon range', () => {
+    const ctx = makeCtx(5);
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.Player, 20, 20);
+    const bp = base.position!;
+    // Posted on the base, cannon (range 120); the intruder sits well beyond that
+    // but comfortably inside the base's defence radius (280).
+    const defender = spawnRobot(ctx.world, Owner.Player, { x: bp.x, y: bp.y }, ChassisType.Tracks, WeaponType.Cannon);
+    defender.script = makeDefendBase();
+    const raider = spawnRobot(ctx.world, Owner.AI, { x: bp.x + 220, y: bp.y }, ChassisType.Tracks, WeaponType.Cannon);
+    expect(distance(bp.x, bp.y, raider.position!.x, raider.position!.y)).toBeGreaterThan(
+      gameConfig.robots.weapons.cannon.range,
+    );
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    // It closes on the raider — the behaviour Idle and Guard both lack, and the
+    // reason an idle robot was free to shoot at from outside its own reach.
+    expect(defender.movement!.goal).toBeDefined();
+    expect(defender.movement!.goal!.x).toBeCloseTo(raider.position!.x, 0);
+    expect(defender.targetId).toBe(raider.id);
+  });
+
+  it('ignores an enemy far from the base and patrols instead', () => {
+    const ctx = makeCtx(5);
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.Player, 20, 20);
+    const bp = base.position!;
+    const defender = spawnRobot(ctx.world, Owner.Player, { x: bp.x, y: bp.y }, ChassisType.Tracks, WeaponType.Cannon);
+    defender.script = makeDefendBase();
+    // Outside the defence radius: not this robot's problem.
+    spawnRobot(
+      ctx.world,
+      Owner.AI,
+      { x: bp.x + gameConfig.behavior.defendBaseRadius + 120, y: bp.y },
+      ChassisType.Tracks,
+      WeaponType.Cannon,
+    );
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(defender.targetId).toBeUndefined();
+  });
+
+  it('stays within the patrol radius of the base over time', () => {
+    const ctx = makeCtx(7);
+    const base = spawnBase(ctx.world, Owner.Player, 20, 20);
+    const bp = { x: base.position!.x, y: base.position!.y };
+    const defender = spawnRobot(ctx.world, Owner.Player, { ...bp }, ChassisType.Wheels, WeaponType.Cannon);
+    defender.script = makeDefendBase();
+
+    const seen = new Set<string>();
+    let maxDist = 0;
+    for (let i = 0; i < 30 * 15; i++) {
+      visionSystem(ctx);
+      taskSystem(ctx, DT);
+      movementSystem(ctx, DT);
+      if (i % 30 === 0) seen.add(`${defender.position!.x.toFixed(0)},${defender.position!.y.toFixed(0)}`);
+      maxDist = Math.max(maxDist, distance(defender.position!.x, defender.position!.y, bp.x, bp.y));
+    }
+    expect(seen.size).toBeGreaterThan(3); // actually moves, not frozen
+    expect(maxDist).toBeLessThanOrEqual(gameConfig.behavior.defendPatrolRadius + gameConfig.grid.tilePx * 2);
+  });
+
+  it('does not send an unarmed hull at an intruder — it has nothing to intercept with', () => {
+    const ctx = makeCtx(5);
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.Player, 20, 20);
+    const bp = base.position!;
+    const radar = spawnRobot(ctx.world, Owner.Player, { x: bp.x, y: bp.y }, ChassisType.Wheels, WeaponType.Radar);
+    radar.script = makeDefendBase();
+    const raider = spawnRobot(ctx.world, Owner.AI, { x: bp.x + 200, y: bp.y }, ChassisType.Tracks, WeaponType.Cannon);
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(radar.targetId).toBeUndefined();
+    // Patrolling near the base, not driving at the raider.
+    expect(radar.movement!.goal!.x).not.toBeCloseTo(raider.position!.x, 0);
+  });
+});
+
+describe('taskSystem — GroupAttack gathers before it goes', () => {
+  /** `n` robots on GroupAttack, uncommitted, parked on their own base. */
+  function seedGroup(ctx: GameContext, n: number) {
+    const base = spawnBase(ctx.world, Owner.Player, 20, 20);
+    const bp = base.position!;
+    const group = [];
+    for (let i = 0; i < n; i++) {
+      const r = spawnRobot(
+        ctx.world,
+        Owner.Player,
+        { x: bp.x + i * 8, y: bp.y },
+        ChassisType.Tracks,
+        WeaponType.Cannon,
+      );
+      r.script = makeGroupAttack();
+      group.push(r);
+    }
+    // Something to march on, far away and already known, so "committed" shows up
+    // as movement rather than as a search roam.
+    const enemyBase = spawnBase(ctx.world, Owner.AI, 2, 2);
+    ctx.intel[Owner.Player].knownBaseIds.add(enemyBase.id);
+    return { base, group, enemyBase };
+  }
+
+  it('holds the base line while the group is short of strength', () => {
+    const ctx = makeCtx(4);
+    openGround(ctx);
+    const { group, enemyBase } = seedGroup(ctx, gameConfig.behavior.groupAttackSize - 1);
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    for (const r of group) {
+      expect(r.script!.blackboard.committed).toBe(false);
+      // Defending the base, not marching on the enemy one.
+      expect(r.movement!.goal?.x).not.toBeCloseTo(enemyBase.position!.x, 0);
+    }
+  });
+
+  it('commits the whole group in one tick once it is strong enough', () => {
+    const ctx = makeCtx(4);
+    openGround(ctx);
+    const { group, enemyBase } = seedGroup(ctx, gameConfig.behavior.groupAttackSize);
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    // Every one of them, not just the first the resolver happened to reach:
+    // committing one at a time would shrink the waiting pool below the threshold
+    // and strand the tail at base for good.
+    for (const r of group) {
+      expect(r.script!.blackboard.committed).toBe(true);
+      expect(r.movement!.goal!.x).toBeCloseTo(enemyBase.position!.x, 0);
+    }
+  });
+
+  it('does not turn a committed group around when it takes losses', () => {
+    const ctx = makeCtx(4);
+    openGround(ctx);
+    const { group, enemyBase } = seedGroup(ctx, gameConfig.behavior.groupAttackSize);
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+    expect(group.every((r) => r.script!.blackboard.committed)).toBe(true);
+
+    // Wipe out all but one — the survivor is now well below the group size.
+    for (const r of group.slice(1)) ctx.world.remove(r);
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(group[0].script!.blackboard.committed).toBe(true);
+    expect(group[0].movement!.goal!.x).toBeCloseTo(enemyBase.position!.x, 0);
+  });
+
+  it('does not count a group that has already left toward the next one', () => {
+    const ctx = makeCtx(4);
+    openGround(ctx);
+    const { base, group } = seedGroup(ctx, gameConfig.behavior.groupAttackSize);
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+    expect(group.every((r) => r.script!.blackboard.committed)).toBe(true);
+
+    // One fresh unit rolls out while the wave is still on the board. If departed
+    // units counted, it would set off alone — the trickle this replaced.
+    const rookie = spawnRobot(
+      ctx.world,
+      Owner.Player,
+      { x: base.position!.x, y: base.position!.y },
+      ChassisType.Tracks,
+      WeaponType.Cannon,
+    );
+    rookie.script = makeGroupAttack();
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(rookie.script!.blackboard.committed).toBe(false);
   });
 });
 

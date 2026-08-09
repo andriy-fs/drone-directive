@@ -118,9 +118,14 @@ export const en: Dict = {
     scout: 'Search & Detect',
     attackTarget: 'Attack Target',
     overwatch: 'Overwatch',
+    defendBase: 'Defend Base',
+    groupAttack: 'Group Attack',
     none: 'None',
     intro: 'A directive is a standing order: the unit carries it out on its own until you assign a different one.',
-    guardNote: 'Holds the spot where it got the order, patrolling around it. Dodges and returns fire when attacked, but never gives chase.',
+    guardNote:
+      'Holds the spot where it got the order, patrolling around it. Dodges and returns fire when attacked, but never gives chase.',
+    defendBaseNote:
+      'Holds your base and moves out to meet anything that comes near it, then returns to post. Unlike Guard, the whole line reacts to one intruder instead of only the unit that has it in range.',
     attackBaseNote:
       'Advances on the nearest enemy base the team has found, clearing robots that get in the way. Searches the map while no base is known.',
     attackRobotsNote:

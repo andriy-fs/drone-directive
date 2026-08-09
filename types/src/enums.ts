@@ -58,6 +58,19 @@ export const TaskType = {
   AttackTarget: 'attackTarget',
   /** Unarmed support role: trail an advancing friendly group, or hold near base for early warning; retreats if hit. */
   Overwatch: 'overwatch',
+  /**
+   * Perimeter defence keyed on the **base**, not on the robot: intercepts anything
+   * that comes within the defence radius of its own base and returns afterwards.
+   * Unlike `Guard`, the whole line converges on an intruder instead of only
+   * whoever happens to have it inside their own weapon range.
+   */
+  DefendBase: 'defendBase',
+  /**
+   * Gathers near its own base until enough allies on the same directive have
+   * assembled, then the whole group commits and advances together — see
+   * `blackboard.committed`. Holds the base line while it waits.
+   */
+  GroupAttack: 'groupAttack',
 } as const;
 export type TaskType = (typeof TaskType)[keyof typeof TaskType];
 

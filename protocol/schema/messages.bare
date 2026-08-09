@@ -52,6 +52,8 @@ type TaskType enum {
     SCOUT = 4
     ATTACK_TARGET = 5
     OVERWATCH = 6
+    DEFEND_BASE = 7
+    GROUP_ATTACK = 8
 }
 
 # A build order's task is tri-state in the domain (`task?: TaskType | null`):
@@ -68,6 +70,8 @@ type BuildTask enum {
     SCOUT = 6
     ATTACK_TARGET = 7
     OVERWATCH = 8
+    DEFEND_BASE = 9
+    GROUP_ATTACK = 10
 }
 
 type BuildOrder struct {

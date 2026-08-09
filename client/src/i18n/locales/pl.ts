@@ -118,10 +118,14 @@ export const pl: Dict = {
     scout: 'Zwiad',
     attackTarget: 'Atak celu',
     overwatch: 'Osłona',
+    defendBase: 'Obrona bazy',
+    groupAttack: 'Atak grupowy',
     none: 'Brak',
     intro: 'Dyrektywa to stały rozkaz: jednostka wykonuje go samodzielnie, dopóki nie przydzielisz innego.',
     guardNote:
       'Utrzymuje miejsce, w którym otrzymał rozkaz, patrolując wokół niego. Pod ostrzałem unika i odpowiada ogniem, ale nie podejmuje pościgu.',
+    defendBaseNote:
+      'Trzyma twoją bazę i sam wyrusza naprzeciw wszystkiemu, co się do niej zbliży, po czym wraca na posterunek. W przeciwieństwie do Obrony na jednego intruza reaguje cała linia, a nie tylko jednostka, która ma go w zasięgu.',
     attackBaseNote:
       'Naciera na najbliższą znaną drużynie bazę wroga, rozprawiając się z robotami po drodze. Dopóki bazy nie odnaleziono — przeszukuje mapę.',
     attackRobotsNote:

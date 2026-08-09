@@ -16,6 +16,7 @@ import {
   Hourglass as LucideHourglass,
   ClipboardCheck as LucideClipboardCheck,
   Shield as LucideShield,
+  ShieldCheck as LucideShieldCheck,
   Castle as LucideCastle,
   Swords as LucideSwords,
   Radar as LucideRadar,
@@ -60,6 +61,7 @@ export const HourglassIcon = LucideHourglass;
 /* The HUD's Directives card: its header, then one icon per program (see TASK_ICONS). */
 export const ClipboardCheckIcon = LucideClipboardCheck;
 export const ShieldIcon = LucideShield;
+export const ShieldCheckIcon = LucideShieldCheck;
 export const CastleIcon = LucideCastle;
 export const SwordsIcon = LucideSwords;
 export const RadarIcon = LucideRadar;

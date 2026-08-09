@@ -51,13 +51,16 @@ export const buildPresets: Record<BuildPresetType, BuildPreset> = {
 
   /**
    * The AI's production series. Steps 1–9 are a durable/ranged combat mix with
-   * no forced program (they're staged into attack groups by `systems/ai.ts`) —
-   * one of them a directed-energy hull on the cheap fast chassis, so the player
-   * meets the knock-out from the other side too; the 10th is a tracked kamikaze
-   * bomb. It's left without a `task` override
-   * (unlike the old fixed base-rush) so it spawns Idle and `systems/ai.ts`'s
-   * `assignKamikaze` picks its target once it exists — a fat cluster of known
-   * enemy robots, or the base if nothing juicier is around.
+   * no forced program (they're sorted into the defence line or an attack group
+   * by `systems/ai.ts`) — one of them a directed-energy hull on the cheap fast
+   * chassis, so the player meets the knock-out from the other side too; the 10th
+   * is a tracked kamikaze bomb, also left without a `task` override (unlike the
+   * old fixed base-rush) so `systems/ai.ts`'s `assignKamikaze` picks its target
+   * once it exists — a fat cluster of known enemy robots, or the base if nothing
+   * juicier is around.
+   *
+   * "No forced program" means the base's `defaultTask` applies, which for a bot
+   * base is `DefendBase` (see `gameScene`) — never Idle.
    */
   [BuildPresetType.AiAssault]: {
     id: BuildPresetType.AiAssault,
