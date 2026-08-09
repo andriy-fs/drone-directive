@@ -30,7 +30,7 @@ export function DirectivesModal({ onClose }: { onClose: () => void }) {
                   <Icon className="directive-guide__icon" size={20} />
                   <div>
                     <span className="unit-guide__name">{labels[task]}</span>
-                    <p className="unit-guide__stats">{taskHint(task, t)}</p>
+                    <p className="unit-guide__note">{taskHint(task, t)}</p>
                   </div>
                 </div>
               );

@@ -3,6 +3,7 @@ import { music } from '../../pixi/audio/music';
 import { sfx } from '../../pixi/audio/sfx';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
+import { OnlineStatus } from '../../store/enums';
 import { selectOnline } from '../../store/selectors';
 import { menuBackdropSrc } from '../../config/sprites';
 import { BaseSetupModal } from './BaseSetupModal';
@@ -58,12 +59,12 @@ export function MainMenu() {
   // if they never opened the panel themselves — which is the case coming back
   // here from an online match. Derived rather than an effect, so there is no
   // frame where the menu shows Singleplayer over a session that still exists.
-  const mode: MenuMode = online.status === 'offline' ? requestedMode : 'online';
+  const mode: MenuMode = online.status === OnlineStatus.Offline ? requestedMode : 'online';
 
   // Leaving the tab is leaving the session — the same thing the lobby's Close
   // used to do. Without this, `mode` above would simply pin the player back.
   const selectMode = (next: MenuMode) => {
-    if (next === 'single' && online.status !== 'offline') leaveOnline();
+    if (next === 'single' && online.status !== OnlineStatus.Offline) leaveOnline();
     setRequestedMode(next);
   };
 

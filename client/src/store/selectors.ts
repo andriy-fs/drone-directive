@@ -1,4 +1,5 @@
-import type { GameState } from './gameStore';
+import { OnlineLink, OnlineStatus } from './enums';
+import type { GameState } from './types';
 
 /**
  * Narrowed selectors so components subscribe to the smallest slice they need
@@ -23,7 +24,8 @@ export const selectOnline = (s: GameState) => s.online;
  * thing as a broken one, and the HUD's "the world is frozen" checks all key off
  * `!== 'ok'`, so this keeps them from having to spell out both halves.
  */
-export const selectOnlineLink = (s: GameState) => (s.online.status === 'inMatch' ? s.online.link : 'ok');
+export const selectOnlineLink = (s: GameState) =>
+  s.online.status === OnlineStatus.InMatch ? s.online.link : OnlineLink.Ok;
 /** Chat with the online opponent — event-driven, and it outlives the match. */
 export const selectChat = (s: GameState) => s.chat;
 export const selectChatMessages = (s: GameState) => s.chat.messages;

@@ -1,6 +1,7 @@
 import { isTaskBlockedForWeapon } from '../../engine/tasks/taskDefinitions';
 import { useT } from '../../i18n';
-import { useGameStore, type RobotSnapshot } from '../../store/gameStore';
+import { useGameStore } from '../../store/gameStore';
+import type { RobotSnapshot } from '../../store/types';
 import type { TaskType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { ASSIGNABLE_TASKS, TASK_ICONS, taskLabels } from './programOptions';

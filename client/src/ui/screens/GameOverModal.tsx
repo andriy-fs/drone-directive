@@ -1,5 +1,6 @@
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
+import { GameStatus } from '../../store/enums';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
 import { Button } from '../common/Button';
 
@@ -14,8 +15,8 @@ export function GameOverModal() {
   const requestRestart = useGameStore((s) => s.requestRestart);
   const requestMenu = useGameStore((s) => s.requestMenu);
 
-  if (status !== 'won' && status !== 'lost') return null;
-  const won = status === 'won';
+  if (status !== GameStatus.Won && status !== GameStatus.Lost) return null;
+  const won = status === GameStatus.Won;
 
   return (
     <Dialog open={true} onClose={() => requestMenu()}>

@@ -17,6 +17,7 @@ import { useSelectAllHotkey } from './hooks/useSelectAllHotkey';
 import { restoreChat } from '../chat/chatBridge';
 import { useT } from '../i18n';
 import { useGameStore } from '../store/gameStore';
+import { GameStatus, OnlineLink } from '../store/enums';
 import { selectOnlineLink, selectStatus } from '../store/selectors';
 
 import './App.css';
@@ -45,11 +46,11 @@ function App() {
 
   // `won`/`lost` still count as in-match: the world (and the HUD) stay on screen
   // behind the game-over modal.
-  const inMatch = status !== 'menu';
+  const inMatch = status !== GameStatus.Menu;
   // Lockstep froze the world waiting for input — the peer's, or our own once the
   // socket comes back. Not a pause, and not a crash either. Only a running match
   // has a link at all, so anything but `ok` already means there is one.
-  const stalled = link !== 'ok';
+  const stalled = link !== OnlineLink.Ok;
 
   return (
     <div className={`app-shell ${inMatch ? '' : 'app-shell--menu'}`.trim()}>
@@ -89,14 +90,14 @@ function App() {
             the difference: a pause someone asked for, versus a lockstep step that
             cannot run yet. The link takes precedence — it is the one that might
             end the match. */}
-        {status === 'playing' && stalled && (
+        {status === GameStatus.Playing && stalled && (
           <div className="pause-overlay">
             <span className="pause-overlay__label pause-overlay__label--link">
-              <HourglassIcon size={32} /> {t('online', link === 'reconnecting' ? 'reconnecting' : 'waitingPeer')}
+              <HourglassIcon size={32} /> {t('online', link === OnlineLink.Reconnecting ? 'reconnecting' : 'waitingPeer')}
             </span>
           </div>
         )}
-        {status === 'playing' && paused && !stalled && (
+        {status === GameStatus.Playing && paused && !stalled && (
           <div className="pause-overlay">
             <span className="pause-overlay__label">
               <PauseIcon size={32} /> {t('hud', 'paused')}

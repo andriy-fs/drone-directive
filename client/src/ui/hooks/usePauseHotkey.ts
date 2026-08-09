@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { GameStatus, OnlineLink } from '../../store/enums';
 import { selectOnlineLink } from '../../store/selectors';
 import { isTypingTarget } from '../../utils/isTypingTarget';
 
@@ -13,11 +14,11 @@ export function usePauseHotkey(): void {
       const isPauseKey = e.code === 'Space' || e.code === 'Escape' || e.code === 'KeyP';
       if (!isPauseKey) return;
       const state = useGameStore.getState();
-      if (state.status !== 'playing') return;
+      if (state.status !== GameStatus.Playing) return;
       // Online the key asks both simulations to stop, and the request rides on the
       // tick stream — so with the link down there is nothing to carry it. Solo
       // there is no link, and the selector reads `ok`.
-      if (selectOnlineLink(state) !== 'ok') return;
+      if (selectOnlineLink(state) !== OnlineLink.Ok) return;
       e.preventDefault(); // stop Space from scrolling the page
       state.togglePause();
     };

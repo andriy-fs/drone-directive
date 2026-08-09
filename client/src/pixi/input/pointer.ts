@@ -4,6 +4,7 @@ import type { GameEngine } from '../../engine/game/engine';
 import { baseFootprintContains, findById } from '../../engine/systems/targeting';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { useGameStore } from '../../store/gameStore';
+import { GameStatus } from '../../store/enums';
 import { isTypingTarget } from '../../utils/isTypingTarget';
 import { vecLength } from '../../utils/math';
 import type { Camera } from '../Camera';
@@ -148,7 +149,7 @@ export function attachPointerControls(
     // "wasd" typed into the chat panel is a word, not a flight path — and `E`
     // would detonate a possessed robot mid-sentence.
     if (isTypingTarget(e.target)) return;
-    if (useGameStore.getState().status !== 'playing') return;
+    if (useGameStore.getState().status !== GameStatus.Playing) return;
     if (shouldHandleDroneFlightKey(e)) {
       if (e.code.startsWith('Arrow')) e.preventDefault(); // stop the page from scrolling
       if (!pressedKeys.has(e.code)) {

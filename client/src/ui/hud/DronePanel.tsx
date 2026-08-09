@@ -1,5 +1,6 @@
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
+import { DroneMode } from '../../store/enums';
 import { selectDroneStatus } from '../../store/selectors';
 import { Bar } from '../common/Bar';
 
@@ -19,7 +20,7 @@ function droneHealth(hp: number, maxHp: number): number {
 export function DronePanel() {
   const t = useT();
   const drone = useGameStore(selectDroneStatus);
-  const down = drone.mode === 'down';
+  const down = drone.mode === DroneMode.Down;
 
   let mode: string;
   if (down) mode = t('statusPanel', 'droneDown');
