@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { GameStatus } from '../../store/enums';
 import { isTypingTarget } from '../../utils/isTypingTarget';
 
 /** Physical digit keys 1-9, in order, mapped to their group number. */
@@ -22,7 +23,7 @@ export function useControlGroupHotkeys(): void {
       const index = DIGIT_CODES.indexOf(e.code as (typeof DIGIT_CODES)[number]);
       if (index === -1) return;
       const { status, robots, selectedRobotIds, selectRobots } = useGameStore.getState();
-      if (status !== 'playing') return;
+      if (status !== GameStatus.Playing) return;
       const groupNumber = index + 1;
 
       if (e.ctrlKey || e.metaKey) {

@@ -15,6 +15,28 @@ import type { LockstepConfig, LockstepHandlers, TickInput } from './types';
 const RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000];
 
 /**
+ * The four phases of a session's life, as the frozen const map the rest of the
+ * project uses for enum-like values (see `types/src/enums.ts`). Naming them is
+ * what makes a comparison read as one: `state.phase === Phase.Connecting` says
+ * which vocabulary the value is drawn from and where to find the other members,
+ * which a bare `=== 'connecting'` leaves the reader to work out.
+ *
+ * No companion union type, unlike `enums.ts`: nothing here annotates a phase on
+ * its own — `SessionState`'s members carry it as `typeof Phase.Live` — and
+ * nothing outside this file ever sees one.
+ */
+const Phase = {
+  /** No session: freshly constructed, disconnected, or given up on. */
+  Idle: 'idle',
+  /** A socket is opening and the match has not begun. */
+  Connecting: 'connecting',
+  /** In a match, with a seat that can be reclaimed. */
+  Live: 'live',
+  /** Mid-match, the socket dropped and the seat is being reclaimed. */
+  Resuming: 'resuming',
+} as const;
+
+/**
  * Where the session is in its life, and what only that phase has.
  *
  * This used to be six independent fields — `started`, `resumeToken`, `linkDown`,
@@ -35,24 +57,21 @@ const RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000];
  * one-line test for "a socket we already replaced or gave up on".
  */
 type SessionState =
-  /** No session: freshly constructed, disconnected, or given up on. */
-  | { k: 'idle' }
+  | { phase: typeof Phase.Idle }
   /**
-   * A socket is opening and the match has not begun. Host and guest share this
-   * one phase: `created` tells the lobby its room code without changing anything
-   * here, because nothing about the transport differs between waiting for a guest
-   * and waiting for `start`.
+   * Host and guest share this one phase: `created` tells the lobby its room code
+   * without changing anything here, because nothing about the transport differs
+   * between waiting for a guest and waiting for `start`.
    */
-  | { k: 'connecting'; roomCode: string }
-  /** In a match. `resumeToken` names the seat to come back to if the socket drops. */
-  | { k: 'live'; roomCode: string; resumeToken: string }
+  | { phase: typeof Phase.Connecting; roomCode: string }
+  /** `resumeToken` names the seat to come back to if the socket drops. */
+  | { phase: typeof Phase.Live; roomCode: string; resumeToken: string }
   /**
-   * The socket dropped mid-match and the seat is being reclaimed: how many
-   * attempts have gone (indexing `RETRY_DELAYS_MS`), when the relay stops holding
-   * the seat, and the pending attempt while one is scheduled.
+   * How many attempts have gone (indexing `RETRY_DELAYS_MS`), when the relay stops
+   * holding the seat, and the pending attempt while one is scheduled.
    */
   | {
-      k: 'resuming';
+      phase: typeof Phase.Resuming;
       roomCode: string;
       resumeToken: string;
       retryIndex: number;
@@ -79,7 +98,7 @@ type SessionState =
 export class LockstepSession {
   readonly inputDelay = INPUT_DELAY_TICKS;
   /** Which phase this session is in, and everything that phase alone owns. */
-  private state: SessionState = { k: 'idle' };
+  private state: SessionState = { phase: Phase.Idle };
   /** The socket of the current attempt — see `SessionState` for why it sits outside it. */
   private ws: WebSocket | null = null;
   private readonly handlers: LockstepHandlers;
@@ -111,16 +130,16 @@ export class LockstepSession {
    * (and stalling) exactly as it does for a slow peer.
    */
   get isStarted(): boolean {
-    return this.state.k === 'live' || this.state.k === 'resuming';
+    return this.state.phase === Phase.Live || this.state.phase === Phase.Resuming;
   }
 
   connectHost(roomCode: string, mapSize: MapSize, aiCount: number): void {
-    this.state = { k: 'connecting', roomCode };
+    this.transition({ phase: Phase.Connecting, roomCode });
     this.open(() => connectUrl(this.config.relayUrl, { room: roomCode, create: true, mapSize, aiCount }));
   }
 
   connectGuest(roomCode: string): void {
-    this.state = { k: 'connecting', roomCode };
+    this.transition({ phase: Phase.Connecting, roomCode });
     this.open(() => connectUrl(this.config.relayUrl, { room: roomCode }));
   }
 
@@ -152,15 +171,14 @@ export class LockstepSession {
    */
   private onOpen(ws: WebSocket): void {
     const state = this.state;
-    if (ws !== this.ws || state.k !== 'resuming') return; // the first connect has nothing to replay
+    if (ws !== this.ws || state.phase !== Phase.Resuming) return; // the first connect has nothing to replay
     for (const tick of [...this.outbox.keys()].sort((a, b) => a - b)) {
       const frameBytes = this.outbox.get(tick);
       if (frameBytes) this.send(frameBytes);
     }
     // Back to plain `live`: the attempt count, the deadline and any timer belonged
     // to the drop, and go with it rather than being reset one by one.
-    this.clearRetry(state);
-    this.state = { k: 'live', roomCode: state.roomCode, resumeToken: state.resumeToken };
+    this.transition({ phase: Phase.Live, roomCode: state.roomCode, resumeToken: state.resumeToken });
     this.handlers.onLinkUp?.();
   }
 
@@ -177,8 +195,8 @@ export class LockstepSession {
         // swallowed and nothing else — a second `start` is not something the relay
         // sends, and acting on one would restart a match already in progress.
         const state = this.state;
-        if (state.k !== 'connecting') break;
-        this.state = { k: 'live', roomCode: state.roomCode, resumeToken: msg.resumeToken };
+        if (state.phase !== Phase.Connecting) break;
+        this.transition({ phase: Phase.Live, roomCode: state.roomCode, resumeToken: msg.resumeToken });
         // No coercion left to do: the schema pinned `seed` to a u32 and `mapSize`
         // to one of three tags, which the codec already turned into a `MapSize`.
         this.handlers.onStart?.(msg.seed, msg.mapSize, msg.aiCount, msg.chatId);
@@ -305,28 +323,28 @@ export class LockstepSession {
     if (ws !== this.ws) return; // a socket we already replaced or gave up on
     this.ws = null;
     const state = this.state;
-    switch (state.k) {
-      case 'idle':
-      case 'connecting':
+    switch (state.phase) {
+      case Phase.Idle:
+      case Phase.Connecting:
         // Nothing to resume: there is no seat yet, or there is no longer one.
-        this.state = { k: 'idle' };
+        this.abandon();
         this.handlers.onClose?.();
         return;
-      case 'live':
+      case Phase.Live:
         // The seat is held for `RESUME_GRACE_MS` from right now — which is the one
         // moment that deadline can be set, and the only state that can set it.
-        this.state = {
-          k: 'resuming',
+        this.transition({
+          phase: Phase.Resuming,
           roomCode: state.roomCode,
           resumeToken: state.resumeToken,
           retryIndex: 0,
           deadline: Date.now() + RESUME_GRACE_MS,
           timer: null,
-        };
+        });
         this.handlers.onLinkDown?.();
         this.scheduleRetry();
         return;
-      case 'resuming':
+      case Phase.Resuming:
         // An attempt that closed on us; `onLinkDown` has already been sent.
         this.scheduleRetry();
         return;
@@ -335,7 +353,7 @@ export class LockstepSession {
 
   private scheduleRetry(): void {
     const state = this.state;
-    if (state.k !== 'resuming' || state.timer !== null) return;
+    if (state.phase !== Phase.Resuming || state.timer !== null) return;
     const delay = RETRY_DELAYS_MS[Math.min(state.retryIndex, RETRY_DELAYS_MS.length - 1)];
     state.retryIndex += 1;
     // An attempt landing after the relay has dropped the seat can only be refused,
@@ -354,17 +372,26 @@ export class LockstepSession {
     }, delay);
   }
 
-  /** Cancel the pending attempt, if the state we are leaving has one. */
-  private clearRetry(state: SessionState): void {
-    if (state.k !== 'resuming' || state.timer === null) return;
-    clearTimeout(state.timer);
-    state.timer = null;
+  /**
+   * The one way the phase ever changes, and the reason it is a method rather than
+   * an assignment: whatever we are leaving lets go of its pending attempt on the
+   * way out. `resuming` has three exits — reconnected, refused, out of time — and
+   * every one of them used to have to remember this for itself. A fourth exit
+   * that forgot would leave a timer alive to open a socket for a match that no
+   * longer exists.
+   */
+  private transition(next: SessionState): void {
+    const leaving = this.state;
+    if (leaving.phase === Phase.Resuming && leaving.timer !== null) {
+      clearTimeout(leaving.timer);
+      leaving.timer = null;
+    }
+    this.state = next;
   }
 
   /** Stop: the seat is gone, refused, or no longer wanted — and there is no other way back. */
   private abandon(): void {
-    this.clearRetry(this.state);
-    this.state = { k: 'idle' };
+    this.transition({ phase: Phase.Idle });
   }
 
   disconnect(): void {

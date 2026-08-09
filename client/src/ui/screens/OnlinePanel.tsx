@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
 import { useGameStore } from '../../store/gameStore';
+import { OnlineStatus } from '../../store/enums';
 import { selectOnline } from '../../store/selectors';
 import { maxAiOpponents } from '../../config/gameSettings';
 import { copyText } from '../../utils/clipboard';
@@ -94,11 +95,11 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
     joinMatch(code.trim());
   };
 
-  const busy = online.status === 'connecting' || online.status === 'hosting';
+  const busy = online.status === OnlineStatus.Connecting || online.status === OnlineStatus.Hosting;
   // Why the session stopped, or null while it hasn't. `ended` and `error` differ
   // in cause, not in what this panel does about it — both have their say and then
   // hand the player back the chooser — so they collapse into one message here.
-  const finished = online.status === 'ended' || online.status === 'error' ? online.error : null;
+  const finished = online.status === OnlineStatus.Ended || online.status === OnlineStatus.Error ? online.error : null;
 
   const mapSizeOptions: ChipOption<MapSize>[] = MAP_SIZES.map((o) => ({
     value: o.value,
@@ -109,9 +110,9 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
     <section className="menu-panel">
       <h2 className="menu-panel__heading">{t('online', 'title')}</h2>
 
-      {online.status === 'connecting' && <p className="modal__body">{t('online', 'connecting')}</p>}
+      {online.status === OnlineStatus.Connecting && <p className="modal__body">{t('online', 'connecting')}</p>}
 
-      {online.status === 'hosting' && (
+      {online.status === OnlineStatus.Hosting && (
         <>
           <p className="modal__body">{t('online', 'shareCode')}</p>
           <RoomCode code={online.roomCode} />
@@ -121,7 +122,7 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
 
       {finished !== null && <p className="modal__body">{finished}</p>}
 
-      {online.status === 'offline' && (
+      {online.status === OnlineStatus.Offline && (
         <>
           {/* Same rows in the same order as the solo panel, so switching tabs
               moves as little as possible. Difficulty is the one absent row: the

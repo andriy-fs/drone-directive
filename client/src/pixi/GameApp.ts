@@ -4,14 +4,9 @@ import { palette } from '../config/palette';
 import type { Entity } from '../engine/ecs/entity';
 import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
-import {
-  useGameStore,
-  type BaseSnapshot,
-  type DroneStatus,
-  type GameState,
-  type PendingOnline,
-  type RobotSnapshot,
-} from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
+import { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus } from '../store/enums';
+import type { BaseSnapshot, DroneStatus, GameState, PendingOnline, RobotSnapshot } from '../store/types';
 import { selectOnlineLink } from '../store/selectors';
 import type { Command } from '@drone-directive/types/commands';
 import { Controller, Owner, TaskType, WeaponType, type MapSize } from '@drone-directive/types/enums';
@@ -415,7 +410,7 @@ export class GameApp {
         store().clearSelection();
         store().setBuildDialogOpen(false); // never carry an open dialog across matches
         if (scene === 'menu') {
-          store().setStatus('menu');
+          store().setStatus(GameStatus.Menu);
           this.clearObstacles();
           this.clearGround();
           // Flush the emptied world to the canvas here rather than waiting for the
@@ -424,7 +419,7 @@ export class GameApp {
           // match would otherwise stay frozen on screen.
           this.flush();
         } else {
-          store().setStatus('playing');
+          store().setStatus(GameStatus.Playing);
           // The one place both routes into a match pass through, solo and online
           // alike. Deliberately not awaited and not part of the start gate the way
           // the sprites are: `sfx.play` re-checks readiness on every call, so a cue
@@ -445,7 +440,7 @@ export class GameApp {
       // plays on until one side is left (stopping it here would desync a peer).
       bus.on('sideEliminated', ({ owner }) => {
         if (owner !== store().localSide) return;
-        store().setStatus('lost');
+        store().setStatus(GameStatus.Lost);
         store().setBuildDialogOpen(false);
         this.pushSnapshot();
       }),
@@ -454,8 +449,8 @@ export class GameApp {
       bus.on('gameOver', ({ winner }) => {
         // A defeat may already be on screen from `sideEliminated` — only a win
         // can still change the outcome at this point.
-        if (winner === store().localSide) store().setStatus('won');
-        else if (store().status !== 'lost') store().setStatus('lost');
+        if (winner === store().localSide) store().setStatus(GameStatus.Won);
+        else if (store().status !== GameStatus.Lost) store().setStatus(GameStatus.Lost);
         store().setBuildDialogOpen(false); // don't leave it stranded behind the game-over modal
         this.pushSnapshot();
       }),
@@ -503,7 +498,7 @@ export class GameApp {
     }
 
     // Networked match: advance under lockstep instead of ticking directly.
-    if (this.session?.isStarted && store.online.status === 'inMatch') {
+    if (this.session?.isStarted && store.online.status === OnlineStatus.InMatch) {
       this.stepOnline(dt, store);
       return;
     }
@@ -599,8 +594,8 @@ export class GameApp {
     }
     // `reconnecting` is our own socket and outranks this: it says more about the
     // same silence, and the session clears it when the seat is back.
-    if (stalledFor >= gameConfig.online.stallNoticeMs && selectOnlineLink(store) === 'ok') {
-      store.setOnlineLink('stalled');
+    if (stalledFor >= gameConfig.online.stallNoticeMs && selectOnlineLink(store) === OnlineLink.Ok) {
+      store.setOnlineLink(OnlineLink.Stalled);
     }
   }
 
@@ -609,7 +604,7 @@ export class GameApp {
     this.stalledSince = 0;
     // Only our own stall is ours to clear — `reconnecting` belongs to the session,
     // which lifts it when the seat is actually back.
-    if (selectOnlineLink(store) === 'stalled') store.setOnlineLink('ok');
+    if (selectOnlineLink(store) === OnlineLink.Stalled) store.setOnlineLink(OnlineLink.Ok);
   }
 
   /** A side's index in the roster — the same on every peer, so it orders anything canonically. */
@@ -683,7 +678,7 @@ export class GameApp {
 
   /** Act on a lobby request: open a host/guest session, or leave an active one. */
   private applyOnlineRequest(req: PendingOnline): void {
-    if (req.kind === 'leave') {
+    if (req.kind === OnlineRequest.Leave) {
       this.leaveOnlineIfAny();
       this.engine.toMenu();
       return;
@@ -693,7 +688,7 @@ export class GameApp {
     // Decided here rather than read back from the store later: the host's code is
     // generated at connect time, and the chat is labelled with the room it came
     // from so two saved conversations are distinguishable.
-    const isHost = req.kind === 'host';
+    const isHost = req.kind === OnlineRequest.Host;
     const roomCode = isHost ? randomRoomCode() : req.roomCode;
     this.session = new LockstepSession(
       {
@@ -713,16 +708,16 @@ export class GameApp {
         // A dropped socket is not a dropped match: the relay holds the seat, the
         // session goes back for it, and this client's world is frozen at the same
         // tick the peer's is. All the HUD has to do is stop looking crashed.
-        onLinkDown: () => useGameStore.getState().setOnlineLink('reconnecting'),
+        onLinkDown: () => useGameStore.getState().setOnlineLink(OnlineLink.Reconnecting),
         onLinkUp: () => {
-          useGameStore.getState().setOnlineLink('ok');
+          useGameStore.getState().setOnlineLink(OnlineLink.Ok);
           this.wake(); // the loop may have parked while the socket was away
         },
         onDesync: (tick, mine, theirs) => this.reportDesync(tick, mine, theirs),
       },
       lockstepConfig,
     );
-    if (req.kind === 'host') this.session.connectHost(roomCode, req.mapSize, req.aiOpponents);
+    if (req.kind === OnlineRequest.Host) this.session.connectHost(roomCode, req.mapSize, req.aiOpponents);
     else this.session.connectGuest(roomCode);
   }
 
@@ -777,7 +772,7 @@ export class GameApp {
     if (this.onlineEnded) return;
     this.onlineEnded = true;
     const store = useGameStore.getState();
-    const wasInMatch = store.online.status === 'inMatch';
+    const wasInMatch = store.online.status === OnlineStatus.InMatch;
     this.session?.disconnect();
     this.session = null;
     this.resetOnlineRun(store);
@@ -925,7 +920,7 @@ function droneStatusOf(drones: Entity[], ctx: GameContext, side: Owner): DroneSt
   if (!drone) {
     const left = ctx.droneRespawn[side];
     return {
-      mode: 'down',
+      mode: DroneMode.Down,
       possessedRobotId: null,
       hp: 0,
       maxHp,
@@ -935,7 +930,7 @@ function droneStatusOf(drones: Entity[], ctx: GameContext, side: Owner): DroneSt
 
   const possessedRobotId = drone.drone?.possessedId ?? null;
   return {
-    mode: possessedRobotId ? 'possessing' : 'flying',
+    mode: possessedRobotId ? DroneMode.Possessing : DroneMode.Flying,
     possessedRobotId,
     hp: drone.hp ?? 0,
     maxHp: drone.maxHp ?? maxHp,

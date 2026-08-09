@@ -1,0 +1,70 @@
+/**
+ * What the store holds before anything has happened: a fresh title screen, no
+ * match, no session, an empty log.
+ *
+ * Two of these fields are not constants at all — `settings` and `locale` are read
+ * back from the player's browser, and `chat.soundOn` with them — which is why
+ * this is a module-level object built once at import rather than a literal
+ * inlined into `create()`: the reads happen when the store is first pulled in,
+ * before React has rendered anything that depends on them.
+ *
+ * Annotated with `GameStateFields`, so a field added to the store but forgotten
+ * here is an error pointing at *this* object, and every value is checked against
+ * the type it is supposed to have rather than whatever TypeScript would have
+ * inferred from the literal.
+ */
+import { loadChatSound } from '../chat/chatStorage';
+import { gameConfig } from '../config/gameConfig';
+import { createDefaultSettings } from '../config/gameSettings';
+import { resolveInitialLocale } from '../i18n/locale';
+import type { ResourcePool } from '@drone-directive/types/entities';
+import { Owner } from '@drone-directive/types/enums';
+import { DroneMode, GameStatus, OnlineStatus } from './enums';
+import type { GameStateFields } from './types';
+
+export const initialState: GameStateFields = {
+  status: GameStatus.Menu,
+  bases: [],
+  robots: [],
+  sides: [],
+  // Every side starts with the same purse, including the ones no match has seated
+  // yet — the pool is keyed by `Owner`, so it has to be total.
+  resources: Object.fromEntries(
+    Object.values(Owner).map((owner) => [owner, gameConfig.economy.startingResources]),
+  ) as ResourcePool,
+  selectedRobotIds: [],
+  selectedBaseId: null,
+  commands: [],
+  restartRequested: false,
+  menuRequested: false,
+  paused: false,
+  pauseTogglePending: false,
+  droneInput: { x: 0, y: 0 },
+  dronePossessRequested: false,
+  droneFireRequested: false,
+  droneStatus: {
+    mode: DroneMode.Flying,
+    possessedRobotId: null,
+    hp: gameConfig.drone.maxHp,
+    maxHp: gameConfig.drone.maxHp,
+    respawnProgress: 0,
+  },
+  buildDialogOpen: false,
+  settings: createDefaultSettings(),
+  locale: resolveInitialLocale(),
+  localSide: Owner.Player,
+  online: { status: OnlineStatus.Offline },
+  pendingOnline: null,
+  chat: {
+    open: false,
+    chatId: null,
+    seat: null,
+    roomCode: null,
+    connected: false,
+    peerOnline: false,
+    messages: [],
+    unread: 0,
+    soundOn: loadChatSound(),
+    error: null,
+  },
+};

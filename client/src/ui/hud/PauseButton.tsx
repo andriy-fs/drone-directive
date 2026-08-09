@@ -1,5 +1,6 @@
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
+import { GameStatus, OnlineLink } from '../../store/enums';
 import { selectOnlineLink, selectStatus } from '../../store/selectors';
 import { Button } from '../common/Button';
 import { PauseIcon, PlayIcon } from '../common/icons';
@@ -22,7 +23,7 @@ export function PauseButton() {
       onClick={togglePause}
       // Not while the link is down: the request travels as tick input, so with
       // nothing flowing it would sit unsent and then fire on reconnect.
-      disabled={status !== 'playing' || link !== 'ok'}
+      disabled={status !== GameStatus.Playing || link !== OnlineLink.Ok}
       aria-label={paused ? t('aria', 'resume') : t('aria', 'pause')}
     >
       {paused ? <PlayIcon size={16} /> : <PauseIcon size={16} />}

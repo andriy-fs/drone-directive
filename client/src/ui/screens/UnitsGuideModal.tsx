@@ -2,7 +2,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dial
 import { useT } from '../../i18n';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
-import { chassisHint, weaponHint } from '../hud/unitHints';
+import { chassisNote, chassisStats, weaponNote, weaponStats } from '../hud/unitHints';
 import { CHASSIS_ICONS, WEAPON_ICONS } from '../hud/unitOptions';
 import { robotSprites, weaponSprites } from '../../config/sprites';
 import type { LucideIcon } from '../common/icons';
@@ -23,8 +23,24 @@ const WEAPON_OPTIONS: WeaponType[] = [
  * field, so the reference and the battlefield are recognisably the same thing.
  * Weapons without art yet (they render as drawn markers) fall back to the same
  * glyph the build cards use, so a missing file leaves a tile rather than a hole.
+ *
+ * Unlike the build pickers, which have one line of tooltip room, the guide puts
+ * the description first and the numbers on their own line under it — the joined
+ * form runs too long here to read as anything but a wall.
  */
-function GuideItem({ src, Icon, name, stats }: { src?: string; Icon: LucideIcon; name: string; stats: string }) {
+function GuideItem({
+  src,
+  Icon,
+  name,
+  note,
+  stats,
+}: {
+  src?: string;
+  Icon: LucideIcon;
+  name: string;
+  note: string;
+  stats: string;
+}) {
   return (
     <div className="unit-guide__item">
       {src ? (
@@ -34,6 +50,7 @@ function GuideItem({ src, Icon, name, stats }: { src?: string; Icon: LucideIcon;
       )}
       <div>
         <span className="unit-guide__name">{name}</span>
+        {note && <p className="unit-guide__note">{note}</p>}
         <p className="unit-guide__stats">{stats}</p>
       </div>
     </div>
@@ -62,7 +79,8 @@ export function UnitsGuideModal({ onClose }: { onClose: () => void }) {
                 src={chassisArt?.[chassis]?.src}
                 Icon={CHASSIS_ICONS[chassis]}
                 name={t('chassis', chassis)}
-                stats={chassisHint(chassis, t)}
+                note={chassisNote(chassis, t)}
+                stats={chassisStats(chassis, t)}
               />
             ))}
           </div>
@@ -75,7 +93,8 @@ export function UnitsGuideModal({ onClose }: { onClose: () => void }) {
                 src={weaponArt?.[weapon]?.src}
                 Icon={WEAPON_ICONS[weapon]}
                 name={t('weapons', weapon)}
-                stats={weaponHint(weapon, t)}
+                note={weaponNote(weapon, t)}
+                stats={weaponStats(weapon, t)}
               />
             ))}
           </div>

@@ -1,310 +1,20 @@
 import { create } from 'zustand';
-import type { ChatMessage, ChatSeat } from '@drone-directive/chat';
-import { loadChatSound } from '../chat/chatStorage';
-import { gameConfig } from '../config/gameConfig';
-import { createDefaultSettings, type GameSettings, type SettingsPatch } from '../config/gameSettings';
 import { loadDict } from '../i18n/dictionaries';
-import { Locale, resolveInitialLocale, saveLocale } from '../i18n/locale';
-import type { Command } from '@drone-directive/types/commands';
-import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
+import { saveLocale, type Locale } from '../i18n/locale';
 import { Owner } from '@drone-directive/types/enums';
-import type { ChassisType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
-
-/** HUD-facing observer-drone status (projected from the ECS world). */
-export interface DroneStatus {
-  /** `down` = shot down, a replacement is being built (see `respawnProgress`). */
-  mode: 'flying' | 'possessing' | 'down';
-  /** Id of the robot the drone is controlling, or null when free-flying. */
-  possessedRobotId: string | null;
-  hp: number;
-  maxHp: number;
-  /** Readiness of the replacement drone, 0..1. Only meaningful while `down`. */
-  respawnProgress: number;
-}
-
-/** HUD-facing view of a robot (projected from the ECS world by the app bridge). */
-export interface RobotSnapshot {
-  id: string;
-  owner: Owner;
-  chassis: ChassisType;
-  weapon: WeaponType;
-  task: TaskType;
-  hp: number;
-  maxHp: number;
-}
-
-/** HUD-facing view of a base. */
-export interface BaseSnapshot {
-  id: string;
-  owner: Owner;
-  hp: number;
-  maxHp: number;
-  queueLength: number;
-  buildProgress: number;
-  /** Continuously auto-produced model, or null = off. */
-  autoBuild: BuildOrder | null;
-  /** Default program produced robots take when their build order doesn't set one. */
-  defaultTask: TaskType | null;
-  /** Where newly produced Idle/Guard robots gather, or null = no rally point. */
-  rally: Vec2 | null;
-}
+import { OnlineLink, OnlineRequest, OnlineStatus } from './enums';
+import { initialState } from './initialState';
+import type { GameState } from './types';
 
 /**
- * UI state + HUD snapshots. The game engine lives outside React; the app bridge
- * (GameApp) pushes throttled snapshots in and reads flags/commands out.
- */
-export type GameStatus = 'menu' | 'playing' | 'won' | 'lost';
-
-/**
- * Why an online match is standing still, when it is. Lockstep freezes both worlds
- * the moment one side's input for the current tick is missing, so a stall is
- * normal and recoverable — but indistinguishable from a crash unless the HUD says
- * which it is. `stalled` = the peer's input is late; `reconnecting` = our own
- * socket dropped and the session is reclaiming its seat.
- */
-export type OnlineLink = 'ok' | 'stalled' | 'reconnecting';
-
-/**
- * Where this client is in the online lifecycle — a discriminated union rather
- * than a status string beside three independent fields, because only a handful
- * of the combinations those four fields could spell out are real ones. A room
- * code with no room, a transport health outside a match, an error message on a
- * lobby that has not failed: all of them used to be expressible, and were kept
- * out by convention (`setOnline` patches that remembered to reset the fields the
- * new status has no use for) rather than by the type.
+ * The one store: the actions that move it, over the starting values in
+ * `./initialState`. What the state *is* lives next door too — `./types` for the
+ * shapes, `./enums` for the enum-like values — because half the HUD reads the
+ * contract while nobody but this file cares how it is driven.
  *
- * Each variant carries exactly what that state has, so a consumer that reads
- * `link` or `error` has already proved the state it belongs to — and the
- * transitions below are the only way to move between them.
+ * The engine lives outside React entirely; the app bridge (GameApp) pushes
+ * throttled snapshots in and reads flags and commands back out.
  */
-export type OnlineState =
-  /** Solo / menu: there is no session at all. */
-  | { status: 'offline' }
-  /** The socket is opening. The host has no code yet; the guest carries the one they typed. */
-  | { status: 'connecting'; roomCode: string | null }
-  /** The host holds a room and is showing its code, waiting for a guest. */
-  | { status: 'hosting'; roomCode: string }
-  /** Both peers are in and the simulation is running; `link` is the transport's health. */
-  | { status: 'inMatch'; link: OnlineLink }
-  /** The session is over: `ended` = it ran its course, `error` = it failed. Both report `error`. */
-  | { status: 'ended' | 'error'; error: string };
-
-/** The tag of {@link OnlineState} — handy for annotating a status on its own. */
-export type OnlineStatus = OnlineState['status'];
-
-/** One-shot online request the UI raises and the app bridge (GameApp) consumes. */
-export type PendingOnline =
-  { kind: 'host'; mapSize: MapSize; aiOpponents: number } | { kind: 'join'; roomCode: string } | { kind: 'leave' };
-
-/**
- * Chat with the online opponent.
- *
- * **The store's first slice with no engine snapshot behind it.** Every other
- * field here is projected from the ECS world on a tick; this one is event-driven
- * — the chat bridge appends to it as frames arrive — and it must never be rebuilt
- * from a snapshot, because the engine has never heard of it. It also outlives the
- * match on purpose: `endOnline`/`leaveOnlineIfAny` reset `online`, not this.
- */
-export interface ChatState {
-  /** Panel expanded? Collapsed is a button with an unread badge. */
-  open: boolean;
-  /** The chat this client is attached to, or null when there is none to attach to. */
-  chatId: string | null;
-  /** Which seat this client holds — what makes a message "You" rather than "Opponent". */
-  seat: ChatSeat | null;
-  /** The room code the match was played in, for telling two conversations apart. */
-  roomCode: string | null;
-  /** Socket state. False while reconnecting — the log stays on screen regardless. */
-  connected: boolean;
-  /** Is the opponent attached right now (the presence dot)? */
-  peerOnline: boolean;
-  /** The log, oldest first, exactly as the server numbered it. */
-  messages: ChatMessage[];
-  /** Messages from the opponent since the panel was last read. */
-  unread: number;
-  /**
-   * Does an arriving message make a sound? Separate from the game's own mute
-   * (`sfx.setMuted`, the HUD speaker), because the two answer different
-   * questions: one is "I don't want game audio", the other is "don't ping me".
-   * The global mute still wins — it silences everything, this one included.
-   */
-  soundOn: boolean;
-  error: string | null;
-}
-
-/** HUD-facing view of one side in the match (projected from the engine roster). */
-export interface SideSnapshot {
-  owner: Owner;
-  /** True while this side still holds a base. */
-  alive: boolean;
-  /** True for bot-controlled sides — the HUD labels them differently. */
-  bot: boolean;
-}
-
-export interface GameState {
-  status: GameStatus;
-  bases: BaseSnapshot[];
-  robots: RobotSnapshot[];
-  /** Who's playing, in seating order — drives the per-side HUD rows. */
-  sides: SideSnapshot[];
-  resources: ResourcePool;
-  /** UI selection (entity ids); the renderer highlights these. */
-  selectedRobotIds: string[];
-  /**
-   * The selected base, or null. Mutually exclusive with `selectedRobotIds`:
-   * with a base selected, right-click sets its rally point instead of moving.
-   */
-  selectedBaseId: string | null;
-  /** Command queue: UI enqueues, the bridge forwards to the engine each tick. */
-  commands: Command[];
-  /** One-shot control flags the bridge observes (→ engine.startMatch / toMenu). */
-  restartRequested: boolean;
-  menuRequested: boolean;
-  paused: boolean;
-  /** One-shot "flip the shared pause" the bridge puts on the wire (online only). */
-  pauseTogglePending: boolean;
-  /** Observer-drone flight direction (unit-ish vector); the bridge forwards it each step. */
-  droneInput: Vec2;
-  /** One-shot drone intents the bridge forwards then clears (land/take-off, fire/detonate). */
-  dronePossessRequested: boolean;
-  droneFireRequested: boolean;
-  /** HUD-facing drone status pushed from snapshots. */
-  droneStatus: DroneStatus;
-  /** Build & program dialog visibility — opened by the HUD button or a double-click on your base. */
-  buildDialogOpen: boolean;
-  /** Player-editable settings + their defaults (see config/gameSettings). */
-  settings: GameSettings;
-  /** Active UI language. */
-  locale: Locale;
-  /** Which side this client plays/views (host = Player, guest = AI). Presentation only. */
-  localSide: Owner;
-  /** Online lobby/connection status (see OnlineState). */
-  online: OnlineState;
-  /** One-shot online request the bridge consumes (connect/leave). */
-  pendingOnline: PendingOnline | null;
-  /** Chat with the online opponent — event-driven, and outlives the match (see ChatState). */
-  chat: ChatState;
-  setStatus: (status: GameStatus) => void;
-  setBases: (bases: BaseSnapshot[]) => void;
-  setRobots: (robots: RobotSnapshot[]) => void;
-  setSides: (sides: SideSnapshot[]) => void;
-  setResources: (resources: ResourcePool) => void;
-  selectRobots: (ids: string[]) => void;
-  toggleRobot: (id: string) => void;
-  /** Select the local side's base (or null to drop it); clears any robot selection. */
-  selectBase: (id: string | null) => void;
-  clearSelection: () => void;
-  enqueueCommand: (command: Command) => void;
-  drainCommands: () => Command[];
-  /** Merge a shallow-per-group patch into settings (scales as settings grow). */
-  updateSettings: (patch: SettingsPatch) => void;
-  requestRestart: () => void;
-  requestMenu: () => void;
-  clearRequests: () => void;
-  /**
-   * Stop/resume the world. Solo it flips `paused` outright; in a networked match
-   * it can only *ask* — the pause has to happen on the same tick in both
-   * simulations, so it raises `pauseTogglePending` for the bridge to put on the
-   * wire, and `paused` follows once the tick both peers agreed on comes round.
-   */
-  togglePause: () => void;
-  setPaused: (value: boolean) => void;
-  /** Bridge-only: take and clear the pending pause request. */
-  consumePauseToggle: () => boolean;
-  setDroneInput: (dir: Vec2) => void;
-  requestDronePossess: () => void;
-  requestDroneFire: () => void;
-  clearDroneRequests: () => void;
-  setDroneStatus: (status: DroneStatus) => void;
-  setBuildDialogOpen: (open: boolean) => void;
-  setLocale: (locale: Locale) => void;
-  /**
-   * Host a room (bridge generates the code, echoes it back). The host picks the
-   * map and how many bots join both humans — the guest is told at match start.
-   */
-  hostMatch: (mapSize: MapSize, aiOpponents: number) => void;
-  /** Join an existing room by code. */
-  joinMatch: (roomCode: string) => void;
-  /** Leave the lobby / online match and return to solo menu. */
-  leaveOnline: () => void;
-  /** Bridge-only: take and clear the pending online request. */
-  consumePendingOnline: () => PendingOnline | null;
-  /**
-   * The online lifecycle's transitions — the only way `online` ever changes, and
-   * all bridge-only (`GameApp` owns the session; the store just mirrors where it
-   * is). Each one *replaces* the state rather than patching it, which is what
-   * makes the union's promise hold: nothing from the state being left behind can
-   * survive into the next one.
-   */
-  /** The relay created the room: show its code and wait for a guest. */
-  setOnlineHosting: (roomCode: string) => void;
-  /** Both peers are in — the match is running. */
-  setOnlineInMatch: () => void;
-  /** Transport health. Ignored outside a match, where there is no link to have one. */
-  setOnlineLink: (link: OnlineLink) => void;
-  /** The session is over — `isError` tells a failure from an ordinary end. */
-  setOnlineFinished: (error: string, isError: boolean) => void;
-  /** Back to no session at all. */
-  setOnlineOffline: () => void;
-  /**
-   * Chat setters, all bridge-only (`client/src/chat/chatBridge.ts`) — the UI goes
-   * through the bridge rather than here, because opening a panel also has to open
-   * a socket and the store must not know what a socket is.
-   */
-  setChat: (patch: Partial<ChatState>) => void;
-  /** Replay from the server: merge by `seq`, since it may overlap what is on screen. */
-  mergeChatHistory: (entries: ChatMessage[]) => void;
-  /** One new message; counts as unread when it is the opponent's and the panel is shut. */
-  appendChatMessage: (entry: ChatMessage) => void;
-  /** The player is looking at the log — clear the badge. */
-  markChatRead: () => void;
-}
-
-const initialState = {
-  status: 'menu' as GameStatus,
-  bases: [] as BaseSnapshot[],
-  robots: [] as RobotSnapshot[],
-  sides: [] as SideSnapshot[],
-  resources: Object.fromEntries(
-    Object.values(Owner).map((owner) => [owner, gameConfig.economy.startingResources]),
-  ) as ResourcePool,
-  selectedRobotIds: [] as string[],
-  selectedBaseId: null as string | null,
-  commands: [] as Command[],
-  restartRequested: false,
-  menuRequested: false,
-  paused: false,
-  pauseTogglePending: false,
-  droneInput: { x: 0, y: 0 } as Vec2,
-  dronePossessRequested: false,
-  droneFireRequested: false,
-  droneStatus: {
-    mode: 'flying',
-    possessedRobotId: null,
-    hp: gameConfig.drone.maxHp,
-    maxHp: gameConfig.drone.maxHp,
-    respawnProgress: 0,
-  } as DroneStatus,
-  buildDialogOpen: false,
-  settings: createDefaultSettings(),
-  locale: resolveInitialLocale(),
-  localSide: Owner.Player as Owner,
-  online: { status: 'offline' } as OnlineState,
-  pendingOnline: null as PendingOnline | null,
-  chat: {
-    open: false,
-    chatId: null,
-    seat: null,
-    roomCode: null,
-    connected: false,
-    peerOnline: false,
-    messages: [],
-    unread: 0,
-    soundOn: loadChatSound(),
-    error: null,
-  } as ChatState,
-};
-
 /** Last language the player asked for — guards `setLocale` against out-of-order loads. */
 let requestedLocale: Locale = initialState.locale;
 
@@ -349,7 +59,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       // Online the pause is a shared thing scheduled a few ticks ahead, so this
       // only raises the request; `paused` is set by the bridge when the two
       // simulations actually stop, which is the only moment they agree on.
-      s.online.status === 'inMatch' ? { pauseTogglePending: true } : { paused: !s.paused },
+      s.online.status === OnlineStatus.InMatch ? { pauseTogglePending: true } : { paused: !s.paused },
     ),
   setPaused: (value) => set({ paused: value }),
   consumePauseToggle: () => {
@@ -378,37 +88,37 @@ export const useGameStore = create<GameState>((set, get) => ({
   hostMatch: (mapSize, aiOpponents) =>
     set({
       localSide: Owner.Player,
-      pendingOnline: { kind: 'host', mapSize, aiOpponents },
-      online: { status: 'connecting', roomCode: null },
+      pendingOnline: { kind: OnlineRequest.Host, mapSize, aiOpponents },
+      online: { status: OnlineStatus.Connecting, roomCode: null },
     }),
   joinMatch: (roomCode) => {
     const code = roomCode.toUpperCase();
     set({
       localSide: Owner.AI,
-      pendingOnline: { kind: 'join', roomCode: code },
-      online: { status: 'connecting', roomCode: code },
+      pendingOnline: { kind: OnlineRequest.Join, roomCode: code },
+      online: { status: OnlineStatus.Connecting, roomCode: code },
     });
   },
   leaveOnline: () =>
     set({
       localSide: Owner.Player,
-      pendingOnline: { kind: 'leave' },
-      online: { status: 'offline' },
+      pendingOnline: { kind: OnlineRequest.Leave },
+      online: { status: OnlineStatus.Offline },
     }),
   consumePendingOnline: () => {
     const { pendingOnline } = get();
     if (pendingOnline) set({ pendingOnline: null });
     return pendingOnline;
   },
-  setOnlineHosting: (roomCode) => set({ online: { status: 'hosting', roomCode } }),
-  setOnlineInMatch: () => set({ online: { status: 'inMatch', link: 'ok' } }),
+  setOnlineHosting: (roomCode) => set({ online: { status: OnlineStatus.Hosting, roomCode } }),
+  setOnlineInMatch: () => set({ online: { status: OnlineStatus.InMatch, link: OnlineLink.Ok } }),
   // A no-op off the match, and a no-op when nothing changed: the stall watchdog
   // calls this every tick it runs, and a fresh object each time would wake every
   // subscriber to `online` for no news.
   setOnlineLink: (link) =>
-    set((s) => (s.online.status !== 'inMatch' || s.online.link === link ? {} : { online: { status: 'inMatch', link } })),
-  setOnlineFinished: (error, isError) => set({ online: { status: isError ? 'error' : 'ended', error } }),
-  setOnlineOffline: () => set({ online: { status: 'offline' } }),
+    set((s) => (s.online.status !== OnlineStatus.InMatch || s.online.link === link ? {} : { online: { status: OnlineStatus.InMatch, link } })),
+  setOnlineFinished: (error, isError) => set({ online: { status: isError ? OnlineStatus.Error : OnlineStatus.Ended, error } }),
+  setOnlineOffline: () => set({ online: { status: OnlineStatus.Offline } }),
   setChat: (patch) => set((s) => ({ chat: { ...s.chat, ...patch } })),
   mergeChatHistory: (entries) =>
     set((s) => {

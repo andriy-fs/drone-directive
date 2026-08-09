@@ -1161,7 +1161,7 @@
 .unit-guide {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   text-align: left;
 }
 
@@ -1192,9 +1192,19 @@
   text-transform: capitalize;
 }
 
-.unit-guide__stats {
-  margin: 0;
+/* The description reads first; the numbers sit under it on their own line,
+   dimmer and tabular, so neither has to be skimmed past to reach the other. */
+.unit-guide__note {
+  margin: 2px 0 0;
   font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.unit-guide__stats {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-dim);
 }
 
