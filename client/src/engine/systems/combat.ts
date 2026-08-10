@@ -250,7 +250,7 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
       for (const b of world.with('base', 'position')) {
         if ((b.hp ?? 0) <= 0 || !isEnemy(p.owner, b.owner)) continue;
         // Ahead of `hitsBase`, and while a dome stands it is the only branch a
-        // round aimed at that base can take: the dome (112) reaches well past
+        // round aimed at that base can take: the dome (80) reaches well past
         // the footprint (48), so the roof is simply out of reach.
         if (hitsDome(p, pos, b)) {
           applyDamage(b, p.damage ?? 0, p.sourceId);

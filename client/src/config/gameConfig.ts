@@ -90,12 +90,21 @@ export const gameConfig = {
      */
     shield: {
       /**
-       * Dome radius (px) from the footprint centre. 112 = half the footprint
-       * (48) plus `production.spawnOffsetTiles * grid.tilePx` (64) — deliberately
-       * the very ring newly built robots appear on, so the dome visibly covers
-       * the factory door instead of cutting it in half.
+       * Dome radius (px) from the footprint centre — one tile of clearance
+       * beyond the 3-tile footprint (48 + 32), so the shell reads as a dome over
+       * the *building* rather than a zone over the ground.
+       *
+       * **The ceiling on this number is the shortest weapon in the game.** A
+       * robot drives at the base's centre and stops the instant it is in range
+       * (`engageOutcome`), so a `cannon` (range 120) parks with the edge of its
+       * hull 109 px out. The first value tried here was 112, which put every
+       * attacker's body *inside* the shell — a shield that visibly did nothing.
+       * 80 leaves ~29 px of clear ground under a cannon and ~90 under missiles,
+       * while `bomb` (range 60) must still drive inside to trigger, so the
+       * kamikaze counter is untouched. Push this back above ~100 and the dome
+       * starts swallowing the people shooting at it again.
        */
-      radius: 112,
+      radius: 80,
       /** Seconds the dome stands before powering down on its own. */
       duration: 20,
       /** Dome strength: damage aimed at the base comes off this until it runs out. */
