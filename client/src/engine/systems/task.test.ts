@@ -532,6 +532,102 @@ describe('taskSystem — the directed-energy knock-out', () => {
   });
 });
 
+describe('taskSystem — a dew gun does not spend its shot on an already-frozen target', () => {
+  it('skips a closer frozen enemy for a live one further away', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Dew);
+    gun.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    const frozen = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    frozen.disabled = { left: 8 };
+    const alive = spawnRobot(ctx.world, Owner.AI, { x: 580, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBe(alive.id);
+  });
+
+  it('holds its shot rather than firing at all when every known enemy is frozen', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Dew);
+    gun.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    const frozen = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    frozen.disabled = { left: 8 };
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBeUndefined();
+  });
+
+  it('leaves an ordinary cannon unaffected — it still finishes off the frozen target', () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    gun.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    const frozen = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    frozen.disabled = { left: 8 };
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBe(frozen.id);
+  });
+
+  it('never picks an enemy base as a target — there is no crew to knock out', () => {
+    const ctx = makeCtx(2);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Dew);
+    gun.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    const base = spawnBase(ctx.world, Owner.AI, 2, 2);
+    ctx.intel[Owner.Player].knownBaseIds.add(base.id);
+
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBeUndefined();
+  });
+
+  it('does not return fire at an attacker that is already frozen', () => {
+    const ctx = makeCtx(2);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 200, y: 200 }, ChassisType.Tracks, WeaponType.Dew);
+    gun.script = { programId: TaskType.Idle, blackboard: {} };
+    const attacker = spawnRobot(ctx.world, Owner.AI, { x: 260, y: 200 }, ChassisType.Tracks, WeaponType.Cannon);
+    attacker.disabled = { left: 8 };
+    gun.threat = { attackerId: attacker.id, underFireLeft: gameConfig.behavior.underFireDuration };
+
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBeUndefined();
+  });
+
+  it('a cannon still returns fire at an attacker even once it is frozen', () => {
+    const ctx = makeCtx(2);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 200, y: 200 }, ChassisType.Tracks, WeaponType.Cannon);
+    gun.script = { programId: TaskType.Idle, blackboard: {} };
+    const attacker = spawnRobot(ctx.world, Owner.AI, { x: 260, y: 200 }, ChassisType.Tracks, WeaponType.Cannon);
+    attacker.disabled = { left: 8 };
+    gun.threat = { attackerId: attacker.id, underFireLeft: gameConfig.behavior.underFireDuration };
+
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBe(attacker.id);
+  });
+
+  it("obeys a player's explicit order (AttackTarget) even once the target freezes", () => {
+    const ctx = makeCtx(2);
+    openGround(ctx);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Dew);
+    const target = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    target.disabled = { left: 8 };
+    gun.script = makeAttackTarget(target.id);
+
+    taskSystem(ctx, DT);
+
+    expect(gun.targetId).toBe(target.id);
+  });
+});
+
 describe('taskSystem — the base battery picks its own target', () => {
   const RANGE = gameConfig.robots.weapons[gameConfig.bases.weapon].range;
 

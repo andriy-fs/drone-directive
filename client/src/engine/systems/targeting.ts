@@ -2,8 +2,9 @@ import type { Vec2 } from '@drone-directive/types/entities';
 import { Owner } from '@drone-directive/types/enums';
 import { gameConfig } from '../../config/gameConfig';
 import { distance } from '../../utils/math';
-import type { Entity } from '../ecs/entity';
+import type { Entity, WeaponComp } from '../ecs/entity';
 import type { GameContext } from '../game/context';
+import { isDisabled } from './status';
 
 /**
  * Whether `p` falls inside a base's footprint — the base hit-test, shared by
@@ -72,6 +73,27 @@ export function knownEnemyBases(ctx: GameContext, owner: Owner): Entity[] {
 export function knownEnemyDrones(ctx: GameContext, owner: Owner): Entity[] {
   const visible = ctx.intel[owner].visibleDroneIds;
   return enemyDrones(ctx, owner).filter((e) => visible.has(e.id));
+}
+
+/** Whether `w` is a weapon whose only effect is a knock-out (`dew`). */
+function isDisabler(w: WeaponComp | undefined): boolean {
+  return !!w && w.damage <= 0 && w.freezeDuration > 0;
+}
+
+/**
+ * Whether `shooter` firing at `target` right now would accomplish anything.
+ * Ordinary weapons always do — damage always lands. A disabler (`dew`) has two
+ * empty cases: the target is already knocked out (`applyDisable` takes the max
+ * of the two durations, not their sum, so a second hit buys almost nothing),
+ * and the target is a base (no crew to knock out — `stepProjectiles` lets such
+ * a shot pass straight through, see `combat.ts`). Used to keep automatic target
+ * selection from spending a `dew`'s five-second reload on a shot that changes
+ * nothing; a player's explicit order (`AttackTarget`, manual piloting) is not
+ * filtered by this.
+ */
+export function worthShooting(shooter: Entity, target: Entity): boolean {
+  if (!isDisabler(shooter.weapon)) return true;
+  return !target.base && !isDisabled(target);
 }
 
 /** Nearest entity (by position) to `from`, or undefined. */

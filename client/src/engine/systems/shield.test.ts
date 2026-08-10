@@ -136,8 +136,9 @@ describe('shield — absorption', () => {
     const ctx = makeCtx(1);
     openGround(ctx);
     const base = domedBase(ctx, Owner.AI);
-    // Under the dome (112) but clear of the footprint (48), so the roof cannot
-    // eat the shot on the robot's behalf.
+    // Under the dome (80) but clear of the footprint (48), so the roof cannot
+    // eat the shot on the robot's behalf. The round is fired from outside the
+    // shell and crosses it: aimed at the robot, not the base, it is not absorbed.
     const guard = spawnRobot(
       ctx.world,
       Owner.AI,
