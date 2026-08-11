@@ -8,11 +8,12 @@ draws weapons today (a marker on top of the chassis) and scales cleanly as
 weapons are added.
 
 Covered here: **every** buildable weapon — **radar**, **bomb (kamikaze)**, **DEW
-(directed-energy weapon)**, **cannon**, **missiles** and **EW (jammer)**. The full
-weapon list is `types/src/enums.ts` → `WeaponType` (`none` is the unarmed payload
-and never draws a module). All six now ship art for both factions; the drawn
-Graphics markers in `RobotView` remain only as the fallback for a weapon added
-later.
+(directed-energy weapon)**, **cannon**, **missiles**, **EW (jammer)** and the
+planned **FPV carrier**. The full weapon list is `types/src/enums.ts` →
+`WeaponType` (`none` is the unarmed payload and never draws a module). The first
+six ship art for both factions; **FPV** is a prompt written ahead of the feature,
+so until its PNGs land it keeps the drawn Graphics marker in `RobotView` — that
+fallback is exactly what it is for.
 
 ## Module-specific spec (in addition to the [Shared spec](README.md#shared-spec-applies-to-every-prompt--do-not-vary))
 
@@ -271,6 +272,78 @@ angle. Bold readable silhouette, semi-flat stylized art with light cel shading, 
 lighting. Fully transparent background, no ground, no shadow, no text. Centered, the
 module filling about 65% of a 512x512 frame with generous even padding.
 ```
+
+---
+
+## FPV — loitering-munition carrier module (launches a swarm of strike drones)
+
+**Planned, art not generated yet.** A ground robot carrying a sealed launch canister
+that pops open and releases a small salvo of single-use FPV strike drones; each drone
+flies off, hits one target for about a cannon shot's damage, and is gone. The pod then
+reloads for several seconds.
+
+It must read as a **container that holds flyers**, not as a gun and not as the missile
+pod: the giveaway is a cluster of **open hexagonal launch cells with folded rotor blades
+visible inside**, plus split hatch doors hinged back over the shoulders of the plate. No
+barrel, no warhead noses, no dish, no coils. Next to `missiles` the difference has to be
+obvious at 24 px — missiles show **pointed noses in round tubes**, FPV shows **folded
+props in honeycomb cells**.
+
+**Not directional:** the drones leave straight up, so the module is authored radially
+balanced like `radar`/`ew`/`dew` and needs **no** `rotationOffset`. Draw **five** cells
+so the salvo size is legible from the art itself (a ring of four around one center cell
+keeps it symmetric — if the number changes in `gameConfig`, re-generate rather than let
+the art lie).
+
+### Player (allied) — `weapon-fpv-player.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact FPV strike-drone carrier module that
+bolts onto the central hardpoint of a combat robot, viewed from directly above. A small
+armored mount plate carrying a hexagonal launch canister whose split hatch doors are
+folded open, revealing five honeycomb launch cells — one in the center ringed by four —
+each holding a tiny quad-rotor attack drone nested nose-up with its rotor arms folded
+in, so the folded props and a tiny camera lens are visible inside each cell. A slim
+control antenna and a small video-link module sit on the edge of the plate. Allied
+faction design: cool blue and teal plating with brushed steel, dark cell interiors and
+small cyan status lights ringing the canister rim. Clearly a container full of folded
+flying drones — not a missile pod with pointed warheads, not a gun barrel, not a dish.
+Radially balanced so it reads from any angle. Bold readable silhouette, semi-flat
+stylized art with light cel shading, soft top lighting. Fully transparent background, no
+ground, no shadow, no text, no smoke and no exhaust trails. Centered, the module filling
+about 65% of a 512x512 frame with generous even padding.
+```
+
+### Enemy (AI / hostile) — `weapon-fpv-ai.png`
+
+```text
+Top-down (bird's-eye) game sprite of a compact FPV strike-drone carrier module that
+bolts onto the central hardpoint of a combat robot, viewed from directly above. A jagged
+armored mount plate carrying a crude hexagonal launch canister whose battered split
+hatch doors are wrenched open, revealing five honeycomb launch cells — one in the center
+ringed by four — each holding a tiny quad-rotor attack drone nested nose-up with its
+rotor arms folded in, so the folded props and a tiny camera lens are visible inside each
+cell. A bent control antenna and a taped-on video-link box sit on the edge of the plate.
+Hostile enemy faction design: dark gunmetal and red-orange plating, rust streaks,
+soot-blackened cell mouths and glaring red status lights ringing the canister rim.
+Clearly a sinister container full of folded flying drones — not a missile pod with
+pointed warheads, not a gun barrel, not a dish. Radially balanced so it reads from any
+angle. Bold readable silhouette, semi-flat stylized art with light cel shading, soft top
+lighting. Fully transparent background, no ground, no shadow, no text, no smoke and no
+exhaust trails. Centered, the module filling about 65% of a 512x512 frame with generous
+even padding.
+```
+
+### The munition itself is a second, separate sprite
+
+The module above is only what sits on the chassis. The launched drone is its own
+airborne entity with its own art — a **strike variant of the observer drone**: same
+quad-rotor read, camera gimbal swapped for a blunt shaped-charge nose. **One art set for
+every side**, recoloured per owner exactly as the observer is, at **30 px** on field
+(observer 40, robot 46), because five arrive at once and the swarm must not outweigh the
+robot that launched it. Its prompt lives with the other flyer, in
+[`drone.md` → FPV strike drone](drone.md#fpv-strike-drone--fpv-munitionpng) — this file
+is modules only.
 
 ---
 
