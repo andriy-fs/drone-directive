@@ -8,6 +8,7 @@ import {
   CircleDashedIcon,
   EarIcon,
   type LucideIcon,
+  PlaneIcon,
   RocketIcon,
   SatelliteDishIcon,
   TargetIcon,
@@ -38,6 +39,7 @@ export const WEAPON_ICONS: Record<WeaponType, LucideIcon> = {
   [WeaponType.Radar]: SatelliteDishIcon,
   [WeaponType.Ew]: EarIcon,
   [WeaponType.Dew]: ZapIcon,
+  [WeaponType.Fpv]: PlaneIcon,
 };
 
 const CHASSIS_OPTIONS: ChassisType[] = [ChassisType.Tracks, ChassisType.Wheels, ChassisType.Legs];
@@ -50,6 +52,7 @@ const WEAPON_OPTIONS: WeaponType[] = [
   WeaponType.Radar,
   WeaponType.Ew,
   WeaponType.Dew,
+  WeaponType.Fpv,
 ];
 
 export function chassisOptions(t: T): ChipOption<ChassisType>[] {

@@ -53,7 +53,10 @@ export const buildPresets: Record<BuildPresetType, BuildPreset> = {
    * The AI's production series. Steps 1–9 are a durable/ranged combat mix with
    * no forced program (they're sorted into the defence line or an attack group
    * by `systems/ai.ts`) — one of them a directed-energy hull on the cheap fast
-   * chassis, so the player meets the knock-out from the other side too; the 10th
+   * chassis, so the player meets the knock-out from the other side too, and one
+   * an FPV carrier on the toughest cheap chassis, since it never advances and
+   * only ever has to survive whatever reaches its own base (`positionFpvUnits`
+   * keeps it home on `Guard`, out of the wave logic entirely); the 10th
    * is a tracked kamikaze bomb, also left without a `task` override (unlike the
    * old fixed base-rush) so `systems/ai.ts`'s `assignKamikaze` picks its target
    * once it exists — a fat cluster of known enemy robots, or the base if nothing
@@ -72,7 +75,7 @@ export const buildPresets: Record<BuildPresetType, BuildPreset> = {
       { chassis: ChassisType.Legs, weapon: WeaponType.Cannon },
       { chassis: ChassisType.Tracks, weapon: WeaponType.Missiles },
       { chassis: ChassisType.Wheels, weapon: WeaponType.Dew },
-      { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon },
+      { chassis: ChassisType.Tracks, weapon: WeaponType.Fpv },
       { chassis: ChassisType.Wheels, weapon: WeaponType.Missiles },
       { chassis: ChassisType.Legs, weapon: WeaponType.Missiles },
       { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon },

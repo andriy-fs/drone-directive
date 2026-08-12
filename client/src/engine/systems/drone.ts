@@ -6,9 +6,9 @@ import type { Entity } from '../ecs/entity';
 import { spawnProjectile } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { isBlockedGrid, tileOf } from '../obstacles';
-import { canEngage, detonateBomb } from './combat';
+import { canEngage, detonateBomb, launchSalvo, withinMunitionReach } from './combat';
 import { isDisabled } from './status';
-import { enemyBases, enemyRobots, findById, nearest } from './targeting';
+import { enemyBases, enemyRobots, findById, isKnownTo, nearest } from './targeting';
 
 /**
  * Observer-drone flight. A drone free-flies ignoring obstacles (it never
@@ -129,7 +129,17 @@ function blockedAt(ctx: GameContext, x: number, y: number): boolean {
   return isBlockedGrid(ctx.navObstacles, tx, ty);
 }
 
-/** Fires the possessed robot's weapon once: kamikaze detonates, others shoot the nearest foe in range. */
+/**
+ * Fires the possessed robot's weapon once: kamikaze detonates, a launcher sends a
+ * salvo, others shoot the nearest foe in range.
+ *
+ * A launcher picks its target by a different rule from everything else here, and
+ * has to: its range spans the map, so "nearest in range" would mean "nearest on
+ * the map" and the pilot would be firing blind at the far corner. It gets the
+ * nearest foe the side can actually *see* and whose distance its drones can
+ * actually cover — the same two gates automatic fire goes through (`isKnownTo`,
+ * `withinMunitionReach`), just applied at selection rather than after it.
+ */
 function fireManual(ctx: GameContext, robot: Entity): void {
   const w = robot.weapon;
   if (!w || isDisabled(robot)) return;
@@ -140,13 +150,16 @@ function fireManual(ctx: GameContext, robot: Entity): void {
   if (!canEngage(w) || w.cooldownLeft > 0) return;
 
   const pos = robot.position!;
-  const foes = [...enemyRobots(ctx, robot.owner!), ...enemyBases(ctx, robot.owner!)].filter(
-    (e) => distance(pos.x, pos.y, e.position!.x, e.position!.y) <= w.range,
+  const foes = [...enemyRobots(ctx, robot.owner!), ...enemyBases(ctx, robot.owner!)].filter((e) =>
+    w.salvo > 0
+      ? isKnownTo(ctx, robot.owner!, e) && withinMunitionReach(pos, e)
+      : distance(pos.x, pos.y, e.position!.x, e.position!.y) <= w.range,
   );
   const target = nearest(pos, foes);
   if (!target?.position) return;
 
-  spawnProjectile(ctx.world, robot.owner!, pos, target.position, target.id, w.damage, robot.id, robot.weaponType!);
+  if (w.salvo > 0) launchSalvo(ctx, robot, target);
+  else spawnProjectile(ctx.world, robot.owner!, pos, target.position, target.id, w.damage, robot.id, robot.weaponType!);
   w.cooldownLeft = w.cooldown;
   ctx.bus.emit('projectileFired', { owner: robot.owner!, pos: { x: pos.x, y: pos.y }, weapon: robot.weaponType! });
 }

@@ -30,6 +30,12 @@ const BASE_TARGET = 96;
 const WEAPON_TARGET = 24;
 /** On-field diameter (px) for the observer drone — a light recon flyer, a touch smaller than a robot. */
 const DRONE_TARGET = 40;
+/**
+ * On-field diameter (px) for an FPV strike drone. Smaller than the observer on
+ * purpose: five arrive at once, and a swarm must not out-weigh the robot that
+ * launched it. Big enough to be read as a threat, small enough to be read as five.
+ */
+const MUNITION_TARGET = 30;
 const PUBLIC_BASE = import.meta.env.BASE_URL;
 
 /**
@@ -117,6 +123,24 @@ export const droneSprite: SpriteDef | undefined = {
 };
 
 /**
+ * The single-use FPV strike drone — **one** art set for every side, recoloured by
+ * `MunitionView` exactly as the observer is, and for the same reason: a swarm you
+ * cannot tell from your own would be misinformation, not a missing polish pass.
+ * Undefined → the Graphics dart in `MunitionView`. See `.docs/sprites/drone.md`.
+ *
+ * **The odd one out on rotation: `-Math.PI / 2`, not `+`.** Every other whole-image
+ * sprite here is authored facing *up*; this master is drawn with its shaped-charge
+ * warhead pointing *down* (the antenna and camera stub are at the top). The
+ * warhead is the end that reads as "forward", so the art is corrected by −90°
+ * instead. Re-generating the master nose-up is the moment to flip this back.
+ */
+export const munitionSprite: SpriteDef | undefined = {
+  src: `${PUBLIC_BASE}fpv-munition.webp`,
+  rotationOffset: -Math.PI / 2,
+  targetSize: MUNITION_TARGET,
+};
+
+/**
  * Weapon module sprites keyed by **owner → weapon**, overlaid on a robot's
  * central hardpoint (see `.docs/sprites/weapons.md`). A missing entry falls back
  * to the Graphics marker in `RobotView`. Most modules are radially balanced and
@@ -152,6 +176,10 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
       src: `${PUBLIC_BASE}weapon-dew-player.webp`,
       targetSize: WEAPON_TARGET,
     },
+    fpv: {
+      src: `${PUBLIC_BASE}weapon-fpv-player.webp`,
+      targetSize: WEAPON_TARGET,
+    },
   },
   [Owner.AI]: {
     cannon: {
@@ -178,6 +206,10 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
     },
     dew: {
       src: `${PUBLIC_BASE}weapon-dew-ai.webp`,
+      targetSize: WEAPON_TARGET,
+    },
+    fpv: {
+      src: `${PUBLIC_BASE}weapon-fpv-ai.webp`,
       targetSize: WEAPON_TARGET,
     },
   },
@@ -214,5 +246,6 @@ export function spriteSources(): string[] {
   for (const def of Object.values(terrainSprites)) if (def) srcs.push(def.src);
   if (groundSprite) srcs.push(groundSprite.src);
   if (droneSprite) srcs.push(droneSprite.src);
+  if (munitionSprite) srcs.push(munitionSprite.src);
   return [...new Set(srcs)];
 }

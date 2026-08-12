@@ -13,6 +13,7 @@ import { economySystem } from '../../systems/economy';
 import { explosionSystem } from '../../systems/explosion';
 import { fogSystem } from '../../systems/fog';
 import { movementSystem } from '../../systems/movement';
+import { munitionSystem } from '../../systems/munition';
 import { refreshNavObstacles } from '../../navGrid';
 import { productionSystem } from '../../systems/production';
 import { reapSystem } from '../../systems/reap';
@@ -103,6 +104,10 @@ export class GameScene implements Scene {
     movementSystem(ctx, dt);
     separationSystem(ctx);
     combatSystem(ctx, dt);
+    // Straight after combat: anti-air fire that connected this tick has already
+    // taken the hp off, so a strike drone shot down on approach is removed before
+    // it can cover its last few pixels and land its damage anyway.
+    munitionSystem(ctx, dt);
     // Between combat and reap, deliberately: combat has already handed this
     // tick's damage to the domes, so one beaten to zero shatters on the very
     // tick it was broken — and doing it *before* reap means a base finished off

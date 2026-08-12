@@ -157,16 +157,21 @@ export const en: Dict = {
     radar: 'Radar',
     ew: 'EW',
     dew: 'DEW',
+    fpv: 'FPV',
     statsRange: 'Range',
     statsDamage: 'Damage',
     statsReload: 'Reload',
+    statsSalvo: 'Salvo',
+    statsFlight: 'Flight',
     radarNote: 'No weapon — doubles sight radius',
-    ewNote: 'No weapon — jams enemy sight within',
+    ewNote: 'No weapon — jams enemy sight and drops FPV strike drones within',
     bombNote: 'Self-destructs on impact, blast radius',
     cannonNote: 'Balanced rate of fire and range — a reliable all-rounder',
     missilesNote:
-      'Longer range and heavier damage, at the cost of a slower reload. The only weapon that can shoot down an enemy observer drone',
+      'Longer range and heavier damage, at the cost of a slower reload. The only weapon that can shoot down enemy aircraft — an observer drone, or an incoming FPV strike drone',
     dewNote: 'Directed-energy weapon: deals no damage — knocks the target out, s:',
+    fpvNote:
+      'Launches strike drones at any target your side can see, anywhere on the map and over any terrain — but the carrier itself never advances. The swarm is stopped by anti-air fire and by an enemy jammer',
   },
   aria: {
     resume: 'Resume',

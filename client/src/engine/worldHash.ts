@@ -23,6 +23,12 @@ import type { EcsWorld } from './ecs/world';
  * also why the repair lock itself needs no field of its own here — it is only
  * ever observable through hp, which now diverges on the very next tick.
  *
+ * An FPV strike drone's `ttl` is deliberately **not** in here, and adding it would
+ * be redundant rather than safer: a munition moves every tick it is alive, so two
+ * peers that disagreed about its remaining flight time would disagree about the
+ * set of entities — and therefore about this hash — on the very next tick. The
+ * fields already present catch it.
+ *
  * A base's energy dome is the exception that proves that rule: it *prevents* hp
  * from moving, so it is not observable through hp at all and has to be hashed on
  * both its axes — how much of it is left, and how long it still stands, since

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
+import { spawnBase, spawnDrone, spawnMunition, spawnRobot } from '../ecs/factory';
 import { makeCtx } from './testkit';
 import { visionSystem } from './vision';
 
@@ -92,11 +92,11 @@ describe('visionSystem — detection (no omniscience)', () => {
     const foe = spawnDrone(ctx.world, Owner.AI, { x: 120, y: 50 });
 
     visionSystem(ctx);
-    expect(ctx.intel.player.visibleDroneIds.has(foe.id)).toBe(true);
+    expect(ctx.intel.player.visibleAirIds.has(foe.id)).toBe(true);
 
     foe.position!.x = 5000;
     visionSystem(ctx);
-    expect(ctx.intel.player.visibleDroneIds.has(foe.id)).toBe(false);
+    expect(ctx.intel.player.visibleAirIds.has(foe.id)).toBe(false);
   });
 
   it('does not report an enemy drone that is riding inside a robot', () => {
@@ -108,7 +108,7 @@ describe('visionSystem — detection (no omniscience)', () => {
 
     visionSystem(ctx);
 
-    expect(ctx.intel.player.visibleDroneIds.has(foe.id)).toBe(false);
+    expect(ctx.intel.player.visibleAirIds.has(foe.id)).toBe(false);
   });
 
   it('radar weapon doubles the chassis sight range', () => {
@@ -189,5 +189,70 @@ describe('visionSystem — a bot side scouts with its drone too', () => {
     spawnDrone(ctx.world, Owner.AI, { x: 1200, y: 1300 });
     visionSystem(ctx);
     expect(ctx.intel.ai.visibleRobotIds.has(foe.id)).toBe(true);
+  });
+});
+
+describe('visionSystem — strike drones are air like any other', () => {
+  it('spots an incoming strike drone, and forgets it once nobody can see it', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Missiles);
+    const m = spawnMunition(
+      ctx.world,
+      Owner.AI,
+      { x: 120, y: 50 },
+      0,
+      'target',
+      gameConfig.robots.weapons.fpv.damage,
+      'carrier',
+      WeaponType.Fpv,
+    );
+
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleAirIds.has(m.id)).toBe(true);
+
+    m.position!.x = 5000;
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleAirIds.has(m.id)).toBe(false);
+  });
+
+  it('does not scout for its own side — it is a weapon, not an eye', () => {
+    const ctx = makeCtx(1);
+    // No player units at all except the swarm in the air.
+    spawnMunition(
+      ctx.world,
+      Owner.Player,
+      { x: 400, y: 400 },
+      0,
+      'target',
+      gameConfig.robots.weapons.fpv.damage,
+      'carrier',
+      WeaponType.Fpv,
+    );
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 420, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(false);
+  });
+});
+
+describe('visionSystem — a base is known forever but visible only while watched', () => {
+  it('drops out of visibleBaseIds when the scout leaves, and stays in knownBaseIds', () => {
+    const ctx = makeCtx(1);
+    const scout = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const base = spawnBase(ctx.world, Owner.AI, 12, 12);
+    scout.position!.x = base.position!.x;
+    scout.position!.y = base.position!.y;
+
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleBaseIds.has(base.id)).toBe(true);
+    expect(ctx.intel.player.knownBaseIds.has(base.id)).toBe(true);
+
+    scout.position!.x = 5000;
+    visionSystem(ctx);
+
+    // The distinction an FPV salvo is gated on: no longer watched, still remembered.
+    expect(ctx.intel.player.visibleBaseIds.has(base.id)).toBe(false);
+    expect(ctx.intel.player.knownBaseIds.has(base.id)).toBe(true);
   });
 });

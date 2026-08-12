@@ -32,14 +32,27 @@ export function chassisHint(chassis: ChassisType, t: T): string {
 }
 
 /**
- * The numbers alone: range · damage — except `dew`, which deals none. "Damage: 0"
- * would read as broken, so it shows what it actually trades on: reach and the
- * long reload (how long the target stays down is part of its note).
+ * The numbers alone: range · damage — with two weapons that would be misdescribed
+ * by that pair and get their own line instead.
+ *
+ * `dew` deals no damage; "Damage: 0" reads as broken, so it shows reach and its
+ * long reload (how long the target stays down is part of its note). `fpv` has a
+ * range of 4000, which is a stand-in for "anywhere" rather than a distance worth
+ * printing — and it fires five drones rather than one round, so it shows the
+ * volley, the flight time and the reload. In both cases the number that would
+ * mislead is the one left out.
  */
 export function weaponStats(weapon: WeaponType, t: T): string {
   const stats = gameConfig.robots.weapons[weapon];
   if (weapon === WeaponType.Dew) {
     return `${t('weapons', 'statsRange')}: ${stats.range} · ${t('weapons', 'statsReload')}: ${stats.cooldown}`;
+  }
+  if (weapon === WeaponType.Fpv) {
+    return [
+      `${t('weapons', 'statsSalvo')}: ${stats.salvo} × ${stats.damage}`,
+      `${t('weapons', 'statsFlight')}: ${gameConfig.munition.flightTime}`,
+      `${t('weapons', 'statsReload')}: ${stats.cooldown}`,
+    ].join(' · ');
   }
   return `${t('weapons', 'statsRange')}: ${stats.range} · ${t('weapons', 'statsDamage')}: ${stats.damage}`;
 }
@@ -60,6 +73,8 @@ export function weaponNote(weapon: WeaponType, t: T): string {
       return `${t('weapons', 'ewNote')} ${stats.jamRadius}px`;
     case WeaponType.Dew:
       return `${t('weapons', 'dewNote')} ${stats.freezeDuration}`;
+    case WeaponType.Fpv:
+      return t('weapons', 'fpvNote');
     default:
       return '';
   }

@@ -391,6 +391,9 @@ export class GameApp {
           case WeaponType.Dew:
             sfx.dewShot();
             break;
+          case WeaponType.Fpv:
+            sfx.fpvShot();
+            break;
           default:
             sfx.cannonShot();
             break;
@@ -864,7 +867,7 @@ export class GameApp {
     if (!intel) return true;
     if (e.robot) return intel.visibleRobotIds.has(e.id);
     if (e.base) return intel.knownBaseIds.has(e.id);
-    if (e.drone) return intel.visibleDroneIds.has(e.id);
+    if (e.drone || e.munition) return intel.visibleAirIds.has(e.id);
     return true;
   }
 

@@ -37,6 +37,7 @@ import {
   SatelliteDish as LucideSatelliteDish,
   Ear as LucideEar,
   Zap as LucideZap,
+  Plane as LucidePlane,
 } from 'lucide-react';
 
 /** The shape every icon here has — so callers can take one as a prop without importing lucide. */
@@ -97,3 +98,4 @@ export const BombIcon = LucideBomb;
 export const SatelliteDishIcon = LucideSatelliteDish;
 export const EarIcon = LucideEar;
 export const ZapIcon = LucideZap;
+export const PlaneIcon = LucidePlane;

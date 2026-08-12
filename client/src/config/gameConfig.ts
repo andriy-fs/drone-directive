@@ -136,6 +136,31 @@ export const gameConfig = {
     respawnTime: 30,
   },
 
+  /**
+   * The single-use FPV strike drone — the body a `salvo` weapon launches, and the
+   * game's second flying entity (see `systems/munition.ts`). Stats live here rather
+   * than on the weapon because they describe the *munition*, not the launcher: a
+   * second salvo weapon would reuse this body and differ only in `salvo`/`damage`.
+   *
+   * `speed` × `flightTime` is the real reach — 1680 px, comfortably past the small
+   * map's diagonal (1810) and well short of the large one's (3620). That is the
+   * knob to turn to make the carrier a siege weapon or a local one; the weapon's
+   * own `range` is deliberately not it.
+   */
+  munition: {
+    /** Flight speed, px/second (free flight — obstacles never block it). */
+    speed: 240,
+    // NB: `speed × flightTime` is the weapon's real reach — see `munitionReach()`.
+    /** Seconds a drone stays airborne. Time out = it falls, dealing nothing. */
+    flightTime: 7,
+    /** Hull strength — under any `canHitAir` damage (missiles deal 22), one hit is enough. */
+    hp: 8,
+    /** Collision radius (px), both for anti-air fire and for reaching its target. */
+    hitRadius: 8,
+    /** Radius (px) of the ring a salvo spreads over on launch, so five don't stack into one dot. */
+    launchRing: 16,
+  },
+
   /** Robots: per-chassis stats and shared draw/movement tunables. */
   robots: {
     /** Collision / draw radius in pixels. */
@@ -161,12 +186,18 @@ export const gameConfig = {
      * radius on detonation. `sightMultiplier` scales the chassis's own `sight`
      * stat (see `chassis` above); only `radar` raises it, everything else is 1
      * (no-op). `jamRadius` (px) only matters for `ew` — see `combat.jamMultiplier`.
-     * `canHitAir` marks a surface-to-air weapon: only those can shoot an enemy
-     * observer drone down (a howitzer plainly can't). Today that's `missiles`
-     * alone — a dedicated AA weapon would just be another entry with the flag on.
+     * `canHitAir` marks a surface-to-air weapon: only those can engage an **air**
+     * entity — an enemy observer drone or an FPV strike drone in flight (a
+     * howitzer plainly can't). Today that's `missiles` alone — a dedicated AA
+     * weapon would just be another entry with the flag on.
      * `freezeDuration` (seconds) only matters for `dew` — how long a hit leaves
      * the target disabled; it is also what makes a zero-damage weapon count as
      * armed at all (see `canEngage` in `systems/combat.ts`).
+     * `salvo` (>0) turns the weapon into a **launcher**: instead of one round it
+     * releases that many single-use flying munitions, each carrying this weapon's
+     * own `damage` (see the `munition` block above and `systems/munition.ts`).
+     * Only `fpv` has it, and it is what exempts the weapon from the line-of-sight
+     * check — drones fly over mountains (`needsLineOfSight` in `systems/combat.ts`).
      */
     weapons: {
       none: {
@@ -178,6 +209,7 @@ export const gameConfig = {
         jamRadius: 0,
         canHitAir: false,
         freezeDuration: 0,
+        salvo: 0,
       },
       cannon: {
         range: 120,
@@ -188,8 +220,10 @@ export const gameConfig = {
         jamRadius: 0,
         canHitAir: false,
         freezeDuration: 0,
+        salvo: 0,
       },
-      // The only surface-to-air weapon: doubles as this side's answer to an enemy drone.
+      // The only surface-to-air weapon: doubles as this side's answer to an enemy
+      // drone — and, since `fpv` exists, the only thing that can shoot a salvo down.
       missiles: {
         range: 170,
         damage: 22,
@@ -199,6 +233,7 @@ export const gameConfig = {
         jamRadius: 0,
         canHitAir: true,
         freezeDuration: 0,
+        salvo: 0,
       },
       // Kamikaze: closes to `range` then detonates, dealing `damage` in `explosionRadius`, destroying itself.
       // range (60) must exceed a base's half-footprint (48px) so it can trigger at the base's edge, not only inside it.
@@ -212,6 +247,7 @@ export const gameConfig = {
         jamRadius: 0,
         canHitAir: false,
         freezeDuration: 0,
+        salvo: 0,
       },
       /** Unarmed spotter: no damage, but doubles detection radius. */
       radar: {
@@ -223,8 +259,16 @@ export const gameConfig = {
         jamRadius: 0,
         canHitAir: false,
         freezeDuration: 0,
+        salvo: 0,
       },
-      /** Unarmed jammer: no damage, but halves the effective sight range of enemy scouts within `jamRadius`. */
+      /**
+       * Unarmed jammer. `jamRadius` does **two** jobs, both passive: it halves the
+       * effective sight range of enemy scouts standing inside it (see
+       * `combat.jamMultiplier`), and it drops enemy FPV strike drones that fly into
+       * it outright — a munition inside the bubble falls without dealing damage
+       * (`systems/munition.ts`). The second job is what makes this the hard counter
+       * to `fpv`, the way `missiles` is the soft one.
+       */
       ew: {
         range: 0,
         damage: 0,
@@ -234,6 +278,7 @@ export const gameConfig = {
         jamRadius: 150,
         canHitAir: false,
         freezeDuration: 0,
+        salvo: 0,
       },
       // Directed-energy weapon: the cannon's reach and price, but it deals no damage at
       // all — a hit disables the target for `freezeDuration` seconds instead. Control,
@@ -247,6 +292,40 @@ export const gameConfig = {
         jamRadius: 0,
         canHitAir: false,
         freezeDuration: 8,
+        salvo: 0,
+      },
+      /**
+       * FPV carrier: one pull of the trigger releases `salvo` single-use strike
+       * drones, each carrying this weapon's own `damage` (5 × 12 = 60 a volley) and
+       * living `munition.flightTime` seconds. See `systems/munition.ts`.
+       *
+       * **`range` here is not a reach — it is "anywhere".** 4000 clears the diagonal
+       * of the largest map (80 tiles ≈ 3620 px), so the number that actually bounds
+       * this weapon is *reconnaissance*: a salvo only launches at a target the side
+       * can see right now. Three consequences worth knowing before touching it:
+       *
+       * - line of sight is not checked (`salvo > 0`), because at this reach a
+       *   mountain always stands in the way and the drones fly over it anyway;
+       * - the carrier therefore never advances — `engageOutcome` finds every target
+       *   already "in range" and holds. That is deliberate: this is artillery, not a
+       *   brawler, and no program needs to be forbidden to it;
+       * - the `enemyRobotWithin` directive condition defaults to weapon range, so it
+       *   is always true for this hull. Harmless (it only picks the fire target) but
+       *   it is why the number must not be copied onto anything that moves.
+       *
+       * Sustained damage is deliberately poor — 60 per 9 s ≈ 6.7 dps against a
+       * cannon's 15 — so what is bought is burst, reach and ignoring terrain.
+       */
+      fpv: {
+        range: 4000,
+        damage: 12,
+        cooldown: 9,
+        explosionRadius: 0,
+        sightMultiplier: 1,
+        jamRadius: 0,
+        canHitAir: false,
+        freezeDuration: 0,
+        salvo: 5,
       },
     },
   },
@@ -382,8 +461,13 @@ export const gameConfig = {
     maxResources: 999,
     /** Build cost by ChassisType value. */
     chassisCost: { tracks: 60, wheels: 50, legs: 80 },
-    /** Build cost by WeaponType value. */
-    weaponCost: { none: 0, cannon: 40, missiles: 70, bomb: 90, radar: 20, ew: 25, dew: 40 },
+    /**
+     * Build cost by WeaponType value. `fpv` sits between `missiles` (70) and `bomb`
+     * (90): dearer than the anti-air that answers it, so a side that opens with
+     * carriers is behind on everything else, and cheaper than the kamikaze, which
+     * still buys more damage per resource against a building.
+     */
+    weaponCost: { none: 0, cannon: 40, missiles: 70, bomb: 90, radar: 20, ew: 25, dew: 40, fpv: 80 },
   },
 
   /** Enemy AI behaviour. */
@@ -481,6 +565,20 @@ export const gameConfig = {
   /** Safety cap so a long frame (tab refocus) cannot spiral the accumulator. */
   maxFrameDt: 0.25,
 } as const;
+
+/**
+ * How far a launched strike drone can actually get: flight speed × flight time.
+ *
+ * The number that bounds an `fpv` carrier in practice, as opposed to the weapon's
+ * own `range` (4000), which only says "anywhere". Derived rather than written
+ * down twice, because the two must never disagree: a launcher that fires at
+ * something its drones cannot reach spends a nine-second reload on nothing, and
+ * on the larger maps a base in the far corner is exactly that — 2169 px away on
+ * medium and 3075 on large, against a reach of 1680.
+ */
+export function munitionReach(): number {
+  return gameConfig.munition.speed * gameConfig.munition.flightTime;
+}
 
 /** Total world size in pixels, derived from the grid config. */
 export const worldPixelSize = {

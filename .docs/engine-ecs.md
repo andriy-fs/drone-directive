@@ -8,7 +8,7 @@ systems**, driven by **scenes**, behind a `GameEngine` facade, with a typed
 ## Why ECS
 
 The game has a small, fixed set of "kinds" (base, robot, projectile,
-explosion, the observer drone) but a growing, cross-cutting set of
+explosion, the observer drone, the FPV strike drone) but a growing, cross-cutting set of
 _behaviours_ that don't map cleanly onto a class-per-kind hierarchy:
 movement, combat, vision, fog of war, tasks/AI scripting, economy,
 production, separation (unit-unit push-apart), the drone's possession
@@ -16,6 +16,25 @@ mechanic. Several kinds share behaviours (bases and robots both take damage
 and die via `reapSystem`; robots and the drone both have `position` and
 `heading`), and some behaviours only apply to entities that happen to have
 certain data (only entities with `movement` path through the pathfinder).
+
+The FPV strike drone shows the other edge of the same trade — when *not* to reuse
+a kind. It is airborne, shootable and short-lived, so wearing the `drone` tag
+would have handed it flight and anti-air for free; but four things read that tag
+as "this side's eye" (`droneRespawnSystem`, `DroneView`, `store.droneStatus`,
+robot possession), and five munitions would have looked to them like five lost
+eyes. So it got a tag of its own, `munition`, and what the two flyers genuinely
+share was lifted into a *predicate* instead: `isAirTarget` in
+`systems/targeting.ts` is what "air" means to vision, to the base battery and to
+`hitsAimedAir`. Component identity says what a thing **is**; a predicate over
+components says what it **counts as** — and a third flyer is now one line in
+`targeting.ts` rather than a hunt through three systems.
+
+`munitionSystem` is where a strike drone's whole life happens, and it runs
+immediately after `combatSystem` (which launches them) and before `shieldSystem`
+(so a hit on a base reaches the dome in the same tick's accounting as a shell).
+Notably it never reaches `reapSystem`: a munition is not a robot, base or drone,
+raises no `entityDestroyed`, and nothing holds a reference to clean up — so
+letting the generic reaper see it would only add a case that means nothing.
 
 The base's built-in missile battery is the cleanest illustration of the payoff.
 Making a *building* shoot cost no new mechanism at all: `spawnBase` grew a
@@ -55,9 +74,9 @@ position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
   override a possessed robot's target and steering, and `fogSystem` runs last
   so it reveals from this tick's _settled_ positions.
 - **Boolean/object "tag" components** (`base?: true`, `robot?: true`,
-  `drone?: Drone`) drive **archetype queries** — "give me every entity that
-  has these components" — instead of `instanceof` checks or manual type
-  discrimination.
+  `drone?: Drone`, `munition?: true`) drive **archetype queries** — "give me
+  every entity that has these components" — instead of `instanceof` checks or
+  manual type discrimination.
 
 This keeps the simulation data-oriented and composable: behaviour is decided
 by what data an entity carries, not by what class it was constructed as, and
@@ -95,16 +114,17 @@ What's used, and where:
   have those components (`With<Entity, ...>`), so systems don't need optional
   chaining on the fields they queried for.
 - **`world.remove(entity)`** — used by `reapSystem` / `explosionSystem` /
-  projectile TTL expiry to delete dead robots, spent projectiles, and expired
-  explosion effects from the world.
+  `munitionSystem` / projectile TTL expiry to delete dead robots, spent
+  projectiles, downed strike drones, and expired explosion effects from the
+  world.
 - **`world.clear()`** — wipes every entity; used on match (re)start and on
   returning to the menu (`GameEngine.startMatch` / `toMenu` →
   `clearWorld(world)`).
 - **Reactive queries — `query.onEntityAdded` / `query.onEntityRemoved`** —
   used _outside_ the engine, in the Pixi bridge
-  (`client/src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds six `world.with(...)`
-  queries (bases/robots/projectiles/explosions/drones, plus bases whose energy
-  dome is currently up) and subscribes to their
+  (`client/src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds seven `world.with(...)`
+  queries (bases/robots/projectiles/explosions/drones/strike drones, plus bases
+  whose energy dome is currently up) and subscribes to their
   add/remove events to create/destroy the matching Pixi view object
   (`BaseView`/`RobotView`/etc.) exactly when an entity enters/leaves that
   archetype — so view lifecycle is driven by ECS membership changes rather

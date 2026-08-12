@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig, munitionReach } from '../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
 import { EffectKind } from '../ecs/entity';
 import { spawnBase, spawnDrone, spawnProjectile, spawnRobot } from '../ecs/factory';
@@ -365,5 +365,179 @@ describe('combatSystem — a base under its energy dome', () => {
 
     expect(base.hp).toBe(base.maxHp);
     expect(base.shield!.hp).toBe(DOME.hp);
+  });
+});
+
+describe('combatSystem — the FPV carrier', () => {
+  const FPV = gameConfig.robots.weapons.fpv;
+
+  /** A carrier and a target its side can see, well beyond any other weapon's reach. */
+  function stageSalvo(ctx: GameContext) {
+    const carrier = spawnRobot(ctx.world, Owner.Player, { x: 200, y: 200 }, ChassisType.Tracks, WeaponType.Fpv);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 1200, y: 200 }, ChassisType.Wheels, WeaponType.Cannon);
+    carrier.targetId = foe.id;
+    ctx.intel.player.visibleRobotIds = new Set([foe.id]);
+    return { carrier, foe };
+  }
+
+  it('launches a whole salvo, not a projectile', () => {
+    const ctx = makeCtx(1);
+    const { carrier } = stageSalvo(ctx);
+
+    combatSystem(ctx, DT);
+
+    expect(ctx.world.with('munition').entities.length).toBe(FPV.salvo);
+    expect(ctx.world.with('projectile').entities.length).toBe(0);
+    expect(carrier.weapon!.cooldownLeft).toBe(FPV.cooldown);
+  });
+
+  it('fires with a mountain in the way — its drones fly over terrain', () => {
+    const ctx = makeCtx(1);
+    const { width, height } = gameConfig.grid;
+    ctx.sightBlockers = Array.from({ length: height }, () => new Array<boolean>(width).fill(true));
+    stageSalvo(ctx);
+
+    combatSystem(ctx, DT);
+
+    expect(ctx.world.with('munition').entities.length).toBe(FPV.salvo);
+  });
+
+  it('holds its fire at a target the side cannot currently see', () => {
+    const ctx = makeCtx(1);
+    const { carrier } = stageSalvo(ctx);
+    ctx.intel.player.visibleRobotIds = new Set(); // spotter lost
+
+    combatSystem(ctx, DT);
+
+    expect(ctx.world.with('munition').entities.length).toBe(0);
+    expect(carrier.weapon!.cooldownLeft).toBe(0); // and the reload never started
+  });
+
+  it('spreads the salvo out, so five drones are not one dot', () => {
+    const ctx = makeCtx(1);
+    stageSalvo(ctx);
+
+    combatSystem(ctx, DT);
+
+    const spots = new Set(
+      ctx.world.with('munition', 'position').entities.map((m) => `${Math.round(m.position!.x)}:${Math.round(m.position!.y)}`),
+    );
+    expect(spots.size).toBe(FPV.salvo);
+  });
+
+  it('an anti-air shot aimed at a strike drone brings it down in one hit', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const { foe } = stageSalvo(ctx);
+    combatSystem(ctx, DT);
+    const m = ctx.world.with('munition', 'position').entities[0];
+    ctx.intel.ai.visibleAirIds = new Set([m.id]);
+
+    spawnProjectile(
+      ctx.world,
+      Owner.AI,
+      { x: m.position!.x + 10, y: m.position!.y },
+      m.position!,
+      m.id,
+      gameConfig.robots.weapons.missiles.damage,
+      foe.id,
+      WeaponType.Missiles,
+    );
+    combatSystem(ctx, DT);
+
+    expect(m.hp).toBeLessThanOrEqual(0);
+  });
+
+  it('does not swat a strike drone with a round aimed at the ground', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const { foe } = stageSalvo(ctx);
+    combatSystem(ctx, DT);
+    const m = ctx.world.with('munition', 'position').entities[0];
+
+    // Aimed at the carrier, straight through where the swarm is standing.
+    spawnProjectile(
+      ctx.world,
+      Owner.AI,
+      { x: m.position!.x + 40, y: m.position!.y },
+      { x: 200, y: 200 },
+      'robot_1',
+      gameConfig.robots.weapons.missiles.damage,
+      foe.id,
+      WeaponType.Missiles,
+    );
+    for (let i = 0; i < 6; i++) combatSystem(ctx, DT);
+
+    expect(m.hp).toBe(m.maxHp);
+  });
+});
+
+describe('combatSystem — the two things that must stop an FPV salvo', () => {
+  const FPV = gameConfig.robots.weapons.fpv;
+
+  /** A carrier and an enemy base it has already discovered, well inside drone reach. */
+  function stageBase(ctx: GameContext) {
+    const base = spawnBase(ctx.world, Owner.AI, 20, 20);
+    const carrier = spawnRobot(
+      ctx.world,
+      Owner.Player,
+      { x: base.position!.x - 600, y: base.position!.y },
+      ChassisType.Tracks,
+      WeaponType.Fpv,
+    );
+    carrier.targetId = base.id;
+    ctx.intel.player.knownBaseIds = new Set([base.id]);
+    return { carrier, base };
+  }
+
+  it('holds fire on a discovered base nobody is currently watching', () => {
+    const ctx = makeCtx(1);
+    const { carrier } = stageBase(ctx);
+    // Found earlier in the match, but no ally has eyes on it now. `knownBaseIds`
+    // never forgets, so this is the case that used to fire forever.
+    ctx.intel.player.visibleBaseIds = new Set();
+
+    combatSystem(ctx, DT);
+
+    expect(ctx.world.with('munition').entities.length).toBe(0);
+    expect(carrier.weapon!.cooldownLeft).toBe(0);
+  });
+
+  it('fires the moment someone puts eyes back on it', () => {
+    const ctx = makeCtx(1);
+    const { base } = stageBase(ctx);
+    ctx.intel.player.visibleBaseIds = new Set([base.id]);
+
+    combatSystem(ctx, DT);
+
+    expect(ctx.world.with('munition').entities.length).toBe(FPV.salvo);
+  });
+
+  it('holds fire on a watched target its drones could never reach', () => {
+    const ctx = makeCtx(1);
+    const { carrier, base } = stageBase(ctx);
+    ctx.intel.player.visibleBaseIds = new Set([base.id]);
+    // Just beyond speed × flightTime — the medium/large-map case, where a base in
+    // the far corner sits 2169/3075 px away against a reach of 1680.
+    carrier.position!.x = base.position!.x - (munitionReach() + 200);
+
+    combatSystem(ctx, DT);
+
+    expect(ctx.world.with('munition').entities.length).toBe(0);
+    expect(carrier.weapon!.cooldownLeft).toBe(0); // and the reload is not burned on nothing
+  });
+
+  it('measures a base from its footprint edge, exactly as the drone does on arrival', () => {
+    const ctx = makeCtx(1);
+    const { carrier, base } = stageBase(ctx);
+    ctx.intel.player.visibleBaseIds = new Set([base.id]);
+    const halfFootprint = (gameConfig.bases.footprintTiles * gameConfig.grid.tilePx) / 2;
+    // Centre-to-centre is out of reach; edge-to-launcher is not. Measuring from the
+    // centre here would refuse a salvo that in fact arrives.
+    carrier.position!.x = base.position!.x - (munitionReach() + halfFootprint / 2);
+
+    combatSystem(ctx, DT);
+
+    expect(ctx.world.with('munition').entities.length).toBe(FPV.salvo);
   });
 });

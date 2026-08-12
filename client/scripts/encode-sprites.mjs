@@ -48,11 +48,14 @@ const SPRITES = [
   // Bases — on-field 96 px (BASE_TARGET), already the smallest sensible master.
   ...['player', 'ai'].map((side) => ({ name: `base-${side}`, size: 256, quality: 90 })),
   // Weapon modules — on-field 24 px (WEAPON_TARGET), the biggest overshoot in the set.
-  ...['bomb', 'cannon', 'dew', 'ew', 'missiles', 'radar'].flatMap((weapon) =>
+  ...['bomb', 'cannon', 'dew', 'ew', 'fpv', 'missiles', 'radar'].flatMap((weapon) =>
     ['player', 'ai'].map((side) => ({ name: `weapon-${weapon}-${side}`, size: 64, quality: 90 })),
   ),
   // Observer drone — on-field 40 px (DRONE_TARGET).
   { name: 'drone-player', size: 128, quality: 90 },
+  // FPV strike drone — on-field 30 px (MUNITION_TARGET); one art set for every
+  // side, tinted per owner, so there is no `-player`/`-ai` pair here.
+  { name: 'fpv-munition', size: 96, quality: 90 },
   // Terrain: opaque, tiled, and already at or near its display size.
   { name: 'obstacle-crater', size: 64, quality: 90, alpha: false, seamless: true },
   { name: 'obstacle-mountain', size: 64, quality: 90, alpha: false, seamless: true },
@@ -66,7 +69,17 @@ function filterChain({ size, alpha = true, seamless = false }) {
   const steps = [];
   // 3×3 first, so the scaler reads across the wrap instead of clamping at the edge.
   if (seamless) steps.push('loop=loop=8:size=1:start=0', 'tile=3x3');
-  if (alpha) steps.push('format=rgba', 'premultiply=inplace=1');
+  if (alpha) steps.push('format=rgba');
+  // Square the frame with transparent padding before scaling. Every output here
+  // is a square, and `scale` on its own would *stretch* a master that isn't one
+  // — a generator that hands back 1536×1024 instead of the 512×512 the prompts
+  // ask for would silently ship a squashed unit. A no-op for a square master, so
+  // it costs the well-behaved ones nothing. Skipped for the seamless tiles: those
+  // are square by construction and padding would break the wrap.
+  if (alpha && !seamless) {
+    steps.push("pad='max(iw,ih)':'max(iw,ih)':'(ow-iw)/2':'(oh-ih)/2':color=0x00000000");
+  }
+  if (alpha) steps.push('premultiply=inplace=1');
   const scaled = seamless ? size * 3 : size;
   steps.push(`scale=${scaled}:${scaled}:flags=lanczos`);
   if (seamless) steps.push(`crop=${size}:${size}:${size}:${size}`);

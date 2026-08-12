@@ -4,12 +4,13 @@ import { distance } from '../../utils/math';
 import type { Entity } from '../ecs/entity';
 import type { GameContext, TeamIntel } from '../game/context';
 import { isDisabled } from './status';
-import { enemyBases, enemyDrones, enemyRobots, isEnemy } from './targeting';
+import { enemyAirTargets, enemyBases, enemyRobots, isEnemy } from './targeting';
 
 /**
- * Detection resolver. Each tick, recomputes which enemy robots and observer
- * drones are currently within sight of some living allied robot or base
- * (real-time — an enemy unit drops out of `visibleRobotIds`/`visibleDroneIds`
+ * Detection resolver. Each tick, recomputes which enemy robots and **air** units
+ * (observer drones and FPV strike drones alike) are currently within sight of
+ * some living allied robot or base
+ * (real-time — an enemy unit drops out of `visibleRobotIds`/`visibleAirIds`
  * the instant no ally can see it, since it moves) and grows the set of enemy
  * bases any ally has ever come within sight
  * of (bases don't move, so discovery is permanent). Both robots and bases have
@@ -55,18 +56,30 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   }
   intel.visibleRobotIds = visible;
 
-  // Enemy drones detect the same way ground units do — this is what anti-air
-  // fire shoots at, and what the renderer uses to keep one hidden in the fog.
-  const visibleDrones = new Set<string>();
-  for (const foe of enemyDrones(ctx, owner)) {
-    if (isSpotted(scouts, jammers, foe.position!.x, foe.position!.y)) visibleDrones.add(foe.id);
+  // Enemy air detects the same way ground units do — this is what anti-air fire
+  // shoots at, and what the renderer uses to keep a flyer hidden in the fog. One
+  // pass covers both kinds: an observer drone and an incoming strike drone are
+  // spotted by exactly the same rule.
+  const visibleAir = new Set<string>();
+  for (const foe of enemyAirTargets(ctx, owner)) {
+    if (isSpotted(scouts, jammers, foe.position!.x, foe.position!.y)) visibleAir.add(foe.id);
   }
-  intel.visibleDroneIds = visibleDrones;
+  intel.visibleAirIds = visibleAir;
 
+  // Bases are resolved on both timescales, from one test. `knownBaseIds` only
+  // grows — a building found once stays found, which is what lets a unit be
+  // ordered to attack it without an escort keeping eyes on the door.
+  // `visibleBaseIds` is this tick's truth, for the things that need a live
+  // observer rather than a memory (an FPV salvo). Every base is tested every
+  // tick now, where discovery alone could stop once it was known: there are at
+  // most four of them, and the live set has to be able to *shrink*.
+  const visibleBases = new Set<string>();
   for (const base of enemyBases(ctx, owner)) {
-    if (intel.knownBaseIds.has(base.id)) continue;
-    if (isSpotted(scouts, jammers, base.position!.x, base.position!.y)) intel.knownBaseIds.add(base.id);
+    if (!isSpotted(scouts, jammers, base.position!.x, base.position!.y)) continue;
+    visibleBases.add(base.id);
+    intel.knownBaseIds.add(base.id);
   }
+  intel.visibleBaseIds = visibleBases;
 }
 
 function isSpotted(scouts: Entity[], jammers: Entity[], x: number, y: number): boolean {
