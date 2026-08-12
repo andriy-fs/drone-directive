@@ -8,7 +8,7 @@ import { hasLineOfSight } from '../../obstacles';
 import { canEngage } from '../combat';
 import { clearGoal, setGoal } from '../movement';
 import { decayDisabled, isDisabled } from '../status';
-import { findById, knownEnemyBases, knownEnemyDrones, knownEnemyRobots, nearest, worthShooting } from '../targeting';
+import { findById, knownEnemyAir, knownEnemyBases, knownEnemyRobots, nearest, worthShooting } from '../targeting';
 import {
   attackAttackerOutcome,
   attackTargetOutcome,
@@ -89,8 +89,8 @@ function baseTurretTarget(ctx: GameContext, base: Entity): string | undefined {
     hasLineOfSight(ctx.sightBlockers, pos, e.position!);
 
   if (w.canHitAir) {
-    const drone = nearest(pos, knownEnemyDrones(ctx, base.owner!).filter(inReach));
-    if (drone) return drone.id;
+    const flyer = nearest(pos, knownEnemyAir(ctx, base.owner!).filter(inReach));
+    if (flyer) return flyer.id;
   }
   return nearest(pos, knownEnemyRobots(ctx, base.owner!).filter(inReach))?.id;
 }
@@ -128,22 +128,27 @@ function runProgram(ctx: GameContext, e: Entity): void {
 
 /**
  * Last-resort anti-air: a surface-to-air robot with no ground target of its own
- * takes a shot at an enemy observer drone that has strayed into range. It runs
- * *after* the whole directive program, and never contributes a move intent —
- * a drone outruns every chassis in the game, so chasing one would only pull the
- * robot off its actual job, and always preferring the drone over ground targets
- * would make flying one impossible. Opportunistic fire only.
+ * takes a shot at enemy air that has strayed into range — an observer drone, or
+ * an FPV strike drone on its way in. It runs *after* the whole directive program,
+ * and never contributes a move intent — a flyer outruns every chassis in the
+ * game, so chasing one would only pull the robot off its actual job, and always
+ * preferring air over ground targets would make flying anything impossible.
+ * Opportunistic fire only.
+ *
+ * That "opportunistic" is exactly what a salvo is priced against: a robot busy
+ * with a ground target does not stop to swat the drones coming for it, so five
+ * arriving at once will mostly get through unless someone was already idle.
  */
 function airTarget(ctx: GameContext, e: Entity): string | undefined {
   const w = e.weapon;
   if (!w?.canHitAir || w.range <= 0 || w.damage <= 0) return undefined;
 
   const pos = e.position!;
-  const drone = nearest(pos, knownEnemyDrones(ctx, e.owner!));
-  if (!drone?.position) return undefined;
-  if (distance(pos.x, pos.y, drone.position.x, drone.position.y) > w.range) return undefined;
-  if (!hasLineOfSight(ctx.sightBlockers, pos, drone.position)) return undefined;
-  return drone.id;
+  const flyer = nearest(pos, knownEnemyAir(ctx, e.owner!));
+  if (!flyer?.position) return undefined;
+  if (distance(pos.x, pos.y, flyer.position.x, flyer.position.y) > w.range) return undefined;
+  if (!hasLineOfSight(ctx.sightBlockers, pos, flyer.position)) return undefined;
+  return flyer.id;
 }
 
 function conditionHolds(ctx: GameContext, e: Entity, cond: BehaviorCondition): boolean {

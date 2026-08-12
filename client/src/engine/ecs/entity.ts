@@ -40,6 +40,12 @@ export interface WeaponComp {
   canHitAir: boolean;
   /** Seconds a hit disables its target for (dew); 0 = an ordinary weapon that only deals damage. */
   freezeDuration: number;
+  /**
+   * How many single-use strike drones one pull of the trigger releases (fpv);
+   * 0 = an ordinary weapon that fires a projectile. Each munition carries this
+   * weapon's own `damage` — see `systems/munition.ts`.
+   */
+  salvo: number;
 }
 
 /** Base production component. */
@@ -155,7 +161,7 @@ export interface Drone {
 
 /**
  * A single ECS entity: a bag of optional components. Boolean "tag" components
- * (`base`/`robot`/`projectile`/`explosion`) drive archetype queries via
+ * (`base`/`robot`/`projectile`/`explosion`/`munition`) drive archetype queries via
  * `world.with('robot', ...)`. Add new behaviour by adding components + a system,
  * not by subclassing.
  */
@@ -169,6 +175,21 @@ export interface Entity {
   explosion?: true;
   /** Observer drone (object-valued tag — also carries possession state). */
   drone?: Drone;
+  /**
+   * A single-use FPV strike drone in flight, launched by a `salvo` weapon — the
+   * game's second flying entity. Carries no components of its own: it reuses
+   * `position`/`heading`, `hp`, `targetId` (locked at launch, never re-picked),
+   * `sourceId` (the **launcher**, so a victim's return fire finds something that
+   * still exists), `damage`, `ttl` and `weaponType`. See `systems/munition.ts`.
+   *
+   * **Deliberately not a `drone`.** That component means "this side's eye", and
+   * four things read it that way: `droneRespawnSystem` ("the side has no drone →
+   * build one"), `DroneView`, `store.droneStatus`, and robot possession. Five
+   * munitions wearing that tag would each look like a lost eye. What the two
+   * *do* share is being **air**, and that is expressed by the queries in
+   * `targeting.ts` (`isAirTarget`) rather than by the tag.
+   */
+  munition?: true;
 
   owner?: Owner;
 
@@ -184,7 +205,7 @@ export interface Entity {
 
   // Robot build identity (render + production)
   chassis?: ChassisType;
-  /** Robot: the equipped weapon. Projectile: which weapon fired it (render + sfx pick by this). */
+  /** Robot: the equipped weapon. Projectile/munition: which weapon released it (render + sfx pick by this). */
   weaponType?: WeaponType;
 
   // Robot behaviour
@@ -210,15 +231,21 @@ export interface Entity {
    */
   shieldSpent?: true;
 
-  // Projectile
+  // Projectile / munition — `velocity` is the projectile's alone (a munition
+  // steers itself at its target every tick, so it has no fixed one).
   velocity?: Vec2;
   damage?: number;
   ttl?: number;
-  /** Projectile: id of the robot that fired it (for return-fire targeting). */
+  /** Id of the robot that fired/launched it (for return-fire targeting). */
   sourceId?: string;
 
   // Explosion
   effect?: Effect;
 }
 
+/**
+ * The kinds `entitySpawned`/`entityDestroyed` can announce. Deliberately without
+ * `munition`: a strike drone never reaches `reapSystem` — it lives and dies
+ * entirely inside `systems/munition.ts` — so nothing ever needs to name one here.
+ */
 export type EntityKind = 'base' | 'robot' | 'projectile' | 'explosion' | 'drone';

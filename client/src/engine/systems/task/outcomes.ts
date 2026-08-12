@@ -4,6 +4,7 @@ import { clamp, distance, vecLength } from '../../../utils/math';
 import type { Entity } from '../../ecs/entity';
 import type { GameContext } from '../../game/context';
 import { hasLineOfSight } from '../../obstacles';
+import { needsLineOfSight } from '../combat';
 import { isDisabled } from '../status';
 import { findById, isEnemy, knownEnemyBases, knownEnemyRobots, nearest, ownBase, worthShooting } from '../targeting';
 import { isAdvancing } from './advancing';
@@ -110,11 +111,19 @@ export function attackTargetOutcome(ctx: GameContext, e: Entity): Outcome {
   return engageOutcome(ctx, e, target);
 }
 
-/** Approach a target, stopping to fire once in weapon range with line of sight. */
+/**
+ * Approach a target, stopping to fire once in weapon range with line of sight.
+ *
+ * A launcher (`salvo > 0`) needs neither: its munitions fly over terrain, and its
+ * reach spans the map. So it holds wherever it stands and fires — which is why an
+ * FPV carrier never advances on anything. That is the intended shape of the unit
+ * (artillery, not a brawler), not an oversight: see `weapons.fpv` in `gameConfig`.
+ */
 export function engageOutcome(ctx: GameContext, e: Entity, target: Entity): Outcome {
   const pos = e.position!;
   const tp = target.position!;
-  const range = e.weapon?.range ?? 0;
+  const w = e.weapon;
+  const range = w?.range ?? 0;
   const d = distance(pos.x, pos.y, tp.x, tp.y);
 
   if (range <= 0) {
@@ -122,7 +131,8 @@ export function engageOutcome(ctx: GameContext, e: Entity, target: Entity): Outc
     if (d > gameConfig.combat.unarmedStandoff) return { move: { kind: 'goal', x: tp.x, y: tp.y } };
     return { move: { kind: 'hold' } };
   }
-  if (d <= range && hasLineOfSight(ctx.sightBlockers, pos, tp)) {
+  const clear = !w || !needsLineOfSight(w) || hasLineOfSight(ctx.sightBlockers, pos, tp);
+  if (d <= range && clear) {
     return { move: { kind: 'hold' }, fire: target.id };
   }
   return { move: { kind: 'goal', x: tp.x, y: tp.y }, fire: target.id };
@@ -192,12 +202,15 @@ export function guardOutcome(ctx: GameContext, e: Entity): Outcome {
       pos,
       knownEnemyRobots(ctx, e.owner!).filter((r) => worthShooting(e, r)),
     );
-    if (
-      foe?.position &&
-      distance(pos.x, pos.y, foe.position.x, foe.position.y) <= range &&
-      hasLineOfSight(ctx.sightBlockers, pos, foe.position)
-    ) {
-      return { move: { kind: 'hold' }, fire: foe.id };
+    if (foe?.position && distance(pos.x, pos.y, foe.position.x, foe.position.y) <= range) {
+      // Same line-of-sight exemption as `engageOutcome`, and it matters more
+      // here: a launcher's reach spans the map, so there is nearly always a
+      // mountain somewhere on the straight line, and requiring a clear one would
+      // leave a guarding carrier silently never firing.
+      const needsLos = !e.weapon || needsLineOfSight(e.weapon);
+      if (!needsLos || hasLineOfSight(ctx.sightBlockers, pos, foe.position)) {
+        return { move: { kind: 'hold' }, fire: foe.id };
+      }
     }
   }
   if (!post) return { move: { kind: 'hold' } };

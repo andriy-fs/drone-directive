@@ -21,6 +21,7 @@ export type SoundName =
   | 'shot-cannon'
   | 'shot-missile'
   | 'shot-dew'
+  | 'shot-fpv'
   | 'explosion'
   | 'chat-message'
   | 'chat-send'
@@ -96,6 +97,11 @@ export const soundDefs: Record<SoundName, SoundDef> = {
   // Directed energy: a rising electrical whine rather than a report, so a
   // knock-out shot is audibly not a kill even off-screen.
   'shot-dew': { src: src('digital/phaserUp3'), volume: 0.35, tier: 'match' },
+  // A salvo of FPV drones: a clattering rattle of several small motors leaving at
+  // once, deliberately outside the laser/phaser family the three guns above share
+  // — this is not a shot, it is five machines taking off. Peaks at −0.8 dBFS, in
+  // line with the pack, so no compensation like `shot-cannon` needs.
+  'shot-fpv': { src: src('digital/spaceTrash2'), volume: 0.4, tier: 'match' },
   // The energy dome's three moments. `shield-break` deliberately does *not* share
   // a family with the other two: raising and powering down are both a force
   // field, so they may sound related, but being beaten down must not be mistaken

@@ -22,6 +22,7 @@ export const WEAPON_TO_WIRE: Record<WeaponType, wire.WeaponType> = {
   [WeaponType.Radar]: wire.WeaponType.Radar,
   [WeaponType.Ew]: wire.WeaponType.Ew,
   [WeaponType.Dew]: wire.WeaponType.Dew,
+  [WeaponType.Fpv]: wire.WeaponType.Fpv,
 };
 
 export const TASK_TO_WIRE: Record<TaskType, wire.TaskType> = {

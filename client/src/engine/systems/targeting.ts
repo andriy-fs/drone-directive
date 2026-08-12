@@ -47,9 +47,26 @@ export function isTargetableDrone(e: Entity): boolean {
   return !!e.drone && (e.hp ?? 0) > 0 && !e.drone.possessedId;
 }
 
-/** Enemy drones relative to `owner` that are currently exposed (see `isTargetableDrone`). */
-export function enemyDrones(ctx: GameContext, owner: Owner): Entity[] {
-  return ctx.world.with('drone', 'position').entities.filter((e) => isEnemy(owner, e.owner) && isTargetableDrone(e));
+/**
+ * Whether `e` is something only a `canHitAir` weapon may shoot: an exposed
+ * observer drone, or an FPV strike drone in flight.
+ *
+ * This predicate — not the component tag — is what "air" means in the engine.
+ * The two flyers deliberately wear different tags (see `Entity.munition`), and
+ * every anti-air path keys off this instead, so adding a third flyer is one line
+ * here rather than a hunt through the targeting, vision and combat systems.
+ */
+export function isAirTarget(e: Entity): boolean {
+  if (e.munition) return (e.hp ?? 0) > 0;
+  return isTargetableDrone(e);
+}
+
+/** Living, exposed enemy air relative to `owner` — observer drones and strike drones. */
+export function enemyAirTargets(ctx: GameContext, owner: Owner): Entity[] {
+  return [
+    ...ctx.world.with('drone', 'position').entities,
+    ...ctx.world.with('munition', 'position').entities,
+  ].filter((e) => isEnemy(owner, e.owner) && isAirTarget(e));
 }
 
 /** This owner's own living base, if it still stands. */
@@ -69,10 +86,46 @@ export function knownEnemyBases(ctx: GameContext, owner: Owner): Entity[] {
   return enemyBases(ctx, owner).filter((e) => known.has(e.id));
 }
 
-/** Exposed enemy drones `owner`'s team currently has in sight (see `visionSystem`). */
-export function knownEnemyDrones(ctx: GameContext, owner: Owner): Entity[] {
-  const visible = ctx.intel[owner].visibleDroneIds;
-  return enemyDrones(ctx, owner).filter((e) => visible.has(e.id));
+/** Exposed enemy air `owner`'s team currently has in sight (see `visionSystem`). */
+export function knownEnemyAir(ctx: GameContext, owner: Owner): Entity[] {
+  const visible = ctx.intel[owner].visibleAirIds;
+  return enemyAirTargets(ctx, owner).filter((e) => visible.has(e.id));
+}
+
+/**
+ * Whether `owner`'s team has eyes on `target` **right now** — the gate on
+ * launching a salvo (see `fireWeapon`). Everything else in the engine gets this
+ * for free by picking targets through the `known*` helpers above; a salvo needs
+ * it stated outright because a player's explicit `AttackTarget` order and manual
+ * fire from a possessed hull both bypass target *selection*, and a weapon that
+ * reaches the whole map would otherwise shell things nobody is looking at.
+ *
+ * **Bases read `visibleBaseIds`, not `knownBaseIds`.** That distinction is the
+ * whole point of this function: `knownBaseIds` only ever grows, so a carrier
+ * gated on it would fire on the enemy base forever after one glimpse early in
+ * the match — the reconnaissance requirement, which is the *only* thing bounding
+ * a 4000-range weapon, would quietly switch itself off.
+ */
+export function isKnownTo(ctx: GameContext, owner: Owner, target: Entity): boolean {
+  const intel = ctx.intel[owner];
+  if (target.base) return intel.visibleBaseIds.has(target.id);
+  if (target.robot) return intel.visibleRobotIds.has(target.id);
+  return intel.visibleAirIds.has(target.id);
+}
+
+/**
+ * Distance from point `p` to the nearest point of `base`'s footprint AABB — the
+ * "how far is this thing from the building" measure, as opposed to
+ * `baseFootprintContains`'s "is it inside". Lives here rather than in any one
+ * system because three of them need it: a bomb's blast, a projectile's collision
+ * and a strike drone's approach must agree on where a base *begins*.
+ */
+export function distanceToBase(p: Vec2, base: Entity): number {
+  const half = ((base.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx) / 2;
+  const bp = base.position!;
+  const cx = Math.max(bp.x - half, Math.min(p.x, bp.x + half));
+  const cy = Math.max(bp.y - half, Math.min(p.y, bp.y + half));
+  return distance(p.x, p.y, cx, cy);
 }
 
 /** Whether `w` is a weapon whose only effect is a knock-out (`dew`). */

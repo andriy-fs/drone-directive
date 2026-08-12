@@ -17,6 +17,7 @@ import {
   makeAttackRobots,
   makeAttackTarget,
   makeDefendBase,
+  makeGuard,
   makeGroupAttack,
   scriptForTask,
 } from '../tasks/taskDefinitions';
@@ -75,6 +76,7 @@ function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): voi
   // for the whole match, not just while waiting, so they must be off the table
   // before groups are formed out of whatever is standing around.
   positionDewUnits(ctx, owner);
+  positionFpvUnits(ctx, owner);
   assignUnits(ctx, owner, base);
   sweepIdle(ctx, owner);
 }
@@ -137,6 +139,32 @@ function positionDewUnits(ctx: GameContext, owner: Owner): void {
     // blackboard and restart the patrol leg it is part-way through.
     if (unit.script!.programId === wanted) continue;
     unit.script = scriptForTask(unit.position!, wanted);
+  }
+}
+
+/**
+ * Where the bot's FPV carriers belong: standing at home on `Guard`, permanently.
+ *
+ * They need a rule of their own for the opposite reason `dew` does. A `dew` is
+ * governed because it cannot fight alone; a carrier is governed because it never
+ * has to move at all — its reach already covers the map, so `Guard` has it hold
+ * its post and shell the nearest enemy its side can see, wherever that is. Left
+ * to the generic assignment it would be marched out with an attack wave, walking
+ * an artillery piece into a firefight it cannot win, or parked on `DefendBase`,
+ * where it would only ever shoot at things already on its doorstep — the one
+ * place its range is worth nothing.
+ *
+ * Like `positionDewUnits`, this is bot *policy* built out of existing programs:
+ * no new behaviour vocabulary, and nothing here touches the player's own units.
+ */
+function positionFpvUnits(ctx: GameContext, owner: Owner): void {
+  for (const unit of ctx.world.with('robot', 'position', 'script').entities) {
+    if (unit.owner !== owner || (unit.hp ?? 0) <= 0 || unit.weaponType !== WeaponType.Fpv) continue;
+    if (isDisabled(unit)) continue; // can't take an order until its electronics come back
+    // Only on an actual change: re-assigning every tick would re-roll the guard
+    // post from the shared rng, which both peers' streams have to agree on.
+    if (unit.script!.programId === TaskType.Guard) continue;
+    unit.script = makeGuard(unit.position!);
   }
 }
 
@@ -238,8 +266,13 @@ function assignUnits(ctx: GameContext, owner: Owner, base: Entity): void {
   }
   // `dew` is deliberately absent from the group logic: `positionDewUnits` owns
   // it, and counting it toward a group would let one form out of units that
-  // between them can't destroy anything.
-  const rest = available.filter((e) => e.weaponType !== WeaponType.Bomb && e.weaponType !== WeaponType.Dew);
+  // between them can't destroy anything. `fpv` is absent for the opposite reason
+  // — it is *always* in range of everything, so it would join a group, never
+  // actually walk anywhere, and leave the group short of the bodies it counted on.
+  const rest = available.filter(
+    (e) =>
+      e.weaponType !== WeaponType.Bomb && e.weaponType !== WeaponType.Dew && e.weaponType !== WeaponType.Fpv,
+  );
 
   const defenceQuota =
     posture === 'defensive' ? gameConfig.ai.guardQuota + gameConfig.ai.defensiveGuardBonus : gameConfig.ai.guardQuota;
@@ -373,6 +406,10 @@ function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots:
     if (isDisabled(robot)) continue; // can't take an order until its electronics come back
     if (robot.weaponType === WeaponType.Ew) continue; // unarmed — nothing to fight with, stays put
     if (robot.weaponType === WeaponType.Dew) continue; // `positionDewUnits` decides where this one stands
+    // A launcher already covers the whole map from where it stands, and it never
+    // advances (its range makes every target "in reach"), so marching it at a
+    // rush would only walk it into one. It keeps whatever program it has.
+    if (robot.weaponType === WeaponType.Fpv) continue;
     const programId = robot.script!.programId;
 
     if (massRush) {

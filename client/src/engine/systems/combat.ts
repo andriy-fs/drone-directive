@@ -1,13 +1,13 @@
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig, munitionReach } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { distance } from '../../utils/math';
-import { spawnEmpBurst, spawnExplosion, spawnProjectile } from '../ecs/factory';
+import { spawnEmpBurst, spawnExplosion, spawnMunition, spawnProjectile } from '../ecs/factory';
 import type { Entity, WeaponComp } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
 import { absorbShieldDamage, isShielded } from './shield';
 import { applyDisable, blockRegen, isDisabled } from './status';
-import { findById, isEnemy, isTargetableDrone } from './targeting';
+import { distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from './targeting';
 
 /**
  * Firing + projectile flight/collision. Runs after movement so shots use
@@ -20,9 +20,11 @@ import { findById, isEnemy, isTargetableDrone } from './targeting';
  * (`explosionRadius > 0`) detonates on contact instead of firing (see
  * `detonateBomb`); a `radar` weapon (range 0) never engages — it only spots; a
  * `dew` weapon fires an ordinary projectile that deals no damage and knocks the
- * robot it hits out for `freezeDuration` seconds instead (see `canEngage`).
- * Observer drones are hit only by a deliberate surface-to-air shot — see
- * `hitsAimedDrone`.
+ * robot it hits out for `freezeDuration` seconds instead (see `canEngage`); an
+ * `fpv` weapon (`salvo > 0`) releases a swarm of flying munitions instead of a
+ * round, over terrain and without a line of sight, and everything that happens
+ * to them afterwards belongs to `systems/munition.ts`. Air is hit only by a
+ * deliberate surface-to-air shot — see `hitsAimedAir`.
  *
  * **Two passes, one rule.** Bases carry a built-in battery
  * (`gameConfig.bases.weapon`) and go through the very same `fireWeapon` as a
@@ -54,16 +56,71 @@ function fireWeapon(ctx: GameContext, e: Entity, dt: number): void {
   if (!target?.position) return;
   const pos = e.position!;
   if (distance(pos.x, pos.y, target.position.x, target.position.y) > w.range) return;
-  if (!hasLineOfSight(ctx.sightBlockers, pos, target.position)) return;
+  if (needsLineOfSight(w) && !hasLineOfSight(ctx.sightBlockers, pos, target.position)) return;
 
   if (w.explosionRadius > 0) {
     detonateBomb(ctx, e); // kamikaze: AOE blast + self-destruct, no projectile
     return;
   }
 
+  if (w.salvo > 0) {
+    // The one weapon that can reach a target nobody has seen, so it is the one
+    // weapon that has to be told not to. Everything else is bounded by its own
+    // range long before this could matter.
+    if (!isKnownTo(ctx, e.owner!, target)) return;
+    // ...and the one weapon whose stated `range` is not its real one. Without
+    // this it would empty a salvo every nine seconds at a base its drones fall
+    // 500 px short of, which is what happens on any map bigger than the small one.
+    if (!withinMunitionReach(pos, target)) return;
+    launchSalvo(ctx, e, target);
+    w.cooldownLeft = w.cooldown;
+    ctx.bus.emit('projectileFired', { owner: e.owner!, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType! });
+    return;
+  }
+
   spawnProjectile(world, e.owner!, pos, target.position, target.id, w.damage, e.id, e.weaponType!);
   w.cooldownLeft = w.cooldown;
   ctx.bus.emit('projectileFired', { owner: e.owner!, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType! });
+}
+
+/**
+ * Whether a salvo fired from `from` could actually arrive. Measured the same way
+ * the munition itself decides it has arrived (`reached` in `systems/munition.ts`)
+ * — footprint edge for a base, body centre for anything else — so the launcher
+ * and the drone can never disagree about whether the trip was possible.
+ *
+ * The launch ring is charged against the budget because a drone spawned on the
+ * far side of it starts that much further out than the launcher stands.
+ */
+export function withinMunitionReach(from: Vec2, target: Entity): boolean {
+  const d = target.base
+    ? distanceToBase(from, target)
+    : distance(from.x, from.y, target.position!.x, target.position!.y);
+  return d + gameConfig.munition.launchRing <= munitionReach();
+}
+
+/**
+ * Releases one launcher's whole salvo at `target`, spread evenly around the
+ * launch ring so five munitions don't leave as one dot. Every drone locks
+ * `target` here and never re-picks it (see `munitionSystem`), and carries the
+ * launcher's id so the victim's return fire has something to aim at afterwards.
+ */
+export function launchSalvo(ctx: GameContext, launcher: Entity, target: Entity): void {
+  const w = launcher.weapon!;
+  const pos = launcher.position!;
+  for (let i = 0; i < w.salvo; i++) {
+    const angle = (i / w.salvo) * Math.PI * 2;
+    spawnMunition(
+      ctx.world,
+      launcher.owner!,
+      pos,
+      angle,
+      target.id,
+      w.damage,
+      launcher.id,
+      launcher.weaponType!,
+    );
+  }
 }
 
 /**
@@ -75,6 +132,16 @@ function fireWeapon(ctx: GameContext, e: Entity, dt: number): void {
  */
 export function canEngage(w: WeaponComp): boolean {
   return w.range > 0 && (w.damage > 0 || w.freezeDuration > 0);
+}
+
+/**
+ * Whether a shot needs a clear line to its target. Everything that travels along
+ * the ground does; a launcher's munitions fly over terrain, so a mountain between
+ * carrier and target is not its problem. Duck-typed off `salvo` for the same
+ * reason `canEngage` is duck-typed off the rest of the stats.
+ */
+export function needsLineOfSight(w: WeaponComp): boolean {
+  return w.salvo <= 0;
 }
 
 /**
@@ -140,15 +207,6 @@ function currentTarget(ctx: GameContext, shooter: Entity): Entity | undefined {
   return undefined;
 }
 
-/** Distance from point `p` to the nearest point of `base`'s footprint AABB. */
-function distanceToBase(p: Vec2, base: Entity): number {
-  const half = ((base.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx) / 2;
-  const bp = base.position!;
-  const cx = Math.max(bp.x - half, Math.min(p.x, bp.x + half));
-  const cy = Math.max(bp.y - half, Math.min(p.y, bp.y + half));
-  return distance(p.x, p.y, cx, cy);
-}
-
 /** Distance from `p` to a base's footprint *centre* — the energy dome is a circle, not the AABB. */
 function distanceToBaseCentre(p: Vec2, base: Entity): number {
   const bp = base.position!;
@@ -159,7 +217,7 @@ function distanceToBaseCentre(p: Vec2, base: Entity): number {
  * Whether a round dies on `base`'s energy dome instead of reaching the roof.
  *
  * Gated on what the round was *aimed at*, the same rule (and the same reason) as
- * `hitsAimedDrone`: a blanket radius test would swallow every shot fired at a
+ * `hitsAimedAir`: a blanket radius test would swallow every shot fired at a
  * robot standing under the dome, turning it into a bubble of cover, which is
  * exactly what it is not. Note this decides only *where the round is seen to
  * stop* — the absorption itself is `applyDamage`'s job, so a stray shot that
@@ -167,9 +225,7 @@ function distanceToBaseCentre(p: Vec2, base: Entity): number {
  */
 function hitsDome(p: Entity, pos: Vec2, base: Entity): boolean {
   return (
-    isShielded(base) &&
-    p.targetId === base.id &&
-    distanceToBaseCentre(pos, base) <= gameConfig.bases.shield.radius
+    isShielded(base) && p.targetId === base.id && distanceToBaseCentre(pos, base) <= gameConfig.bases.shield.radius
   );
 }
 
@@ -178,24 +234,25 @@ function hitsBase(p: Vec2, base: Entity): boolean {
 }
 
 /**
- * Anti-air hit test: a shot damages the drone it was *aimed at*, and never one
+ * Anti-air hit test: a shot damages the flyer it was *aimed at*, and never one
  * that merely drifts across its path. Stray hits would be unplayable — the
- * camera keeps the drone in the middle of the fight, so it sits in every
- * crossfire by design. Deliberately fire only, and only from a `canHitAir`
- * weapon, so the rule holds even if some other code hands a cannon a drone id.
+ * camera keeps the observer drone in the middle of the fight, so it sits in every
+ * crossfire by design, and a salvo crossing a firefight would otherwise be swept
+ * up by rounds meant for the ground. Deliberately fire only, and only from a
+ * `canHitAir` weapon, so the rule holds even if some other code hands a cannon
+ * the id of something airborne.
  */
-function hitsAimedDrone(ctx: GameContext, p: Entity, pos: Vec2): boolean {
+function hitsAimedAir(ctx: GameContext, p: Entity, pos: Vec2): boolean {
   if (!p.targetId || !gameConfig.robots.weapons[p.weaponType!].canHitAir) return false;
 
-  for (const d of ctx.world.with('drone', 'position')) {
-    if (d.id !== p.targetId) continue;
-    if (!isEnemy(p.owner, d.owner) || !isTargetableDrone(d)) return false;
-    const reach = gameConfig.drone.hitRadius + gameConfig.combat.projectileRadius;
-    if (distance(pos.x, pos.y, d.position!.x, d.position!.y) > reach) return false;
-    applyDamage(d, p.damage ?? 0, p.sourceId);
-    return true;
+  const flyer = enemyAirTargets(ctx, p.owner!).find((e) => e.id === p.targetId);
+  if (!flyer) return false;
+  const bodyR = flyer.munition ? gameConfig.munition.hitRadius : gameConfig.drone.hitRadius;
+  if (distance(pos.x, pos.y, flyer.position!.x, flyer.position!.y) > bodyR + gameConfig.combat.projectileRadius) {
+    return false;
   }
-  return false;
+  applyDamage(flyer, p.damage ?? 0, p.sourceId);
+  return true;
 }
 
 function stepProjectiles(ctx: GameContext, dt: number): void {
@@ -203,38 +260,38 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
   const radius = gameConfig.robots.radius;
   const pr = gameConfig.combat.projectileRadius;
 
-  for (const p of [...world.with('projectile', 'position', 'velocity')]) {
-    const pos = p.position!;
-    pos.x += p.velocity!.x * dt;
-    pos.y += p.velocity!.y * dt;
-    p.ttl = (p.ttl ?? 0) - dt;
-    if (p.ttl <= 0) {
-      world.remove(p);
+  for (const projectile of [...world.with('projectile', 'position', 'velocity')]) {
+    const pos = projectile.position!;
+    pos.x += projectile.velocity!.x * dt;
+    pos.y += projectile.velocity!.y * dt;
+    projectile.ttl = (projectile.ttl ?? 0) - dt;
+    if (projectile.ttl <= 0) {
+      world.remove(projectile);
       continue;
     }
 
     const cell = tileOf(pos);
     if (isBlockedGrid(ctx.sightBlockers, cell.tx, cell.ty)) {
-      world.remove(p); // absorbed by a mountain (a crater is a depression — shots fly over)
+      world.remove(projectile); // absorbed by a mountain (a crater is a depression — shots fly over)
       continue;
     }
 
     // The firing weapon's stats, not the projectile's — `weaponType` is stamped
     // on every shot precisely so its effect survives the shooter's death.
-    const fired = gameConfig.robots.weapons[p.weaponType!];
+    const fired = gameConfig.robots.weapons[projectile.weaponType!];
 
     let hit = false;
     // Where to put the discharge ring, if this round knocked something out. The
     // spawn waits until the query loop is done — adding entities mid-iteration is
     // what `detonateBomb` avoids too.
     let burstAt: Vec2 | undefined;
-    for (const r of world.with('robot', 'position')) {
-      if ((r.hp ?? 0) <= 0 || !isEnemy(p.owner, r.owner)) continue;
-      if (distance(pos.x, pos.y, r.position!.x, r.position!.y) <= radius + pr) {
-        applyDamage(r, p.damage ?? 0, p.sourceId);
+    for (const robot of world.with('robot', 'position')) {
+      if ((robot.hp ?? 0) <= 0 || !isEnemy(projectile.owner, robot.owner)) continue;
+      if (distance(pos.x, pos.y, robot.position!.x, robot.position!.y) <= radius + pr) {
+        applyDamage(robot, projectile.damage ?? 0, projectile.sourceId);
         if (fired.freezeDuration > 0) {
-          applyDisable(r, fired.freezeDuration);
-          burstAt = { x: r.position!.x, y: r.position!.y };
+          applyDisable(robot, fired.freezeDuration);
+          burstAt = { x: robot.position!.x, y: robot.position!.y };
         }
         hit = true;
         break;
@@ -246,25 +303,25 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     // A harmless round (dew) flies straight over a base rather than being eaten
     // by it: buildings have no crew to knock out, so a hit there is a dud, and
     // absorbing the shot would only make the weapon feel broken.
-    if (!hit && (p.damage ?? 0) > 0) {
-      for (const b of world.with('base', 'position')) {
-        if ((b.hp ?? 0) <= 0 || !isEnemy(p.owner, b.owner)) continue;
+    if (!hit && (projectile.damage ?? 0) > 0) {
+      for (const base of world.with('base', 'position')) {
+        if ((base.hp ?? 0) <= 0 || !isEnemy(projectile.owner, base.owner)) continue;
         // Ahead of `hitsBase`, and while a dome stands it is the only branch a
         // round aimed at that base can take: the dome (80) reaches well past
         // the footprint (48), so the roof is simply out of reach.
-        if (hitsDome(p, pos, b)) {
-          applyDamage(b, p.damage ?? 0, p.sourceId);
+        if (hitsDome(projectile, pos, base)) {
+          applyDamage(base, projectile.damage ?? 0, projectile.sourceId);
           hit = true;
           break;
         }
-        if (hitsBase(pos, b)) {
-          applyDamage(b, p.damage ?? 0, p.sourceId);
+        if (hitsBase(pos, base)) {
+          applyDamage(base, projectile.damage ?? 0, projectile.sourceId);
           hit = true;
           break;
         }
       }
     }
-    if (!hit) hit = hitsAimedDrone(ctx, p, pos);
-    if (hit) world.remove(p);
+    if (!hit) hit = hitsAimedAir(ctx, projectile, pos);
+    if (hit) world.remove(projectile);
   }
 }

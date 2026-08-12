@@ -45,6 +45,13 @@ export const WeaponType = {
   Ew: 'ew',
   /** Directed-energy weapon — not to be confused with `Ew`: that jams sight with an aura, this one shoots and disables. */
   Dew: 'dew',
+  /**
+   * Carrier for single-use FPV strike drones: a launch fires a whole salvo of short-lived
+   * flying munitions instead of one round. The only weapon that shoots *over* terrain and
+   * *beyond* its own line of sight — what bounds it is the side's reconnaissance (a salvo
+   * needs a target the team can currently see) and the munitions' flight time.
+   */
+  Fpv: 'fpv',
 } as const;
 export type WeaponType = (typeof WeaponType)[keyof typeof WeaponType];
 

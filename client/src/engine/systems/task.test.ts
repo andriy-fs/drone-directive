@@ -2,9 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, RobotState, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
-import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
+import { spawnBase, spawnDrone, spawnMunition, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
-import { makeAttackTarget, makeDefendBase, makeGroupAttack, makeGuard, makeOverwatch } from '../tasks/taskDefinitions';
+import {
+  makeAttackRobots,
+  makeAttackTarget,
+  makeDefendBase,
+  makeGroupAttack,
+  makeGuard,
+  makeOverwatch,
+} from '../tasks/taskDefinitions';
 import { makeCtx } from './testkit';
 import { taskSystem } from './task';
 import { movementSystem } from './movement';
@@ -733,5 +740,87 @@ describe('taskSystem — the base battery picks its own target', () => {
     resolve(ctx);
 
     expect(base.targetId).toBeUndefined();
+  });
+});
+
+describe('taskSystem — air defence sees strike drones, not just observers', () => {
+  it('a base battery intercepts an incoming strike drone', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.Player, 20, 20);
+    const m = spawnMunition(
+      ctx.world,
+      Owner.AI,
+      { x: base.position!.x + 100, y: base.position!.y },
+      0,
+      base.id,
+      gameConfig.robots.weapons.fpv.damage,
+      'carrier',
+      WeaponType.Fpv,
+    );
+    visionSystem(ctx);
+
+    taskSystem(ctx, DT);
+
+    expect(base.targetId).toBe(m.id);
+  });
+
+  it('a missile robot with nothing else to do takes a shot at one', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const guard = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Missiles);
+    const m = spawnMunition(
+      ctx.world,
+      Owner.AI,
+      { x: 480, y: 400 },
+      0,
+      guard.id,
+      gameConfig.robots.weapons.fpv.damage,
+      'carrier',
+      WeaponType.Fpv,
+    );
+    visionSystem(ctx);
+
+    taskSystem(ctx, DT);
+
+    expect(guard.targetId).toBe(m.id);
+  });
+
+  it('a cannon robot cannot — anti-air is still a `canHitAir` privilege', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const guard = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    spawnMunition(
+      ctx.world,
+      Owner.AI,
+      { x: 440, y: 400 },
+      0,
+      guard.id,
+      gameConfig.robots.weapons.fpv.damage,
+      'carrier',
+      WeaponType.Fpv,
+    );
+    visionSystem(ctx);
+
+    taskSystem(ctx, DT);
+
+    expect(guard.targetId).toBeUndefined();
+  });
+});
+
+describe('taskSystem — an FPV carrier stands still and shells what its side can see', () => {
+  it('holds its ground with a mountain in the way, and still takes the shot', () => {
+    const ctx = makeCtx(1);
+    const { width, height } = gameConfig.grid;
+    ctx.sightBlockers = Array.from({ length: height }, () => new Array<boolean>(width).fill(true));
+    const carrier = spawnRobot(ctx.world, Owner.Player, { x: 200, y: 200 }, ChassisType.Tracks, WeaponType.Fpv);
+    carrier.script = makeAttackRobots();
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 1200, y: 200 }, ChassisType.Wheels, WeaponType.Cannon);
+    ctx.intel.player.visibleRobotIds = new Set([foe.id]);
+
+    taskSystem(ctx, DT);
+
+    expect(carrier.targetId).toBe(foe.id);
+    expect(carrier.movement!.goal).toBeUndefined(); // never advances: everything is already "in range"
   });
 });

@@ -8,7 +8,7 @@ import type { EcsWorld } from './world';
 
 /**
  * A fresh weapon component off the config stats. Shared by robots and bases so
- * the eight fields can't drift apart between them — a new stat has to be added
+ * the nine fields can't drift apart between them — a new stat has to be added
  * in exactly one place.
  */
 function weaponComp(weapon: WeaponType): WeaponComp {
@@ -22,6 +22,7 @@ function weaponComp(weapon: WeaponType): WeaponComp {
     jamRadius: w.jamRadius,
     canHitAir: w.canHitAir,
     freezeDuration: w.freezeDuration,
+    salvo: w.salvo,
   };
 }
 
@@ -91,6 +92,45 @@ export function spawnDrone(world: EcsWorld, owner: Owner, pos: Vec2): Entity {
     hp: gameConfig.drone.maxHp,
     maxHp: gameConfig.drone.maxHp,
     sightRange: gameConfig.drone.sightRange,
+  });
+}
+
+/**
+ * Adds one single-use FPV strike drone to a salvo. `angle` is its place in the
+ * launch ring — the whole salvo leaves on the same tick, so without the spread
+ * five munitions would sit on one pixel until they fan out on approach.
+ *
+ * `targetId` is fixed here and never re-picked: the drone that outlives its
+ * target falls (see `munitionSystem`). `sourceId` is the **launcher**, not this
+ * entity, so the victim's return fire has something left to shoot at once the
+ * munition is gone.
+ */
+export function spawnMunition(
+  world: EcsWorld,
+  owner: Owner,
+  from: Vec2,
+  angle: number,
+  targetId: string,
+  damage: number,
+  sourceId: string,
+  weapon: WeaponType,
+): Entity {
+  const { launchRing, flightTime, hp } = gameConfig.munition;
+  return world.add({
+    id: nextId('fpv'),
+    munition: true,
+    owner,
+    position: { x: from.x + Math.cos(angle) * launchRing, y: from.y + Math.sin(angle) * launchRing },
+    heading: angle,
+    hp,
+    maxHp: hp,
+    targetId,
+    damage,
+    sourceId,
+    ttl: flightTime,
+    // Which weapon released it — the renderer and the sfx adapter read this the
+    // same way they read a projectile's.
+    weaponType: weapon,
   });
 }
 

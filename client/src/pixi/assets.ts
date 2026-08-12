@@ -6,6 +6,7 @@ import {
   baseSprites,
   droneSprite,
   groundSprite,
+  munitionSprite,
   robotSprites,
   spriteSources,
   terrainSprites,
@@ -186,4 +187,9 @@ export function getGroundTexture(): ResolvedSprite | null {
 /** Observer-drone sprite, or null (→ Graphics diamond in DroneView) if missing/unloaded. */
 export function getDroneTexture(): ResolvedSprite | null {
   return cached('drone', droneSprite);
+}
+
+/** FPV strike-drone sprite, or null (→ Graphics dart in MunitionView) if missing/unloaded. */
+export function getMunitionTexture(): ResolvedSprite | null {
+  return cached('munition', munitionSprite);
 }

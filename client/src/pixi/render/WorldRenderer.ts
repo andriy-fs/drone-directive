@@ -6,6 +6,7 @@ import type { Layers } from '../layers';
 import { BaseView } from './BaseView';
 import { DroneView } from './DroneView';
 import { ExplosionView } from './ExplosionView';
+import { MunitionView } from './MunitionView';
 import { ProjectileView } from './ProjectileView';
 import { RobotView } from './RobotView';
 import { ShieldDomeView } from './ShieldDomeView';
@@ -26,6 +27,7 @@ export class WorldRenderer {
   private readonly projectiles: Query<Entity>;
   private readonly explosions: Query<Entity>;
   private readonly drones: Query<Entity>;
+  private readonly munitions: Query<Entity>;
   /** Bases whose energy dome is up right now — the component *is* the query. */
   private readonly domes: Query<Entity>;
 
@@ -34,6 +36,7 @@ export class WorldRenderer {
   private readonly projectileViews = new Map<string, ProjectileView>();
   private readonly explosionViews = new Map<string, ExplosionView>();
   private readonly droneViews = new Map<string, DroneView>();
+  private readonly munitionViews = new Map<string, MunitionView>();
   private readonly domeViews = new Map<string, ShieldDomeView>();
   private readonly unsubs: (() => void)[] = [];
 
@@ -45,6 +48,7 @@ export class WorldRenderer {
     this.projectiles = world.with('projectile', 'position') as unknown as Query<Entity>;
     this.explosions = world.with('explosion', 'position') as unknown as Query<Entity>;
     this.drones = world.with('drone', 'position') as unknown as Query<Entity>;
+    this.munitions = world.with('munition', 'position') as unknown as Query<Entity>;
     this.domes = world.with('base', 'position', 'shield') as unknown as Query<Entity>;
 
     this.bind(this.bases, this.baseViews, (e) => new BaseView(e), layers.units);
@@ -52,6 +56,9 @@ export class WorldRenderer {
     this.bind(this.projectiles, this.projectileViews, (e) => new ProjectileView(e), layers.projectiles);
     this.bind(this.explosions, this.explosionViews, (e) => new ExplosionView(e), layers.fx);
     this.bind(this.drones, this.droneViews, (e) => new DroneView(e), layers.overlay);
+    // `overlay` for the same reasons the observer drone is there: it flies, and it
+    // must not swallow clicks aimed at the ground it is crossing.
+    this.bind(this.munitions, this.munitionViews, (e) => new MunitionView(e), layers.overlay);
     // `fx`, not `units`: the dome has to draw over the base, over the robots
     // standing under it and over the rounds crossing it. On `units` it would sit
     // beneath both and read as a decal on the ground.
@@ -76,6 +83,7 @@ export class WorldRenderer {
     for (const e of this.projectiles) this.projectileViews.get(e.id)?.update(e);
     for (const e of this.explosions) this.explosionViews.get(e.id)?.update(e);
     for (const e of this.drones) this.droneViews.get(e.id)?.update(e, isVisible(e));
+    for (const e of this.munitions) this.munitionViews.get(e.id)?.update(e, isVisible(e));
     for (const e of this.domes) this.domeViews.get(e.id)?.update(e, isVisible(e), now);
   }
 
@@ -111,12 +119,14 @@ export class WorldRenderer {
     for (const v of this.projectileViews.values()) v.destroy();
     for (const v of this.explosionViews.values()) v.destroy();
     for (const v of this.droneViews.values()) v.destroy();
+    for (const v of this.munitionViews.values()) v.destroy();
     for (const v of this.domeViews.values()) v.destroy();
     this.baseViews.clear();
     this.robotViews.clear();
     this.projectileViews.clear();
     this.explosionViews.clear();
     this.droneViews.clear();
+    this.munitionViews.clear();
     this.domeViews.clear();
   }
 }

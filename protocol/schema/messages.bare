@@ -42,6 +42,7 @@ type WeaponType enum {
     RADAR = 4
     EW = 5
     DEW = 6
+    FPV = 7
 }
 
 type TaskType enum {

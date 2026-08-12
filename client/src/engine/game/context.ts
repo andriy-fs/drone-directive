@@ -63,21 +63,40 @@ export interface AiState {
 }
 
 /**
- * A team's shared battlefield knowledge. `visibleRobotIds`/`visibleDroneIds` are
- * recomputed fresh every tick (an enemy robot or drone is "known" only while some
+ * A team's shared battlefield knowledge. `visibleRobotIds`/`visibleAirIds` are
+ * recomputed fresh every tick (an enemy robot or flyer is "known" only while some
  * ally currently has it in sight — it moves, so this is not persisted);
  * `knownBaseIds` only grows (a base doesn't move, so once discovered it stays
  * discovered).
  */
 export interface TeamIntel {
   visibleRobotIds: Set<string>;
-  /** Enemy observer drones in sight right now — what anti-air fire may engage. */
-  visibleDroneIds: Set<string>;
+  /**
+   * Enemy **air** in sight right now — what anti-air fire may engage. Both kinds
+   * of flyer share one set on purpose: an observer drone and an FPV strike drone
+   * are spotted by the same rule and shot at by the same weapons, so splitting
+   * them would only invite one of the two to be forgotten at a call site.
+   */
+  visibleAirIds: Set<string>;
+  /**
+   * Enemy bases some ally has in sight **right now**. The live counterpart to
+   * `knownBaseIds`, and the two must not be confused: a building that was found
+   * an hour ago is *known* forever but *visible* only while someone is looking at
+   * it. Directives target the remembered set (a unit ordered to attack a base
+   * should march there without an escort holding the door open); anything that
+   * needs a live observer — a salvo launched across the map — reads this one.
+   */
+  visibleBaseIds: Set<string>;
   knownBaseIds: Set<string>;
 }
 
 function emptyIntel(): TeamIntel {
-  return { visibleRobotIds: new Set(), visibleDroneIds: new Set(), knownBaseIds: new Set() };
+  return {
+    visibleRobotIds: new Set(),
+    visibleAirIds: new Set(),
+    visibleBaseIds: new Set(),
+    knownBaseIds: new Set(),
+  };
 }
 
 function emptyDroneControl(): DroneControl {

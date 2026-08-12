@@ -157,16 +157,21 @@ export const pl: Dict = {
     radar: 'Radar',
     ew: 'Zakłócacz',
     dew: 'DEW',
+    fpv: 'FPV',
     statsRange: 'Zasięg',
     statsDamage: 'Obrażenia',
     statsReload: 'Przeładowanie',
+    statsSalvo: 'Salwa',
+    statsFlight: 'Lot',
     radarNote: 'Brak broni — podwaja zasięg wzroku',
-    ewNote: 'Brak broni — zagłusza wzrok wrogów w promieniu',
+    ewNote: 'Brak broni — zagłusza wzrok wrogów i strąca uderzeniowe drony FPV w promieniu',
     bombNote: 'Wybucha przy kontakcie, promień wybuchu',
     cannonNote: 'Zbalansowana szybkostrzelność i zasięg — solidny wybór uniwersalny',
     missilesNote:
-      'Większy zasięg i obrażenia kosztem wolniejszego przeładowania. Jedyna broń zdolna zestrzelić wrogiego drona obserwacyjnego',
+      'Większy zasięg i obrażenia kosztem wolniejszego przeładowania. Jedyna broń zdolna zestrzelić cel powietrzny — drona obserwacyjnego lub nadlatującego drona uderzeniowego FPV',
     dewNote: 'Broń energii skierowanej: nie zadaje obrażeń — unieruchamia cel na, s:',
+    fpvNote:
+      'Wysyła drony uderzeniowe w dowolny cel, który widzi twoja strona — na każdą odległość i ponad terenem, ale sam nosiciel nigdzie nie jedzie. Rój zatrzymuje obrona przeciwlotnicza i wrogi zakłócacz',
   },
   aria: {
     resume: 'Wznów',

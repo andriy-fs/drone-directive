@@ -160,15 +160,21 @@ export interface Dict {
     radar: string;
     ew: string;
     dew: string;
+    fpv: string;
     statsRange: string;
     statsDamage: string;
     statsReload: string;
+    /** "Salvo" — how many strike drones one launch releases (fpv). */
+    statsSalvo: string;
+    /** "Flight" — seconds a launched drone stays airborne before it falls (fpv). */
+    statsFlight: string;
     radarNote: string;
     ewNote: string;
     bombNote: string;
     cannonNote: string;
     missilesNote: string;
     dewNote: string;
+    fpvNote: string;
   };
   aria: {
     resume: string;

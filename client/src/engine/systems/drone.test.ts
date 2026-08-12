@@ -258,3 +258,34 @@ describe('drone exposure', () => {
     expect(ctx.world.with('drone').entities).toHaveLength(0);
   });
 });
+
+describe('droneSystem — manual fire from an FPV carrier', () => {
+  it('sends a salvo at the nearest foe the side can see, however far away', () => {
+    const ctx = makeCtx(1);
+    const carrier = spawnRobot(ctx.world, Owner.Player, { x: 200, y: 200 }, ChassisType.Tracks, WeaponType.Fpv);
+    carrier.script = { programId: TaskType.Idle, blackboard: {} };
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 1400, y: 200 }, ChassisType.Wheels, WeaponType.Cannon);
+    ctx.intel.player.visibleRobotIds = new Set([foe.id]);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 200, y: 200 });
+    drone.drone!.possessedId = carrier.id;
+    setControl(ctx, { x: 0, y: 0 }, false, true);
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(ctx.world.with('munition').entities.length).toBe(gameConfig.robots.weapons.fpv.salvo);
+  });
+
+  it('will not fire blind: an unseen enemy is no target, even in "range"', () => {
+    const ctx = makeCtx(1);
+    const carrier = spawnRobot(ctx.world, Owner.Player, { x: 200, y: 200 }, ChassisType.Tracks, WeaponType.Fpv);
+    carrier.script = { programId: TaskType.Idle, blackboard: {} };
+    spawnRobot(ctx.world, Owner.AI, { x: 1400, y: 200 }, ChassisType.Wheels, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 200, y: 200 });
+    drone.drone!.possessedId = carrier.id;
+    setControl(ctx, { x: 0, y: 0 }, false, true);
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(ctx.world.with('munition').entities.length).toBe(0);
+  });
+});

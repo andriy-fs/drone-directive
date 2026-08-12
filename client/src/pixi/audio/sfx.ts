@@ -114,6 +114,10 @@ export const sfx = {
     play('shot-dew');
   },
 
+  fpvShot(): void {
+    play('shot-fpv');
+  },
+
   /**
    * A reap can destroy a dozen entities inside one fixed step, and the bus
    * dispatches those synchronously: identical buffers starting on the same

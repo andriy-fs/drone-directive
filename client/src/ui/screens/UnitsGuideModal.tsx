@@ -17,6 +17,7 @@ const WEAPON_OPTIONS: WeaponType[] = [
   WeaponType.Radar,
   WeaponType.Ew,
   WeaponType.Dew,
+  WeaponType.Fpv,
 ];
 
 /**
