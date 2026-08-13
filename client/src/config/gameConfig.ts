@@ -177,7 +177,11 @@ export const gameConfig = {
     /** Stats keyed by ChassisType value. speed is px/second, sight is detection radius in px. */
     chassis: {
       tracks: { hp: 120, speed: 60, sight: 190 },
-      wheels: { hp: 70, speed: 120, sight: 230 },
+      // Fastest hull and the widest eyes, paid for with the thinnest armour: 70 hp
+      // is one cannon burst. The speed is what makes that trade worth taking — it
+      // is how the wheels reach a flank, or a spotting position for a missile
+      // hull, before the shot that kills them lands.
+      wheels: { hp: 70, speed: 135, sight: 230 },
       legs: { hp: 160, speed: 42, sight: 210 },
     },
     /**
@@ -193,6 +197,12 @@ export const gameConfig = {
      * `freezeDuration` (seconds) only matters for `dew` — how long a hit leaves
      * the target disabled; it is also what makes a zero-damage weapon count as
      * armed at all (see `canEngage` in `systems/combat.ts`).
+     * `range` is reach alone, never sight: a weapon that outranges its hull's own
+     * `sight` (today `missiles`, at 255 against the widest chassis's 230) can only
+     * use the surplus against a target some ally is watching *right now* — see
+     * `isKnownTo` in `systems/targeting.ts`, applied to every weapon in
+     * `fireWeapon`. Raising a range past a chassis `sight` therefore buys
+     * dependence on a spotter, not free blind fire.
      * `salvo` (>0) turns the weapon into a **launcher**: instead of one round it
      * releases that many single-use flying munitions, each carrying this weapon's
      * own `damage` (see the `munition` block above and `systems/munition.ts`).
@@ -212,7 +222,7 @@ export const gameConfig = {
         salvo: 0,
       },
       cannon: {
-        range: 120,
+        range: 180,
         damage: 12,
         cooldown: 0.8,
         explosionRadius: 0,
@@ -225,7 +235,7 @@ export const gameConfig = {
       // The only surface-to-air weapon: doubles as this side's answer to an enemy
       // drone — and, since `fpv` exists, the only thing that can shoot a salvo down.
       missiles: {
-        range: 170,
+        range: 255,
         damage: 22,
         cooldown: 1.6,
         explosionRadius: 0,
@@ -236,13 +246,17 @@ export const gameConfig = {
         salvo: 0,
       },
       // Kamikaze: closes to `range` then detonates, dealing `damage` in `explosionRadius`, destroying itself.
-      // range (60) must exceed a base's half-footprint (48px) so it can trigger at the base's edge, not only inside it.
+      // range (90) must exceed a base's half-footprint (48px) so it can trigger at the base's edge, not only inside it.
       // damage doubled (150 → 300) so building one is worth it against a base/cluster, not just chip damage.
+      // `explosionRadius` must stay comfortably **above** `range`: the trigger is measured centre-to-centre
+      // while the blast reaches `explosionRadius + robots.radius`, so a radius at or below the trigger
+      // distance would detonate on the rim of its own blast — the aimed target barely clipped and everything
+      // standing behind it untouched, which is the opposite of what a kamikaze is bought for.
       bomb: {
-        range: 60,
+        range: 90,
         damage: 300,
         cooldown: 0,
-        explosionRadius: 80,
+        explosionRadius: 120,
         sightMultiplier: 1,
         jamRadius: 0,
         canHitAir: false,
@@ -301,8 +315,11 @@ export const gameConfig = {
        *
        * **`range` here is not a reach — it is "anywhere".** 4000 clears the diagonal
        * of the largest map (80 tiles ≈ 3620 px), so the number that actually bounds
-       * this weapon is *reconnaissance*: a salvo only launches at a target the side
-       * can see right now. Three consequences worth knowing before touching it:
+       * this weapon is *reconnaissance*: it fires only at a target the side can see
+       * right now. That rule is not this weapon's own — every weapon obeys it (see
+       * `fireWeapon`) — but this is the one hull where it is the *only* bound, which
+       * is why the extra `withinMunitionReach` gate exists alongside it.
+       * Three consequences worth knowing before touching it:
        *
        * - line of sight is not checked (`salvo > 0`), because at this reach a
        *   mountain always stands in the way and the drones fly over it anyway;

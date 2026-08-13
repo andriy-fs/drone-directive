@@ -15,8 +15,9 @@ import { distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from '.
 /**
  * Firing + projectile flight/collision. Runs after movement so shots use
  * post-movement positions. A shooter fires at its current `targetId` (set by the
- * behaviour resolver) whenever it is in range, in line of sight, and off
- * cooldown — independent of movement, so it can fire while dodging or advancing.
+ * behaviour resolver) whenever it is in range, in line of sight, watched by
+ * someone on its side, and off cooldown — independent of movement, so it can fire
+ * while dodging or advancing.
  * Mountains block line of fire and absorb projectiles; craters do not (hence
  * `ctx.sightBlockers`, not `ctx.obstacles` — shots cross a crater that robots
  * still have to drive around). A `bomb` weapon
@@ -44,7 +45,9 @@ export function combatSystem(ctx: GameContext, dt: number): void {
 }
 
 /**
- * One shooter's turn: reload, then fire at `targetId` if it is reachable.
+ * One shooter's turn: reload, then fire at `targetId` if it is reachable — and
+ * if the side has eyes on it, which is what keeps reach beyond a hull's own
+ * `sight` a reason to bring a spotter rather than a licence to shell the fog.
  *
  * `Shooter` (robot or base) rather than `Entity` is what lets the two passes
  * above share this: every field read below is on both arms of the union, which
@@ -66,6 +69,15 @@ function fireWeapon(ctx: GameContext, e: Shooter, dt: number): void {
   const pos = e.position;
   if (distance(pos.x, pos.y, target.position.x, target.position.y) > w.range) return;
   if (needsLineOfSight(w) && !hasLineOfSight(ctx.sightBlockers, pos, target.position)) return;
+  // Nothing fires at what nobody is looking at. A hull whose weapon outreaches its
+  // own `sight` (`missiles`, and `fpv` by a mile) may spend the surplus only on a
+  // target an ally is watching this tick; for the short weapons it is a no-op,
+  // since anything inside their range is inside their own eyes. Stated here rather
+  // than left to target *selection* — which already goes through the `known*`
+  // helpers — because two paths bypass selection entirely: a player's explicit
+  // `AttackTarget` order (bases resolve through `knownBaseIds`, a memory) and
+  // manual fire from a possessed hull.
+  if (!isKnownTo(ctx, e.owner, target)) return;
 
   if (w.explosionRadius > 0) {
     detonateBomb(ctx, e); // kamikaze: AOE blast + self-destruct, no projectile
@@ -73,13 +85,9 @@ function fireWeapon(ctx: GameContext, e: Shooter, dt: number): void {
   }
 
   if (w.salvo > 0) {
-    // The one weapon that can reach a target nobody has seen, so it is the one
-    // weapon that has to be told not to. Everything else is bounded by its own
-    // range long before this could matter.
-    if (!isKnownTo(ctx, e.owner, target)) return;
-    // ...and the one weapon whose stated `range` is not its real one. Without
-    // this it would empty a salvo every nine seconds at a base its drones fall
-    // 500 px short of, which is what happens on any map bigger than the small one.
+    // The one weapon whose stated `range` is not its real one. Without this it
+    // would empty a salvo every nine seconds at a base its drones fall 500 px
+    // short of, which is what happens on any map bigger than the small one.
     if (!withinMunitionReach(pos, target)) return;
     launchSalvo(ctx, e, target);
     w.cooldownLeft = w.cooldown;
