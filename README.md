@@ -203,6 +203,7 @@ Data flows one way in each direction: **UI → command queue / flags → GameEng
 (scenes → systems over ECS) → EventBus + throttled store snapshots → UI**. The
 EventBus is a supplement (discrete events); the store stays the render-state
 channel. The only React↔Pixi seam is `GameCanvas` + `useGameApp`.
+[`client/README.md`](client/README.md) draws that flow out in full.
 
 ```
 client/           # @drone-directive/client — the game (app code, configs, index.html)
@@ -228,6 +229,7 @@ server/           # @drone-directive/server — relay Worker: index.ts (router) 
 
 | Doc                                              | Covers                                                           |
 | ------------------------------------------------ | ---------------------------------------------------------------- |
+| [`client/README.md`](client/README.md)           | How engine, Pixi and UI talk to each other — the flow, diagrammed. |
 | [`.docs/engine-ecs.md`](.docs/engine-ecs.md)     | The ECS model (miniplex) and the fixed-step system pipeline.     |
 | [`.docs/movement.md`](.docs/movement.md)         | Pathfinding (A\*) and movement.                                  |
 | [`.docs/zustand.md`](.docs/zustand.md)           | Store rationale, snapshots, and the UI↔engine seam.              |
