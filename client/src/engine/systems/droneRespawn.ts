@@ -1,6 +1,8 @@
 import { gameConfig } from '../../config/gameConfig';
 import type { Owner } from '@drone-directive/types/enums';
 import { spawnDrone } from '../ecs/factory';
+import { isAlive } from '../ecs/guards';
+import { drones } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { ownBase } from './targeting';
 
@@ -31,7 +33,7 @@ function step(ctx: GameContext, owner: Owner, dt: number): void {
   }
 
   const base = ownBase(ctx, owner);
-  if (!base?.position) {
+  if (!base) {
     ctx.droneRespawn[owner] = 0; // nothing left to build it from
     return;
   }
@@ -52,5 +54,5 @@ function step(ctx: GameContext, owner: Owner, dt: number): void {
 }
 
 function hasDrone(ctx: GameContext, owner: Owner): boolean {
-  return ctx.world.with('drone').entities.some((e) => e.owner === owner && (e.hp ?? 0) > 0);
+  return drones(ctx.world).entities.some((e) => e.owner === owner && isAlive(e));
 }

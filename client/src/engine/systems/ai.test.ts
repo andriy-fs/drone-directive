@@ -32,7 +32,14 @@ describe('aiSystem — production preset', () => {
 
     const built = ctx.world
       .with('robot')
-      .entities.filter((e) => e.owner === Owner.AI && e.weaponType !== WeaponType.Ew);
+      .entities.filter((e) => e.owner === Owner.AI && e.weaponType !== WeaponType.Ew)
+      // Sorted into build order explicitly. A query's iteration order is a
+      // miniplex implementation detail — a *freshly created* query seeds itself
+      // by walking the world backwards, so whether this array comes out in spawn
+      // order depends on whether some system happened to create the same query
+      // earlier. Ids are assigned in spawn order, so they are the real thing the
+      // assertions below are about.
+      .sort((a, b) => Number(a.id.split('_')[1]) - Number(b.id.split('_')[1]));
     expect(built.length).toBe(10);
     // The first nine are ordinary combat robots...
     expect(built.slice(0, 9).every((r) => r.weaponType !== WeaponType.Bomb)).toBe(true);

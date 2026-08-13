@@ -1,7 +1,7 @@
 import { gameConfig } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { distance } from '../../../utils/math';
-import type { Entity } from '../../ecs/entity';
+import type { Positioned, RobotEntity } from '../../ecs/archetypes';
 import type { GameContext } from '../../game/context';
 import { isBlockedGrid, tileCentre, tileOf } from '../../obstacles';
 import { nearestFreeTile, type Tile } from '../../pathfinding';
@@ -16,19 +16,19 @@ const NEIGHBOURS: readonly (readonly [number, number])[] = [
 ];
 
 /** Move-only: roam toward a random spot, picking a new one on arrival. */
-export function searchOutcome(ctx: GameContext, e: Entity): Outcome {
+export function searchOutcome(ctx: GameContext, e: RobotEntity): Outcome {
   return roamOutcome(e, () => randomSearchPoint(ctx));
 }
 
 /** Shared roam loop: walk to `blackboard.roamTarget`, picking a fresh one (via `pickPoint`) on arrival. */
-export function roamOutcome(e: Entity, pickPoint: () => Vec2): Outcome {
-  const pos = e.position!;
-  const bb = e.script!.blackboard;
-  const target = bb.roamTarget;
-  if (!target || distance(pos.x, pos.y, target.x, target.y) <= gameConfig.robots.arrivalThreshold) {
-    bb.roamTarget = pickPoint();
+export function roamOutcome(e: RobotEntity, pickPoint: () => Vec2): Outcome {
+  const pos = e.position;
+  const bb = e.script.blackboard;
+  let goal = bb.roamTarget;
+  if (!goal || distance(pos.x, pos.y, goal.x, goal.y) <= gameConfig.robots.arrivalThreshold) {
+    goal = pickPoint();
+    bb.roamTarget = goal;
   }
-  const goal = bb.roamTarget!;
   return { move: { kind: 'goal', x: goal.x, y: goal.y } };
 }
 
@@ -59,6 +59,9 @@ export function randomPointNear(ctx: GameContext, centre: Vec2, radius: number):
   const reachable: Tile[] = [];
   const queue: Tile[] = [start];
   while (queue.length) {
+    // Safe: guarded by `queue.length` on the line above. Not an entity-shape
+    // assertion — TS simply can't tie `shift()` to the loop condition.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const cur = queue.shift()!;
     reachable.push(cur);
     for (const [dx, dy] of NEIGHBOURS) {
@@ -75,12 +78,12 @@ export function randomPointNear(ctx: GameContext, centre: Vec2, radius: number):
 }
 
 /** Centre of mass of a list of positioned entities (assumed non-empty). */
-export function centroidOf(list: Entity[]): Vec2 {
+export function centroidOf(list: readonly Positioned[]): Vec2 {
   let sx = 0;
   let sy = 0;
   for (const r of list) {
-    sx += r.position!.x;
-    sy += r.position!.y;
+    sx += r.position.x;
+    sy += r.position.y;
   }
   return { x: sx / list.length, y: sy / list.length };
 }

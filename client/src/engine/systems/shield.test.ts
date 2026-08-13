@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { EffectKind, type Entity } from '../ecs/entity';
+import { EffectKind } from '../ecs/entity';
 import { spawnBase, spawnProjectile, spawnRobot } from '../ecs/factory';
+import type { BaseEntity } from '../ecs/archetypes';
 import type { GameContext } from '../game/context';
 import { applyDamage, combatSystem } from './combat';
 import { regenSystem } from './regen';
@@ -28,7 +29,7 @@ function run(ctx: GameContext, seconds: number): void {
 }
 
 /** A player base with its dome already up. */
-function domedBase(ctx: GameContext, owner: Owner = Owner.Player): Entity {
+function domedBase(ctx: GameContext, owner: Owner = Owner.Player): BaseEntity {
   const base = spawnBase(ctx.world, owner, 4, 4);
   raiseShield(ctx, base);
   return base;

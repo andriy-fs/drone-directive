@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
-import type { Entity } from '../../engine/ecs/entity';
+import type { ShieldedBase } from '../../engine/ecs/archetypes';
 import { ownerColor } from './ownerColor';
 
 /** How long (ms) the white snap of an absorbed round stays up. */
@@ -28,19 +28,19 @@ export class ShieldDomeView {
   private lastHp = -1;
   private flashUntil = 0;
 
-  constructor(base: Entity) {
+  constructor(base: ShieldedBase) {
     this.container = new Container();
     this.container.label = `dome:${base.id}`;
     // Visual only: the base underneath must stay clickable through it.
     this.container.eventMode = 'none';
-    if (base.position) this.container.position.set(base.position.x, base.position.y);
+    this.container.position.set(base.position.x, base.position.y);
     this.container.addChild(this.gfx);
   }
 
-  update(base: Entity, visible: boolean, now: number): void {
+  update(base: ShieldedBase, visible: boolean, now: number): void {
     this.container.visible = visible;
     const shield = base.shield;
-    if (!visible || !shield) return;
+    if (!visible) return;
 
     if (shield.hp < this.lastHp) this.flashUntil = now + FLASH_MS;
     this.lastHp = shield.hp;

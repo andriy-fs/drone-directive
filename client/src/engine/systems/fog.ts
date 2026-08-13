@@ -1,8 +1,14 @@
 import { gameConfig } from '../../config/gameConfig';
 import { distance } from '../../utils/math';
+import type { With } from 'miniplex';
 import type { Entity } from '../ecs/entity';
+import { isAlive } from '../ecs/guards';
+import { bases, drones, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { isEnemy } from './targeting';
+
+/** A robot, base or drone seen only as "something with eyes" — see `vision.ts`. */
+type Scout = With<Entity, 'position' | 'owner' | 'hp' | 'sightRange'>;
 
 /**
  * Player fog-of-war. Each tick, recomputes which tiles are currently within
@@ -19,26 +25,26 @@ export function fogSystem(ctx: GameContext): void {
   const fog = ctx.fog;
   const side = ctx.localSide;
 
-  const alive = (e: Entity): boolean => e.owner === side && (e.hp ?? 0) > 0;
-  const scouts = [
-    ...ctx.world.with('robot', 'position').entities.filter(alive),
-    ...ctx.world.with('base', 'position').entities.filter(alive),
+  const alive = (e: Scout): boolean => e.owner === side && e.hp > 0;
+  const scouts: Scout[] = [
+    ...robots(ctx.world).entities.filter(alive),
+    ...bases(ctx.world).entities.filter(alive),
     // The drone isn't a robot, so it needs its own pass; a shot-down one reveals
     // nothing (it's reaped the same tick, but `alive` keeps that explicit).
-    ...ctx.world.with('drone', 'position').entities.filter(alive),
-  ].filter((s) => (s.sightRange ?? 0) > 0);
+    ...drones(ctx.world).entities.filter(alive),
+  ].filter((s) => s.sightRange > 0);
 
-  const jammers = ctx.world
-    .with('robot', 'position', 'weapon')
-    .entities.filter((e) => isEnemy(side, e.owner) && (e.hp ?? 0) > 0 && e.weapon!.jamRadius > 0);
+  const jammers = robots(ctx.world).entities.filter(
+    (e) => isEnemy(side, e.owner) && isAlive(e) && e.weapon.jamRadius > 0,
+  );
 
   // Jammed status only depends on the scout's own position, so resolve it once
   // per scout instead of re-checking it for every tile below.
   const effectiveRanges = scouts.map((s) => {
     const jammed = jammers.some(
-      (j) => distance(j.position!.x, j.position!.y, s.position!.x, s.position!.y) <= j.weapon!.jamRadius,
+      (j) => distance(j.position.x, j.position.y, s.position.x, s.position.y) <= j.weapon.jamRadius,
     );
-    return { scout: s, range: jammed ? s.sightRange! * gameConfig.combat.jamMultiplier : s.sightRange! };
+    return { scout: s, range: jammed ? s.sightRange * gameConfig.combat.jamMultiplier : s.sightRange };
   });
 
   let changed = false;
@@ -49,7 +55,7 @@ export function fogSystem(ctx: GameContext): void {
       const cx = (tx + 0.5) * tilePx;
       const cy = (ty + 0.5) * tilePx;
       const seen = effectiveRanges.some(
-        ({ scout, range }) => distance(scout.position!.x, scout.position!.y, cx, cy) <= range,
+        ({ scout, range }) => distance(scout.position.x, scout.position.y, cx, cy) <= range,
       );
       if (visRow[tx] !== seen) {
         visRow[tx] = seen;

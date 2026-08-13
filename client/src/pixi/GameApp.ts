@@ -1,7 +1,10 @@
 import { Application, Container } from 'pixi.js';
 import { gameConfig } from '../config/gameConfig';
 import { palette } from '../config/palette';
+import type { BaseEntity, DroneEntity, RobotEntity } from '../engine/ecs/archetypes';
 import type { Entity } from '../engine/ecs/entity';
+import { isAlive } from '../engine/ecs/guards';
+import { bases as basesQuery, drones as dronesQuery, robots as robotsQuery } from '../engine/ecs/queries';
 import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
 import { canActivateShield, isShielded } from '../engine/systems/shield';
@@ -17,7 +20,7 @@ import type {
 } from '../store/types';
 import { selectOnlineLink } from '../store/selectors';
 import type { Command } from '@drone-directive/types/commands';
-import { Controller, Owner, TaskType, WeaponType, type MapSize } from '@drone-directive/types/enums';
+import { Controller, Owner, WeaponType, type MapSize } from '@drone-directive/types/enums';
 import type { DroneControl, GameContext } from '../engine/game/context';
 import { loadGameAssets, loadSoundAssets, warmGameAssets } from './assets';
 import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
@@ -343,10 +346,10 @@ export class GameApp {
    */
   private localRallyMarkers(): RallyMarker[] {
     const markers: RallyMarker[] = [];
-    for (const base of this.engine.world.with('base', 'position', 'production')) {
-      const rally = base.production!.rally;
-      if (rally && base.owner === this.localSide && (base.hp ?? 0) > 0) {
-        markers.push({ base: base.position!, rally });
+    for (const base of basesQuery(this.engine.world)) {
+      const rally = base.production.rally;
+      if (rally && base.owner === this.localSide && isAlive(base)) {
+        markers.push({ base: base.position, rally });
       }
     }
     return markers;
@@ -360,8 +363,8 @@ export class GameApp {
    * that would hand this client a live view of the opponent's scout.
    */
   private updateCamera(): void {
-    const drone = this.engine.world.with('drone', 'position').entities.find((d) => d.owner === this.localSide);
-    if (drone?.position) {
+    const drone = dronesQuery(this.engine.world).entities.find((d) => d.owner === this.localSide);
+    if (drone) {
       this.camera.centerOn(drone.position.x, drone.position.y);
       return;
     }
@@ -531,8 +534,11 @@ export class GameApp {
     }
 
     // Networked match: advance under lockstep instead of ticking directly.
-    if (this.session?.isStarted && store.online.status === OnlineStatus.InMatch) {
-      this.stepOnline(dt, store);
+    // The session is read into a local so the guard below narrows it for
+    // `stepOnline`, which needs it non-null for the whole tick.
+    const session = this.session;
+    if (session?.isStarted && store.online.status === OnlineStatus.InMatch) {
+      this.stepOnline(session, dt, store);
       return;
     }
 
@@ -550,8 +556,7 @@ export class GameApp {
   }
 
   /** Advance one networked tick once both sides' inputs for it have arrived (else stall). */
-  private stepOnline(dt: number, store: GameState): void {
-    const session = this.session!;
+  private stepOnline(session: LockstepSession, dt: number, store: GameState): void {
     if (!session.ready(this.netTick)) return void this.noteStall(store);
     this.noteRunning(store);
 
@@ -791,7 +796,7 @@ export class GameApp {
   private applyOnlineBaseSetup(store: GameState): void {
     const { autoBuild, defaultProgram } = useGameStore.getState().settings.base;
     if (!autoBuild) return;
-    const base = this.engine.world.with('base').entities.find((e) => e.owner === store.localSide);
+    const base = basesQuery(this.engine.world).entities.find((e) => e.owner === store.localSide);
     if (!base) return;
     store.enqueueCommand({
       kind: 'SetAutoBuild',
@@ -875,8 +880,8 @@ export class GameApp {
   private pushSnapshot(): void {
     const store = useGameStore.getState();
     const world = this.engine.world;
-    const bases = world.with('base').entities;
-    store.setRobots(world.with('robot').entities.map(toRobotSnapshot));
+    const bases = basesQuery(world).entities;
+    store.setRobots(robotsQuery(world).entities.map(toRobotSnapshot));
     const ctx = this.engine.context;
     // Bases need the context: the dome's `threatNear` is read off this side's
     // intel, which only exists while a match does.
@@ -885,12 +890,12 @@ export class GameApp {
       store.setSides(
         ctx.roster.map((s) => ({
           owner: s.owner,
-          alive: bases.some((b) => b.owner === s.owner && (b.hp ?? 0) > 0),
+          alive: bases.some((b) => b.owner === s.owner && isAlive(b)),
           bot: s.controller === Controller.Bot,
         })),
       );
       store.setResources({ ...ctx.resources });
-      store.setDroneStatus(droneStatusOf(world.with('drone').entities, ctx, store.localSide));
+      store.setDroneStatus(droneStatusOf(dronesQuery(world).entities, ctx, store.localSide));
     }
   }
 
@@ -959,7 +964,7 @@ export class GameApp {
  * HUD view of the local side's eye: its health while it flies, or how far along
  * its replacement is once it has been shot down.
  */
-function droneStatusOf(drones: Entity[], ctx: GameContext, side: Owner): DroneStatus {
+function droneStatusOf(drones: DroneEntity[], ctx: GameContext, side: Owner): DroneStatus {
   const { maxHp, respawnTime } = gameConfig.drone;
   const drone = drones.find((d) => d.owner === side);
   if (!drone) {
@@ -973,32 +978,32 @@ function droneStatusOf(drones: Entity[], ctx: GameContext, side: Owner): DroneSt
     };
   }
 
-  const possessedRobotId = drone.drone?.possessedId ?? null;
+  const possessedRobotId = drone.drone.possessedId ?? null;
   return {
     mode: possessedRobotId ? DroneMode.Possessing : DroneMode.Flying,
     possessedRobotId,
-    hp: drone.hp ?? 0,
-    maxHp: drone.maxHp ?? maxHp,
+    hp: drone.hp,
+    maxHp: drone.maxHp,
     respawnProgress: 0,
   };
 }
 
-function toBaseSnapshot(e: Entity, ctx: GameContext, localSide: Owner): BaseSnapshot {
+function toBaseSnapshot(e: BaseEntity, ctx: GameContext, localSide: Owner): BaseSnapshot {
   return {
     id: e.id,
-    owner: e.owner ?? Owner.Neutral,
-    hp: e.hp ?? 0,
-    maxHp: e.maxHp ?? 1,
-    queueLength: e.production?.queue.length ?? 0,
-    buildProgress: e.production?.progress ?? 0,
-    autoBuild: e.production?.autoBuild ?? null,
-    defaultTask: e.production?.defaultTask ?? null,
-    rally: e.production?.rally ?? null,
+    owner: e.owner,
+    hp: e.hp,
+    maxHp: e.maxHp,
+    queueLength: e.production.queue.length,
+    buildProgress: e.production.progress,
+    autoBuild: e.production.autoBuild,
+    defaultTask: e.production.defaultTask,
+    rally: e.production.rally,
     shield: baseShieldOf(e, ctx, localSide),
   };
 }
 
-function baseShieldOf(e: Entity, ctx: GameContext, localSide: Owner): BaseShieldSnapshot {
+function baseShieldOf(e: BaseEntity, ctx: GameContext, localSide: Owner): BaseShieldSnapshot {
   return {
     active: isShielded(e),
     hp: e.shield?.hp ?? 0,
@@ -1012,14 +1017,14 @@ function baseShieldOf(e: Entity, ctx: GameContext, localSide: Owner): BaseShield
   };
 }
 
-function toRobotSnapshot(e: Entity): RobotSnapshot {
+function toRobotSnapshot(e: RobotEntity): RobotSnapshot {
   return {
     id: e.id,
-    owner: e.owner ?? Owner.Neutral,
-    chassis: e.chassis!,
-    weapon: e.weaponType!,
-    task: e.script?.programId ?? TaskType.Idle,
-    hp: e.hp ?? 0,
-    maxHp: e.maxHp ?? 1,
+    owner: e.owner,
+    chassis: e.chassis,
+    weapon: e.weaponType,
+    task: e.script.programId,
+    hp: e.hp,
+    maxHp: e.maxHp,
   };
 }

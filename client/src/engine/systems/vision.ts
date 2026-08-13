@@ -1,10 +1,22 @@
 import { gameConfig } from '../../config/gameConfig';
 import type { Owner } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
+import type { With } from 'miniplex';
+import type { RobotEntity } from '../ecs/archetypes';
 import type { Entity } from '../ecs/entity';
+import { isAlive } from '../ecs/guards';
+import { bases, drones, robots } from '../ecs/queries';
 import type { GameContext, TeamIntel } from '../game/context';
 import { isDisabled } from './status';
 import { enemyAirTargets, enemyBases, enemyRobots, isEnemy } from './targeting';
+
+/**
+ * Anything that can see for a side: a robot, a base or the observer drone. All
+ * three carry the same four components, which is exactly why one pass covers
+ * them — the archetype tag is the only thing that differs, and vision doesn't
+ * read it.
+ */
+type Scout = With<Entity, 'position' | 'owner' | 'hp' | 'sightRange'>;
 
 /**
  * Detection resolver. Each tick, recomputes which enemy robots and **air** units
@@ -33,26 +45,23 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   const intel: TeamIntel = ctx.intel[owner];
   // A knocked-out robot's sensors are down with the rest of it — it neither
   // spots for its own side nor jams for it (see `jammers` below).
-  const isMine = (e: Entity): boolean =>
-    e.owner === owner && (e.hp ?? 0) > 0 && (e.sightRange ?? 0) > 0 && !isDisabled(e);
-  const scouts = [
-    ...ctx.world.with('robot', 'position').entities.filter(isMine),
-    ...ctx.world.with('base', 'position').entities.filter(isMine),
+  const isMine = (e: Scout): boolean => e.owner === owner && e.hp > 0 && e.sightRange > 0 && !isDisabled(e);
+  const scouts: Scout[] = [
+    ...robots(ctx.world).entities.filter(isMine),
+    ...bases(ctx.world).entities.filter(isMine),
     // The observer drone spots enemies too (additive) — it isn't a robot, so it
     // needs its own pass. Every side has one, bots included (a bot's is flown by
     // `systems/aiDrone.ts`), so this is where a drone's reach becomes intel.
-    ...ctx.world.with('drone', 'position').entities.filter(isMine),
+    ...drones(ctx.world).entities.filter(isMine),
   ];
   // Enemy `ew` robots jamming this side's scouts.
-  const jammers = ctx.world
-    .with('robot', 'position', 'weapon')
-    .entities.filter(
-      (e) => isEnemy(owner, e.owner) && (e.hp ?? 0) > 0 && e.weapon!.jamRadius > 0 && !isDisabled(e),
-    );
+  const jammers = robots(ctx.world).entities.filter(
+    (e) => isEnemy(owner, e.owner) && isAlive(e) && e.weapon.jamRadius > 0 && !isDisabled(e),
+  );
 
   const visible = new Set<string>();
   for (const foe of enemyRobots(ctx, owner)) {
-    if (isSpotted(scouts, jammers, foe.position!.x, foe.position!.y)) visible.add(foe.id);
+    if (isSpotted(scouts, jammers, foe.position.x, foe.position.y)) visible.add(foe.id);
   }
   intel.visibleRobotIds = visible;
 
@@ -62,7 +71,7 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   // spotted by exactly the same rule.
   const visibleAir = new Set<string>();
   for (const foe of enemyAirTargets(ctx, owner)) {
-    if (isSpotted(scouts, jammers, foe.position!.x, foe.position!.y)) visibleAir.add(foe.id);
+    if (isSpotted(scouts, jammers, foe.position.x, foe.position.y)) visibleAir.add(foe.id);
   }
   intel.visibleAirIds = visibleAir;
 
@@ -75,22 +84,22 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   // most four of them, and the live set has to be able to *shrink*.
   const visibleBases = new Set<string>();
   for (const base of enemyBases(ctx, owner)) {
-    if (!isSpotted(scouts, jammers, base.position!.x, base.position!.y)) continue;
+    if (!isSpotted(scouts, jammers, base.position.x, base.position.y)) continue;
     visibleBases.add(base.id);
     intel.knownBaseIds.add(base.id);
   }
   intel.visibleBaseIds = visibleBases;
 }
 
-function isSpotted(scouts: Entity[], jammers: Entity[], x: number, y: number): boolean {
-  return scouts.some((s) => s.position && distance(s.position.x, s.position.y, x, y) <= effectiveSight(s, jammers));
+function isSpotted(scouts: Scout[], jammers: RobotEntity[], x: number, y: number): boolean {
+  return scouts.some((s) => distance(s.position.x, s.position.y, x, y) <= effectiveSight(s, jammers));
 }
 
 /** Scout's own sightRange, halved if it currently sits inside an enemy `ew` robot's jamRadius. */
-function effectiveSight(scout: Entity, jammers: Entity[]): number {
-  const base = scout.sightRange ?? 0;
+function effectiveSight(scout: Scout, jammers: RobotEntity[]): number {
+  const base = scout.sightRange;
   const jammed = jammers.some(
-    (j) => distance(j.position!.x, j.position!.y, scout.position!.x, scout.position!.y) <= j.weapon!.jamRadius,
+    (j) => distance(j.position.x, j.position.y, scout.position.x, scout.position.y) <= j.weapon.jamRadius,
   );
   return jammed ? base * gameConfig.combat.jamMultiplier : base;
 }

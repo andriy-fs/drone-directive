@@ -4,8 +4,9 @@ import type { BuildOrder, Vec2 } from '@drone-directive/types/entities';
 import { Owner, TaskType } from '@drone-directive/types/enums';
 import { clamp } from '../../utils/math';
 import type { Rng } from '../../utils/rng';
+import type { BaseEntity } from '../ecs/archetypes';
 import { spawnRobot } from '../ecs/factory';
-import type { Entity } from '../ecs/entity';
+import { bases, robots } from '../ecs/queries';
 import { buildCost, canAfford, spend } from '../economy';
 import type { GameContext } from '../game/context';
 import { isTaskBlockedForWeapon, scriptForTask } from '../tasks/taskDefinitions';
@@ -13,9 +14,9 @@ import { setGoal } from './movement';
 
 /** Robots a side already has committed: living units + everything still queued. */
 export function sideRobotLoad(ctx: GameContext, owner: Owner): number {
-  let n = ctx.world.with('robot').entities.filter((e) => e.owner === owner).length;
-  for (const b of ctx.world.with('base', 'production').entities) {
-    if (b.owner === owner) n += b.production!.queue.length;
+  let n = robots(ctx.world).entities.filter((e) => e.owner === owner).length;
+  for (const b of bases(ctx.world).entities) {
+    if (b.owner === owner) n += b.production.queue.length;
   }
   return n;
 }
@@ -35,11 +36,11 @@ export function atRobotCap(ctx: GameContext, owner: Owner): boolean {
  * the only limits on a refill are affordability and the per-side robot cap.
  */
 export function productionSystem(ctx: GameContext, dt: number): void {
-  for (const base of ctx.world.with('base', 'position', 'production')) {
-    const prod = base.production!;
+  for (const base of bases(ctx.world)) {
+    const prod = base.production;
 
     // Auto-build: refill an empty queue if affordable and under the side cap.
-    if (prod.queue.length === 0 && !atRobotCap(ctx, base.owner!)) {
+    if (prod.queue.length === 0 && !atRobotCap(ctx, base.owner)) {
       if (prod.autoBuild) {
         tryEnqueue(ctx, base, prod.autoBuild);
       } else if (prod.autoBuildPreset) {
@@ -63,14 +64,14 @@ export function productionSystem(ctx: GameContext, dt: number): void {
       prod.progress = 0;
       if (!order) continue;
       const pos = spawnPointFor(base, ctx.rng);
-      const robot = spawnRobot(ctx.world, base.owner!, pos, order.chassis, order.weapon);
+      const robot = spawnRobot(ctx.world, base.owner, pos, order.chassis, order.weapon);
       const task = order.task !== undefined ? order.task : prod.defaultTask;
       // A radar has no weapon — an attack-oriented task/default is refused, so it
       // spawns on the factory default (Idle) instead of marching off pointlessly.
       if (task && !isTaskBlockedForWeapon(order.weapon, task)) {
         // A rally point *is* the guard's post: it patrols the flag rather than
         // the factory door, and walks there on its own to take up station.
-        const post = prod.rally && task === TaskType.Guard ? prod.rally : robot.position!;
+        const post = prod.rally && task === TaskType.Guard ? prod.rally : robot.position;
         robot.script = scriptForTask(post, task);
       }
       // Idle has no objective of its own, so it needs an explicit walk order —
@@ -80,7 +81,7 @@ export function productionSystem(ctx: GameContext, dt: number): void {
       // (taskSystem runs after productionSystem), so a rally point is moot.
       // Keyed on the *resolved* program: a radar refused an attack task falls
       // back to Idle and should rally like any other Idle unit.
-      if (prod.rally && robot.script?.programId === TaskType.Idle) {
+      if (prod.rally && robot.script.programId === TaskType.Idle) {
         setGoal(ctx, robot, prod.rally.x, prod.rally.y);
       }
       ctx.bus.emit('entitySpawned', {
@@ -93,19 +94,19 @@ export function productionSystem(ctx: GameContext, dt: number): void {
 }
 
 /** Queues one build order if the base's owner can afford it; returns whether it did. */
-function tryEnqueue(ctx: GameContext, base: Entity, order: BuildOrder): boolean {
+function tryEnqueue(ctx: GameContext, base: BaseEntity, order: BuildOrder): boolean {
   const cost = buildCost(order);
-  if (!canAfford(ctx.resources, base.owner!, cost)) return false;
-  spend(ctx.resources, base.owner!, cost);
-  base.production!.queue.push({ ...order });
+  if (!canAfford(ctx.resources, base.owner, cost)) return false;
+  spend(ctx.resources, base.owner, cost);
+  base.production.queue.push({ ...order });
   return true;
 }
 
 /** A point just outside the base footprint (toward the field), with jitter. */
-function spawnPointFor(base: Entity, rng: Rng): Vec2 {
+function spawnPointFor(base: BaseEntity, rng: Rng): Vec2 {
   const { tilePx, height } = gameConfig.grid;
-  const bp = base.position!;
-  const half = ((base.footprint ?? gameConfig.bases.footprintTiles) * tilePx) / 2;
+  const bp = base.position;
+  const half = (base.footprint * tilePx) / 2;
   const offset = half + gameConfig.production.spawnOffsetTiles * tilePx;
   const towardCentre = bp.y < (height * tilePx) / 2 ? 1 : -1;
   const jitter = (rng.next() - 0.5) * tilePx * 2;

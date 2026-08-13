@@ -2,7 +2,9 @@ import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { RobotState, TaskType } from '@drone-directive/types/enums';
 import { clamp, vecLength } from '../../utils/math';
-import type { Entity } from '../ecs/entity';
+import type { BaseEntity, Navigable, RobotEntity } from '../ecs/archetypes';
+import { isAlive } from '../ecs/guards';
+import { bases, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { tileOf } from '../obstacles';
 import { findPath } from '../pathfinding';
@@ -13,9 +15,8 @@ import { baseFootprintContains } from './targeting';
  * Sets a robot's navigation goal, pathfinding around obstacles. Skips the A*
  * recompute when the goal is still in the same tile (tasks re-issue every tick).
  */
-export function setGoal(ctx: GameContext, entity: Entity, x: number, y: number): void {
+export function setGoal(ctx: GameContext, entity: Navigable, x: number, y: number): void {
   const m = entity.movement;
-  if (!m || !entity.position) return;
   const goalTile = tileOf({ x, y });
   if (m.goal) {
     const prev = tileOf(m.goal);
@@ -29,9 +30,8 @@ export function setGoal(ctx: GameContext, entity: Entity, x: number, y: number):
 }
 
 /** Cancels navigation (used when a robot stops to engage). */
-export function clearGoal(entity: Entity): void {
+export function clearGoal(entity: Navigable): void {
   const m = entity.movement;
-  if (!m) return;
   m.goal = undefined;
   m.path = undefined;
   m.destination = undefined;
@@ -39,8 +39,8 @@ export function clearGoal(entity: Entity): void {
 
 /** Advances every robot along its path for one simulation step. */
 export function movementSystem(ctx: GameContext, dt: number): void {
-  for (const e of ctx.world.with('robot', 'position', 'movement')) {
-    const m = e.movement!;
+  for (const e of robots(ctx.world)) {
+    const m = e.movement;
 
     // Knocked out by a directed-energy hit: it doesn't drive. The anti-jam
     // bookkeeping is kept current anyway — left stale, standing still for eight
@@ -48,8 +48,8 @@ export function movementSystem(ctx: GameContext, dt: number): void {
     // it recovers. Separation still shoves it around, on purpose: a frozen
     // cluster must not become a wall its own side has to path around.
     if (isDisabled(e)) {
-      m.prevX = e.position!.x;
-      m.prevY = e.position!.y;
+      m.prevX = e.position.x;
+      m.prevY = e.position.y;
       m.stuckTime = 0;
       m.retreatTime = 0;
       m.state = RobotState.Idle;
@@ -60,8 +60,8 @@ export function movementSystem(ctx: GameContext, dt: number): void {
     // position against last tick's start (which folds in the robot's own
     // movement plus any separation push). Recording it post-move would only
     // capture the separation gap and flag freely-moving robots as stuck.
-    const startX = e.position!.x;
-    const startY = e.position!.y;
+    const startX = e.position.x;
+    const startY = e.position.y;
 
     if ((m.retreatTime ?? 0) <= 0) maybeStartRetreat(ctx, e, dt);
     if ((m.retreatTime ?? 0) > 0) retreatStep(e, dt);
@@ -79,14 +79,14 @@ export function movementSystem(ctx: GameContext, dt: number): void {
  * base) — then re-approaches. Legitimately-holding units (no goal, not in a
  * base) and parked idle ones are left alone.
  */
-function maybeStartRetreat(ctx: GameContext, e: Entity, dt: number): void {
-  const m = e.movement!;
-  const pos = e.position!;
+function maybeStartRetreat(ctx: GameContext, e: RobotEntity, dt: number): void {
+  const m = e.movement;
+  const pos = e.position;
   // A parked idle robot must not jitter — but one that has been *sent* somewhere
   // (a right-click move, or a rally point out of the factory) may jam like any
   // other, and a whole production run funnelling through the same door makes
   // that systematic rather than occasional.
-  if (e.script?.programId === TaskType.Idle && !m.goal) {
+  if (e.script.programId === TaskType.Idle && !m.goal) {
     m.stuckTime = 0;
     return;
   }
@@ -107,14 +107,14 @@ function maybeStartRetreat(ctx: GameContext, e: Entity, dt: number): void {
   m.stuckTime = 0;
 
   // Retreat: straight out of a base when trapped, else back the way it came.
-  m.retreatAngle = base ? Math.atan2(pos.y - base.position!.y, pos.x - base.position!.x) : (e.heading ?? 0) + Math.PI;
+  m.retreatAngle = base ? Math.atan2(pos.y - base.position.y, pos.x - base.position.x) : e.heading + Math.PI;
   m.retreatTime = gameConfig.behavior.retreatSeconds;
 }
 
 /** Drives the robot along its retreat direction at full speed for one step. */
-function retreatStep(e: Entity, dt: number): void {
-  const m = e.movement!;
-  const pos = e.position!;
+function retreatStep(e: RobotEntity, dt: number): void {
+  const m = e.movement;
+  const pos = e.position;
   const ang = m.retreatAngle ?? 0;
   const step = m.speed * dt;
   pos.x = clamp(pos.x + Math.cos(ang) * step, 0, worldPixelSize.width);
@@ -125,13 +125,13 @@ function retreatStep(e: Entity, dt: number): void {
 }
 
 /** The living base whose footprint contains `p`, or undefined. */
-function baseContaining(ctx: GameContext, p: Vec2): Entity | undefined {
-  return ctx.world.with('base', 'position').entities.find((b) => (b.hp ?? 0) > 0 && baseFootprintContains(b, p));
+function baseContaining(ctx: GameContext, p: Vec2): BaseEntity | undefined {
+  return bases(ctx.world).entities.find((b) => isAlive(b) && baseFootprintContains(b, p));
 }
 
-function moveEntity(e: Entity, dt: number): void {
-  const m = e.movement!;
-  const pos = e.position!;
+function moveEntity(e: RobotEntity, dt: number): void {
+  const m = e.movement;
+  const pos = e.position;
   const dest = m.destination;
   if (!dest) return;
 

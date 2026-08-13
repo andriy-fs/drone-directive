@@ -1,7 +1,8 @@
 import { Container, Graphics } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
-import { EffectKind, type Entity } from '../../engine/ecs/entity';
+import type { ExplosionEntity } from '../../engine/ecs/archetypes';
+import { EffectKind } from '../../engine/ecs/entity';
 import { clamp, lerp } from '../../utils/math';
 
 /** Radial arcs on a directed-energy discharge — enough to read as a snap, few enough to stay sharp. */
@@ -21,7 +22,7 @@ export class ExplosionView {
   readonly container: Container;
   private readonly blast: Graphics;
 
-  constructor(explosion: Entity) {
+  constructor(explosion: ExplosionEntity) {
     this.container = new Container();
     this.container.label = `boom:${explosion.id}`;
     if (explosion.position) this.container.position.set(explosion.position.x, explosion.position.y);
@@ -31,9 +32,8 @@ export class ExplosionView {
     this.update(explosion);
   }
 
-  update(explosion: Entity): void {
+  update(explosion: ExplosionEntity): void {
     const fx = explosion.effect;
-    if (!fx) return;
     const t = clamp(fx.age / fx.duration, 0, 1);
     const alpha = 1 - t;
 

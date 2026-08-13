@@ -1,8 +1,11 @@
 import { gameConfig, munitionReach } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { distance } from '../../utils/math';
+import type { BaseEntity, Positioned, ProjectileEntity, Shooter } from '../ecs/archetypes';
 import { spawnEmpBurst, spawnExplosion, spawnMunition, spawnProjectile } from '../ecs/factory';
 import type { Entity, WeaponComp } from '../ecs/entity';
+import { isAlive, isBase, isPositioned } from '../ecs/guards';
+import { bases, projectiles, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
 import { absorbShieldDamage, isShielded } from './shield';
@@ -34,27 +37,33 @@ import { distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from '.
  * trigger.
  */
 export function combatSystem(ctx: GameContext, dt: number): void {
-  for (const e of [...ctx.world.with('robot', 'position', 'weapon')]) fireWeapon(ctx, e, dt);
-  for (const e of [...ctx.world.with('base', 'position', 'weapon')]) fireWeapon(ctx, e, dt);
+  for (const e of [...robots(ctx.world)]) fireWeapon(ctx, e, dt);
+  for (const e of [...bases(ctx.world)]) fireWeapon(ctx, e, dt);
 
   stepProjectiles(ctx, dt);
 }
 
-/** One shooter's turn: reload, then fire at `targetId` if it is reachable. */
-function fireWeapon(ctx: GameContext, e: Entity, dt: number): void {
+/**
+ * One shooter's turn: reload, then fire at `targetId` if it is reachable.
+ *
+ * `Shooter` (robot or base) rather than `Entity` is what lets the two passes
+ * above share this: every field read below is on both arms of the union, which
+ * is the type-level statement of "the archetype tag is the only difference".
+ */
+function fireWeapon(ctx: GameContext, e: Shooter, dt: number): void {
   const world = ctx.world;
-  const w = e.weapon!;
+  const w = e.weapon;
   // Knocked out: no fire, and no reloading either — the whole hull is dead
   // weight until it recovers, so the cooldown must not tick down here. (Always
   // false for a base: a directed-energy round has no crew to knock out.)
   if (isDisabled(e)) return;
   if (w.cooldownLeft > 0) w.cooldownLeft -= dt;
-  if ((e.hp ?? 0) <= 0) return; // already caught in another bomb's blast this tick
+  if (e.hp <= 0) return; // already caught in another bomb's blast this tick
   if (!canEngage(w) || w.cooldownLeft > 0) return;
 
   const target = currentTarget(ctx, e);
-  if (!target?.position) return;
-  const pos = e.position!;
+  if (!target) return;
+  const pos = e.position;
   if (distance(pos.x, pos.y, target.position.x, target.position.y) > w.range) return;
   if (needsLineOfSight(w) && !hasLineOfSight(ctx.sightBlockers, pos, target.position)) return;
 
@@ -67,20 +76,20 @@ function fireWeapon(ctx: GameContext, e: Entity, dt: number): void {
     // The one weapon that can reach a target nobody has seen, so it is the one
     // weapon that has to be told not to. Everything else is bounded by its own
     // range long before this could matter.
-    if (!isKnownTo(ctx, e.owner!, target)) return;
+    if (!isKnownTo(ctx, e.owner, target)) return;
     // ...and the one weapon whose stated `range` is not its real one. Without
     // this it would empty a salvo every nine seconds at a base its drones fall
     // 500 px short of, which is what happens on any map bigger than the small one.
     if (!withinMunitionReach(pos, target)) return;
     launchSalvo(ctx, e, target);
     w.cooldownLeft = w.cooldown;
-    ctx.bus.emit('projectileFired', { owner: e.owner!, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType! });
+    ctx.bus.emit('projectileFired', { owner: e.owner, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType });
     return;
   }
 
-  spawnProjectile(world, e.owner!, pos, target.position, target.id, w.damage, e.id, e.weaponType!);
+  spawnProjectile(world, e.owner, pos, target.position, target.id, w.damage, e.id, e.weaponType);
   w.cooldownLeft = w.cooldown;
-  ctx.bus.emit('projectileFired', { owner: e.owner!, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType! });
+  ctx.bus.emit('projectileFired', { owner: e.owner, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType });
 }
 
 /**
@@ -92,10 +101,10 @@ function fireWeapon(ctx: GameContext, e: Entity, dt: number): void {
  * The launch ring is charged against the budget because a drone spawned on the
  * far side of it starts that much further out than the launcher stands.
  */
-export function withinMunitionReach(from: Vec2, target: Entity): boolean {
-  const d = target.base
+export function withinMunitionReach(from: Vec2, target: Positioned): boolean {
+  const d = isBase(target)
     ? distanceToBase(from, target)
-    : distance(from.x, from.y, target.position!.x, target.position!.y);
+    : distance(from.x, from.y, target.position.x, target.position.y);
   return d + gameConfig.munition.launchRing <= munitionReach();
 }
 
@@ -105,21 +114,12 @@ export function withinMunitionReach(from: Vec2, target: Entity): boolean {
  * `target` here and never re-picks it (see `munitionSystem`), and carries the
  * launcher's id so the victim's return fire has something to aim at afterwards.
  */
-export function launchSalvo(ctx: GameContext, launcher: Entity, target: Entity): void {
-  const w = launcher.weapon!;
-  const pos = launcher.position!;
+export function launchSalvo(ctx: GameContext, launcher: Shooter, target: Entity): void {
+  const w = launcher.weapon;
+  const pos = launcher.position;
   for (let i = 0; i < w.salvo; i++) {
     const angle = (i / w.salvo) * Math.PI * 2;
-    spawnMunition(
-      ctx.world,
-      launcher.owner!,
-      pos,
-      angle,
-      target.id,
-      w.damage,
-      launcher.id,
-      launcher.weaponType!,
-    );
+    spawnMunition(ctx.world, launcher.owner, pos, angle, target.id, w.damage, launcher.id, launcher.weaponType);
   }
 }
 
@@ -152,6 +152,12 @@ export function needsLineOfSight(w: WeaponComp): boolean {
  *
  * Self-destruction (a bomb zeroing its own hp) deliberately does not go through
  * here: nobody attacked it, and a corpse has nothing left to lock.
+ *
+ * Takes a plain `Entity` on purpose, where most helpers here take an archetype:
+ * it is called on robots, bases, drones and munitions alike, and the callers that
+ * reach it through a `findById` lookup have proved liveness (`hp > 0`) without
+ * proving *shape* — which is a fact about a value, not about components, and so
+ * narrows nothing. The `?? 0` below is the honest handling of that.
  */
 export function applyDamage(e: Entity, amount: number, sourceId?: string): void {
   // A base's energy dome is armor, not a wall: whatever route the damage took to
@@ -179,20 +185,20 @@ export function applyDamage(e: Entity, amount: number, sourceId?: string): void 
  * whose body falls within `explosionRadius`, spawns an oversized blast visual,
  * and marks the bomb itself dead (reap removes it next, plus its death SFX).
  */
-export function detonateBomb(ctx: GameContext, bomb: Entity): void {
+export function detonateBomb(ctx: GameContext, bomb: Shooter): void {
   const world = ctx.world;
-  const pos = bomb.position!;
-  const { explosionRadius: r, damage } = bomb.weapon!;
+  const pos = bomb.position;
+  const { explosionRadius: r, damage } = bomb.weapon;
   const bodyR = gameConfig.robots.radius;
 
-  for (const robot of world.with('robot', 'position')) {
-    if (robot.id === bomb.id || (robot.hp ?? 0) <= 0 || !isEnemy(bomb.owner, robot.owner)) continue;
-    if (distance(pos.x, pos.y, robot.position!.x, robot.position!.y) <= r + bodyR) {
+  for (const robot of robots(world)) {
+    if (robot.id === bomb.id || !isAlive(robot) || !isEnemy(bomb.owner, robot.owner)) continue;
+    if (distance(pos.x, pos.y, robot.position.x, robot.position.y) <= r + bodyR) {
       applyDamage(robot, damage, bomb.id);
     }
   }
-  for (const base of world.with('base', 'position')) {
-    if ((base.hp ?? 0) <= 0 || !isEnemy(bomb.owner, base.owner)) continue;
+  for (const base of bases(world)) {
+    if (!isAlive(base) || !isEnemy(bomb.owner, base.owner)) continue;
     if (distanceToBase(pos, base) <= r) applyDamage(base, damage, bomb.id);
   }
 
@@ -200,16 +206,21 @@ export function detonateBomb(ctx: GameContext, bomb: Entity): void {
   bomb.hp = 0;
 }
 
-function currentTarget(ctx: GameContext, shooter: Entity): Entity | undefined {
+/**
+ * The shooter's live target, if it is still worth a round. Returns `Positioned`
+ * rather than `Entity`: an id lookup can hand back anything, so "it is somewhere
+ * on the map" is checked here once instead of being asserted by each caller.
+ */
+function currentTarget(ctx: GameContext, shooter: Shooter): Positioned | undefined {
   if (!shooter.targetId) return undefined;
   const t = findById(ctx, shooter.targetId);
-  if (t && (t.hp ?? 0) > 0 && isEnemy(shooter.owner, t.owner)) return t;
+  if (t && isPositioned(t) && isAlive(t) && isEnemy(shooter.owner, t.owner)) return t;
   return undefined;
 }
 
 /** Distance from `p` to a base's footprint *centre* — the energy dome is a circle, not the AABB. */
-function distanceToBaseCentre(p: Vec2, base: Entity): number {
-  const bp = base.position!;
+function distanceToBaseCentre(p: Vec2, base: BaseEntity): number {
+  const bp = base.position;
   return distance(p.x, p.y, bp.x, bp.y);
 }
 
@@ -223,13 +234,13 @@ function distanceToBaseCentre(p: Vec2, base: Entity): number {
  * stop* — the absorption itself is `applyDamage`'s job, so a stray shot that
  * reaches the footprint still lands on the dome either way.
  */
-function hitsDome(p: Entity, pos: Vec2, base: Entity): boolean {
+function hitsDome(p: ProjectileEntity, pos: Vec2, base: BaseEntity): boolean {
   return (
     isShielded(base) && p.targetId === base.id && distanceToBaseCentre(pos, base) <= gameConfig.bases.shield.radius
   );
 }
 
-function hitsBase(p: Vec2, base: Entity): boolean {
+function hitsBase(p: Vec2, base: BaseEntity): boolean {
   return distanceToBase(p, base) <= gameConfig.combat.projectileRadius;
 }
 
@@ -242,16 +253,16 @@ function hitsBase(p: Vec2, base: Entity): boolean {
  * `canHitAir` weapon, so the rule holds even if some other code hands a cannon
  * the id of something airborne.
  */
-function hitsAimedAir(ctx: GameContext, p: Entity, pos: Vec2): boolean {
-  if (!p.targetId || !gameConfig.robots.weapons[p.weaponType!].canHitAir) return false;
+function hitsAimedAir(ctx: GameContext, p: ProjectileEntity, pos: Vec2): boolean {
+  if (!p.targetId || !gameConfig.robots.weapons[p.weaponType].canHitAir) return false;
 
-  const flyer = enemyAirTargets(ctx, p.owner!).find((e) => e.id === p.targetId);
+  const flyer = enemyAirTargets(ctx, p.owner).find((e) => e.id === p.targetId);
   if (!flyer) return false;
   const bodyR = flyer.munition ? gameConfig.munition.hitRadius : gameConfig.drone.hitRadius;
-  if (distance(pos.x, pos.y, flyer.position!.x, flyer.position!.y) > bodyR + gameConfig.combat.projectileRadius) {
+  if (distance(pos.x, pos.y, flyer.position.x, flyer.position.y) > bodyR + gameConfig.combat.projectileRadius) {
     return false;
   }
-  applyDamage(flyer, p.damage ?? 0, p.sourceId);
+  applyDamage(flyer, p.damage, p.sourceId);
   return true;
 }
 
@@ -260,11 +271,11 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
   const radius = gameConfig.robots.radius;
   const pr = gameConfig.combat.projectileRadius;
 
-  for (const projectile of [...world.with('projectile', 'position', 'velocity')]) {
-    const pos = projectile.position!;
-    pos.x += projectile.velocity!.x * dt;
-    pos.y += projectile.velocity!.y * dt;
-    projectile.ttl = (projectile.ttl ?? 0) - dt;
+  for (const projectile of [...projectiles(world)]) {
+    const pos = projectile.position;
+    pos.x += projectile.velocity.x * dt;
+    pos.y += projectile.velocity.y * dt;
+    projectile.ttl -= dt;
     if (projectile.ttl <= 0) {
       world.remove(projectile);
       continue;
@@ -278,20 +289,20 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
 
     // The firing weapon's stats, not the projectile's — `weaponType` is stamped
     // on every shot precisely so its effect survives the shooter's death.
-    const fired = gameConfig.robots.weapons[projectile.weaponType!];
+    const fired = gameConfig.robots.weapons[projectile.weaponType];
 
     let hit = false;
     // Where to put the discharge ring, if this round knocked something out. The
     // spawn waits until the query loop is done — adding entities mid-iteration is
     // what `detonateBomb` avoids too.
     let burstAt: Vec2 | undefined;
-    for (const robot of world.with('robot', 'position')) {
-      if ((robot.hp ?? 0) <= 0 || !isEnemy(projectile.owner, robot.owner)) continue;
-      if (distance(pos.x, pos.y, robot.position!.x, robot.position!.y) <= radius + pr) {
-        applyDamage(robot, projectile.damage ?? 0, projectile.sourceId);
+    for (const robot of robots(world)) {
+      if (!isAlive(robot) || !isEnemy(projectile.owner, robot.owner)) continue;
+      if (distance(pos.x, pos.y, robot.position.x, robot.position.y) <= radius + pr) {
+        applyDamage(robot, projectile.damage, projectile.sourceId);
         if (fired.freezeDuration > 0) {
           applyDisable(robot, fired.freezeDuration);
-          burstAt = { x: robot.position!.x, y: robot.position!.y };
+          burstAt = { x: robot.position.x, y: robot.position.y };
         }
         hit = true;
         break;
@@ -303,19 +314,19 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     // A harmless round (dew) flies straight over a base rather than being eaten
     // by it: buildings have no crew to knock out, so a hit there is a dud, and
     // absorbing the shot would only make the weapon feel broken.
-    if (!hit && (projectile.damage ?? 0) > 0) {
-      for (const base of world.with('base', 'position')) {
-        if ((base.hp ?? 0) <= 0 || !isEnemy(projectile.owner, base.owner)) continue;
+    if (!hit && projectile.damage > 0) {
+      for (const base of bases(world)) {
+        if (!isAlive(base) || !isEnemy(projectile.owner, base.owner)) continue;
         // Ahead of `hitsBase`, and while a dome stands it is the only branch a
         // round aimed at that base can take: the dome (80) reaches well past
         // the footprint (48), so the roof is simply out of reach.
         if (hitsDome(projectile, pos, base)) {
-          applyDamage(base, projectile.damage ?? 0, projectile.sourceId);
+          applyDamage(base, projectile.damage, projectile.sourceId);
           hit = true;
           break;
         }
         if (hitsBase(pos, base)) {
-          applyDamage(base, projectile.damage ?? 0, projectile.sourceId);
+          applyDamage(base, projectile.damage, projectile.sourceId);
           hit = true;
           break;
         }

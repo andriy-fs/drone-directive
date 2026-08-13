@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
-import type { Entity } from '../../engine/ecs/entity';
+import type { MunitionEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
 import { getMunitionTexture } from '../assets';
 import { ownerColor } from './ownerColor';
@@ -26,7 +26,7 @@ export class MunitionView {
   readonly container: Container;
   private readonly body: Container;
 
-  constructor(munition: Entity) {
+  constructor(munition: MunitionEntity) {
     this.container = new Container();
     this.container.label = `fpv:${munition.id}`;
     this.container.eventMode = 'none';
@@ -63,12 +63,12 @@ export class MunitionView {
     this.update(munition, true);
   }
 
-  update(munition: Entity, visible: boolean): void {
+  update(munition: MunitionEntity, visible: boolean): void {
     // The overlay layer draws above the fog, so a munition the local side hasn't
     // detected has to be hidden outright — the fog can't cover it.
     this.container.visible = visible;
     if (munition.position) this.container.position.set(munition.position.x, munition.position.y);
-    this.body.rotation = munition.heading ?? 0;
+    this.body.rotation = munition.heading;
   }
 
   destroy(): void {

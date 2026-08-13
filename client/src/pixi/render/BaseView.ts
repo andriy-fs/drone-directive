@@ -1,7 +1,7 @@
 import { Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
-import type { Entity } from '../../engine/ecs/entity';
+import type { BaseEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
 import { getBaseTexture } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
@@ -23,11 +23,11 @@ export class BaseView {
   private readonly turret: Graphics;
   private lastClickAt = 0;
 
-  constructor(base: Entity) {
+  constructor(base: BaseEntity) {
     this.container = new Container();
     this.container.label = `base:${base.id}`;
 
-    const size = (base.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx;
+    const size = base.footprint * gameConfig.grid.tilePx;
     const half = size / 2;
 
     // Selection outline, under the body — same colour as a robot's ring.
@@ -92,11 +92,11 @@ export class BaseView {
     this.update(base, true, false);
   }
 
-  update(base: Entity, visible: boolean, selected: boolean): void {
+  update(base: BaseEntity, visible: boolean, selected: boolean): void {
     this.container.visible = visible;
     this.ring.visible = selected;
-    this.turret.rotation = base.heading ?? 0;
-    this.healthBar.set((base.hp ?? 0) / (base.maxHp ?? 1));
+    this.turret.rotation = base.heading;
+    this.healthBar.set(base.hp / base.maxHp);
   }
 
   destroy(): void {
@@ -117,7 +117,7 @@ function drawTurret(): Graphics {
 }
 
 /** Owner-tinted square + cross placeholder, used when no base sprite is loaded. */
-function drawBody(base: Entity, size: number, half: number): Graphics {
+function drawBody(base: BaseEntity, size: number, half: number): Graphics {
   const inset = 4;
   const color = ownerColor(base.owner);
   const body = new Graphics();

@@ -1,7 +1,8 @@
 import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js';
-import type { Entity } from '../../engine/ecs/entity';
+import { isAlive } from '../../engine/ecs/guards';
+import { robots } from '../../engine/ecs/queries';
 import type { GameEngine } from '../../engine/game/engine';
-import { baseFootprintContains, findById } from '../../engine/systems/targeting';
+import { baseById, baseFootprintContains, livingRobotById } from '../../engine/systems/targeting';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { useGameStore } from '../../store/gameStore';
 import { GameStatus } from '../../store/enums';
@@ -218,15 +219,14 @@ function selectInBox(
 
   const store = useGameStore.getState();
   const side = store.localSide;
-  const inBox = engine.world
-    .with('robot', 'position')
+  const inBox = robots(engine.world)
     .entities.filter(
       (e) =>
         e.owner === side &&
-        e.position!.x >= a.x &&
-        e.position!.x <= b.x &&
-        e.position!.y >= a.y &&
-        e.position!.y <= b.y,
+        e.position.x >= a.x &&
+        e.position.x <= b.x &&
+        e.position.y >= a.y &&
+        e.position.y <= b.y,
     )
     .map((e) => e.id);
 
@@ -268,8 +268,8 @@ function issueRightClick(
   const side = store.localSide;
 
   if (store.selectedBaseId) {
-    const base = findById(ctx, store.selectedBaseId);
-    if (base?.base && base.owner === side && (base.hp ?? 0) > 0) {
+    const base = baseById(ctx, store.selectedBaseId);
+    if (base && base.owner === side && isAlive(base)) {
       const p = camera.screenToWorld(globalX, globalY);
       // Right-clicking the base itself is the cancel gesture.
       const point = baseFootprintContains(base, p) ? null : p;
@@ -280,8 +280,9 @@ function issueRightClick(
   }
 
   const robotIds = store.selectedRobotIds
-    .map((id) => findById(ctx, id))
-    .filter((e): e is Entity => e?.robot === true && e.owner === side && (e.hp ?? 0) > 0 && !!e.position)
+    .map((id) => livingRobotById(ctx, id))
+    .filter((e) => e !== undefined)
+    .filter((e) => e.owner === side)
     .map((e) => e.id);
   if (robotIds.length === 0) return;
 

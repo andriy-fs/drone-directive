@@ -1,7 +1,7 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
-import type { Entity } from '../../engine/ecs/entity';
+import type { DroneEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
 import { getDroneTexture } from '../assets';
 import { HealthBar } from './HealthBar';
@@ -28,7 +28,7 @@ export class DroneView {
   private readonly body: Container;
   private readonly hpBar: HealthBar;
 
-  constructor(drone: Entity) {
+  constructor(drone: DroneEntity) {
     this.container = new Container();
     this.container.label = `drone:${drone.id}`;
     // Visual only: prune from hit-testing so it never swallows clicks meant
@@ -68,15 +68,15 @@ export class DroneView {
     this.update(drone, true);
   }
 
-  update(drone: Entity, visible: boolean): void {
+  update(drone: DroneEntity, visible: boolean): void {
     // The overlay layer draws above the fog, so a drone the local side hasn't
     // detected has to be hidden outright — the fog can't cover it.
     this.container.visible = visible;
     if (drone.position) this.container.position.set(drone.position.x, drone.position.y);
-    this.body.rotation = drone.heading ?? 0;
+    this.body.rotation = drone.heading;
 
-    const maxHp = drone.maxHp ?? 0;
-    const hp = drone.hp ?? 0;
+    const maxHp = drone.maxHp;
+    const hp = drone.hp;
     this.hpBar.container.visible = maxHp > 0 && hp < maxHp;
     if (this.hpBar.container.visible) this.hpBar.set(hp / maxHp);
   }

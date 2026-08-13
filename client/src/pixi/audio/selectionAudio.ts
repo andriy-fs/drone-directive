@@ -5,6 +5,7 @@
  * off a store subscription instead.
  */
 import { ChassisType } from '@drone-directive/types/enums';
+import { robots } from '../../engine/ecs/queries';
 import type { EcsWorld } from '../../engine/ecs/world';
 import { useGameStore } from '../../store/gameStore';
 import { orderChassis, selectionSoundFor, type SelectionSnapshot } from './selectionSound';
@@ -57,8 +58,8 @@ export function attachSelectionAudio(world: EcsWorld): () => void {
 function chassisIn(world: EcsWorld, ids: readonly string[]): ChassisType[] {
   const wanted = new Set(ids);
   const found: ChassisType[] = [];
-  for (const e of world.with('robot')) {
-    if (!wanted.has(e.id) || !e.chassis || found.includes(e.chassis)) continue;
+  for (const e of robots(world)) {
+    if (!wanted.has(e.id) || found.includes(e.chassis)) continue;
     found.push(e.chassis);
     if (found.length === 3) break; // there are only three chassis types
   }

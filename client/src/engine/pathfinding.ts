@@ -113,6 +113,8 @@ function reconstruct(cameFrom: Map<number, number>, goalI: number, goal: Tile, t
   let cur = goalI;
   while (cameFrom.has(cur)) {
     chain.push(cur);
+    // Safe: guarded by `cameFrom.has(cur)` in the loop condition.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     cur = cameFrom.get(cur)!;
   }
   chain.reverse(); // first step after start ... goal
@@ -136,6 +138,9 @@ export function nearestFreeTile(grid: ObstacleGrid, tx: number, ty: number): Til
     [0, -1],
   ];
   while (queue.length) {
+    // Safe: guarded by `queue.length` on the line above. Not an entity-shape
+    // assertion — TS simply can't tie `shift()` to the loop condition.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const cur = queue.shift()!;
     if (inBounds(cur.tx, cur.ty) && !grid[cur.ty][cur.tx]) return cur;
     for (const [dx, dy] of dirs) {

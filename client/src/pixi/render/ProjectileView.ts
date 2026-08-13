@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
-import type { Entity } from '../../engine/ecs/entity';
+import type { ProjectileEntity } from '../../engine/ecs/archetypes';
 import { WeaponType } from '@drone-directive/types/enums';
 import { ownerColor } from './ownerColor';
 
@@ -22,7 +22,7 @@ export class ProjectileView {
   private readonly flicker: Graphics | null = null;
   private readonly kind: 'missile' | 'dew' | 'tracer';
 
-  constructor(projectile: Entity) {
+  constructor(projectile: ProjectileEntity) {
     this.container = new Container();
     this.container.label = `proj:${projectile.id}`;
 
@@ -69,8 +69,8 @@ export class ProjectileView {
     this.update(projectile);
   }
 
-  update(projectile: Entity): void {
-    if (projectile.position) this.container.position.set(projectile.position.x, projectile.position.y);
+  update(projectile: ProjectileEntity): void {
+    this.container.position.set(projectile.position.x, projectile.position.y);
     this.drawFlicker();
   }
 

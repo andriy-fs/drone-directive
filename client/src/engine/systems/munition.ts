@@ -1,7 +1,9 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { clamp, distance, vecLength } from '../../utils/math';
+import type { MunitionEntity, Positioned } from '../ecs/archetypes';
 import { spawnExplosion } from '../ecs/factory';
-import type { Entity } from '../ecs/entity';
+import { isAlive, isBase, isPositioned } from '../ecs/guards';
+import { munitions, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { applyDamage } from './combat';
 import { isDisabled } from './status';
@@ -28,7 +30,7 @@ import { distanceToBase, findById, isEnemy } from './targeting';
  * dodges, and holds no state beyond the fields it was born with.
  */
 export function munitionSystem(ctx: GameContext, dt: number): void {
-  for (const m of [...ctx.world.with('munition', 'position')]) stepMunition(ctx, dt, m);
+  for (const m of [...munitions(ctx.world)]) stepMunition(ctx, dt, m);
 }
 
 /**
@@ -36,9 +38,9 @@ export function munitionSystem(ctx: GameContext, dt: number): void {
  * timed out are all checked *before* the step, so a drone that should be gone
  * can never cover its last few pixels and land a hit on the way out.
  */
-function stepMunition(ctx: GameContext, dt: number, m: Entity): void {
+function stepMunition(ctx: GameContext, dt: number, m: MunitionEntity): void {
   // 1. Shot down by anti-air this tick (`hitsAimedAir` already took the hp off).
-  if ((m.hp ?? 0) <= 0) return fall(ctx, m);
+  if (m.hp <= 0) return fall(ctx, m);
 
   // 2. Flown into an enemy jamming bubble. The link is what an FPV drone *is*,
   // so `ew` doesn't damage it — it takes the pilot away and the airframe drops.
@@ -46,17 +48,17 @@ function stepMunition(ctx: GameContext, dt: number, m: Entity): void {
   if (isJammed(ctx, m)) return fall(ctx, m);
 
   // 3. Out of flight time — the drone that found nothing simply comes down.
-  m.ttl = (m.ttl ?? 0) - dt;
+  m.ttl -= dt;
   if (m.ttl <= 0) return fall(ctx, m);
 
   // 4. Target gone. Locked at launch and never re-picked: a swarm that re-targeted
   // would make pulling a damaged unit out of the line pointless, which is one of
   // the few answers there is to this weapon.
-  const target = m.targetId ? findById(ctx, m.targetId) : undefined;
-  if (!target?.position || (target.hp ?? 0) <= 0 || !isEnemy(m.owner, target.owner)) return fall(ctx, m);
+  const target = findById(ctx, m.targetId);
+  if (!target || !isPositioned(target) || !isAlive(target) || !isEnemy(m.owner, target.owner)) return fall(ctx, m);
 
   // 5. Fly at it, free of terrain, and detonate on contact.
-  const pos = m.position!;
+  const pos = m.position;
   const tp = target.position;
   const dx = tp.x - pos.x;
   const dy = tp.y - pos.y;
@@ -69,17 +71,17 @@ function stepMunition(ctx: GameContext, dt: number, m: Entity): void {
   if (reached(m, target)) {
     // `sourceId` is the launcher, not this drone: the victim's return fire has to
     // find something that still exists a tick from now.
-    applyDamage(target, m.damage ?? 0, m.sourceId);
+    applyDamage(target, m.damage, m.sourceId);
     fall(ctx, m);
   }
 }
 
 /** Whether `m` is touching its target's body (robots are circles, bases are footprints). */
-function reached(m: Entity, target: Entity): boolean {
-  const pos = m.position!;
+function reached(m: MunitionEntity, target: Positioned): boolean {
+  const pos = m.position;
   const r = gameConfig.munition.hitRadius;
-  if (target.base) return distanceToBase(pos, target) <= r;
-  return distance(pos.x, pos.y, target.position!.x, target.position!.y) <= r + gameConfig.robots.radius;
+  if (isBase(target)) return distanceToBase(pos, target) <= r;
+  return distance(pos.x, pos.y, target.position.x, target.position.y) <= r + gameConfig.robots.radius;
 }
 
 /**
@@ -88,18 +90,16 @@ function reached(m: Entity, target: Entity): boolean {
  * not knocked out — so a `dew` hit takes an `ew` robot's air defence down with
  * the rest of its electronics, exactly as it takes its jamming of sight.
  */
-function isJammed(ctx: GameContext, m: Entity): boolean {
-  const pos = m.position!;
-  return ctx.world
-    .with('robot', 'position', 'weapon')
-    .entities.some(
-      (j) =>
-        isEnemy(m.owner, j.owner) &&
-        (j.hp ?? 0) > 0 &&
-        j.weapon!.jamRadius > 0 &&
-        !isDisabled(j) &&
-        distance(pos.x, pos.y, j.position!.x, j.position!.y) <= j.weapon!.jamRadius,
-    );
+function isJammed(ctx: GameContext, m: MunitionEntity): boolean {
+  const pos = m.position;
+  return robots(ctx.world).entities.some(
+    (j) =>
+      isEnemy(m.owner, j.owner) &&
+      isAlive(j) &&
+      j.weapon.jamRadius > 0 &&
+      !isDisabled(j) &&
+      distance(pos.x, pos.y, j.position.x, j.position.y) <= j.weapon.jamRadius,
+  );
 }
 
 /**
@@ -108,7 +108,7 @@ function isJammed(ctx: GameContext, m: Entity): boolean {
  * and so no death sound: five of these end within a second or two of each other,
  * and five death reports per salvo would drown the fight they belong to.
  */
-function fall(ctx: GameContext, m: Entity): void {
-  spawnExplosion(ctx.world, m.position!, gameConfig.munition.hitRadius);
+function fall(ctx: GameContext, m: MunitionEntity): void {
+  spawnExplosion(ctx.world, m.position, gameConfig.munition.hitRadius);
   ctx.world.remove(m);
 }

@@ -2,6 +2,8 @@ import { gameConfig } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { ChassisType, Controller, Difficulty, Owner, WeaponType } from '@drone-directive/types/enums';
 import { spawnBase, spawnDrone, spawnRobot } from '../../ecs/factory';
+import { isAlive } from '../../ecs/guards';
+import { bases } from '../../ecs/queries';
 import { clearWorld } from '../../ecs/world';
 import { resetIds } from '../../../utils/id';
 import { aiSystem } from '../../systems/ai';
@@ -66,8 +68,8 @@ export class GameScene implements Scene {
     // Apply pre-game base setup to the player base. Skipped online: both peers must
     // build an identical world, and each client only knows its own local settings —
     // online players configure their base in-match via the (networked) command queue.
-    const playerBase = world.with('base', 'production').entities.find((e) => e.owner === Owner.Player);
-    if (!this.ctx.online && playerBase?.production) {
+    const playerBase = bases(world).entities.find((e) => e.owner === Owner.Player);
+    if (!this.ctx.online && playerBase) {
       playerBase.production.autoBuild = this.ctx.settings.base.autoBuild;
       playerBase.production.defaultTask = this.ctx.settings.base.defaultProgram;
     }
@@ -77,7 +79,7 @@ export class GameScene implements Scene {
     // The drone is the same entity either way; only who writes its `DroneControl`
     // differs, which is what keeps the eye a symmetric advantage.
     for (const side of this.ctx.roster) {
-      const base = world.with('base', 'position').entities.find((b) => b.owner === side.owner);
+      const base = bases(world).entities.find((b) => b.owner === side.owner);
       if (base) spawnDrone(world, side.owner, base.position);
     }
 
@@ -140,10 +142,10 @@ export class GameScene implements Scene {
    * stopping early on one peer would desync a networked match.
    */
   private checkGameOver(): void {
-    const bases = this.ctx.world.with('base').entities;
+    const standing = bases(this.ctx.world).entities;
     const alive: Owner[] = [];
     for (const side of this.ctx.roster) {
-      if (bases.some((b) => b.owner === side.owner && (b.hp ?? 0) > 0)) alive.push(side.owner);
+      if (standing.some((b) => b.owner === side.owner && isAlive(b))) alive.push(side.owner);
       else if (!this.eliminated.has(side.owner)) {
         this.eliminated.add(side.owner);
         this.ctx.bus.emit('sideEliminated', { owner: side.owner });

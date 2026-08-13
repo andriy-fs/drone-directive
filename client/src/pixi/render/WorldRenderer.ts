@@ -1,6 +1,16 @@
 import type { Container } from 'pixi.js';
 import type { Query } from 'miniplex';
+import type {
+  BaseEntity,
+  DroneEntity,
+  ExplosionEntity,
+  MunitionEntity,
+  ProjectileEntity,
+  RobotEntity,
+  ShieldedBase,
+} from '../../engine/ecs/archetypes';
 import type { Entity } from '../../engine/ecs/entity';
+import { bases, drones, explosions, munitions, projectiles, robots, shieldedBases } from '../../engine/ecs/queries';
 import type { EcsWorld } from '../../engine/ecs/world';
 import type { Layers } from '../layers';
 import { BaseView } from './BaseView';
@@ -22,14 +32,14 @@ interface View {
  * `sync()` updates transforms/HP/selection from the live components.
  */
 export class WorldRenderer {
-  private readonly bases: Query<Entity>;
-  private readonly robots: Query<Entity>;
-  private readonly projectiles: Query<Entity>;
-  private readonly explosions: Query<Entity>;
-  private readonly drones: Query<Entity>;
-  private readonly munitions: Query<Entity>;
+  private readonly bases: Query<BaseEntity>;
+  private readonly robots: Query<RobotEntity>;
+  private readonly projectiles: Query<ProjectileEntity>;
+  private readonly explosions: Query<ExplosionEntity>;
+  private readonly drones: Query<DroneEntity>;
+  private readonly munitions: Query<MunitionEntity>;
   /** Bases whose energy dome is up right now — the component *is* the query. */
-  private readonly domes: Query<Entity>;
+  private readonly domes: Query<ShieldedBase>;
 
   private readonly baseViews = new Map<string, BaseView>();
   private readonly robotViews = new Map<string, RobotView>();
@@ -41,15 +51,17 @@ export class WorldRenderer {
   private readonly unsubs: (() => void)[] = [];
 
   constructor(layers: Layers, world: EcsWorld) {
-    // miniplex narrows query types to `With<Entity, ...>`; we treat them as
-    // Query<Entity> (all components are optional on Entity, so it's safe to read).
-    this.bases = world.with('base', 'position') as unknown as Query<Entity>;
-    this.robots = world.with('robot', 'position') as unknown as Query<Entity>;
-    this.projectiles = world.with('projectile', 'position') as unknown as Query<Entity>;
-    this.explosions = world.with('explosion', 'position') as unknown as Query<Entity>;
-    this.drones = world.with('drone', 'position') as unknown as Query<Entity>;
-    this.munitions = world.with('munition', 'position') as unknown as Query<Entity>;
-    this.domes = world.with('base', 'position', 'shield') as unknown as Query<Entity>;
+    // Archetype-typed throughout: `engine/ecs/queries` declares each one once and
+    // the return types are checked rather than asserted, so a view can read
+    // `base.footprint` or `explosion.effect` without a fallback for a component
+    // its own query already guarantees.
+    this.bases = bases(world);
+    this.robots = robots(world);
+    this.projectiles = projectiles(world);
+    this.explosions = explosions(world);
+    this.drones = drones(world);
+    this.munitions = munitions(world);
+    this.domes = shieldedBases(world);
 
     this.bind(this.bases, this.baseViews, (e) => new BaseView(e), layers.units);
     this.bind(this.robots, this.robotViews, (e) => new RobotView(e), layers.units);
@@ -87,19 +99,19 @@ export class WorldRenderer {
     for (const e of this.domes) this.domeViews.get(e.id)?.update(e, isVisible(e), now);
   }
 
-  private bind<V extends View>(
-    query: Query<Entity>,
+  private bind<E extends Entity, V extends View>(
+    query: Query<E>,
     map: Map<string, V>,
-    create: (e: Entity) => V,
+    create: (e: E) => V,
     layer: Container,
   ): void {
-    const add = (e: Entity) => {
+    const add = (e: E) => {
       if (map.has(e.id)) return;
       const view = create(e);
       map.set(e.id, view);
       layer.addChild(view.container);
     };
-    const remove = (e: Entity) => {
+    const remove = (e: E) => {
       const view = map.get(e.id);
       if (view) {
         view.destroy();

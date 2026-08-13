@@ -9,7 +9,9 @@ import {
   type Owner,
 } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
-import type { Entity } from '../ecs/entity';
+import type { BaseEntity, RobotEntity } from '../ecs/archetypes';
+import { isAlive } from '../ecs/guards';
+import { bases, robots } from '../ecs/queries';
 import { buildCost, canAfford, spend } from '../economy';
 import type { AiState, GameContext } from '../game/context';
 import {
@@ -63,9 +65,7 @@ function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): voi
   // of a match fly on by itself.
   pilotDrone(ctx, owner, state);
 
-  const base = ctx.world
-    .with('base', 'position', 'production')
-    .entities.find((e) => e.owner === owner && (e.hp ?? 0) > 0);
+  const base = bases(ctx.world).entities.find((e) => e.owner === owner && isAlive(e));
   if (!base) return;
 
   maybeRaiseShield(ctx, owner, base);
@@ -87,8 +87,8 @@ function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): voi
  * without this a robot built after `assignUnits` has already run for the tick
  * would spend a whole tick on `Idle` before anything picked it up.
  */
-function ensureFactoryDefault(base: Entity): void {
-  const prod = base.production!;
+function ensureFactoryDefault(base: BaseEntity): void {
+  const prod = base.production;
   if (prod.defaultTask !== TaskType.DefendBase) prod.defaultTask = TaskType.DefendBase;
 }
 
@@ -97,9 +97,9 @@ function ensureFactoryDefault(base: Entity): void {
  * `spawnStarters`, a program refused for its weapon — takes up the base line.
  */
 function sweepIdle(ctx: GameContext, owner: Owner): void {
-  for (const robot of ctx.world.with('robot', 'script').entities) {
+  for (const robot of robots(ctx.world).entities) {
     if (robot.owner !== owner || (robot.hp ?? 0) <= 0) continue;
-    if (robot.script!.programId === TaskType.Idle) robot.script = makeDefendBase();
+    if (robot.script.programId === TaskType.Idle) robot.script = makeDefendBase();
   }
 }
 
@@ -120,9 +120,9 @@ function sweepIdle(ctx: GameContext, owner: Owner): void {
  * behaviour vocabulary, and nothing here is visible to the player's own units.
  */
 function positionDewUnits(ctx: GameContext, owner: Owner): void {
-  const units = ctx.world
-    .with('robot', 'position', 'script')
-    .entities.filter((e) => e.owner === owner && (e.hp ?? 0) > 0 && e.weaponType === WeaponType.Dew);
+  const units = robots(ctx.world).entities.filter(
+    (e) => e.owner === owner && isAlive(e) && e.weaponType === WeaponType.Dew,
+  );
   if (units.length === 0) return;
 
   const escorted = advancingCombatCount(ctx, owner) >= gameConfig.ai.dewEscortMin;
@@ -137,8 +137,8 @@ function positionDewUnits(ctx: GameContext, owner: Owner): void {
         : TaskType.AttackRobots; // loaded: move up with the group and pick a target
     // Only on an actual change: reassigning every tick would wipe the roam
     // blackboard and restart the patrol leg it is part-way through.
-    if (unit.script!.programId === wanted) continue;
-    unit.script = scriptForTask(unit.position!, wanted);
+    if (unit.script.programId === wanted) continue;
+    unit.script = scriptForTask(unit.position, wanted);
   }
 }
 
@@ -158,21 +158,21 @@ function positionDewUnits(ctx: GameContext, owner: Owner): void {
  * no new behaviour vocabulary, and nothing here touches the player's own units.
  */
 function positionFpvUnits(ctx: GameContext, owner: Owner): void {
-  for (const unit of ctx.world.with('robot', 'position', 'script').entities) {
+  for (const unit of robots(ctx.world).entities) {
     if (unit.owner !== owner || (unit.hp ?? 0) <= 0 || unit.weaponType !== WeaponType.Fpv) continue;
     if (isDisabled(unit)) continue; // can't take an order until its electronics come back
     // Only on an actual change: re-assigning every tick would re-roll the guard
     // post from the shared rng, which both peers' streams have to agree on.
-    if (unit.script!.programId === TaskType.Guard) continue;
-    unit.script = makeGuard(unit.position!);
+    if (unit.script.programId === TaskType.Guard) continue;
+    unit.script = makeGuard(unit.position);
   }
 }
 
 /** This side's living robots that can actually kill something and are currently pushing out. */
 function advancingCombatCount(ctx: GameContext, owner: Owner): number {
-  return ctx.world
-    .with('robot', 'script', 'weapon')
-    .entities.filter((e) => e.owner === owner && (e.hp ?? 0) > 0 && e.weapon!.damage > 0 && isAdvancing(e)).length;
+  return robots(ctx.world).entities.filter(
+    (e) => e.owner === owner && isAlive(e) && e.weapon.damage > 0 && isAdvancing(e),
+  ).length;
 }
 
 /**
@@ -182,23 +182,23 @@ function advancingCombatCount(ctx: GameContext, owner: Owner): number {
  * (not gated by the normal production cadence) so a dead jammer gets replaced
  * as soon as the AI can afford one, independent of whatever else is queued.
  */
-function ensureEwRobot(ctx: GameContext, owner: Owner, base: Entity): void {
+function ensureEwRobot(ctx: GameContext, owner: Owner, base: BaseEntity): void {
   if (atRobotCap(ctx, owner)) return;
-  const hasEw = ctx.world
-    .with('robot')
-    .entities.some((e) => e.owner === owner && (e.hp ?? 0) > 0 && e.weaponType === WeaponType.Ew);
+  const hasEw = robots(ctx.world).entities.some(
+    (e) => e.owner === owner && isAlive(e) && e.weaponType === WeaponType.Ew,
+  );
   if (hasEw) return;
-  if (base.production!.queue.some((o) => o.weapon === WeaponType.Ew)) return;
+  if (base.production.queue.some((o) => o.weapon === WeaponType.Ew)) return;
 
   const order = { chassis: ChassisType.Wheels, weapon: WeaponType.Ew, task: TaskType.DefendBase };
   const cost = buildCost(order);
   if (!canAfford(ctx.resources, owner, cost)) return;
 
   spend(ctx.resources, owner, cost);
-  base.production!.queue.push(order);
+  base.production.queue.push(order);
 }
 
-function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: Entity, dt: number): void {
+function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: BaseEntity, dt: number): void {
   state.timer += dt;
   if (state.timer < state.nextIn) return;
 
@@ -213,7 +213,7 @@ function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: 
   if (!canAfford(ctx.resources, owner, cost)) return; // wait, retry next tick
 
   spend(ctx.resources, owner, cost);
-  base.production!.queue.push({ ...order });
+  base.production.queue.push({ ...order });
   state.buildStep += 1;
   state.timer = 0;
   state.nextIn = state.interval;
@@ -241,8 +241,8 @@ function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: 
  * `GroupAttack` replaces the whole mechanism: the threshold is a fixed small
  * number the program checks itself, so it cannot outrun the force available.
  */
-function assignUnits(ctx: GameContext, owner: Owner, base: Entity): void {
-  const aiRobots = ctx.world.with('robot', 'position', 'script').entities.filter((e) => e.owner === owner);
+function assignUnits(ctx: GameContext, owner: Owner, base: BaseEntity): void {
+  const aiRobots = robots(ctx.world).entities.filter((e) => e.owner === owner);
 
   if (isThreatened(ctx, owner, base)) {
     mobilizeDefense(ctx, owner, base, aiRobots);
@@ -253,7 +253,7 @@ function assignUnits(ctx: GameContext, owner: Owner, base: Entity): void {
   // `aiRobots` for the counts below: they're still force on the board, they just
   // can't be given a new job this tick (and re-rolling their program every tick
   // while they sit there would only churn).
-  const available = aiRobots.filter((e) => !isDisabled(e) && REASSIGNABLE.has(e.script!.programId));
+  const available = aiRobots.filter((e) => !isDisabled(e) && REASSIGNABLE.has(e.script.programId));
   if (available.length === 0) return;
 
   const posture = forcePosture(ctx, owner);
@@ -280,12 +280,12 @@ function assignUnits(ctx: GameContext, owner: Owner, base: Entity): void {
   // Units already holding the line come first, so the quota is filled by the
   // robots that are standing there rather than churning between whoever is free
   // — and a defender that keeps its post keeps its patrol leg with it.
-  const onPost = rest.filter((e) => e.script!.programId === TaskType.DefendBase);
-  const spare = rest.filter((e) => e.script!.programId !== TaskType.DefendBase);
+  const onPost = rest.filter((e) => e.script.programId === TaskType.DefendBase);
+  const spare = rest.filter((e) => e.script.programId !== TaskType.DefendBase);
 
   let defenders = 0;
   for (const robot of [...onPost, ...spare]) {
-    const holding = robot.script!.programId === TaskType.DefendBase;
+    const holding = robot.script.programId === TaskType.DefendBase;
     if (defenders < defenceQuota) {
       if (!holding) robot.script = makeDefendBase();
       defenders += 1;
@@ -340,8 +340,8 @@ function strongestRivalCount(ctx: GameContext, owner: Owner): number {
   return most;
 }
 
-function livingRobotCount(ctx: GameContext, match: (e: Entity) => boolean): number {
-  return ctx.world.with('robot').entities.filter((e) => (e.hp ?? 0) > 0 && match(e)).length;
+function livingRobotCount(ctx: GameContext, match: (e: RobotEntity) => boolean): number {
+  return robots(ctx.world).entities.filter((e) => isAlive(e) && match(e)).length;
 }
 
 /**
@@ -351,7 +351,7 @@ function livingRobotCount(ctx: GameContext, match: (e: Entity) => boolean): numb
  * the roll (`kamikazeClusterChance`) favours it — otherwise it's a base rush,
  * same as before.
  */
-function assignKamikaze(ctx: GameContext, bomber: Entity): void {
+function assignKamikaze(ctx: GameContext, bomber: RobotEntity): void {
   const cluster = juiciestCluster(ctx, bomber);
   if (
     cluster &&
@@ -369,14 +369,14 @@ function assignKamikaze(ctx: GameContext, bomber: Entity): void {
  * within the bomb's blast radius of it — walking the kamikaze onto that one
  * catches the rest in the same detonation. Undefined if none are known yet.
  */
-function juiciestCluster(ctx: GameContext, bomber: Entity): { targetId: string; count: number } | undefined {
-  const foes = knownEnemyRobots(ctx, bomber.owner!);
+function juiciestCluster(ctx: GameContext, bomber: RobotEntity): { targetId: string; count: number } | undefined {
+  const foes = knownEnemyRobots(ctx, bomber.owner);
   const radius = gameConfig.robots.weapons.bomb.explosionRadius;
-  let best: Entity | undefined;
+  let best: RobotEntity | undefined;
   let bestCount = 0;
   for (const foe of foes) {
     const count = foes.filter(
-      (o) => o.id !== foe.id && distance(o.position!.x, o.position!.y, foe.position!.x, foe.position!.y) <= radius,
+      (o) => o.id !== foe.id && distance(o.position.x, o.position.y, foe.position.x, foe.position.y) <= radius,
     ).length;
     if (count > bestCount) {
       bestCount = count;
@@ -400,7 +400,7 @@ function juiciestCluster(ctx: GameContext, bomber: Entity): { targetId: string; 
  * including units mid-attack — as `AttackRobots`: losing the base outright is
  * worse than losing offensive tempo, and at that point chasing is the point.
  */
-function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots: Entity[]): void {
+function mobilizeDefense(ctx: GameContext, owner: Owner, base: BaseEntity, aiRobots: RobotEntity[]): void {
   const massRush = nearbyEnemyCount(ctx, owner, base) >= gameConfig.ai.massRushThreshold;
   for (const robot of aiRobots) {
     if (isDisabled(robot)) continue; // can't take an order until its electronics come back
@@ -410,7 +410,7 @@ function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots:
     // advances (its range makes every target "in reach"), so marching it at a
     // rush would only walk it into one. It keeps whatever program it has.
     if (robot.weaponType === WeaponType.Fpv) continue;
-    const programId = robot.script!.programId;
+    const programId = robot.script.programId;
 
     if (massRush) {
       if (programId !== TaskType.AttackRobots) robot.script = makeAttackRobots(); // don't reset an existing hunt
@@ -439,22 +439,22 @@ function mobilizeDefense(ctx: GameContext, owner: Owner, base: Entity, aiRobots:
  * `assignKamikaze` does. One tick stale and identical on every peer, which is
  * all determinism asks; do not "fix" it by reordering the pipeline.
  */
-function maybeRaiseShield(ctx: GameContext, owner: Owner, base: Entity): void {
+function maybeRaiseShield(ctx: GameContext, owner: Owner, base: BaseEntity): void {
   if (!canRaiseShield(base)) return;
-  const hurt = (base.hp ?? 0) < (base.maxHp ?? 1) * gameConfig.ai.shieldHpThreshold;
+  const hurt = base.hp < base.maxHp * gameConfig.ai.shieldHpThreshold;
   const swarmed = knownNearbyEnemyCount(ctx, owner, base) >= gameConfig.ai.massRushThreshold;
   if (hurt || swarmed) raiseShield(ctx, base);
 }
 
 /** `nearbyEnemyCount`'s intel-limited twin — see `maybeRaiseShield` for why it exists. */
-function knownNearbyEnemyCount(ctx: GameContext, owner: Owner, base: Entity): number {
-  const bp = base.position!;
+function knownNearbyEnemyCount(ctx: GameContext, owner: Owner, base: BaseEntity): number {
+  const bp = base.position;
   return knownEnemyRobots(ctx, owner).filter(
-    (r) => distance(r.position!.x, r.position!.y, bp.x, bp.y) < gameConfig.ai.threatRange,
+    (r) => distance(r.position.x, r.position.y, bp.x, bp.y) < gameConfig.ai.threatRange,
   ).length;
 }
 
-function isThreatened(ctx: GameContext, owner: Owner, base: Entity): boolean {
+function isThreatened(ctx: GameContext, owner: Owner, base: BaseEntity): boolean {
   return nearbyEnemyCount(ctx, owner, base) > 0;
 }
 
@@ -463,15 +463,10 @@ function isThreatened(ctx: GameContext, owner: Owner, base: Entity): boolean {
  * side, so a bot defends itself against another bot just as it would against
  * the player.
  */
-function nearbyEnemyCount(ctx: GameContext, owner: Owner, base: Entity): number {
-  const bp = base.position!;
-  return ctx.world
-    .with('robot', 'position')
-    .entities.filter(
-      (r) =>
-        isEnemy(owner, r.owner) &&
-        (r.hp ?? 0) > 0 &&
-        distance(r.position!.x, r.position!.y, bp.x, bp.y) < gameConfig.ai.threatRange,
-    ).length;
+function nearbyEnemyCount(ctx: GameContext, owner: Owner, base: BaseEntity): number {
+  const bp = base.position;
+  return robots(ctx.world).entities.filter(
+    (r) => isEnemy(owner, r.owner) && isAlive(r) && distance(r.position.x, r.position.y, bp.x, bp.y) < gameConfig.ai.threatRange,
+  ).length;
 }
 

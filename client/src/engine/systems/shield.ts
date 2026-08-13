@@ -1,7 +1,10 @@
+import type { With } from 'miniplex';
 import { gameConfig } from '../../config/gameConfig';
 import { distance } from '../../utils/math';
+import type { BaseEntity, ShieldedBase } from '../ecs/archetypes';
 import { spawnShieldEnd } from '../ecs/factory';
 import type { Entity } from '../ecs/entity';
+import { shieldedBases } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { knownEnemyRobots } from './targeting';
 
@@ -36,13 +39,13 @@ import { knownEnemyRobots } from './targeting';
  * `shieldSystem` has not yet cleared it, and a second round arriving in that
  * window must not be stopped by a dome that is already gone.
  */
-export function isShielded(e: Entity): boolean {
+export function isShielded(e: Entity): e is With<Entity, 'shield'> {
   return (e.shield?.hp ?? 0) > 0;
 }
 
 /** Whether `base` could still raise its dome at all: alive, and the one charge unspent. */
-export function canRaiseShield(base: Entity): boolean {
-  return !!base.base && (base.hp ?? 0) > 0 && !base.shieldSpent;
+export function canRaiseShield(base: BaseEntity): boolean {
+  return base.hp > 0 && !base.shieldSpent;
 }
 
 /**
@@ -57,13 +60,10 @@ export function canRaiseShield(base: Entity): boolean {
  * effective sight (260 → 130) and really does darken this button while an
  * assault is visibly forming. That is working counter-play, not a fault.
  */
-export function shieldThreatNear(ctx: GameContext, base: Entity): boolean {
+export function shieldThreatNear(ctx: GameContext, base: BaseEntity): boolean {
   const pos = base.position;
-  if (!pos || !base.owner) return false;
-  const range = base.sightRange ?? gameConfig.bases.sightRange;
-  return knownEnemyRobots(ctx, base.owner).some(
-    (r) => distance(r.position!.x, r.position!.y, pos.x, pos.y) <= range,
-  );
+  const range = base.sightRange;
+  return knownEnemyRobots(ctx, base.owner).some((r) => distance(r.position.x, r.position.y, pos.x, pos.y) <= range);
 }
 
 /**
@@ -76,7 +76,7 @@ export function shieldThreatNear(ctx: GameContext, base: Entity): boolean {
  * itself, whereas silently dropping a panic-button press would be
  * indistinguishable from the game having frozen.
  */
-export function canActivateShield(ctx: GameContext, base: Entity): boolean {
+export function canActivateShield(ctx: GameContext, base: BaseEntity): boolean {
   return canRaiseShield(base) && shieldThreatNear(ctx, base);
 }
 
@@ -84,13 +84,13 @@ export function canActivateShield(ctx: GameContext, base: Entity): boolean {
  * Raises the dome and burns the charge. The only place `shield` is attached.
  * Returns whether anything happened, so callers can stay silent about a refusal.
  */
-export function raiseShield(ctx: GameContext, base: Entity): boolean {
-  if (!canRaiseShield(base) || !base.position) return false;
+export function raiseShield(ctx: GameContext, base: BaseEntity): boolean {
+  if (!canRaiseShield(base)) return false;
   const { hp, duration } = gameConfig.bases.shield;
   ctx.world.addComponent(base, 'shield', { hp, left: duration });
   ctx.world.addComponent(base, 'shieldSpent', true);
   ctx.bus.emit('shieldRaised', {
-    owner: base.owner!,
+    owner: base.owner,
     baseId: base.id,
     pos: { x: base.position.x, y: base.position.y },
   });
@@ -123,8 +123,8 @@ export function absorbShieldDamage(e: Entity, amount: number): number {
  */
 export function shieldSystem(ctx: GameContext, dt: number): void {
   // Copy: `removeComponent` pulls the entity out of the query mid-iteration.
-  for (const base of [...ctx.world.with('base', 'position', 'shield')]) {
-    const s = base.shield!;
+  for (const base of [...shieldedBases(ctx.world)]) {
+    const s = base.shield;
     // Shatter before the timer and before repair. Mending first would top a
     // zeroed dome back up every tick, and it could never actually be broken.
     if (s.hp <= 0) {
@@ -143,12 +143,12 @@ export function shieldSystem(ctx: GameContext, dt: number): void {
 }
 
 /** Drops the dome for good. `shieldSpent` deliberately stays — there is no second one. */
-function endDome(ctx: GameContext, base: Entity, shattered: boolean): void {
-  const pos = base.position!;
+function endDome(ctx: GameContext, base: ShieldedBase, shattered: boolean): void {
+  const pos = base.position;
   ctx.world.removeComponent(base, 'shield');
   spawnShieldEnd(ctx.world, pos, shattered);
   ctx.bus.emit('shieldEnded', {
-    owner: base.owner!,
+    owner: base.owner,
     baseId: base.id,
     pos: { x: pos.x, y: pos.y },
     shattered,

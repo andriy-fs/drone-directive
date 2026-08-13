@@ -2,7 +2,9 @@ import { getProgram } from '../../../config/programs';
 import { RobotState } from '@drone-directive/types/enums';
 import type { BehaviorAction, BehaviorCondition } from '@drone-directive/types/tasks';
 import { distance } from '../../../utils/math';
-import type { Entity } from '../../ecs/entity';
+import type { BaseEntity, Positioned, RobotEntity } from '../../ecs/archetypes';
+import { isAlive, isPositioned } from '../../ecs/guards';
+import { bases, robots } from '../../ecs/queries';
 import type { GameContext } from '../../game/context';
 import { hasLineOfSight } from '../../obstacles';
 import { canEngage } from '../combat';
@@ -42,7 +44,7 @@ import type { MoveIntent, Outcome } from './types';
  * out (`combat.ts` only ever consumes it).
  */
 export function taskSystem(ctx: GameContext, dt: number): void {
-  for (const e of ctx.world.with('robot', 'position', 'script', 'movement')) {
+  for (const e of robots(ctx.world)) {
     // Decay first, so the tick a robot recovers on is the tick it acts again —
     // identically on both peers.
     decayDisabled(e, dt);
@@ -54,15 +56,15 @@ export function taskSystem(ctx: GameContext, dt: number): void {
     runProgram(ctx, e);
   }
 
-  for (const b of ctx.world.with('base', 'position', 'weapon')) {
-    if ((b.hp ?? 0) <= 0) {
+  for (const b of bases(ctx.world)) {
+    if (!isAlive(b)) {
       b.targetId = undefined;
       continue;
     }
     b.targetId = baseTurretTarget(ctx, b);
     const target = b.targetId ? findById(ctx, b.targetId) : undefined;
-    if (target?.position) {
-      b.heading = Math.atan2(target.position.y - b.position!.y, target.position.x - b.position!.x);
+    if (target && isPositioned(target)) {
+      b.heading = Math.atan2(target.position.y - b.position.y, target.position.x - b.position.x);
     }
   }
 }
@@ -79,24 +81,24 @@ export function taskSystem(ctx: GameContext, dt: number): void {
  * halves it to 130 — jamming a base's battery blind at the edge of its own range
  * is emergent counter-play the weapon already earns, not a special case.
  */
-function baseTurretTarget(ctx: GameContext, base: Entity): string | undefined {
+function baseTurretTarget(ctx: GameContext, base: BaseEntity): string | undefined {
   const w = base.weapon;
-  if (!w || !canEngage(w)) return undefined;
+  if (!canEngage(w)) return undefined;
 
-  const pos = base.position!;
-  const inReach = (e: Entity): boolean =>
-    distance(pos.x, pos.y, e.position!.x, e.position!.y) <= w.range &&
-    hasLineOfSight(ctx.sightBlockers, pos, e.position!);
+  const pos = base.position;
+  const inReach = (e: Positioned): boolean =>
+    distance(pos.x, pos.y, e.position.x, e.position.y) <= w.range &&
+    hasLineOfSight(ctx.sightBlockers, pos, e.position);
 
   if (w.canHitAir) {
-    const flyer = nearest(pos, knownEnemyAir(ctx, base.owner!).filter(inReach));
+    const flyer = nearest(pos, knownEnemyAir(ctx, base.owner).filter(inReach));
     if (flyer) return flyer.id;
   }
-  return nearest(pos, knownEnemyRobots(ctx, base.owner!).filter(inReach))?.id;
+  return nearest(pos, knownEnemyRobots(ctx, base.owner).filter(inReach))?.id;
 }
 
-function runProgram(ctx: GameContext, e: Entity): void {
-  const program = getProgram(e.script!.programId);
+function runProgram(ctx: GameContext, e: RobotEntity): void {
+  const program = getProgram(e.script.programId);
 
   let move: MoveIntent | undefined;
   let fire: string | undefined;
@@ -119,7 +121,7 @@ function runProgram(ctx: GameContext, e: Entity): void {
     setGoal(ctx, e, move.x, move.y); // movement system sets the Moving state
   } else if (move?.kind === 'hold') {
     clearGoal(e);
-    e.movement!.state = fire ? RobotState.Attacking : RobotState.Idle;
+    e.movement.state = fire ? RobotState.Attacking : RobotState.Idle;
   }
   // move === undefined → no autonomous move intent: leave the current goal
   // untouched so a manually issued destination (right-click) is obeyed.
@@ -139,36 +141,36 @@ function runProgram(ctx: GameContext, e: Entity): void {
  * with a ground target does not stop to swat the drones coming for it, so five
  * arriving at once will mostly get through unless someone was already idle.
  */
-function airTarget(ctx: GameContext, e: Entity): string | undefined {
+function airTarget(ctx: GameContext, e: RobotEntity): string | undefined {
   const w = e.weapon;
-  if (!w?.canHitAir || w.range <= 0 || w.damage <= 0) return undefined;
+  if (!w.canHitAir || w.range <= 0 || w.damage <= 0) return undefined;
 
-  const pos = e.position!;
-  const flyer = nearest(pos, knownEnemyAir(ctx, e.owner!));
-  if (!flyer?.position) return undefined;
+  const pos = e.position;
+  const flyer = nearest(pos, knownEnemyAir(ctx, e.owner));
+  if (!flyer) return undefined;
   if (distance(pos.x, pos.y, flyer.position.x, flyer.position.y) > w.range) return undefined;
   if (!hasLineOfSight(ctx.sightBlockers, pos, flyer.position)) return undefined;
   return flyer.id;
 }
 
-function conditionHolds(ctx: GameContext, e: Entity, cond: BehaviorCondition): boolean {
+function conditionHolds(ctx: GameContext, e: RobotEntity, cond: BehaviorCondition): boolean {
   switch (cond.type) {
     case 'always':
       return true;
     case 'underFire':
-      return (e.threat?.underFireLeft ?? 0) > 0;
+      return e.threat.underFireLeft > 0;
     case 'enemyRobotsExist':
-      return knownEnemyRobots(ctx, e.owner!).length > 0;
+      return knownEnemyRobots(ctx, e.owner).length > 0;
     case 'enemyBasesExist':
-      return knownEnemyBases(ctx, e.owner!).length > 0;
+      return knownEnemyBases(ctx, e.owner).length > 0;
     case 'enemyRobotWithin': {
-      const range = cond.range ?? e.weapon?.range ?? 0;
+      const range = cond.range ?? e.weapon.range;
       if (range <= 0) return false;
       const foe = nearest(
-        e.position!,
-        knownEnemyRobots(ctx, e.owner!).filter((r) => worthShooting(e, r)),
+        e.position,
+        knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(e, r)),
       );
-      return !!foe?.position && distance(e.position!.x, e.position!.y, foe.position.x, foe.position.y) <= range;
+      return !!foe && distance(e.position.x, e.position.y, foe.position.x, foe.position.y) <= range;
     }
     case 'disabledEnemyWithin':
       return disabledInRange(ctx, e, cond.range) !== undefined;
@@ -187,19 +189,19 @@ function conditionHolds(ctx: GameContext, e: Entity, cond: BehaviorCondition): b
  * a target *because* it's disabled, so it keeps its own `damage <= 0` check
  * rather than sharing that helper.
  */
-function disabledInRange(ctx: GameContext, e: Entity, range?: number): Entity | undefined {
-  const reach = range ?? e.weapon?.range ?? 0;
-  if (reach <= 0 || (e.weapon?.damage ?? 0) <= 0) return undefined;
-  const pos = e.position!;
+function disabledInRange(ctx: GameContext, e: RobotEntity, range?: number): RobotEntity | undefined {
+  const reach = range ?? e.weapon.range;
+  if (reach <= 0 || e.weapon.damage <= 0) return undefined;
+  const pos = e.position;
   const foe = nearest(
     pos,
-    knownEnemyRobots(ctx, e.owner!).filter((r) => isDisabled(r)),
+    knownEnemyRobots(ctx, e.owner).filter((r) => isDisabled(r)),
   );
-  if (!foe?.position) return undefined;
+  if (!foe) return undefined;
   return distance(pos.x, pos.y, foe.position.x, foe.position.y) <= reach ? foe : undefined;
 }
 
-function resolveAction(ctx: GameContext, e: Entity, action: BehaviorAction): Outcome {
+function resolveAction(ctx: GameContext, e: RobotEntity, action: BehaviorAction): Outcome {
   switch (action.type) {
     case 'idle':
       // No autonomous intent — obey manual goals, coast to a standing destination.
@@ -221,15 +223,15 @@ function resolveAction(ctx: GameContext, e: Entity, action: BehaviorAction): Out
     }
     case 'attackNearestRobot': {
       const target = nearest(
-        e.position!,
-        knownEnemyRobots(ctx, e.owner!).filter((r) => worthShooting(e, r)),
+        e.position,
+        knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(e, r)),
       );
       return target ? engageOutcome(ctx, e, target) : {};
     }
     case 'attackNearestBase': {
       const target = nearest(
-        e.position!,
-        knownEnemyBases(ctx, e.owner!).filter((b) => worthShooting(e, b)),
+        e.position,
+        knownEnemyBases(ctx, e.owner).filter((b) => worthShooting(e, b)),
       );
       return target ? engageOutcome(ctx, e, target) : {};
     }
