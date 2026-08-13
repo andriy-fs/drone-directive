@@ -168,7 +168,7 @@ function conditionHolds(ctx: GameContext, e: RobotEntity, cond: BehaviorConditio
       if (range <= 0) return false;
       const foe = nearest(
         e.position,
-        knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(e, r)),
+        knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(ctx, e, r)),
       );
       return !!foe && distance(e.position.x, e.position.y, foe.position.x, foe.position.y) <= range;
     }
@@ -224,14 +224,14 @@ function resolveAction(ctx: GameContext, e: RobotEntity, action: BehaviorAction)
     case 'attackNearestRobot': {
       const target = nearest(
         e.position,
-        knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(e, r)),
+        knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(ctx, e, r)),
       );
       return target ? engageOutcome(ctx, e, target) : {};
     }
     case 'attackNearestBase': {
       const target = nearest(
         e.position,
-        knownEnemyBases(ctx, e.owner).filter((b) => worthShooting(e, b)),
+        knownEnemyBases(ctx, e.owner).filter((b) => worthShooting(ctx, e, b)),
       );
       return target ? engageOutcome(ctx, e, target) : {};
     }

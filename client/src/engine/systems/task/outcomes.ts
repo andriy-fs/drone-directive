@@ -34,7 +34,7 @@ export function defendBaseOutcome(ctx: GameContext, e: RobotEntity, range?: numb
     const foe = nearest(
       post,
       knownEnemyRobots(ctx, e.owner).filter(
-        (r) => distance(post.x, post.y, r.position.x, r.position.y) <= reach && worthShooting(e, r),
+        (r) => distance(post.x, post.y, r.position.x, r.position.y) <= reach && worthShooting(ctx, e, r),
       ),
     );
     if (foe) return engageOutcome(ctx, e, foe);
@@ -90,12 +90,12 @@ export function groupAttackOutcome(ctx: GameContext, e: RobotEntity, size?: numb
 
   const base = nearest(
     e.position,
-    knownEnemyBases(ctx, e.owner).filter((b) => worthShooting(e, b)),
+    knownEnemyBases(ctx, e.owner).filter((b) => worthShooting(ctx, e, b)),
   );
   if (base) return engageOutcome(ctx, e, base);
   const foe = nearest(
     e.position,
-    knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(e, r)),
+    knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(ctx, e, r)),
   );
   if (foe) return engageOutcome(ctx, e, foe);
   return searchOutcome(ctx, e); // nothing known yet — go find it
@@ -144,7 +144,7 @@ export function attackAttackerOutcome(ctx: GameContext, e: RobotEntity): Outcome
   if (!id) return {};
   const attacker = findById(ctx, id);
   if (!attacker || !isPositioned(attacker) || !isAlive(attacker)) return {};
-  if (!worthShooting(e, attacker)) return {};
+  if (!worthShooting(ctx, e, attacker)) return {};
   return { fire: attacker.id };
 }
 
@@ -200,7 +200,7 @@ export function guardOutcome(ctx: GameContext, e: RobotEntity): Outcome {
   if (range > 0) {
     const foe = nearest(
       pos,
-      knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(e, r)),
+      knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(ctx, e, r)),
     );
     if (foe && distance(pos.x, pos.y, foe.position.x, foe.position.y) <= range) {
       // Same line-of-sight exemption as `engageOutcome`, and it matters more

@@ -623,3 +623,65 @@ describe('combatSystem — the kamikaze detonates inside its own blast', () => {
     expect(bomb.hp!).toBeLessThanOrEqual(0); // spent itself, as a kamikaze must
   });
 });
+
+describe('combatSystem — a salvo is not spent on a dead man', () => {
+  const FPV = gameConfig.robots.weapons.fpv;
+
+  /** Two carriers looking at one enemy robot, close enough for both to reach it. */
+  function stageCrowd(ctx: GameContext, foeHp: number) {
+    openGround(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 500, y: 400 }, ChassisType.Wheels, WeaponType.Cannon);
+    foe.hp = foeHp;
+    const carriers = [420, 440].map((y) => {
+      const c = spawnRobot(ctx.world, Owner.Player, { x: 400, y }, ChassisType.Tracks, WeaponType.Fpv);
+      c.targetId = foe.id;
+      return c;
+    });
+    return { foe, carriers };
+  }
+
+  it('the second carrier holds when the first volley already kills the target', () => {
+    // Both picked the target in the same tick, before either had fired — so the
+    // ledger the second one reads is the first one's salvo, already in the world.
+    const ctx = makeCtx(1);
+    const { carriers } = stageCrowd(ctx, FPV.damage * FPV.salvo - 10);
+
+    tick(ctx);
+
+    expect(ctx.world.with('munition').entities.length).toBe(FPV.salvo);
+    expect(carriers[1].weapon!.cooldownLeft).toBe(0); // and keeps its nine seconds
+  });
+
+  it('both fire when one volley is not enough to kill it', () => {
+    const ctx = makeCtx(1);
+    const { carriers } = stageCrowd(ctx, FPV.damage * FPV.salvo + 10);
+
+    tick(ctx);
+
+    expect(ctx.world.with('munition').entities.length).toBe(FPV.salvo * 2);
+    expect(carriers[1].weapon!.cooldownLeft).toBe(FPV.cooldown);
+  });
+
+  it("counts a base's dome toward what still has to be chewed through", () => {
+    // Without the dome in the pool a volley or two would read as lethal and every
+    // carrier would fall silent in front of a base nowhere near falling.
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.AI, 20, 20);
+    base.hp = 20;
+    raiseShield(ctx, base);
+    const carrier = spawnRobot(
+      ctx.world,
+      Owner.Player,
+      // Inside the hull's own sight, so the recon gate is not what is being tested.
+      { x: base.position!.x - 150, y: base.position!.y },
+      ChassisType.Tracks,
+      WeaponType.Fpv,
+    );
+    carrier.targetId = base.id;
+
+    tick(ctx);
+
+    expect(ctx.world.with('munition').entities.length).toBe(FPV.salvo);
+  });
+});
