@@ -10,7 +10,7 @@ import type { GameContext } from '../game/context';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
 import { absorbShieldDamage, isShielded } from './shield';
 import { applyDisable, blockRegen, isDisabled } from './status';
-import { distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from './targeting';
+import { alreadyDoomed, distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from './targeting';
 
 /**
  * Firing + projectile flight/collision. Runs after movement so shots use
@@ -85,6 +85,16 @@ function fireWeapon(ctx: GameContext, e: Shooter, dt: number): void {
   }
 
   if (w.salvo > 0) {
+    // Nothing is gained by piling a second volley onto a target the drones
+    // already in the air will kill. Stated here as well as in `worthShooting`,
+    // which keeps *selection* off such a target, because selection happens once
+    // per tick for every robot at once: ten carriers all pick the same fresh
+    // target in `taskSystem` before any of them has fired. This is the pass that
+    // sees the ledger fill up — `launchSalvo` puts its drones in the world
+    // immediately, so the second carrier through here already counts the first
+    // one's salvo. It is also what catches a player's explicit order, which
+    // `worthShooting` deliberately never filters.
+    if (alreadyDoomed(ctx, target)) return;
     // The one weapon whose stated `range` is not its real one. Without this it
     // would empty a salvo every nine seconds at a base its drones fall 500 px
     // short of, which is what happens on any map bigger than the small one.

@@ -318,7 +318,10 @@ export const gameConfig = {
        * this weapon is *reconnaissance*: it fires only at a target the side can see
        * right now. That rule is not this weapon's own — every weapon obeys it (see
        * `fireWeapon`) — but this is the one hull where it is the *only* bound, which
-       * is why the extra `withinMunitionReach` gate exists alongside it.
+       * is why the extra `withinMunitionReach` gate exists alongside it. A third
+       * gate keeps a crowd of carriers from emptying every tube into one scout:
+       * no volley is launched at a target the drones already in the air will kill
+       * (`alreadyDoomed`), so what is saved is the nine-second reload.
        * Three consequences worth knowing before touching it:
        *
        * - line of sight is not checked (`salvo > 0`), because at this reach a

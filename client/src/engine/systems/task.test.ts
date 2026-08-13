@@ -828,3 +828,49 @@ describe('taskSystem — an FPV carrier stands still and shells what its side ca
     expect(carrier.movement!.goal).toBeUndefined(); // never advances: everything is already "in range"
   });
 });
+
+describe('taskSystem — a carrier does not queue up on a target already killed', () => {
+  const FPV = gameConfig.robots.weapons.fpv;
+
+  /** A carrier watching two enemies: `doomed` already has a salvo in the air. */
+  function stagePair(ctx: GameContext) {
+    openGround(ctx);
+    const carrier = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Fpv);
+    carrier.script = makeAttackRobots();
+    // The doomed one is the *closer* of the two, so nothing but the ledger can
+    // explain the other winning the pick.
+    const doomed = spawnRobot(ctx.world, Owner.AI, { x: 500, y: 400 }, ChassisType.Wheels, WeaponType.Cannon);
+    const healthy = spawnRobot(ctx.world, Owner.AI, { x: 560, y: 400 }, ChassisType.Wheels, WeaponType.Cannon);
+    ctx.intel.player.visibleRobotIds = new Set([doomed.id, healthy.id]);
+    return { carrier, doomed, healthy };
+  }
+
+  /** Puts a whole salvo's worth of damage in the air, locked on `targetId`. */
+  function salvoInFlight(ctx: GameContext, targetId: string, from: { x: number; y: number }): void {
+    for (let i = 0; i < FPV.salvo; i++) {
+      spawnMunition(ctx.world, Owner.Player, from, 0, targetId, FPV.damage, 'carrier', WeaponType.Fpv);
+    }
+  }
+
+  it('moves on to the next enemy instead of standing over a corpse', () => {
+    const ctx = makeCtx(1);
+    const { carrier, doomed, healthy } = stagePair(ctx);
+    doomed.hp = FPV.damage * FPV.salvo - 10;
+    salvoInFlight(ctx, doomed.id, { x: 450, y: 400 });
+
+    taskSystem(ctx, DT);
+
+    expect(carrier.targetId).toBe(healthy.id);
+  });
+
+  it('still takes the closer one while the salvo in the air falls short of killing it', () => {
+    const ctx = makeCtx(1);
+    const { carrier, doomed } = stagePair(ctx);
+    doomed.hp = FPV.damage * FPV.salvo + 10;
+    salvoInFlight(ctx, doomed.id, { x: 450, y: 400 });
+
+    taskSystem(ctx, DT);
+
+    expect(carrier.targetId).toBe(doomed.id);
+  });
+});
