@@ -1,7 +1,9 @@
 import { gameConfig, worldPixelSize } from '../../../config/gameConfig';
 import { TaskType } from '@drone-directive/types/enums';
 import { clamp, distance, vecLength } from '../../../utils/math';
-import type { Entity } from '../../ecs/entity';
+import type { Positioned, RobotEntity } from '../../ecs/archetypes';
+import { isAlive, isPositioned } from '../../ecs/guards';
+import { robots } from '../../ecs/queries';
 import type { GameContext } from '../../game/context';
 import { hasLineOfSight } from '../../obstacles';
 import { needsLineOfSight } from '../combat';
@@ -19,20 +21,20 @@ import type { Outcome } from './types';
  * than trading free shots against whoever it picked — and once it is gone the
  * defenders go back to the base instead of chasing it across the map.
  */
-export function defendBaseOutcome(ctx: GameContext, e: Entity, range?: number): Outcome {
-  const home = ownBase(ctx, e.owner!);
-  if (!home?.position) return {}; // no base left to defend — let a lower-priority directive decide
+export function defendBaseOutcome(ctx: GameContext, e: RobotEntity, range?: number): Outcome {
+  const home = ownBase(ctx, e.owner);
+  if (!home) return {}; // no base left to defend — let a lower-priority directive decide
   const post = home.position;
 
   // Nothing to intercept *with*: a radar or an EW jammer that drove at an
   // intruder would only die at it. It still patrols, which is what its sight
   // aura is for — early warning for the units that can shoot.
-  if ((e.weapon?.range ?? 0) > 0) {
+  if (e.weapon.range > 0) {
     const reach = range ?? gameConfig.behavior.defendBaseRadius;
     const foe = nearest(
       post,
-      knownEnemyRobots(ctx, e.owner!).filter(
-        (r) => distance(post.x, post.y, r.position!.x, r.position!.y) <= reach && worthShooting(e, r),
+      knownEnemyRobots(ctx, e.owner).filter(
+        (r) => distance(post.x, post.y, r.position.x, r.position.y) <= reach && worthShooting(e, r),
       ),
     );
     if (foe) return engageOutcome(ctx, e, foe);
@@ -57,30 +59,28 @@ export function defendBaseOutcome(ctx: GameContext, e: Entity, range?: number): 
  *   the tail below the threshold — stuck at base forever, waiting for a group
  *   that can no longer form.
  */
-export function groupAttackOutcome(ctx: GameContext, e: Entity, size?: number): Outcome {
-  const bb = e.script!.blackboard;
+export function groupAttackOutcome(ctx: GameContext, e: RobotEntity, size?: number): Outcome {
+  const bb = e.script.blackboard;
 
   if (!bb.committed) {
-    const home = ownBase(ctx, e.owner!);
+    const home = ownBase(ctx, e.owner);
     // No base to gather at: there is nothing left to defend and nothing to wait
     // for, so the group requirement is moot — go.
-    if (!home?.position) bb.committed = true;
+    if (!home) bb.committed = true;
     else {
       const radius = gameConfig.behavior.groupGatherRadius;
       const hp = home.position;
-      const mates = ctx.world
-        .with('robot', 'position', 'script')
-        .entities.filter(
-          (r) =>
-            r.owner === e.owner &&
-            (r.hp ?? 0) > 0 &&
-            !isDisabled(r) &&
-            r.script!.programId === TaskType.GroupAttack &&
-            !r.script!.blackboard.committed &&
-            distance(hp.x, hp.y, r.position!.x, r.position!.y) <= radius,
-        );
+      const mates = robots(ctx.world).entities.filter(
+        (r) =>
+          r.owner === e.owner &&
+          isAlive(r) &&
+          !isDisabled(r) &&
+          r.script.programId === TaskType.GroupAttack &&
+          !r.script.blackboard.committed &&
+          distance(hp.x, hp.y, r.position.x, r.position.y) <= radius,
+      );
       if (mates.length >= (size ?? gameConfig.behavior.groupAttackSize)) {
-        for (const mate of mates) mate.script!.blackboard.committed = true;
+        for (const mate of mates) mate.script.blackboard.committed = true;
       }
     }
   }
@@ -89,23 +89,23 @@ export function groupAttackOutcome(ctx: GameContext, e: Entity, size?: number): 
   if (!bb.committed) return defendBaseOutcome(ctx, e);
 
   const base = nearest(
-    e.position!,
-    knownEnemyBases(ctx, e.owner!).filter((b) => worthShooting(e, b)),
+    e.position,
+    knownEnemyBases(ctx, e.owner).filter((b) => worthShooting(e, b)),
   );
   if (base) return engageOutcome(ctx, e, base);
   const foe = nearest(
-    e.position!,
-    knownEnemyRobots(ctx, e.owner!).filter((r) => worthShooting(e, r)),
+    e.position,
+    knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(e, r)),
   );
   if (foe) return engageOutcome(ctx, e, foe);
   return searchOutcome(ctx, e); // nothing known yet — go find it
 }
 
 /** Focus-fire the specific ordered target (robot or base); hold once it's gone. */
-export function attackTargetOutcome(ctx: GameContext, e: Entity): Outcome {
-  const id = e.script!.blackboard.attackTargetId;
+export function attackTargetOutcome(ctx: GameContext, e: RobotEntity): Outcome {
+  const id = e.script.blackboard.attackTargetId;
   const target = id ? findById(ctx, id) : undefined;
-  if (!target || (target.hp ?? 0) <= 0 || !target.position || !isEnemy(e.owner, target.owner)) {
+  if (!target || !isPositioned(target) || !isAlive(target) || !isEnemy(e.owner, target.owner)) {
     return { move: { kind: 'hold' } }; // target destroyed/invalid — stop and defend
   }
   return engageOutcome(ctx, e, target);
@@ -119,11 +119,11 @@ export function attackTargetOutcome(ctx: GameContext, e: Entity): Outcome {
  * FPV carrier never advances on anything. That is the intended shape of the unit
  * (artillery, not a brawler), not an oversight: see `weapons.fpv` in `gameConfig`.
  */
-export function engageOutcome(ctx: GameContext, e: Entity, target: Entity): Outcome {
-  const pos = e.position!;
-  const tp = target.position!;
+export function engageOutcome(ctx: GameContext, e: RobotEntity, target: Positioned): Outcome {
+  const pos = e.position;
+  const tp = target.position;
   const w = e.weapon;
-  const range = w?.range ?? 0;
+  const range = w.range;
   const d = distance(pos.x, pos.y, tp.x, tp.y);
 
   if (range <= 0) {
@@ -131,7 +131,7 @@ export function engageOutcome(ctx: GameContext, e: Entity, target: Entity): Outc
     if (d > gameConfig.combat.unarmedStandoff) return { move: { kind: 'goal', x: tp.x, y: tp.y } };
     return { move: { kind: 'hold' } };
   }
-  const clear = !w || !needsLineOfSight(w) || hasLineOfSight(ctx.sightBlockers, pos, tp);
+  const clear = !needsLineOfSight(w) || hasLineOfSight(ctx.sightBlockers, pos, tp);
   if (d <= range && clear) {
     return { move: { kind: 'hold' }, fire: target.id };
   }
@@ -139,11 +139,11 @@ export function engageOutcome(ctx: GameContext, e: Entity, target: Entity): Outc
 }
 
 /** Fire-only: shoot back at the last attacker if it's still a valid target. */
-export function attackAttackerOutcome(ctx: GameContext, e: Entity): Outcome {
-  const id = e.threat?.attackerId;
+export function attackAttackerOutcome(ctx: GameContext, e: RobotEntity): Outcome {
+  const id = e.threat.attackerId;
   if (!id) return {};
   const attacker = findById(ctx, id);
-  if (!attacker || (attacker.hp ?? 0) <= 0 || !attacker.position) return {};
+  if (!attacker || !isPositioned(attacker) || !isAlive(attacker)) return {};
   if (!worthShooting(e, attacker)) return {};
   return { fire: attacker.id };
 }
@@ -155,16 +155,16 @@ export function attackAttackerOutcome(ctx: GameContext, e: Entity): Outcome {
  * holds (falling through to `attackNearestRobot`/`attackAttacker` below to
  * close in and detonate on the group instead of fleeing a fight it can't lose).
  */
-export function evadeOutcome(ctx: GameContext, e: Entity): Outcome {
-  if ((e.weapon?.explosionRadius ?? 0) > 0) return {};
+export function evadeOutcome(ctx: GameContext, e: RobotEntity): Outcome {
+  if (e.weapon.explosionRadius > 0) return {};
 
-  const pos = e.position!;
-  const attackerId = e.threat?.attackerId;
+  const pos = e.position;
+  const attackerId = e.threat.attackerId;
   const attacker = attackerId ? findById(ctx, attackerId) : undefined;
   const from =
-    attacker && (attacker.hp ?? 0) > 0 && attacker.position
+    attacker && isPositioned(attacker) && isAlive(attacker)
       ? attacker.position
-      : nearest(pos, knownEnemyRobots(ctx, e.owner!))?.position;
+      : nearest(pos, knownEnemyRobots(ctx, e.owner))?.position;
   if (!from) return {}; // nothing to dodge — let a lower-priority directive move us
 
   const dx = pos.x - from.x;
@@ -192,23 +192,22 @@ export function evadeOutcome(ctx: GameContext, e: Entity): Outcome {
  * guard post (like `search`, but bounded near base) rather than standing
  * still, engaging anything that comes within weapon range along the way.
  */
-export function guardOutcome(ctx: GameContext, e: Entity): Outcome {
-  const pos = e.position!;
-  const range = e.weapon?.range ?? 0;
-  const post = e.script!.blackboard.guardPos;
+export function guardOutcome(ctx: GameContext, e: RobotEntity): Outcome {
+  const pos = e.position;
+  const range = e.weapon.range;
+  const post = e.script.blackboard.guardPos;
 
   if (range > 0) {
     const foe = nearest(
       pos,
-      knownEnemyRobots(ctx, e.owner!).filter((r) => worthShooting(e, r)),
+      knownEnemyRobots(ctx, e.owner).filter((r) => worthShooting(e, r)),
     );
-    if (foe?.position && distance(pos.x, pos.y, foe.position.x, foe.position.y) <= range) {
+    if (foe && distance(pos.x, pos.y, foe.position.x, foe.position.y) <= range) {
       // Same line-of-sight exemption as `engageOutcome`, and it matters more
       // here: a launcher's reach spans the map, so there is nearly always a
       // mountain somewhere on the straight line, and requiring a clear one would
       // leave a guarding carrier silently never firing.
-      const needsLos = !e.weapon || needsLineOfSight(e.weapon);
-      if (!needsLos || hasLineOfSight(ctx.sightBlockers, pos, foe.position)) {
+      if (!needsLineOfSight(e.weapon) || hasLineOfSight(ctx.sightBlockers, pos, foe.position)) {
         return { move: { kind: 'hold' }, fire: foe.id };
       }
     }
@@ -218,9 +217,9 @@ export function guardOutcome(ctx: GameContext, e: Entity): Outcome {
 }
 
 /** Move-only: fall back toward this side's own base — for a unit with nothing to fight back with. */
-export function retreatToBaseOutcome(ctx: GameContext, e: Entity): Outcome {
-  const home = ownBase(ctx, e.owner!);
-  if (!home?.position) return {}; // no base left to run to — let a lower-priority directive decide
+export function retreatToBaseOutcome(ctx: GameContext, e: RobotEntity): Outcome {
+  const home = ownBase(ctx, e.owner);
+  if (!home) return {}; // no base left to run to — let a lower-priority directive decide
   return { move: { kind: 'goal', x: home.position.x, y: home.position.y } };
 }
 
@@ -231,18 +230,19 @@ export function retreatToBaseOutcome(ctx: GameContext, e: Entity): Outcome {
  * for it without leading the charge. With no such push under way, it instead
  * hovers near its own base, roaming like a Guard for early-warning coverage.
  */
-export function overwatchOutcome(ctx: GameContext, e: Entity): Outcome {
-  const home = ownBase(ctx, e.owner!);
-  if (!home?.position) return { move: { kind: 'hold' } };
+export function overwatchOutcome(ctx: GameContext, e: RobotEntity): Outcome {
+  const home = ownBase(ctx, e.owner);
+  if (!home) return { move: { kind: 'hold' } };
+  const hp = home.position;
 
-  const vanguard = ctx.world
-    .with('robot', 'position', 'script')
-    .entities.filter((r) => r.id !== e.id && r.owner === e.owner && (r.hp ?? 0) > 0 && isAdvancing(r));
+  const vanguard = robots(ctx.world).entities.filter(
+    (r) => r.id !== e.id && r.owner === e.owner && isAlive(r) && isAdvancing(r),
+  );
 
   if (vanguard.length > 0) {
     const centroid = centroidOf(vanguard);
-    const dx = home.position.x - centroid.x;
-    const dy = home.position.y - centroid.y;
+    const dx = hp.x - centroid.x;
+    const dy = hp.y - centroid.y;
     const len = vecLength(dx, dy) || 1;
     const trail = gameConfig.behavior.overwatchTrailDistance;
     return {
@@ -254,7 +254,7 @@ export function overwatchOutcome(ctx: GameContext, e: Entity): Outcome {
     };
   }
 
-  return roamOutcome(e, () => randomPointNear(ctx, home.position!, gameConfig.behavior.guardPatrolRadius));
+  return roamOutcome(e, () => randomPointNear(ctx, hp, gameConfig.behavior.guardPatrolRadius));
 }
 
 /** Stable per-robot dodge side so a robot doesn't jitter between the two. */

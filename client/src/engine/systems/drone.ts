@@ -1,14 +1,16 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
-import { Owner, TaskType } from '@drone-directive/types/enums';
+import { TaskType } from '@drone-directive/types/enums';
 import { clamp, distance, vecLength } from '../../utils/math';
-import type { Entity } from '../ecs/entity';
+import type { DroneEntity, Positioned, RobotEntity } from '../ecs/archetypes';
 import { spawnProjectile } from '../ecs/factory';
+import { isAlive } from '../ecs/guards';
+import { drones, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { isBlockedGrid, tileOf } from '../obstacles';
 import { canEngage, detonateBomb, launchSalvo, withinMunitionReach } from './combat';
 import { isDisabled } from './status';
-import { enemyBases, enemyRobots, findById, isKnownTo, nearest } from './targeting';
+import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from './targeting';
 
 /**
  * Observer-drone flight. A drone free-flies ignoring obstacles (it never
@@ -25,17 +27,15 @@ import { enemyBases, enemyRobots, findById, isKnownTo, nearest } from './targeti
  * work identically for whoever is on the stick.
  */
 export function droneSystem(ctx: GameContext, dt: number): void {
-  for (const drone of [...ctx.world.with('drone', 'position').entities]) driveDrone(ctx, dt, drone);
+  for (const drone of [...drones(ctx.world).entities]) driveDrone(ctx, dt, drone);
 }
 
-function driveDrone(ctx: GameContext, dt: number, drone: Entity): void {
-  if (!drone.drone || !drone.position) return;
-
-  const control = ctx.droneControl[drone.owner ?? Owner.Neutral];
+function driveDrone(ctx: GameContext, dt: number, drone: DroneEntity): void {
+  const control = ctx.droneControl[drone.owner];
   const dir = normalize(control.dir);
 
-  const possessed = drone.drone.possessedId ? findById(ctx, drone.drone.possessedId) : undefined;
-  const robot = possessed?.robot && (possessed.hp ?? 0) > 0 ? possessed : undefined;
+  const possessedId = drone.drone.possessedId;
+  const robot = possessedId ? livingRobotById(ctx, possessedId) : undefined;
 
   if (robot) {
     drivePossessed(ctx, dt, drone, robot, dir, control.possessPulse, control.firePulse);
@@ -50,10 +50,10 @@ function driveDrone(ctx: GameContext, dt: number, drone: Entity): void {
 }
 
 /** Free flight: obstacle-free movement, plus landing on an idle robot on demand. */
-function freeFly(ctx: GameContext, dt: number, drone: Entity, dir: Vec2, possess: boolean): void {
+function freeFly(ctx: GameContext, dt: number, drone: DroneEntity, dir: Vec2, possess: boolean): void {
   if (possess && tryPossess(ctx, drone)) return; // landed — glue to the robot next tick
 
-  const pos = drone.position!;
+  const pos = drone.position;
   const step = gameConfig.drone.speed * dt;
   pos.x = clamp(pos.x + dir.x * step, 0, worldPixelSize.width);
   pos.y = clamp(pos.y + dir.y * step, 0, worldPixelSize.height);
@@ -61,21 +61,19 @@ function freeFly(ctx: GameContext, dt: number, drone: Entity, dir: Vec2, possess
 }
 
 /** Lands on the nearest idle friendly robot within range; returns whether it did. */
-function tryPossess(ctx: GameContext, drone: Entity): boolean {
-  const pos = drone.position!;
-  const idle = ctx.world
-    .with('robot', 'position')
-    .entities.filter(
-      (r) =>
-        r.owner === drone.owner &&
-        (r.hp ?? 0) > 0 &&
-        !isDisabled(r) && // nothing to steer: its controls are down
-        r.script?.programId === TaskType.Idle &&
-        distance(pos.x, pos.y, r.position!.x, r.position!.y) <= gameConfig.drone.possessRadius,
-    );
+function tryPossess(ctx: GameContext, drone: DroneEntity): boolean {
+  const pos = drone.position;
+  const idle = robots(ctx.world).entities.filter(
+    (r) =>
+      r.owner === drone.owner &&
+      isAlive(r) &&
+      !isDisabled(r) && // nothing to steer: its controls are down
+      r.script.programId === TaskType.Idle &&
+      distance(pos.x, pos.y, r.position.x, r.position.y) <= gameConfig.drone.possessRadius,
+  );
   const target = nearest(pos, idle);
   if (!target) return false;
-  drone.drone!.possessedId = target.id;
+  drone.drone.possessedId = target.id;
   return true;
 }
 
@@ -83,16 +81,16 @@ function tryPossess(ctx: GameContext, drone: Entity): boolean {
 function drivePossessed(
   ctx: GameContext,
   dt: number,
-  drone: Entity,
-  robot: Entity,
+  drone: DroneEntity,
+  robot: RobotEntity,
   dir: Vec2,
   release: boolean,
   fire: boolean,
 ): void {
-  const rpos = robot.position!;
+  const rpos = robot.position;
 
   if (release) {
-    drone.drone!.possessedId = undefined;
+    drone.drone.possessedId = undefined;
   } else if (isDisabled(robot)) {
     // Knocked out under the pilot: the drone keeps riding (and can still bail
     // out with `release`), but the hull answers neither the stick nor the trigger.
@@ -100,20 +98,20 @@ function drivePossessed(
   } else {
     // Manual-only fire: never let the Idle-under-fire resolver auto-fire this robot.
     robot.targetId = undefined;
-    const speed = robot.movement?.speed ?? gameConfig.drone.speed;
+    const speed = robot.movement.speed;
     stepWithWalls(ctx, robot, dir, speed * dt);
     if (dir.x !== 0 || dir.y !== 0) robot.heading = Math.atan2(dir.y, dir.x);
     if (fire) fireManual(ctx, robot);
   }
 
   // The drone hovers on whatever robot it's riding (or its last spot on release).
-  drone.position!.x = rpos.x;
-  drone.position!.y = rpos.y;
+  drone.position.x = rpos.x;
+  drone.position.y = rpos.y;
 }
 
 /** Direct, obstacle-checked step (per-axis, so it slides along walls). */
-function stepWithWalls(ctx: GameContext, robot: Entity, dir: Vec2, dist: number): void {
-  const pos = robot.position!;
+function stepWithWalls(ctx: GameContext, robot: Positioned, dir: Vec2, dist: number): void {
+  const pos = robot.position;
   if (dir.x !== 0) {
     const nx = clamp(pos.x + dir.x * dist, 0, worldPixelSize.width);
     if (!blockedAt(ctx, nx, pos.y)) pos.x = nx;
@@ -140,28 +138,28 @@ function blockedAt(ctx: GameContext, x: number, y: number): boolean {
  * actually cover — the same two gates automatic fire goes through (`isKnownTo`,
  * `withinMunitionReach`), just applied at selection rather than after it.
  */
-function fireManual(ctx: GameContext, robot: Entity): void {
+function fireManual(ctx: GameContext, robot: RobotEntity): void {
   const w = robot.weapon;
-  if (!w || isDisabled(robot)) return;
+  if (isDisabled(robot)) return;
   if (w.explosionRadius > 0) {
     detonateBomb(ctx, robot); // kamikaze: blast on demand, self-destruct
     return;
   }
   if (!canEngage(w) || w.cooldownLeft > 0) return;
 
-  const pos = robot.position!;
-  const foes = [...enemyRobots(ctx, robot.owner!), ...enemyBases(ctx, robot.owner!)].filter((e) =>
+  const pos = robot.position;
+  const foes = [...enemyRobots(ctx, robot.owner), ...enemyBases(ctx, robot.owner)].filter((e) =>
     w.salvo > 0
-      ? isKnownTo(ctx, robot.owner!, e) && withinMunitionReach(pos, e)
-      : distance(pos.x, pos.y, e.position!.x, e.position!.y) <= w.range,
+      ? isKnownTo(ctx, robot.owner, e) && withinMunitionReach(pos, e)
+      : distance(pos.x, pos.y, e.position.x, e.position.y) <= w.range,
   );
   const target = nearest(pos, foes);
-  if (!target?.position) return;
+  if (!target) return;
 
   if (w.salvo > 0) launchSalvo(ctx, robot, target);
-  else spawnProjectile(ctx.world, robot.owner!, pos, target.position, target.id, w.damage, robot.id, robot.weaponType!);
+  else spawnProjectile(ctx.world, robot.owner, pos, target.position, target.id, w.damage, robot.id, robot.weaponType);
   w.cooldownLeft = w.cooldown;
-  ctx.bus.emit('projectileFired', { owner: robot.owner!, pos: { x: pos.x, y: pos.y }, weapon: robot.weaponType! });
+  ctx.bus.emit('projectileFired', { owner: robot.owner, pos: { x: pos.x, y: pos.y }, weapon: robot.weaponType });
 }
 
 function normalize(v: Vec2): Vec2 {

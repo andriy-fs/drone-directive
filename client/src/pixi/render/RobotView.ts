@@ -1,7 +1,7 @@
 import { Circle, Container, Graphics, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
-import type { Entity } from '../../engine/ecs/entity';
+import type { RobotEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
 import { ChassisType, WeaponType } from '@drone-directive/types/enums';
 import { getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
@@ -26,7 +26,7 @@ export class RobotView {
   private readonly isEnemy: boolean;
   private lastClickAt = 0;
 
-  constructor(robot: Entity) {
+  constructor(robot: RobotEntity) {
     const r = gameConfig.robots.radius;
     const local = useGameStore.getState().localSide;
     this.isEnemy = robot.owner !== local;
@@ -42,10 +42,10 @@ export class RobotView {
 
     // Kamikaze blast-radius ring: shown on every bomb-armed robot, on both
     // sides — the payload's kill zone matters whether it's yours or theirs.
-    if (robot.weaponType === WeaponType.Bomb && (robot.weapon?.explosionRadius ?? 0) > 0) {
+    if (robot.weaponType === WeaponType.Bomb && robot.weapon.explosionRadius > 0) {
       const blast = new Graphics();
       blast
-        .circle(0, 0, robot.weapon!.explosionRadius)
+        .circle(0, 0, robot.weapon.explosionRadius)
         .fill({ color: palette.blast.zone, alpha: 0.05 })
         .stroke({ width: 1, color: palette.blast.zone, alpha: 0.4 });
       this.container.addChild(blast);
@@ -131,11 +131,11 @@ export class RobotView {
     this.update(robot, false, true);
   }
 
-  update(robot: Entity, selected: boolean, visible: boolean): void {
+  update(robot: RobotEntity, selected: boolean, visible: boolean): void {
     this.container.visible = visible;
     if (robot.position) this.container.position.set(robot.position.x, robot.position.y);
-    this.body.rotation = robot.heading ?? 0;
-    this.healthBar.set((robot.hp ?? 0) / (robot.maxHp ?? 1));
+    this.body.rotation = robot.heading;
+    this.healthBar.set(robot.hp / robot.maxHp);
     this.ring.visible = selected;
     this.spotted.visible = this.isEnemy && visible;
 
@@ -191,7 +191,7 @@ function weaponModule(sprite: ResolvedSprite, tint?: number): Sprite {
 }
 
 /** Placeholder chassis body; `drawWeapon` draws the weapon marker (skipped when a module sprite covers it). */
-function drawBody(robot: Entity, r: number, drawWeapon: boolean): Graphics {
+function drawBody(robot: RobotEntity, r: number, drawWeapon: boolean): Graphics {
   const g = new Graphics();
   const color = ownerColor(robot.owner);
   const stroke = { width: 2, color: 0x0b0e13 } as const;

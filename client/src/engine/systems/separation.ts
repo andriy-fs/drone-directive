@@ -1,6 +1,8 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { clamp, vecLength } from '../../utils/math';
-import type { Entity } from '../ecs/entity';
+import type { Positioned } from '../ecs/archetypes';
+import { isAlive } from '../ecs/guards';
+import { robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 
 /**
@@ -12,22 +14,22 @@ import type { GameContext } from '../game/context';
  */
 export function separationSystem(ctx: GameContext): void {
   const minDist = gameConfig.robots.radius * 2;
-  const robots = ctx.world.with('robot', 'position').entities;
+  const list = robots(ctx.world).entities;
 
-  for (let i = 0; i < robots.length; i++) {
-    const a = robots[i];
-    if ((a.hp ?? 0) <= 0) continue;
-    for (let j = i + 1; j < robots.length; j++) {
-      const b = robots[j];
-      if ((b.hp ?? 0) <= 0) continue;
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    if (!isAlive(a)) continue;
+    for (let j = i + 1; j < list.length; j++) {
+      const b = list[j];
+      if (!isAlive(b)) continue;
       separate(a, b, minDist);
     }
   }
 }
 
-function separate(a: Entity, b: Entity, minDist: number): void {
-  const ap = a.position!;
-  const bp = b.position!;
+function separate(a: Positioned, b: Positioned, minDist: number): void {
+  const ap = a.position;
+  const bp = b.position;
   let dx = bp.x - ap.x;
   let dy = bp.y - ap.y;
   const trueDist = vecLength(dx, dy);

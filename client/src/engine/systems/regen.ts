@@ -1,5 +1,6 @@
 import { gameConfig } from '../../config/gameConfig';
-import type { Entity } from '../ecs/entity';
+import type { Living } from '../ecs/archetypes';
+import { bases, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { canRegen, decayRegenLock } from './status';
 
@@ -25,10 +26,10 @@ import { canRegen, decayRegenLock } from './status';
  * identical on every peer.
  */
 export function regenSystem(ctx: GameContext, dt: number): void {
-  for (const e of ctx.world.with('robot', 'hp', 'maxHp')) {
+  for (const e of robots(ctx.world)) {
     repair(e, gameConfig.robots.regenPerSecond, dt);
   }
-  for (const e of ctx.world.with('base', 'hp', 'maxHp')) {
+  for (const e of bases(ctx.world)) {
     repair(e, gameConfig.bases.regenPerSecond, dt);
   }
 }
@@ -41,8 +42,8 @@ export function regenSystem(ctx: GameContext, dt: number): void {
  * Note this is the one system that does not skip a `dew`-disabled robot: repair
  * is passive, not something the hull does, so a knocked-out unit keeps mending.
  */
-function repair(e: Entity, rate: number, dt: number): void {
+function repair(e: Living, rate: number, dt: number): void {
   decayRegenLock(e, dt);
-  if ((e.hp ?? 0) <= 0 || !canRegen(e)) return;
-  e.hp = Math.min(e.maxHp!, e.hp! + rate * dt);
+  if (e.hp <= 0 || !canRegen(e)) return;
+  e.hp = Math.min(e.maxHp, e.hp + rate * dt);
 }

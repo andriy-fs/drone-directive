@@ -3,7 +3,15 @@ import type { Vec2 } from '@drone-directive/types/entities';
 import { RobotState, TaskType, type ChassisType, type Owner, type WeaponType } from '@drone-directive/types/enums';
 import { nextId } from '../../utils/id';
 import { vecLength } from '../../utils/math';
-import { EffectKind, type Entity, type WeaponComp } from './entity';
+import type {
+  BaseEntity,
+  DroneEntity,
+  ExplosionEntity,
+  MunitionEntity,
+  ProjectileEntity,
+  RobotEntity,
+} from './archetypes';
+import { EffectKind, type WeaponComp } from './entity';
 import type { EcsWorld } from './world';
 
 /**
@@ -31,7 +39,7 @@ function weaponComp(weapon: WeaponType): WeaponComp {
  * Every base carries the built-in missile battery (`gameConfig.bases.weapon`):
  * `taskSystem` picks its target, `combatSystem` fires it, exactly as for a robot.
  */
-export function spawnBase(world: EcsWorld, owner: Owner, tx: number, ty: number): Entity {
+export function spawnBase(world: EcsWorld, owner: Owner, tx: number, ty: number): BaseEntity {
   const { tilePx } = gameConfig.grid;
   const size = gameConfig.bases.footprintTiles;
   return world.add({
@@ -59,7 +67,7 @@ export function spawnBase(world: EcsWorld, owner: Owner, tx: number, ty: number)
 }
 
 /** Adds a robot entity; stats derive from chassis + weapon. */
-export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: ChassisType, weapon: WeaponType): Entity {
+export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: ChassisType, weapon: WeaponType): RobotEntity {
   const stats = gameConfig.robots.chassis[chassis];
   const w = gameConfig.robots.weapons[weapon];
   return world.add({
@@ -82,7 +90,7 @@ export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: Ch
 }
 
 /** Adds a side's observer drone at `pos` (the base "roof" at match start, or on respawn). */
-export function spawnDrone(world: EcsWorld, owner: Owner, pos: Vec2): Entity {
+export function spawnDrone(world: EcsWorld, owner: Owner, pos: Vec2): DroneEntity {
   return world.add({
     id: nextId('drone'),
     drone: {},
@@ -114,7 +122,7 @@ export function spawnMunition(
   damage: number,
   sourceId: string,
   weapon: WeaponType,
-): Entity {
+): MunitionEntity {
   const { launchRing, flightTime, hp } = gameConfig.munition;
   return world.add({
     id: nextId('fpv'),
@@ -144,7 +152,7 @@ export function spawnProjectile(
   damage: number,
   sourceId: string,
   weapon: WeaponType,
-): Entity {
+): ProjectileEntity {
   const { projectileSpeed, projectileTtl } = gameConfig.combat;
   const dx = targetPos.x - from.x;
   const dy = targetPos.y - from.y;
@@ -165,7 +173,7 @@ export function spawnProjectile(
 }
 
 /** Adds an explosion effect centred on `pos`; `maxRadius` overrides the default peak size. */
-export function spawnExplosion(world: EcsWorld, pos: Vec2, maxRadius?: number): Entity {
+export function spawnExplosion(world: EcsWorld, pos: Vec2, maxRadius?: number): ExplosionEntity {
   return world.add({
     id: nextId('boom'),
     explosion: true,
@@ -190,7 +198,7 @@ export function spawnExplosion(world: EcsWorld, pos: Vec2, maxRadius?: number): 
  * different kinds and different durations rather than one effect with a flag the
  * renderer might ignore.
  */
-export function spawnShieldEnd(world: EcsWorld, pos: Vec2, shattered: boolean): Entity {
+export function spawnShieldEnd(world: EcsWorld, pos: Vec2, shattered: boolean): ExplosionEntity {
   const { shieldBreakDuration, shieldExpireDuration } = gameConfig.fx;
   return world.add({
     id: nextId('boom'),
@@ -205,7 +213,7 @@ export function spawnShieldEnd(world: EcsWorld, pos: Vec2, shattered: boolean): 
   });
 }
 
-export function spawnEmpBurst(world: EcsWorld, pos: Vec2): Entity {
+export function spawnEmpBurst(world: EcsWorld, pos: Vec2): ExplosionEntity {
   return world.add({
     id: nextId('boom'),
     explosion: true,

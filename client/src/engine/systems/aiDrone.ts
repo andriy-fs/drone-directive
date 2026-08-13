@@ -2,7 +2,9 @@ import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import type { Owner } from '@drone-directive/types/enums';
 import { clamp, distance, vecLength } from '../../utils/math';
-import type { Entity } from '../ecs/entity';
+import type { BaseEntity, DroneEntity, RobotEntity } from '../ecs/archetypes';
+import { isAlive } from '../ecs/guards';
+import { drones, robots } from '../ecs/queries';
 import type { AiState, GameContext } from '../game/context';
 import { isAdvancing, centroidOf } from './task';
 import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from './targeting';
@@ -33,9 +35,7 @@ export function pilotDrone(ctx: GameContext, owner: Owner, state: AiState): void
   control.possessPulse = false;
   control.firePulse = false;
 
-  const drone = ctx.world
-    .with('drone', 'position')
-    .entities.find((d) => d.owner === owner && (d.hp ?? 0) > 0);
+  const drone = drones(ctx.world).entities.find((d) => d.owner === owner && isAlive(d));
   if (!drone) {
     // Shot down: hold the stick neutral and forget the sweep, so the replacement
     // starts from a fresh decision rather than resuming a stale leg.
@@ -45,7 +45,7 @@ export function pilotDrone(ctx: GameContext, owner: Owner, state: AiState): void
   }
 
   const goal = breakOff(ctx, owner, drone) ?? escortGoal(ctx, owner, drone) ?? sweepGoal(ctx, owner, drone, state);
-  control.dir = goal ? unitToward(drone.position!, goal) : { x: 0, y: 0 };
+  control.dir = goal ? unitToward(drone.position, goal) : { x: 0, y: 0 };
 }
 
 /**
@@ -58,18 +58,18 @@ export function pilotDrone(ctx: GameContext, owner: Owner, state: AiState): void
  * from a threat, not aiming at one, and a scout that has to *spot* the launcher
  * before evading it would simply die to everything it was sent to find.
  */
-function breakOff(ctx: GameContext, owner: Owner, drone: Entity): Vec2 | undefined {
-  const pos = drone.position!;
-  const threats: Entity[] = [
-    ...enemyRobots(ctx, owner).filter((r) => r.weapon?.canHitAir),
-    ...enemyBases(ctx, owner).filter((b) => b.weapon?.canHitAir),
+function breakOff(ctx: GameContext, owner: Owner, drone: DroneEntity): Vec2 | undefined {
+  const pos = drone.position;
+  const threats: (RobotEntity | BaseEntity)[] = [
+    ...enemyRobots(ctx, owner).filter((r) => r.weapon.canHitAir),
+    ...enemyBases(ctx, owner).filter((b) => b.weapon.canHitAir),
   ];
   const threat = nearest(pos, threats);
   if (!threat) return undefined;
-  const away = distance(pos.x, pos.y, threat.position!.x, threat.position!.y);
+  const away = distance(pos.x, pos.y, threat.position.x, threat.position.y);
   if (away > gameConfig.ai.droneDangerRange) return undefined;
 
-  return offsetFrom(threat.position!, pos, gameConfig.ai.droneDangerRange);
+  return offsetFrom(threat.position, pos, gameConfig.ai.droneDangerRange);
 }
 
 /**
@@ -82,15 +82,13 @@ function breakOff(ctx: GameContext, owner: Owner, drone: Entity): Vec2 | undefin
  * excludes them by construction), so a damaged one is spent goods and is worth
  * more picketing home than buying one more look at the front.
  */
-function escortGoal(ctx: GameContext, owner: Owner, drone: Entity): Vec2 | undefined {
+function escortGoal(ctx: GameContext, owner: Owner, drone: DroneEntity): Vec2 | undefined {
   if (isCautious(drone)) return undefined;
 
   const home = ownBase(ctx, owner);
-  if (!home?.position) return undefined;
+  if (!home) return undefined;
 
-  const vanguard = ctx.world
-    .with('robot', 'position', 'script')
-    .entities.filter((r) => r.owner === owner && (r.hp ?? 0) > 0 && isAdvancing(r));
+  const vanguard = robots(ctx.world).entities.filter((r) => r.owner === owner && isAlive(r) && isAdvancing(r));
   if (vanguard.length === 0) return undefined;
 
   const centroid = centroidOf(vanguard);
@@ -103,20 +101,21 @@ function escortGoal(ctx: GameContext, owner: Owner, drone: Entity): Vec2 | undef
  * the same reason: drawing a fresh point every tick would both jitter the flight
  * path and pull from the shared rng 30 times a second.
  */
-function sweepGoal(ctx: GameContext, owner: Owner, drone: Entity, state: AiState): Vec2 {
-  const pos = drone.position!;
-  const target = state.droneWaypoint;
+function sweepGoal(ctx: GameContext, owner: Owner, drone: DroneEntity, state: AiState): Vec2 {
+  const pos = drone.position;
+  let target = state.droneWaypoint;
   if (!target || distance(pos.x, pos.y, target.x, target.y) <= gameConfig.ai.droneWaypointRadius) {
-    state.droneWaypoint = pickSweepPoint(ctx, owner, drone);
+    target = pickSweepPoint(ctx, owner, drone);
+    state.droneWaypoint = target;
   }
-  return state.droneWaypoint!;
+  return target;
 }
 
-function pickSweepPoint(ctx: GameContext, owner: Owner, drone: Entity): Vec2 {
+function pickSweepPoint(ctx: GameContext, owner: Owner, drone: DroneEntity): Vec2 {
   // Damaged: stop scouting and orbit home as early warning instead.
   if (isCautious(drone)) {
     const home = ownBase(ctx, owner);
-    if (home?.position) return randomPointAround(ctx, home.position, gameConfig.ai.dronePicketRadius);
+    if (home) return randomPointAround(ctx, home.position, gameConfig.ai.dronePicketRadius);
   }
 
   // A base it has already found is worth re-checking — but from *outside* the
@@ -125,15 +124,14 @@ function pickSweepPoint(ctx: GameContext, owner: Owner, drone: Entity): Vec2 {
   const known = knownEnemyBases(ctx, owner);
   if (known.length > 0 && ctx.rng.next() < 0.5) {
     const base = ctx.rng.pick(known);
-    return randomPointOnRing(ctx, base.position!, gameConfig.ai.droneDangerRange);
+    return randomPointOnRing(ctx, base.position, gameConfig.ai.droneDangerRange);
   }
   return randomWorldPoint(ctx);
 }
 
 /** Below `droneCautiousHp` of its hull the drone stops scouting — see `escortGoal`. */
-function isCautious(drone: Entity): boolean {
-  const maxHp = drone.maxHp ?? gameConfig.drone.maxHp;
-  return maxHp > 0 && (drone.hp ?? 0) / maxHp <= gameConfig.ai.droneCautiousHp;
+function isCautious(drone: DroneEntity): boolean {
+  return drone.maxHp > 0 && drone.hp / drone.maxHp <= gameConfig.ai.droneCautiousHp;
 }
 
 /**

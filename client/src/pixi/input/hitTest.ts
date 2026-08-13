@@ -1,8 +1,10 @@
 import { gameConfig } from '../../config/gameConfig';
-import type { Entity } from '../../engine/ecs/entity';
+import type { BaseEntity, Positioned, RobotEntity } from '../../engine/ecs/archetypes';
+import { isAlive } from '../../engine/ecs/guards';
+import { bases, robots } from '../../engine/ecs/queries';
 import type { GameContext } from '../../engine/game/context';
 import { canEngage } from '../../engine/systems/combat';
-import { baseFootprintContains, findById, isEnemy } from '../../engine/systems/targeting';
+import { baseFootprintContains, isEnemy, livingRobotById } from '../../engine/systems/targeting';
 import { isTaskBlockedForWeapon } from '../../engine/tasks/taskDefinitions';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { TaskType, type Owner } from '@drone-directive/types/enums';
@@ -15,27 +17,21 @@ import { distance } from '../../utils/math';
  */
 
 /** `side`'s own living base under a world point, or undefined. */
-export function ownBaseAt(ctx: GameContext, p: Vec2, side: Owner): Entity | undefined {
-  return ctx.world
-    .with('base', 'position')
-    .entities.find((e) => e.owner === side && (e.hp ?? 0) > 0 && baseFootprintContains(e, p));
+export function ownBaseAt(ctx: GameContext, p: Vec2, side: Owner): BaseEntity | undefined {
+  return bases(ctx.world).entities.find((e) => e.owner === side && isAlive(e) && baseFootprintContains(e, p));
 }
 
 /** The living enemy robot or base under a world point (from `side`'s perspective), or undefined. */
-export function enemyAt(ctx: GameContext, p: Vec2, side: Owner): Entity | undefined {
-  const robot = ctx.world
-    .with('robot', 'position')
-    .entities.find(
-      (e) =>
-        (e.hp ?? 0) > 0 &&
-        isEnemy(side, e.owner) &&
-        distance(p.x, p.y, e.position!.x, e.position!.y) <= gameConfig.robots.radius + 4,
-    );
+export function enemyAt(ctx: GameContext, p: Vec2, side: Owner): RobotEntity | BaseEntity | undefined {
+  const robot = robots(ctx.world).entities.find(
+    (e) =>
+      isAlive(e) &&
+      isEnemy(side, e.owner) &&
+      distance(p.x, p.y, e.position.x, e.position.y) <= gameConfig.robots.radius + 4,
+  );
   if (robot) return robot;
 
-  return ctx.world
-    .with('base', 'position')
-    .entities.find((e) => (e.hp ?? 0) > 0 && isEnemy(side, e.owner) && baseFootprintContains(e, p));
+  return bases(ctx.world).entities.find((e) => isAlive(e) && isEnemy(side, e.owner) && baseFootprintContains(e, p));
 }
 
 /**
@@ -53,12 +49,12 @@ export function selectionCanAttack(
   ctx: GameContext,
   robotIds: readonly string[],
   side: Owner,
-  target: Entity,
+  target: Positioned,
 ): boolean {
   const task = target.base ? TaskType.AttackBase : TaskType.AttackRobots;
   return robotIds.some((id) => {
-    const e = findById(ctx, id);
-    if (!e?.robot || e.owner !== side || (e.hp ?? 0) <= 0 || !e.weapon) return false;
+    const e = livingRobotById(ctx, id);
+    if (!e || e.owner !== side) return false;
     return canEngage(e.weapon) && !isTaskBlockedForWeapon(e.weaponType, task);
   });
 }

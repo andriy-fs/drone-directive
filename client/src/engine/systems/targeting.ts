@@ -2,7 +2,11 @@ import type { Vec2 } from '@drone-directive/types/entities';
 import { Owner } from '@drone-directive/types/enums';
 import { gameConfig } from '../../config/gameConfig';
 import { distance } from '../../utils/math';
+import type { With } from 'miniplex';
+import type { BaseEntity, DroneEntity, MunitionEntity, Positioned, RobotEntity } from '../ecs/archetypes';
 import type { Entity, WeaponComp } from '../ecs/entity';
+import { isAlive, isBase, isRobot } from '../ecs/guards';
+import { bases, drones, munitions, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { isDisabled } from './status';
 
@@ -23,18 +27,42 @@ export function isEnemy(a: Owner | undefined, b: Owner | undefined): boolean {
   return a !== undefined && b !== undefined && a !== b && b !== Owner.Neutral;
 }
 
+/**
+ * The one lookup that hands back an entity of genuinely unknown shape — it
+ * searches the whole heterogeneous world. Prefer the typed wrappers below when
+ * you know what you are looking for; they turn "I asserted a component" into "I
+ * checked for one".
+ */
 export function findById(ctx: GameContext, id: string): Entity | undefined {
   return ctx.world.entities.find((e) => e.id === id);
 }
 
+/** `findById` narrowed to a robot — undefined if the id names anything else. */
+export function robotById(ctx: GameContext, id: string): RobotEntity | undefined {
+  const e = findById(ctx, id);
+  return e && isRobot(e) ? e : undefined;
+}
+
+/** `findById` narrowed to a base — undefined if the id names anything else. */
+export function baseById(ctx: GameContext, id: string): BaseEntity | undefined {
+  const e = findById(ctx, id);
+  return e && isBase(e) ? e : undefined;
+}
+
+/** As `robotById`, but a wreck not yet reaped reads as gone. */
+export function livingRobotById(ctx: GameContext, id: string): RobotEntity | undefined {
+  const e = robotById(ctx, id);
+  return e && isAlive(e) ? e : undefined;
+}
+
 /** Living enemy robots relative to `owner`. */
-export function enemyRobots(ctx: GameContext, owner: Owner): Entity[] {
-  return ctx.world.with('robot', 'position').entities.filter((e) => (e.hp ?? 0) > 0 && isEnemy(owner, e.owner));
+export function enemyRobots(ctx: GameContext, owner: Owner): RobotEntity[] {
+  return robots(ctx.world).entities.filter((e) => isAlive(e) && isEnemy(owner, e.owner));
 }
 
 /** Living enemy bases relative to `owner`. */
-export function enemyBases(ctx: GameContext, owner: Owner): Entity[] {
-  return ctx.world.with('base', 'position').entities.filter((e) => (e.hp ?? 0) > 0 && isEnemy(owner, e.owner));
+export function enemyBases(ctx: GameContext, owner: Owner): BaseEntity[] {
+  return bases(ctx.world).entities.filter((e) => isAlive(e) && isEnemy(owner, e.owner));
 }
 
 /**
@@ -43,7 +71,7 @@ export function enemyBases(ctx: GameContext, owner: Owner): Entity[] {
  * mean every shot at the carrier incidentally killed the drone too. Free flight
  * is the only exposure — that is the trade the possession mechanic buys.
  */
-export function isTargetableDrone(e: Entity): boolean {
+export function isTargetableDrone(e: Entity): e is With<Entity, 'drone'> {
   return !!e.drone && (e.hp ?? 0) > 0 && !e.drone.possessedId;
 }
 
@@ -55,6 +83,10 @@ export function isTargetableDrone(e: Entity): boolean {
  * The two flyers deliberately wear different tags (see `Entity.munition`), and
  * every anti-air path keys off this instead, so adding a third flyer is one line
  * here rather than a hunt through the targeting, vision and combat systems.
+ *
+ * Stays a plain boolean rather than a type predicate: it spans two archetypes,
+ * and the arrays it filters are already typed by the queries that built them, so
+ * a guard would add a claim without adding information.
  */
 export function isAirTarget(e: Entity): boolean {
   if (e.munition) return (e.hp ?? 0) > 0;
@@ -62,32 +94,31 @@ export function isAirTarget(e: Entity): boolean {
 }
 
 /** Living, exposed enemy air relative to `owner` — observer drones and strike drones. */
-export function enemyAirTargets(ctx: GameContext, owner: Owner): Entity[] {
-  return [
-    ...ctx.world.with('drone', 'position').entities,
-    ...ctx.world.with('munition', 'position').entities,
-  ].filter((e) => isEnemy(owner, e.owner) && isAirTarget(e));
+export function enemyAirTargets(ctx: GameContext, owner: Owner): (DroneEntity | MunitionEntity)[] {
+  return [...drones(ctx.world).entities, ...munitions(ctx.world).entities].filter(
+    (e) => isEnemy(owner, e.owner) && isAirTarget(e),
+  );
 }
 
 /** This owner's own living base, if it still stands. */
-export function ownBase(ctx: GameContext, owner: Owner): Entity | undefined {
-  return ctx.world.with('base', 'position').entities.find((e) => e.owner === owner && (e.hp ?? 0) > 0);
+export function ownBase(ctx: GameContext, owner: Owner): BaseEntity | undefined {
+  return bases(ctx.world).entities.find((e) => e.owner === owner && isAlive(e));
 }
 
 /** Living enemy robots `owner`'s team currently has in sight (see `visionSystem`). */
-export function knownEnemyRobots(ctx: GameContext, owner: Owner): Entity[] {
+export function knownEnemyRobots(ctx: GameContext, owner: Owner): RobotEntity[] {
   const visible = ctx.intel[owner].visibleRobotIds;
   return enemyRobots(ctx, owner).filter((e) => visible.has(e.id));
 }
 
 /** Living enemy bases `owner`'s team has ever discovered (see `visionSystem`). */
-export function knownEnemyBases(ctx: GameContext, owner: Owner): Entity[] {
+export function knownEnemyBases(ctx: GameContext, owner: Owner): BaseEntity[] {
   const known = ctx.intel[owner].knownBaseIds;
   return enemyBases(ctx, owner).filter((e) => known.has(e.id));
 }
 
 /** Exposed enemy air `owner`'s team currently has in sight (see `visionSystem`). */
-export function knownEnemyAir(ctx: GameContext, owner: Owner): Entity[] {
+export function knownEnemyAir(ctx: GameContext, owner: Owner): (DroneEntity | MunitionEntity)[] {
   const visible = ctx.intel[owner].visibleAirIds;
   return enemyAirTargets(ctx, owner).filter((e) => visible.has(e.id));
 }
@@ -120,9 +151,9 @@ export function isKnownTo(ctx: GameContext, owner: Owner, target: Entity): boole
  * system because three of them need it: a bomb's blast, a projectile's collision
  * and a strike drone's approach must agree on where a base *begins*.
  */
-export function distanceToBase(p: Vec2, base: Entity): number {
-  const half = ((base.footprint ?? gameConfig.bases.footprintTiles) * gameConfig.grid.tilePx) / 2;
-  const bp = base.position!;
+export function distanceToBase(p: Vec2, base: BaseEntity): number {
+  const half = (base.footprint * gameConfig.grid.tilePx) / 2;
+  const bp = base.position;
   const cx = Math.max(bp.x - half, Math.min(p.x, bp.x + half));
   const cy = Math.max(bp.y - half, Math.min(p.y, bp.y + half));
   return distance(p.x, p.y, cx, cy);
@@ -149,12 +180,15 @@ export function worthShooting(shooter: Entity, target: Entity): boolean {
   return !target.base && !isDisabled(target);
 }
 
-/** Nearest entity (by position) to `from`, or undefined. */
-export function nearest(from: Vec2, list: Entity[]): Entity | undefined {
-  let best: Entity | undefined;
+/**
+ * Nearest entity (by position) to `from`, or undefined. Generic so the caller
+ * keeps its element type — picking the closest robot out of a list of robots
+ * hands back a robot, not an `Entity` the caller has to re-narrow.
+ */
+export function nearest<T extends Positioned>(from: Vec2, list: readonly T[]): T | undefined {
+  let best: T | undefined;
   let bestDist = Infinity;
   for (const e of list) {
-    if (!e.position) continue;
     const d = distance(from.x, from.y, e.position.x, e.position.y);
     if (d < bestDist) {
       bestDist = d;

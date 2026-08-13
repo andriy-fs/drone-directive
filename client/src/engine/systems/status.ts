@@ -1,3 +1,4 @@
+import type { With } from 'miniplex';
 import type { Entity } from '../ecs/entity';
 
 /**
@@ -17,8 +18,12 @@ import type { Entity } from '../ecs/entity';
  * `regenSystem`, which unlike `taskSystem` also walks bases.
  */
 
-/** Whether `e` is currently knocked out and must not act. */
-export function isDisabled(e: Entity): boolean {
+/**
+ * Whether `e` is currently knocked out and must not act. A running knock-out
+ * implies the component is there, so this narrows — `canRegen` below cannot,
+ * since it is *also* true when the lock is absent.
+ */
+export function isDisabled(e: Entity): e is With<Entity, 'disabled'> {
   return (e.disabled?.left ?? 0) > 0;
 }
 

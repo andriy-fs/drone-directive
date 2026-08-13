@@ -182,6 +182,9 @@ function isReachable(grid: ObstacleGrid, a: { tx: number; ty: number }, b: { tx:
     [-1, -1],
   ];
   while (queue.length) {
+    // Safe: guarded by `queue.length` on the line above. Not an entity-shape
+    // assertion — TS simply can't tie `shift()` to the loop condition.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const cur = queue.shift()!;
     if (cur.tx === b.tx && cur.ty === b.ty) return true;
     for (const [dx, dy] of dirs) {

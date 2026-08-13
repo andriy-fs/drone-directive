@@ -107,12 +107,16 @@ What's used, and where:
   function in `client/src/engine/ecs/factory.ts` (`spawnBase`, `spawnRobot`,
   `spawnDrone`, `spawnProjectile`, `spawnExplosion`) — each just builds a
   plain object literal with the relevant components and hands it to `add`.
-- **`world.with(...tags)`** — archetype queries. This is the main way systems
-  select entities, e.g. `ctx.world.with('robot', 'position', 'movement')` in
-  `movementSystem`, or `ctx.world.with('base', 'production')` in
-  `GameScene.enter`. TypeScript narrows the result to entities guaranteed to
-  have those components (`With<Entity, ...>`), so systems don't need optional
-  chaining on the fields they queried for.
+  `factory.ts` is the **only** caller of `world.add` in the codebase, which is
+  what the archetype layer below rests on.
+- **`world.with(...tags)`** — archetype queries, and the reason systems can read
+  `e.position.x` rather than `e.position!.x`: TypeScript narrows the result to
+  `With<Entity, ...>`, entities guaranteed to have those components.
+  Systems never call it inline. They go through
+  `client/src/engine/ecs/queries.ts`, which declares each query once and returns
+  it typed as a named archetype from `client/src/engine/ecs/archetypes.ts`
+  (`Query<RobotEntity>`, `Query<ShieldedBase>`, …). See "The archetype layer"
+  below for why those queries ask for the *full* spawner shape.
 - **`world.remove(entity)`** — used by `reapSystem` / `explosionSystem` /
   `munitionSystem` / projectile TTL expiry to delete dead robots, spent
   projectiles, downed strike drones, and expired explosion effects from the
@@ -122,8 +126,8 @@ What's used, and where:
   `clearWorld(world)`).
 - **Reactive queries — `query.onEntityAdded` / `query.onEntityRemoved`** —
   used _outside_ the engine, in the Pixi bridge
-  (`client/src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds seven `world.with(...)`
-  queries (bases/robots/projectiles/explosions/drones/strike drones, plus bases
+  (`client/src/pixi/render/WorldRenderer.ts`). `WorldRenderer` holds seven
+  archetype-typed queries (from the same `ecs/queries.ts`) (bases/robots/projectiles/explosions/drones/strike drones, plus bases
   whose energy dome is currently up) and subscribes to their
   add/remove events to create/destroy the matching Pixi view object
   (`BaseView`/`RobotView`/etc.) exactly when an entity enters/leaves that
@@ -137,6 +141,61 @@ globals: resources, obstacles/nav grid, rng, AI/intel state, fog, drone
 input), the `Scene`/`SceneManager` lifecycle, and the `EventBus` — is
 hand-written, not part of miniplex; miniplex's job stops at "store entities,
 query by component presence, notify on membership change."
+
+## The archetype layer
+
+`Entity` is a flat bag of ~30 optional components. That is what miniplex's
+`World<E>` needs, and it is what lets `world.addComponent` bolt a dome onto a
+base mid-match — but on its own it made every system assert what it had already
+selected for. The engine and the Pixi bridge together carried **213 non-null
+assertions**, and the handful that guarded a real risk looked exactly like the
+~180 that were pure noise.
+
+Three files fix that without changing the storage model:
+
+- **`ecs/archetypes.ts`** — one named shape per entity kind (`RobotEntity`,
+  `BaseEntity`, `DroneEntity`, `MunitionEntity`, `ProjectileEntity`,
+  `ExplosionEntity`), plus the facets a kind-agnostic helper wants
+  (`Positioned`, `Owned`, `Living`, `Navigable`), the `Shooter` union and
+  `ShieldedBase`. Each is `With<Entity, (typeof X_KEYS)[number]>` over a key
+  tuple copied from the matching spawner.
+- **`ecs/queries.ts`** — each archetype query declared once. `World.with()`
+  already "creates (or reuses)" a cached query, so these are plain functions
+  rather than a registry object with its own lifecycle.
+- **`ecs/guards.ts`** — `isRobot`/`isBase`/… derived from the *same* key tuples,
+  so a guard can never claim more than it checks. Only for `findById`, the one
+  lookup whose result really is of unknown shape.
+
+### Why the queries ask for the whole spawner shape
+
+`with('robot', 'position', 'movement')` narrows to three components — not to a
+robot. Closing that gap with a cast would put the assertions back, one per
+query instead of one per read. Instead the queries ask for **every** key the
+spawner sets, which selects exactly the same entities:
+
+1. `factory.ts` is the only caller of `world.add`.
+2. The only components ever attached or detached afterwards are `shield` and
+   `shieldSpent`, in `systems/shield.ts`.
+
+So an entity's component set is fixed at spawn, no robot has ever lacked
+`weapon` or `script`, and widening is behaviour-neutral **by construction**.
+What it buys is that the return type in `queries.ts` is *checked* by the
+compiler rather than asserted — there is no `as` anywhere in the chain, and
+none left in `WorldRenderer` either. The factory annotations close the loop:
+`add<D extends E>(entity: D)` infers `D` from the object literal, so a spawner
+that forgets a field fails to compile, and the key tuples cannot drift.
+
+**Adding a component:** if it can come and go mid-match, it must *not* join a
+key tuple. Give it an intersection type and its own query, the way
+`ShieldedBase` handles the dome — otherwise the query silently stops matching
+the entities that lack it.
+
+`@typescript-eslint/no-non-null-assertion` is enabled for
+`client/src/engine/**` and `client/src/pixi/**` (tests excluded, since they poke
+fields on deliberately wide `Entity` handles so a broken schema cannot hide
+behind an archetype). That rule is the ratchet: a new `!` there means the wrong
+type was reached for — take the entity from a query, type the helper with the
+archetype its caller already has, or use a guard.
 
 ## Why the EventBus, alongside the store
 

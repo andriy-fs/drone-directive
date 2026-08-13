@@ -1,4 +1,5 @@
-import { gameConfig } from '../config/gameConfig';
+import { isAlive } from './ecs/guards';
+import { bases } from './ecs/queries';
 import type { GameContext } from './game/context';
 import { withBaseFootprints } from './obstacles';
 
@@ -8,12 +9,8 @@ import { withBaseFootprints } from './obstacles';
  * Call after bases spawn (match start) and whenever a base dies (`reap`).
  */
 export function refreshNavObstacles(ctx: GameContext): void {
-  const bases = ctx.world
-    .with('base', 'position')
-    .entities.filter((b) => (b.hp ?? 0) > 0)
-    .map((b) => ({
-      position: b.position!,
-      footprint: b.footprint ?? gameConfig.bases.footprintTiles,
-    }));
-  ctx.navObstacles = withBaseFootprints(ctx.obstacles, bases);
+  const living = bases(ctx.world)
+    .entities.filter(isAlive)
+    .map((b) => ({ position: b.position, footprint: b.footprint }));
+  ctx.navObstacles = withBaseFootprints(ctx.obstacles, living);
 }

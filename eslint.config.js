@@ -28,6 +28,24 @@ export default defineConfig([
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
   },
   {
+    /**
+     * The ratchet on the ECS archetype layer. `engine/ecs/archetypes.ts` gives
+     * every entity kind a named shape and `engine/ecs/queries.ts` hands each
+     * query back already narrowed, so a system reading `e.position` needs no
+     * assertion — the query it came from established that. Before that layer
+     * existed there were 213 `!` in these two directories, and the ones hiding a
+     * real risk (an id lookup that could return anything) were indistinguishable
+     * from the ~180 that were pure noise. This rule is what keeps them apart.
+     *
+     * Tests are exempt: they poke fields on deliberately wide `Entity` handles so
+     * a broken schema can't hide behind an archetype. Not on by default — the
+     * rule lives in typescript-eslint's `strict` preset, not `recommended`.
+     */
+    files: ['client/src/engine/**/*.ts', 'client/src/pixi/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: { '@typescript-eslint/no-non-null-assertion': 'error' },
+  },
+  {
     // The relay runs on Cloudflare Workers, not in a browser tab.
     files: ['server/**/*.ts'],
     languageOptions: {

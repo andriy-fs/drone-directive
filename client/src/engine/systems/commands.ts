@@ -3,14 +3,15 @@ import type { Command } from '@drone-directive/types/commands';
 import type { Vec2 } from '@drone-directive/types/entities';
 import type { Owner } from '@drone-directive/types/enums';
 import { clamp } from '../../utils/math';
-import type { Entity } from '../ecs/entity';
+import type { RobotEntity } from '../ecs/archetypes';
+import { isAlive } from '../ecs/guards';
 import { buildCost, canAfford, spend } from '../economy';
 import type { GameContext } from '../game/context';
 import { isTaskBlockedForWeapon, makeAttackTarget, makeIdle, scriptForTask } from '../tasks/taskDefinitions';
 import { setGoal } from './movement';
 import { atRobotCap } from './production';
 import { raiseShield } from './shield';
-import { findById } from './targeting';
+import { baseById, findById, livingRobotById, robotById } from './targeting';
 
 /**
  * True when every entity a command *acts on* belongs to `side`. Commands are
@@ -47,17 +48,17 @@ export function commandsSystem(ctx: GameContext): void {
 function applyCommand(ctx: GameContext, command: Command): void {
   switch (command.kind) {
     case 'AssignTask': {
-      const robot = findById(ctx, command.robotId);
+      const robot = robotById(ctx, command.robotId);
       // A radar has no weapon to attack with — refuse the order and leave its
       // current directive untouched, rather than march it uselessly forward.
-      if (robot?.robot && robot.position && !isTaskBlockedForWeapon(robot.weaponType, command.task)) {
+      if (robot && !isTaskBlockedForWeapon(robot.weaponType, command.task)) {
         robot.script = scriptForTask(robot.position, command.task);
       }
       break;
     }
     case 'BuildRobot': {
-      const base = findById(ctx, command.baseId);
-      if (!base?.base || !base.production || !base.owner) break;
+      const base = baseById(ctx, command.baseId);
+      if (!base) break;
       if (atRobotCap(ctx, base.owner)) break; // at the per-side cap
       const cost = buildCost(command.order);
       if (!canAfford(ctx.resources, base.owner, cost)) break;
@@ -66,21 +67,19 @@ function applyCommand(ctx: GameContext, command: Command): void {
       break;
     }
     case 'SetAutoBuild': {
-      const base = findById(ctx, command.baseId);
-      if (base?.production) base.production.autoBuild = command.order;
+      const base = baseById(ctx, command.baseId);
+      if (base) base.production.autoBuild = command.order;
       break;
     }
     case 'MoveRobots': {
-      const robots = command.robotIds
-        .map((id) => findById(ctx, id))
-        .filter((e): e is Entity => !!e?.robot && (e.hp ?? 0) > 0 && !!e.position);
+      const robots = command.robotIds.map((id) => livingRobotById(ctx, id)).filter((e) => e !== undefined);
       moveInFormation(ctx, robots, command.point);
       break;
     }
     case 'AttackTarget': {
       for (const id of command.robotIds) {
-        const robot = findById(ctx, id);
-        if (robot?.robot && (robot.hp ?? 0) > 0) {
+        const robot = livingRobotById(ctx, id);
+        if (robot) {
           robot.script = makeAttackTarget(command.targetId);
           robot.targetId = undefined;
         }
@@ -88,8 +87,8 @@ function applyCommand(ctx: GameContext, command: Command): void {
       break;
     }
     case 'SetRallyPoint': {
-      const base = findById(ctx, command.baseId);
-      if (!base?.production) break;
+      const base = baseById(ctx, command.baseId);
+      if (!base) break;
       // Clamped here rather than trusted: only the online path runs commands
       // through the wire validator, so solo play has no bound on the point.
       base.production.rally = command.point
@@ -101,21 +100,21 @@ function applyCommand(ctx: GameContext, command: Command): void {
       break;
     }
     case 'ActivateShield': {
-      const base = findById(ctx, command.baseId);
+      const base = baseById(ctx, command.baseId);
       // Only what a check on world state can settle: it exists, it is a base, it
       // is alive — `raiseShield` owns the remaining "and the charge is unspent".
       // The threat condition the HUD gates the button on is deliberately NOT
       // re-checked here (see the command's doc in `@drone-directive/types`), and
       // ownership is `isCommandFrom`'s job, applied by the app bridge before
       // anything reaches this queue — in solo play too.
-      if (base?.base && (base.hp ?? 0) > 0) raiseShield(ctx, base);
+      if (base && isAlive(base)) raiseShield(ctx, base);
       break;
     }
   }
 }
 
 /** Moves `robots` to `point` in a compact grid formation (shared move-order logic). */
-function moveInFormation(ctx: GameContext, robots: Entity[], point: Vec2): void {
+function moveInFormation(ctx: GameContext, robots: RobotEntity[], point: Vec2): void {
   const cols = Math.ceil(Math.sqrt(robots.length));
   const rows = Math.ceil(robots.length / cols);
   const spacing = gameConfig.grid.tilePx * 1.2;
