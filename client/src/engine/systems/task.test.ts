@@ -405,8 +405,10 @@ describe('taskSystem — anti-air is a last resort', () => {
     openGround(ctx);
     const aa = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Missiles);
     aa.script = { programId: TaskType.Idle, blackboard: {} };
-    // Inside the wheels chassis's 230px sight, well beyond the 170px missile range.
-    spawnDrone(ctx.world, Owner.AI, { x: 600, y: 400 });
+    // Beyond the 255 px missile range — and lit for the side by a radar hull, since
+    // the missile now reaches further than any chassis can see on its own.
+    spawnRobot(ctx.world, Owner.Player, { x: 660, y: 400 }, ChassisType.Wheels, WeaponType.Radar);
+    spawnDrone(ctx.world, Owner.AI, { x: 700, y: 400 });
 
     visionSystem(ctx);
     taskSystem(ctx, DT);
@@ -494,9 +496,9 @@ describe('taskSystem — the directed-energy knock-out', () => {
   it('but does not chase one that is out of range — idle still holds position', () => {
     const ctx = makeCtx(2);
     openGround(ctx);
-    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
-    // Inside the tracks hull's 190px sight, well outside the cannon's 120px reach.
-    const foe = spawnRobot(ctx.world, Owner.AI, { x: 560, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Legs, WeaponType.Cannon);
+    // Inside the legs hull's 210px sight, outside the cannon's 180px reach.
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 595, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
     foe.disabled = { left: 8 };
 
     visionSystem(ctx);
@@ -688,13 +690,15 @@ describe('taskSystem — the base battery picks its own target', () => {
   it('leaves an enemy outside its range alone even though it can see it', () => {
     const ctx = makeCtx(3);
     const { base, at } = stage(ctx);
-    // Inside the base's 260 px sight, outside the battery's reach.
+    // Beyond the battery's reach. The battery now outranges the base's own 260 px
+    // sight, so the sighting has to come from somewhere — a picket parked next to
+    // the foe, which is exactly how the range surplus is meant to be used.
     const foe = spawnRobot(ctx.world, Owner.AI, at(RANGE + 40), ChassisType.Tracks, WeaponType.Cannon);
+    spawnRobot(ctx.world, Owner.Player, at(RANGE + 20), ChassisType.Wheels, WeaponType.Radar);
 
     resolve(ctx);
 
-    expect(gameConfig.bases.sightRange).toBeGreaterThan(RANGE); // the premise of the test
-    expect(ctx.intel[Owner.Player].visibleRobotIds.has(foe.id)).toBe(true);
+    expect(ctx.intel[Owner.Player].visibleRobotIds.has(foe.id)).toBe(true); // the premise of the test
     expect(base.targetId).toBeUndefined();
   });
 

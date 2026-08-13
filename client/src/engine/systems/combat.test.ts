@@ -6,6 +6,7 @@ import { spawnBase, spawnDrone, spawnProjectile, spawnRobot } from '../ecs/facto
 import type { GameContext } from '../game/context';
 import { tileOf } from '../obstacles';
 import { combatSystem } from './combat';
+import { visionSystem } from './vision';
 import { raiseShield } from './shield';
 import { makeCtx } from './testkit';
 
@@ -140,9 +141,21 @@ describe('combatSystem — anti-air', () => {
 
 const DEW = gameConfig.robots.weapons.dew;
 
-/** Runs the system until `done()` holds, or fails the test after `ticks` steps. */
+/**
+ * One tick the way `gameScene` runs it: vision resolves *before* combat, because
+ * a shooter only fires at what its own side can see (`isKnownTo` in `fireWeapon`).
+ * Any test where something pulls a trigger has to go through this; the ones that
+ * hand-write `ctx.intel` to stage a recon case call `combatSystem` directly, so
+ * this pass cannot overwrite what they set up.
+ */
+function tick(ctx: GameContext): void {
+  visionSystem(ctx);
+  combatSystem(ctx, DT);
+}
+
+/** Runs the tick until `done()` holds, or fails the test after `ticks` steps. */
 function runUntil(ctx: GameContext, done: () => boolean, ticks = 30): void {
-  for (let i = 0; i < ticks && !done(); i++) combatSystem(ctx, DT);
+  for (let i = 0; i < ticks && !done(); i++) tick(ctx);
   expect(done()).toBe(true);
 }
 
@@ -154,7 +167,7 @@ describe('combatSystem — directed-energy weapon', () => {
     const foe = spawnRobot(ctx.world, Owner.AI, { x: 460, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
     shooter.targetId = foe.id;
 
-    combatSystem(ctx, DT);
+    tick(ctx);
 
     expect(ctx.world.with('projectile').entities.length).toBe(1);
     expect(shooter.weapon!.cooldownLeft).toBe(DEW.cooldown);
@@ -283,7 +296,7 @@ describe('combatSystem — the base battery', () => {
     // Just under one reload: exactly one round should have left the tube.
     let fired = 0;
     ctx.bus.on('projectileFired', () => (fired += 1));
-    for (let i = 0; i < Math.floor(MISSILES.cooldown / DT); i++) combatSystem(ctx, DT);
+    for (let i = 0; i < Math.floor(MISSILES.cooldown / DT); i++) tick(ctx);
 
     expect(fired).toBe(1);
   });
@@ -349,7 +362,7 @@ describe('combatSystem — a base under its energy dome', () => {
     bomb.targetId = base.id;
     const bystander = spawnRobot(ctx.world, Owner.AI, at(60), ChassisType.Tracks, WeaponType.Cannon);
 
-    combatSystem(ctx, DT);
+    tick(ctx);
 
     expect(base.hp).toBe(base.maxHp);
     expect(base.shield!.hp).toBe(DOME.hp - gameConfig.robots.weapons.bomb.damage);
@@ -539,5 +552,74 @@ describe('combatSystem — the two things that must stop an FPV salvo', () => {
     combatSystem(ctx, DT);
 
     expect(ctx.world.with('munition').entities.length).toBe(FPV.salvo);
+  });
+});
+
+describe('combatSystem — reach beyond a hull’s own eyes', () => {
+  const MISSILES = gameConfig.robots.weapons.missiles;
+  const WHEELS = gameConfig.robots.chassis.wheels;
+
+  /** A missile hull and a foe standing inside its reach but outside its own sight. */
+  function stageSpotting(ctx: GameContext) {
+    openGround(ctx);
+    const shooter = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Missiles);
+    const gap = (MISSILES.range + WHEELS.sight) / 2; // the surplus the spotter pays for
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 400 + gap, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    shooter.targetId = foe.id;
+    return { shooter, foe };
+  }
+
+  it('the surplus exists at all: the missile outreaches every chassis', () => {
+    // The premise of the two tests below — and the thing that makes the recon gate
+    // load-bearing for an ordinary weapon rather than only for the FPV carrier.
+    const widest = Math.max(...Object.values(gameConfig.robots.chassis).map((c) => c.sight));
+    expect(MISSILES.range).toBeGreaterThan(widest);
+  });
+
+  it('holds fire on a target nobody on its side can see', () => {
+    const ctx = makeCtx(1);
+    const { shooter } = stageSpotting(ctx);
+
+    // Vision resolved honestly: the foe is past this hull's own sight and there is
+    // no one else to light it.
+    tick(ctx);
+
+    expect(ctx.world.with('projectile').entities.length).toBe(0);
+    expect(shooter.weapon!.cooldownLeft).toBe(0); // and the reload is not burned on nothing
+  });
+
+  it('fires the moment an ally lights the target', () => {
+    const ctx = makeCtx(1);
+    const { shooter, foe } = stageSpotting(ctx);
+    // A radar picket parked on top of the foe — the intended use of the surplus.
+    spawnRobot(ctx.world, Owner.Player, { x: foe.position!.x, y: foe.position!.y }, ChassisType.Wheels, WeaponType.Radar);
+
+    tick(ctx);
+
+    expect(ctx.intel[Owner.Player].visibleRobotIds.has(foe.id)).toBe(true);
+    expect(ctx.world.with('projectile').entities.length).toBe(1);
+    expect(shooter.weapon!.cooldownLeft).toBe(MISSILES.cooldown);
+  });
+});
+
+describe('combatSystem — the kamikaze detonates inside its own blast', () => {
+  const BOMB = gameConfig.robots.weapons.bomb;
+
+  it('takes the target and what stands behind it, at the full trigger distance', () => {
+    // The pair `range`/`explosionRadius` has to stay ordered: the trigger is
+    // measured centre-to-centre, so a radius at or under `range` would blow up on
+    // the rim of the blast and clip the aimed target alone.
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const bomb = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Bomb);
+    const target = spawnRobot(ctx.world, Owner.AI, { x: 400 + BOMB.range, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const behind = spawnRobot(ctx.world, Owner.AI, { x: 400 + BOMB.range + 25, y: 400 }, ChassisType.Legs, WeaponType.Cannon);
+    bomb.targetId = target.id;
+
+    tick(ctx);
+
+    expect(target.hp!).toBeLessThanOrEqual(0);
+    expect(behind.hp!).toBeLessThanOrEqual(0);
+    expect(bomb.hp!).toBeLessThanOrEqual(0); // spent itself, as a kamikaze must
   });
 });

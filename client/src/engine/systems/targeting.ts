@@ -124,15 +124,16 @@ export function knownEnemyAir(ctx: GameContext, owner: Owner): (DroneEntity | Mu
 }
 
 /**
- * Whether `owner`'s team has eyes on `target` **right now** — the gate on
- * launching a salvo (see `fireWeapon`). Everything else in the engine gets this
- * for free by picking targets through the `known*` helpers above; a salvo needs
- * it stated outright because a player's explicit `AttackTarget` order and manual
- * fire from a possessed hull both bypass target *selection*, and a weapon that
- * reaches the whole map would otherwise shell things nobody is looking at.
+ * Whether `owner`'s team has eyes on `target` **right now** — the gate every
+ * weapon passes before it fires (see `fireWeapon`). Automatic target *selection*
+ * already provides this by going through the `known*` helpers above; the gate is
+ * stated outright because two paths bypass selection — a player's explicit
+ * `AttackTarget` order and manual fire from a possessed hull — and because reach
+ * beyond a hull's own `sight` (`missiles` at 255 against a 230 chassis, `fpv` at
+ * map scale) would otherwise be a licence to shell the fog.
  *
  * **Bases read `visibleBaseIds`, not `knownBaseIds`.** That distinction is the
- * whole point of this function: `knownBaseIds` only ever grows, so a carrier
+ * whole point of this function: `knownBaseIds` only ever grows, so a shooter
  * gated on it would fire on the enemy base forever after one glimpse early in
  * the match — the reconnaissance requirement, which is the *only* thing bounding
  * a 4000-range weapon, would quietly switch itself off.
