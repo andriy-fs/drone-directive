@@ -2,6 +2,11 @@
  * Placeholder colours. Everything is a coloured shape until real art lands, so
  * all colour choices live here and are keyed by role. Values are 0xRRGGBB ints
  * (the form Pixi's Graphics fill/stroke APIs expect).
+ *
+ * **`weapon` is the exception to "placeholder".** Those seven are the colour code
+ * the *art* is authored against as well — `.docs/sprites/weapons.md` quotes this
+ * table, so a change here is a change to the sprite briefs and means regenerating
+ * the modules. Everything else in this file is free to move on its own.
  */
 export const palette = {
   background: 0x0d1117,
@@ -34,6 +39,46 @@ export const palette = {
   blast: {
     /** Kamikaze blast-radius ring, shown on every bomb-armed robot, both sides. */
     zone: 0xef4444,
+  },
+  /**
+   * **Which gun a robot carries, told by colour.** A weapon module is drawn 30 px
+   * wide and the camera has no zoom, so that is the only size a player ever sees
+   * it at — and a 64:1 downscale of the master averages fine detail away while
+   * preserving mean colour exactly. Colour is therefore the highest-fidelity
+   * channel left at that size, and these seven are what it carries.
+   *
+   * Two rules govern the values, and both are load-bearing:
+   *
+   * 1. **Muted, "material" tones only.** The saturated part of the wheel is spoken
+   *    for by *state* elsewhere in this file (`order.attack`, `selection.ring`,
+   *    `vision.spotted`, `status.disabled`, `opponents`). A permanent property of
+   *    a unit must not wear the colour of a passing one, or "this robot has a
+   *    cannon" reads as "this robot is under attack".
+   * 2. **Spread by lightness, not just hue.** Roughly 8% of men cannot separate
+   *    red from green, so the ladder below (dew brightest → missiles darkest) is
+   *    the fallback channel, and the grayscale check in the sprite briefs is what
+   *    proves it still holds.
+   *
+   * `dew` deliberately shares its cold white-blue with `status.disabled`: that is
+   * the weapon and the effect it inflicts, and they *should* rhyme.
+   */
+  weapon: {
+    /** Brass barrel and breech — the plain workhorse gun. */
+    cannon: 0xc8a34a,
+    /** Oxidised brick-red launch tubes; the darkest module, as befits the heaviest. */
+    missiles: 0xa8543a,
+    /** Hazard chevrons on the kamikaze payload — the only *striped* module in the set. */
+    bomb: 0xe0b13c,
+    /** The black half of the bomb's chevrons; paired with `bomb`, never used alone. */
+    bombStripe: 0x1a1a1a,
+    /** Pale jade dish enamel — a sensor, and the lightest thing on the field after `dew`. */
+    radar: 0xa9dcc8,
+    /** Plum dielectric on the jammer's aerials. */
+    ew: 0x8a72ab,
+    /** Ice white-blue plasma over the emitter coils; the brightest module. */
+    dew: 0xd8eef7,
+    /** Matte olive-drab canister of the FPV carrier. */
+    fpv: 0x7d8452,
   },
   /**
    * The one-shot energy dome over a base (`pixi/render/ShieldDomeView.ts`). Only

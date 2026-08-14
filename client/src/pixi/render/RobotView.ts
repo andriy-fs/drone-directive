@@ -4,6 +4,7 @@ import { palette } from '../../config/palette';
 import type { RobotEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
 import { ChassisType, WeaponType } from '@drone-directive/types/enums';
+import { WEAPON_TARGET } from '../../config/sprites';
 import { getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
@@ -76,7 +77,13 @@ export class RobotView {
       this.body.addChild(drawBody(robot, r, !weaponSprite));
     }
 
-    if (weaponSprite) this.body.addChild(weaponModule(weaponSprite, tint));
+    // Note what is *not* passed here: the team tint. Every module is authored in
+    // its weapon's colour (`palette.weapon`) over neutral gunmetal, and
+    // multiplying that by a side colour would destroy the one channel that
+    // survives the downscale to 30 px — for sides `AI2`/`AI3` specifically, which
+    // is exactly where telling a cannon from a jammer matters most. The tinted
+    // chassis under it still says whose it is.
+    if (weaponSprite) this.body.addChild(weaponModule(weaponSprite));
 
     this.ring = new Graphics();
     this.ring.circle(0, 0, outerRadius + 5).stroke({ width: 2, color: palette.selection.ring });
@@ -177,24 +184,29 @@ export class RobotView {
   }
 }
 
-/** A weapon-module sprite centred on the robot's hardpoint (over the chassis). */
-function weaponModule(sprite: ResolvedSprite, tint?: number): Sprite {
+/**
+ * A weapon-module sprite centred on the robot's hardpoint (over the chassis).
+ * Untinted by design — see the call site.
+ */
+function weaponModule(sprite: ResolvedSprite): Sprite {
   const { texture, def } = sprite;
-  const target = def.targetSize ?? gameConfig.grid.tilePx * 0.7;
+  const target = def.targetSize ?? WEAPON_TARGET;
   const dim = Math.max(texture.width, texture.height) || target;
   const img = new Sprite(texture);
   img.anchor.set(0.5);
   img.scale.set(target / dim);
   img.rotation = def.rotationOffset ?? 0;
-  if (tint !== undefined) img.tint = tint;
   return img;
 }
+
+/** Dark outline shared by the placeholder hull and the weapon marker drawn on it. */
+const OUTLINE = { width: 2, color: 0x0b0e13 } as const;
 
 /** Placeholder chassis body; `drawWeapon` draws the weapon marker (skipped when a module sprite covers it). */
 function drawBody(robot: RobotEntity, r: number, drawWeapon: boolean): Graphics {
   const g = new Graphics();
   const color = ownerColor(robot.owner);
-  const stroke = { width: 2, color: 0x0b0e13 } as const;
+  const stroke = OUTLINE;
 
   switch (robot.chassis) {
     case ChassisType.Wheels:
@@ -219,52 +231,80 @@ function drawBody(robot: RobotEntity, r: number, drawWeapon: boolean): Graphics 
       break;
   }
 
-  if (drawWeapon) {
-    switch (robot.weaponType) {
-      case WeaponType.Cannon:
-        g.rect(r * 0.3, -2, r * 0.9, 4).fill(0x0b0e13);
-        break;
-      case WeaponType.Missiles:
-        g.circle(r * 0.5, -4, 2)
-          .circle(r * 0.5, 4, 2)
-          .fill(0x0b0e13);
-        break;
-      case WeaponType.Bomb:
-        // Warning-red core marking the kamikaze payload.
-        g.circle(0, 0, r * 0.42)
-          .fill(0xef4444)
-          .stroke({ width: 1.5, color: 0x0b0e13 });
-        break;
-      case WeaponType.Radar:
-        // Concentric "dish" arcs signalling the spotter.
-        g.circle(0, 0, r * 0.3)
-          .circle(0, 0, r * 0.6)
-          .stroke({ width: 1.5, color: 0x0b0e13 });
-        break;
-      case WeaponType.Ew:
-        // Crossed jammer mast: an X over the hull signalling the EW aura.
-        g.moveTo(-r * 0.45, -r * 0.45)
-          .lineTo(r * 0.45, r * 0.45)
-          .moveTo(-r * 0.45, r * 0.45)
-          .lineTo(r * 0.45, -r * 0.45)
-          .stroke({ width: 1.5, color: 0x0b0e13 });
-        break;
-      case WeaponType.Dew:
-        // Emitter coil + a discharge bolt across it — deliberately unlike the
-        // EW mast's X, since one jams sight and the other knocks a hull out.
-        g.circle(0, 0, r * 0.5)
-          .stroke({ width: 1.5, color: 0x0b0e13 })
-          .moveTo(-r * 0.3, -r * 0.5)
-          .lineTo(r * 0.08, -r * 0.05)
-          .lineTo(-r * 0.14, r * 0.05)
-          .lineTo(r * 0.28, r * 0.5)
-          .stroke({ width: 1.5, color: 0x0b0e13 });
-        break;
-      default:
-        break;
-    }
-  }
+  if (drawWeapon) drawWeaponMarker(g, robot.weaponType, r);
 
   g.poly([r + 3, 0, r - 1, -3, r - 1, 3]).fill({ color: 0xffffff, alpha: 0.85 });
   return g;
+}
+
+/**
+ * The weapon marker on a placeholder hull — the fallback for when a module's art
+ * is missing or failed to load.
+ *
+ * It follows the same two rules the real modules are authored under (see
+ * `palette.weapon` and `.docs/sprites/weapons.md`), because the point of a
+ * fallback is that the player reads it the same way: **one dominant shape in the
+ * weapon's own colour**, no more than three forms, nothing thinner than the dark
+ * outline around it. The older version of this drew every marker in the same near
+ * black at one or two px, which at this size averaged into an indistinct smudge —
+ * precisely the failure the colour code exists to fix.
+ */
+function drawWeaponMarker(g: Graphics, weapon: WeaponType | undefined, r: number): void {
+  switch (weapon) {
+    case WeaponType.Cannon:
+      // A single brass barrel down the heading — the only marker with a "front".
+      g.roundRect(-r * 0.15, -r * 0.2, r * 1.15, r * 0.4, r * 0.12).fill(palette.weapon.cannon).stroke(OUTLINE);
+      break;
+    case WeaponType.Missiles:
+      // Two fat launch tubes, side by side and pointing where the hull points.
+      g.roundRect(-r * 0.2, -r * 0.62, r * 0.95, r * 0.42, r * 0.1)
+        .roundRect(-r * 0.2, r * 0.2, r * 0.95, r * 0.42, r * 0.1)
+        .fill(palette.weapon.missiles)
+        .stroke(OUTLINE);
+      break;
+    case WeaponType.Bomb:
+      // The one striped marker in the set: hazard chevrons over the payload.
+      g.circle(0, 0, r * 0.55).fill(palette.weapon.bomb).stroke(OUTLINE);
+      g.rect(-r * 0.55, -r * 0.14, r * 1.1, r * 0.28)
+        .rect(-r * 0.14, -r * 0.55, r * 0.28, r * 1.1)
+        .fill(palette.weapon.bombStripe);
+      break;
+    case WeaponType.Radar:
+      // One big pale dish filling most of the hardpoint — a listener, not a gun.
+      g.circle(0, 0, r * 0.58).fill(palette.weapon.radar).stroke(OUTLINE);
+      break;
+    case WeaponType.Ew:
+      // A plum antenna cross that broadcasts static. Thick, so it survives at size.
+      g.moveTo(-r * 0.6, -r * 0.6)
+        .lineTo(r * 0.6, r * 0.6)
+        .moveTo(-r * 0.6, r * 0.6)
+        .lineTo(r * 0.6, -r * 0.6)
+        .stroke({ width: r * 0.28, color: palette.weapon.ew });
+      break;
+    case WeaponType.Dew:
+      // An ice-bright emitter ring with a bolt across it — deliberately unlike the
+      // EW cross, since one jams sight and the other knocks a hull out.
+      g.circle(0, 0, r * 0.5).stroke({ width: r * 0.24, color: palette.weapon.dew });
+      g.moveTo(-r * 0.35, -r * 0.55)
+        .lineTo(r * 0.1, 0)
+        .lineTo(-r * 0.1, 0)
+        .lineTo(r * 0.35, r * 0.55)
+        .stroke({ width: r * 0.16, color: palette.weapon.dew });
+      break;
+    case WeaponType.Fpv:
+      // An olive canister perforated by five launch cells — the salvo size is the
+      // read, matching what the module art shows.
+      g.roundRect(-r * 0.55, -r * 0.55, r * 1.1, r * 1.1, r * 0.22)
+        .fill(palette.weapon.fpv)
+        .stroke(OUTLINE);
+      g.circle(0, 0, r * 0.16)
+        .circle(-r * 0.3, -r * 0.3, r * 0.16)
+        .circle(r * 0.3, -r * 0.3, r * 0.16)
+        .circle(-r * 0.3, r * 0.3, r * 0.16)
+        .circle(r * 0.3, r * 0.3, r * 0.16)
+        .fill(0x0b0e13);
+      break;
+    default:
+      break;
+  }
 }

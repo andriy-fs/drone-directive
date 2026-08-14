@@ -874,3 +874,45 @@ describe('taskSystem — a carrier does not queue up on a target already killed'
     expect(carrier.targetId).toBe(doomed.id);
   });
 });
+
+describe('taskSystem — closing on a base the side has found but cannot see', () => {
+  /** A missile hull ordered onto a base it discovered earlier and no longer watches. */
+  function stage(ctx: GameContext, gap: number) {
+    openGround(ctx);
+    const base = spawnBase(ctx.world, Owner.AI, 20, 20);
+    const robot = spawnRobot(
+      ctx.world,
+      Owner.Player,
+      { x: base.position!.x - gap, y: base.position!.y },
+      ChassisType.Wheels,
+      WeaponType.Missiles,
+    );
+    robot.script = { programId: TaskType.AttackBase, blackboard: {} };
+    ctx.intel.player.knownBaseIds = new Set([base.id]);
+    ctx.intel.player.visibleBaseIds = new Set();
+    return { robot, base };
+  }
+
+  it('keeps advancing while the base is in reach but out of sight', () => {
+    // The regression this guards: the missile outreaches the hull's own sight, so
+    // "in range" arrived before "can see it". The robot held — in range, so no
+    // reason to move — and never fired, because nothing was watching the target.
+    const ctx = makeCtx(1);
+    const { robot } = stage(ctx, gameConfig.robots.weapons.missiles.range - 10);
+
+    taskSystem(ctx, DT);
+
+    expect(robot.movement!.goal).toBeDefined();
+  });
+
+  it('stops and fires as soon as it can see it', () => {
+    const ctx = makeCtx(1);
+    const { robot, base } = stage(ctx, gameConfig.robots.weapons.missiles.range - 10);
+    ctx.intel.player.visibleBaseIds = new Set([base.id]);
+
+    taskSystem(ctx, DT);
+
+    expect(robot.movement!.goal).toBeUndefined();
+    expect(robot.targetId).toBe(base.id);
+  });
+});

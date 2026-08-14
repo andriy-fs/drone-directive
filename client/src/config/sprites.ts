@@ -26,8 +26,17 @@ export interface SpriteDef {
 const ROBOT_TARGET = 46;
 /** On-field size (px) for a base; matches the 3-tile (96 px) footprint. */
 const BASE_TARGET = 96;
-/** On-field size (px) for a weapon module overlaid on a robot's hardpoint. */
-const WEAPON_TARGET = 24;
+/**
+ * On-field size (px) for a weapon module overlaid on a robot's hardpoint.
+ *
+ * Two thirds of the 46 px chassis: big enough to carry its weapon-role colour and
+ * three or four legible shapes (see `palette.weapon` and
+ * `.docs/sprites/weapons.md`), small enough to still read as a part bolted onto a
+ * hull rather than a second unit sitting on it. The camera has no zoom, so this
+ * is not a starting size — it is the *only* size the module is ever seen at, and
+ * the art is composed against it.
+ */
+export const WEAPON_TARGET = 30;
 /** On-field diameter (px) for the observer drone — a light recon flyer, a touch smaller than a robot. */
 const DRONE_TARGET = 40;
 /**

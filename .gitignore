@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .tmp
+tmp
 .wrangler
 
 # Editor directories and files
