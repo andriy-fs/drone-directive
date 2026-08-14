@@ -49,6 +49,8 @@ export const initialState: GameStateFields = {
     maxHp: gameConfig.drone.maxHp,
     respawnProgress: 0,
   },
+  viewSyncedToDrone: true,
+  droneReadyNotice: 0,
   buildDialogOpen: false,
   settings: createDefaultSettings(),
   locale: resolveInitialLocale(),

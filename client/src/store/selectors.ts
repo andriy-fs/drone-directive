@@ -15,6 +15,10 @@ export const selectSelectedIds = (s: GameState) => s.selectedRobotIds;
 export const selectSelectedBaseId = (s: GameState) => s.selectedBaseId;
 /** Local side's observer drone: health while it flies, rebuild progress once it's down. */
 export const selectDroneStatus = (s: GameState) => s.droneStatus;
+/** Whether the viewport rides the drone (client-local — it never reaches the engine). */
+export const selectViewSync = (s: GameState) => s.viewSyncedToDrone;
+/** The current "replacement drone is up" notice, or 0 if there is none. */
+export const selectDroneReadyNotice = (s: GameState) => s.droneReadyNotice;
 /** Which side this client plays (Player offline/host, AI for the online guest). */
 export const selectLocalSide = (s: GameState) => s.localSide;
 export const selectOnline = (s: GameState) => s.online;

@@ -26,6 +26,8 @@ export interface Dict {
     flyDrone: string;
     landRelease: string;
     fireWeapon: string;
+    /** The same flight keys once the view has been unpinned from the drone. */
+    panView: string;
     units: string;
     unitGuide: string;
     /** The title screen's navigation rail: the active mode, and the panel it opens. */
@@ -58,6 +60,11 @@ export interface Dict {
     piloting: string;
     observing: string;
     paused: string;
+    /** The Drone section's view-sync toggle, in its two states (see DronePanel). */
+    viewDrone: string;
+    viewFree: string;
+    /** What the toggle does, for the tooltip. */
+    viewSyncHint: string;
   };
   gameOver: {
     victory: string;
@@ -102,6 +109,16 @@ export interface Dict {
     selectAll: string;
     /** The Drone section's status line while the drone is shot down (see DronePanel). */
     droneDown: string;
+    /**
+     * The replacement is up. Shown until the player syncs the view back to it —
+     * the camera deliberately does not move on its own (see GameApp.wireBus).
+     */
+    droneReady: string;
+    /** The status line while the view has been cut loose from a living drone. */
+    droneFreeView: string;
+    /** The toast over the canvas that announces the same thing, and its action. */
+    droneReadyToast: string;
+    droneReadyAction: string;
     /** The energy-dome tile before the match's single charge has been used. */
     shield: string;
     /** Same tile, and the readout above it, while the dome is standing. */

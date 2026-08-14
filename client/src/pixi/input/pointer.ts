@@ -132,8 +132,9 @@ export function attachPointerControls(
 
   // Drone flight: held arrow keys/WASD set the drone's direction on the store;
   // the bridge samples it on the fixed step so movement stays deterministic.
-  // `F`/`E` are one-shot intents (land-or-take-off / fire). No camera panning:
-  // the camera follows the drone (see GameApp.followDrone).
+  // `F`/`E` are one-shot intents (land-or-take-off / fire). No pointer panning:
+  // the same direction vector doubles as the camera pan while the view is not
+  // synced to the drone (see GameApp.updateCamera / GameApp.localDroneControl).
   const pressedKeys = new Set<string>();
   const applyDroneDir = () => {
     let dx = 0;
@@ -160,6 +161,10 @@ export function attachPointerControls(
       return;
     }
     if (e.repeat) return; // one-shot intents ignore auto-repeat
+    // Unsynced, the drone is off screen and these keys belong to nobody: landing
+    // on a robot the player cannot see, or firing from it, is never what they
+    // meant. The flight vector above still runs — it is panning the camera.
+    if (!useGameStore.getState().viewSyncedToDrone) return;
     if (e.code === POSSESS_KEY) useGameStore.getState().requestDronePossess();
     else if (e.code === FIRE_KEY) useGameStore.getState().requestDroneFire();
   };
