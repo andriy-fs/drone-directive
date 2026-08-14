@@ -2,13 +2,13 @@ import { gameConfig } from '../../config/gameConfig';
 import type { Owner } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
 import type { With } from 'miniplex';
-import type { RobotEntity } from '../ecs/archetypes';
+import type { BaseEntity, RobotEntity } from '../ecs/archetypes';
 import type { Entity } from '../ecs/entity';
 import { isAlive } from '../ecs/guards';
 import { bases, drones, robots } from '../ecs/queries';
 import type { GameContext, TeamIntel } from '../game/context';
 import { isDisabled } from './status';
-import { enemyAirTargets, enemyBases, enemyRobots, isEnemy } from './targeting';
+import { distanceToBase, enemyAirTargets, enemyBases, enemyRobots, isEnemy } from './targeting';
 
 /**
  * Anything that can see for a side: a robot, a base or the observer drone. All
@@ -84,7 +84,7 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   // most four of them, and the live set has to be able to *shrink*.
   const visibleBases = new Set<string>();
   for (const base of enemyBases(ctx, owner)) {
-    if (!isSpotted(scouts, jammers, base.position.x, base.position.y)) continue;
+    if (!isBaseSpotted(scouts, jammers, base)) continue;
     visibleBases.add(base.id);
     intel.knownBaseIds.add(base.id);
   }
@@ -93,6 +93,21 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
 
 function isSpotted(scouts: Scout[], jammers: RobotEntity[], x: number, y: number): boolean {
   return scouts.some((s) => distance(s.position.x, s.position.y, x, y) <= effectiveSight(s, jammers));
+}
+
+/**
+ * A base is spotted from its **footprint edge**, not its centre — the one place
+ * detection measures something other than a point, because a base is the one
+ * thing that is not one. Three tiles of building sit between the two measures, so
+ * testing the centre meant a scout could be looking straight at the wall of a
+ * base that officially had not been found, and a hull whose weapon outreaches its
+ * own sight would have to drive those 48 px into the defender's fire before it
+ * was allowed to shoot. Every other system that asks "how far is this from the
+ * building" — a bomb's blast, a projectile's collision, a strike drone's approach
+ * — already measures it this way (`distanceToBase`); this makes vision the fourth.
+ */
+function isBaseSpotted(scouts: Scout[], jammers: RobotEntity[], base: BaseEntity): boolean {
+  return scouts.some((s) => distanceToBase(s.position, base) <= effectiveSight(s, jammers));
 }
 
 /** Scout's own sightRange, halved if it currently sits inside an enemy `ew` robot's jamRadius. */

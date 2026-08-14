@@ -47,9 +47,9 @@ const SPRITES = [
   ),
   // Bases — on-field 96 px (BASE_TARGET), already the smallest sensible master.
   ...['player', 'ai'].map((side) => ({ name: `base-${side}`, size: 256, quality: 90 })),
-  // Weapon modules — on-field 24 px (WEAPON_TARGET), the biggest overshoot in the set.
+  // Weapon modules — on-field 30 px (WEAPON_TARGET).
   ...['bomb', 'cannon', 'dew', 'ew', 'fpv', 'missiles', 'radar'].flatMap((weapon) =>
-    ['player', 'ai'].map((side) => ({ name: `weapon-${weapon}-${side}`, size: 64, quality: 90 })),
+    ['player', 'ai'].map((side) => ({ name: `weapon-${weapon}-${side}`, size: 96, quality: 90 })),
   ),
   // Observer drone — on-field 40 px (DRONE_TARGET).
   { name: 'drone-player', size: 128, quality: 90 },
@@ -100,6 +100,22 @@ function encode(sprite, work) {
   return { before: statSync(src).size, after: statSync(out).size };
 }
 
+/**
+ * Optional name filters: `node scripts/encode-sprites.mjs radar cannon` re-encodes
+ * only the masters whose name contains one of those substrings.
+ *
+ * Art lands one weapon at a time, and a full run would rewrite every `.webp` from
+ * masters that did not change — churning the diff and, worse, re-encoding old art
+ * at a new `size` so a stale sprite looks freshly updated. With no arguments the
+ * behaviour is unchanged: everything is encoded.
+ */
+const filters = process.argv.slice(2);
+const selected = filters.length ? SPRITES.filter((s) => filters.some((f) => s.name.includes(f))) : SPRITES;
+if (filters.length && !selected.length) {
+  console.error(`No sprite matches ${filters.join(', ')}`);
+  process.exit(1);
+}
+
 const known = new Set(SPRITES.map((s) => s.name));
 const orphans = readdirSync(SRC_DIR)
   .filter((f) => f.endsWith('.png'))
@@ -115,7 +131,7 @@ const work = mkdtempSync(join(tmpdir(), 'dd-sprites-'));
 let before = 0;
 let after = 0;
 try {
-  for (const sprite of SPRITES) {
+  for (const sprite of selected) {
     const size = encode(sprite, work);
     before += size.before;
     after += size.after;
@@ -125,7 +141,7 @@ try {
 } finally {
   rmSync(work, { recursive: true, force: true });
 }
-console.log(`\n${SPRITES.length} sprites: ${kb(before)} → ${kb(after)} (${Math.round((1 - after / before) * 100)}% smaller)`);
+console.log(`\n${selected.length} sprites: ${kb(before)} → ${kb(after)} (${Math.round((1 - after / before) * 100)}% smaller)`);
 
 function kb(bytes) {
   return `${(bytes / 1024).toFixed(1).padStart(7)} KB`;

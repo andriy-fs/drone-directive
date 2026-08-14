@@ -8,8 +8,10 @@ robot chassis or base types are added, so art can be regenerated consistently.
 - **[drone.md](drone.md)** — the player's flying observer drone (single sprite).
 - **[bases.md](bases.md)** — player base + AI (enemy) base.
 - **[weapons.md](weapons.md)** — top-mounted weapon module overlays (cannon,
-  missiles, bomb kamikaze, radar, EW jammer, DEW emitter) × faction, rendered on
-  the robot's central hardpoint.
+  missiles, bomb kamikaze, radar, EW jammer, DEW emitter, FPV carrier) × faction,
+  rendered on the robot's central hardpoint at 30 px. **Modules do not follow the
+  faction palette below** — they carry a per-weapon colour code instead; see the
+  two rules at the top of that file before regenerating any of them.
 - **[obstacle-mountain.md](obstacle-mountain.md)** — impassable-terrain tile (one
   32 px cell, seamlessly tileable): a **mountain** massif. Blocks movement _and_
   line of fire.
@@ -37,9 +39,10 @@ are drawn as a small marker _on top_ of the chassis by the engine, so a sprite i
 | `legs`   | walker / bruiser | tall articulated mech, imposing |
 
 Bases: one per side (`player`, `ai`). Weapons (`cannon`, `missiles`, `bomb`,
-`radar`, `ew`, `dew`) are **top-mounted modules**, not baked into the chassis —
-leave a clear central dorsal hardpoint on each robot where the module/marker
-overlays it. See [weapons.md](weapons.md) for a prompt pair per module.
+`radar`, `ew`, `dew`, `fpv`) are **top-mounted modules**, not baked into the
+chassis — leave a clear central dorsal hardpoint on each robot where the
+module/marker overlays it. See [weapons.md](weapons.md) for a prompt pair per
+module.
 
 When a new chassis/base is added: copy the closest prompt block, swap the
 silhouette description, keep every "Shared spec" rule below identical.
@@ -56,6 +59,12 @@ silhouette description, keep every "Shared spec" rule below identical.
   even padding on all sides so it never clips when rotated in-game.
 - **Silhouette:** bold, chunky, instantly readable at ~46 px on screen. Strong
   outline, high contrast, minimal fine detail that would blur when downscaled.
+  **The camera has no zoom**, so the on-field size is not a starting point — it is
+  the only size the art is ever seen at, and the composition is built against it.
+  Downscaling averages: a region packed with fine detail does not get subtle, it
+  collapses to a flat mean colour and drains contrast from its neighbours. Weapon
+  modules, drawn at 30 px, are where this bites hardest and
+  [weapons.md](weapons.md) turns it into a hard detail budget.
 - **Lighting:** soft, even, from directly above; subtle rim light on top edges.
 - **Style:** clean stylized retro-futuristic RTS/mecha game art, semi-flat with
   light cel shading — not photoreal, not pixel-art, not cartoonish.
@@ -75,6 +84,22 @@ at a glance, even before the tint:
 | Insignia | hexagon / chevron badge, cyan glow optics                | jagged emblem, single **menacing red optic/eye** |
 | Vibe     | protective, high-tech                                    | brutal, scavenged war-machine                    |
 
+### Exception: weapon modules take a role colour, not a faction colour
+
+**The `Palette` row above applies to chassis, bases and flyers — not to the weapon
+modules in [weapons.md](weapons.md).** Those are neutral dark gunmetal on both
+sides and carry the colour of the *weapon* (brass cannon, plum jammer, ice-white
+emitter…), identical hex for player and enemy. Faction still reads on a module,
+but through the other three rows: **shape** (clean and rounded vs angular and
+chipped) and **wear** (pristine vs rust and soot).
+
+This is deliberate and it is the thing most likely to be undone by accident. A
+module is 30 px; the one property that survives that downscale intact is mean
+colour, and there is only one of it to spend. Spending it on the faction — which
+the chassis underneath already states, in a bigger and better-lit shape — left all
+seven weapons looking the same, which is exactly the bug this exception exists to
+fix. Do not "restore consistency" here.
+
 ## Where the files live: masters vs. what ships
 
 **`client/public/` holds no PNGs any more, and nothing there is hand-edited.**
@@ -88,9 +113,9 @@ The generated art is committed twice, in two different roles:
   **`client/scripts/encode-sprites.mjs`**. Committed, generated, ~96% smaller than
   the masters (4.0 MB → 163 KB across the 18 sprites).
 
-The split exists because the masters overshoot enormously — a weapon module was
-authored at 500² and is drawn at 24 px. Shipping the masters cost ~4 MB on the
-title screen for detail no display can resolve. See
+The split exists because the masters overshoot enormously — a weapon module is
+authored at 512² and drawn at 30 px. Shipping the masters cost ~4 MB on the title
+screen for detail no display can resolve. See
 `.docs/tasks/asset-loading-first-paint.md`.
 
 ## Wiring generated art into the game
@@ -103,7 +128,10 @@ title screen for detail no display can resolve. See
    (name, encoded size, quality; `alpha: false` / `seamless: true` for opaque or
    tiling terrain), then run `node scripts/encode-sprites.mjs` from `client/` and
    commit the `.webp` it writes. The script fails loudly if a master has no entry,
-   so a forgotten one cannot silently never ship.
+   so a forgotten one cannot silently never ship. It also takes **name filters** —
+   `node scripts/encode-sprites.mjs radar cannon` encodes only the matching
+   masters, which is what you want when regenerating art piece by piece: a full run
+   rewrites every `.webp` from masters that never changed.
 4. Register in `src/config/sprites.ts` (`robotSprites`) as a **whole-image** entry
    — `src` only, **no `frame`** crop, and note the **`.webp`** extension:
    ```ts

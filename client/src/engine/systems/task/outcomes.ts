@@ -8,7 +8,16 @@ import type { GameContext } from '../../game/context';
 import { hasLineOfSight } from '../../obstacles';
 import { needsLineOfSight } from '../combat';
 import { isDisabled } from '../status';
-import { findById, isEnemy, knownEnemyBases, knownEnemyRobots, nearest, ownBase, worthShooting } from '../targeting';
+import {
+  findById,
+  isEnemy,
+  isKnownTo,
+  knownEnemyBases,
+  knownEnemyRobots,
+  nearest,
+  ownBase,
+  worthShooting,
+} from '../targeting';
 import { isAdvancing } from './advancing';
 import { centroidOf, randomPointNear, roamOutcome, searchOutcome } from './roam';
 import type { Outcome } from './types';
@@ -112,12 +121,25 @@ export function attackTargetOutcome(ctx: GameContext, e: RobotEntity): Outcome {
 }
 
 /**
- * Approach a target, stopping to fire once in weapon range with line of sight.
+ * Approach a target, stopping to fire once in weapon range, with line of sight,
+ * and **watched by someone on this side**.
  *
- * A launcher (`salvo > 0`) needs neither: its munitions fly over terrain, and its
- * reach spans the map. So it holds wherever it stands and fires — which is why an
- * FPV carrier never advances on anything. That is the intended shape of the unit
- * (artillery, not a brawler), not an oversight: see `weapons.fpv` in `gameConfig`.
+ * That last condition is not decoration: `fireWeapon` refuses to shoot at what
+ * nobody can see, so a hull that stopped merely because the target was in range
+ * would stand there in silence forever. It is reachable in practice because a
+ * weapon may outreach its own hull's sight (`missiles`, 255 against 230) and
+ * because a base stays *known* long after it stops being *seen* — an ordered
+ * attack on a base discovered earlier in the match is exactly the case that
+ * deadlocked. Unseen therefore means "not in position yet": keep closing until
+ * either this hull or an ally has eyes on it.
+ *
+ * A launcher (`salvo > 0`) needs no line of sight — its munitions fly over
+ * terrain — and its reach spans the map, so in the ordinary case (a target its
+ * side is already watching) it still holds wherever it stands and fires, which is
+ * the intended shape of the unit: artillery, not a brawler. See `weapons.fpv` in
+ * `gameConfig`. A carrier sent at a base nobody is watching does now roll forward
+ * until it can see it, because the alternative is a unit that stands still and
+ * never shoots.
  */
 export function engageOutcome(ctx: GameContext, e: RobotEntity, target: Positioned): Outcome {
   const pos = e.position;
@@ -132,7 +154,7 @@ export function engageOutcome(ctx: GameContext, e: RobotEntity, target: Position
     return { move: { kind: 'hold' } };
   }
   const clear = !needsLineOfSight(w) || hasLineOfSight(ctx.sightBlockers, pos, tp);
-  if (d <= range && clear) {
+  if (d <= range && clear && isKnownTo(ctx, e.owner, target)) {
     return { move: { kind: 'hold' }, fire: target.id };
   }
   return { move: { kind: 'goal', x: tp.x, y: tp.y }, fire: target.id };

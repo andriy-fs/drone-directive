@@ -256,3 +256,38 @@ describe('visionSystem — a base is known forever but visible only while watche
     expect(ctx.intel.player.knownBaseIds.has(base.id)).toBe(true);
   });
 });
+
+describe('visionSystem — a base is spotted by its wall, not by its middle', () => {
+  it('sees a base whose edge is in range even though its centre is not', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.AI, 12, 12);
+    const sight = gameConfig.robots.chassis.tracks.sight;
+    const half = (gameConfig.bases.footprintTiles * gameConfig.grid.tilePx) / 2;
+    // Between the two measures: past the centre by 40 px, still short of the wall
+    // by 8 px. Measured from the centre this scout is staring at a building it has
+    // officially never found.
+    const scout = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    scout.position!.x = base.position!.x - (sight + 40);
+    scout.position!.y = base.position!.y;
+    expect(sight + 40).toBeGreaterThan(sight); // centre: out of range
+    expect(sight + 40 - half).toBeLessThan(sight); // wall: in range
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.visibleBaseIds.has(base.id)).toBe(true);
+  });
+
+  it('still loses it once even the near wall is out of range', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.AI, 12, 12);
+    const sight = gameConfig.robots.chassis.tracks.sight;
+    const half = (gameConfig.bases.footprintTiles * gameConfig.grid.tilePx) / 2;
+    const scout = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    scout.position!.x = base.position!.x - (sight + half + 10);
+    scout.position!.y = base.position!.y;
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.visibleBaseIds.has(base.id)).toBe(false);
+  });
+});

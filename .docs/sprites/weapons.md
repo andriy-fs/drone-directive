@@ -9,17 +9,87 @@ weapons are added.
 
 Covered here: **every** buildable weapon — **radar**, **bomb (kamikaze)**, **DEW
 (directed-energy weapon)**, **cannon**, **missiles**, **EW (jammer)** and the
-planned **FPV carrier**. The full weapon list is `types/src/enums.ts` →
-`WeaponType` (`none` is the unarmed payload and never draws a module). The first
-six ship art for both factions; **FPV** is a prompt written ahead of the feature,
-so until its PNGs land it keeps the drawn Graphics marker in `RobotView` — that
-fallback is exactly what it is for.
+**FPV carrier**. The full weapon list is `types/src/enums.ts` → `WeaponType`
+(`none` is the unarmed payload and never draws a module).
+
+## Read this before touching a prompt below
+
+The modules used to be near-indistinguishable on the field. The cause was not
+sloppy generation — it was **this file**, which told every prompt to use the
+faction palette (blue/teal for the player, red/gunmetal for the enemy) and said
+nothing about how much detail survives to the screen. Seven modules built to the
+same colour brief, at 24 px, are seven identical smudges.
+
+Two rules below fix that, and they only work together. **Do not restore the
+faction palette on a module, and do not add detail back.**
+
+### Rule 1 — colour says *which weapon*, never *which side*
+
+A module is **neutral dark gunmetal**, identically for both factions, and carries
+**one weapon-role colour** that is the *same hex on both sides*:
+
+| Weapon     | Colour               | Hex        | How it appears in the art                    |
+| ---------- | -------------------- | ---------- | -------------------------------------------- |
+| `dew`      | ice white-blue       | `#d8eef7`  | plasma glow over the emitter coils           |
+| `radar`    | pale jade            | `#a9dcc8`  | enamel of the dish face                      |
+| `cannon`   | brass                | `#c8a34a`  | barrel and breech                            |
+| `fpv`      | olive drab           | `#7d8452`  | matte canister shell                         |
+| `ew`       | plum                 | `#8a72ab`  | dielectric sleeves on the aerials            |
+| `missiles` | brick rust           | `#a8543a`  | oxidised launch tubes                        |
+| `bomb`     | hazard yellow + black| `#e0b13c` / `#1a1a1a` | chevrons across the payload      |
+
+- The role colour must cover **≥30% of the module's area** in one or two solid
+  masses. Thin lines, rims and glows average into nothing at final size — that is
+  exactly what happened to the old cyan accents, which covered 5–8%.
+- These values are mirrored in code as `palette.weapon` in
+  `client/src/config/palette.ts`, which the Graphics fallback markers draw from.
+  **Change one, change both.**
+- The colours are muted on purpose: the saturated part of the wheel belongs to
+  *state* (`#ef4444` attack, `#fde047` selection, `#f59e0b` spotted, `#7dd3fc`
+  disabled). A permanent property of a unit must not wear the colour of a passing
+  one. They are also spread along a **lightness ladder** (dew brightest →
+  missiles darkest) so they stay separable for the ~8% of men who cannot tell red
+  from green.
+- **Faction still reads on the module — through form and wear, not hue.** Player:
+  clean, rounded armour plates, crisp bevels, well maintained. Enemy: angular
+  chipped plating, rust streaks, soot. See the carve-out in
+  [README.md § Faction visual language](README.md#faction-visual-language-this-is-how-enemies-look-different).
+  Whose robot it is, is answered by the chassis under the module anyway.
+
+### Rule 2 — detail budget: three or four shapes, nothing more
+
+A module is authored at 512 px and drawn at **30 px**. The camera has no zoom, so
+30 px is not a starting size — it is the *only* size a player ever sees it at.
+That is a **~17:1** reduction, and downscaling is averaging: any region packed
+with fine detail collapses to its own mean colour. Bolts, panel lines, bevels and
+rivets do not become "subtle" at that scale, they become grey mush that also
+drags the contrast out of the shapes around them.
+
+So:
+
+- **Three or four shapes total.** Not three or four groups — three or four shapes.
+- **One dominant form** carrying the weapon's identity, at **⅓ to ½ of the whole
+  module**. The dish *is* the radar module; it does not sit inside a frame.
+- Every remaining element ≥ **1/6 of the module's width** (≈5 px on screen).
+  Anything smaller must be cut, not shrunk.
+- **Thick dark outline** around the silhouette and the dominant form. It is the
+  first thing lost to averaging and the last thing that should be.
+- Contrast lives **between** shapes, not inside them. No gradients, no specular
+  streaks, no material texture on anything under a third of the module.
+- No text, no tiny status LEDs, no antenna wires, no hazard decals other than the
+  bomb's chevrons.
+
+**Acceptance:** put a 30 px preview next to the canvas and judge only by that.
+Then desaturate the seven finished player modules side by side — if any two are
+hard to tell apart in greyscale, their lightness has collided and the palette
+table above needs re-spreading. Colour is the channel that survives the
+downscale; greyscale is how you prove it is actually doing work.
 
 ## Module-specific spec (in addition to the [Shared spec](README.md#shared-spec-applies-to-every-prompt--do-not-vary))
 
 - **It's a small module, not a whole robot.** Design just the weapon device on a
-  compact armored mount plate — it sits on the center of a robot ~46 px wide, so
-  the module reads at roughly **half that size**.
+  compact armored mount plate — it sits on the center of a robot 46 px wide, and
+  is drawn at 30 px, roughly two thirds of it.
 - **Fill:** the module fills ~**65%** of the frame (more padding than robots) so
   it visually reads as a part bolted onto the hull, centered in a 512×512
   transparent PNG.
@@ -31,78 +101,103 @@ fallback is exactly what it is for.
   entries in `weaponSprites` need `rotationOffset: Math.PI / 2` so the barrel
   points where the robot is heading. Every other module here stays symmetric and
   needs no offset.
-- **Faction palette** follows the same
-  [faction language](README.md#faction-visual-language-this-is-how-enemies-look-different)
-  as robots (player = blue/teal/clean, enemy = red/gunmetal/aggressive), so a
-  module matches the chassis it mounts on.
 
 Reminder baked into each prompt: **top-down, transparent background, 512×512,
-centered small module, no baked shadow.**
+centered small module, no baked shadow, dark gunmetal body, one role colour,
+three or four shapes.**
 
 ---
 
 ## Radar — spotter module (no weapon; doubles detection range)
 
+**Dominant form:** the pale jade dish, filling most of the module. It is not
+mounted *in* a frame — the dish is the module. Shapes: dish, mount bar, hub.
+
 ### Player (allied) — `weapon-radar-player.png`
 
 ```text
-Top-down (bird's-eye) game sprite of a compact radar / sensor module that bolts
-onto the central hardpoint of a combat robot, viewed from directly above. A small
-armored mount plate carrying a shallow dish and a fine rotating scanner antenna.
-Allied faction design: cool blue and teal with brushed steel, a glowing cyan dish
-face and a soft cyan sweep glow. No barrel, no projectile weapon — clearly a
-sensor, not a gun. Radially balanced so it reads from any angle. Bold readable
-silhouette, semi-flat stylized art with light cel shading, soft top lighting.
-Fully transparent background, no ground, no shadow, no text. Centered, the module
-filling about 65% of a 512x512 frame with generous even padding.
+Top-down (bird's-eye) game sprite of a compact radar sensor module that bolts onto
+the central hardpoint of a combat robot, viewed from directly above. Extremely
+simple, bold shapes: one large shallow dish in pale jade green enamel (hex a9dcc8)
+filling about 85 percent of the module, a single dark gunmetal mount bar crossing
+beneath it, and one small dark hub at the dish center. The body is neutral dark
+gunmetal with clean rounded armor edges — no faction colors, no blue, no teal, no
+cyan. Only three shapes in total: dish, bar, hub. No bolts, no panel lines, no
+bevels, no rivets, no status lights, no text, no gradients — flat solid colors
+with a thick dark outline around the silhouette and around the dish. No barrel and
+no projectile weapon: clearly a sensor. Radially balanced so it reads from any
+angle. Semi-flat stylized game art, soft top lighting. Fully transparent
+background, no ground, no shadow. Centered, the module filling about 65% of a
+512x512 frame with generous even padding. Must stay readable when shrunk to 30
+pixels.
 ```
 
 ### Enemy (AI / hostile) — `weapon-radar-ai.png`
 
 ```text
-Top-down (bird's-eye) game sprite of a compact radar / sensor module that bolts
-onto the central hardpoint of a combat robot, viewed from directly above. A small
-jagged armored mount plate carrying a battered dish and a spiky scanner antenna.
-Hostile enemy faction design: gunmetal and dark plating with red and orange
-accents, rust streaks and a menacing glowing red dish face. No barrel, no
-projectile weapon — clearly a sinister sensor, not a gun. Radially balanced so it
-reads from any angle. Bold readable silhouette, semi-flat stylized art with light
-cel shading, soft top lighting. Fully transparent background, no ground, no
-shadow, no text. Centered, the module filling about 65% of a 512x512 frame with
-generous even padding.
+Top-down (bird's-eye) game sprite of a compact radar sensor module that bolts onto
+the central hardpoint of a combat robot, viewed from directly above. Extremely
+simple, bold shapes: one large shallow dish in pale jade green enamel (hex a9dcc8),
+chipped and streaked with rust, filling about 85 percent of the module, a single
+dark gunmetal mount bar crossing beneath it, and one small dark hub at the dish
+center. The body is neutral dark gunmetal with angular battered armor edges and
+soot marks — no faction colors, no red, no orange plating. Only three shapes in
+total: dish, bar, hub. No bolts, no panel lines, no bevels, no rivets, no status
+lights, no text, no gradients — flat solid colors with a thick dark outline around
+the silhouette and around the dish. No barrel and no projectile weapon: clearly a
+sensor. Radially balanced so it reads from any angle. Semi-flat stylized game art,
+soft top lighting. Fully transparent background, no ground, no shadow. Centered,
+the module filling about 65% of a 512x512 frame with generous even padding. Must
+stay readable when shrunk to 30 pixels.
 ```
 
 ---
 
 ## Bomb — kamikaze payload module (detonates on contact)
 
+**Dominant form:** the payload disc under a bold black-and-yellow hazard cross —
+the only **striped** module in the set, which is half of what identifies it.
+Shapes: disc, chevron cross, rim. (It also carries a drawn blast-radius ring in
+`RobotView`, so it is the best-identified weapon on the field even today.)
+
 ### Player (allied) — `weapon-bomb-player.png`
 
 ```text
 Top-down (bird's-eye) game sprite of an explosive kamikaze payload module that
-bolts onto the central hardpoint of a combat robot, viewed from directly above. A
-rounded armored warhead / bomb casing on a small mount plate, unmistakably an
-explosive. Allied faction design: cool blue and teal steel casing, but with
-clear danger cues — a blinking red arming light and yellow-and-black hazard
-chevrons around the warhead. Radially balanced, no single front. Bold readable
-silhouette, semi-flat stylized art with light cel shading, soft top lighting.
-Fully transparent background, no ground, no shadow, no text. Centered, the module
-filling about 65% of a 512x512 frame with generous even padding.
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: one large round warhead casing filling about 80
+percent of the module, painted with a thick bold hazard pattern of alternating
+yellow (hex e0b13c) and black (hex 1a1a1a) chevron bands running across it in a
+wide cross, and one dark gunmetal rim around the casing. The body is neutral dark
+gunmetal with clean rounded armor edges — no faction colors, no blue, no teal, no
+cyan. Only three shapes in total: casing, chevron cross, rim. The chevron bands
+must be wide and few — four or five bands, not a fine stripe pattern. No bolts, no
+panel lines, no rivets, no arming lights, no text, no gradients — flat solid colors
+with a thick dark outline. Unmistakably an explosive payload. Radially balanced, no
+single front. Semi-flat stylized game art, soft top lighting. Fully transparent
+background, no ground, no shadow. Centered, the module filling about 65% of a
+512x512 frame with generous even padding. Must stay readable when shrunk to 30
+pixels.
 ```
 
 ### Enemy (AI / hostile) — `weapon-bomb-ai.png`
 
 ```text
 Top-down (bird's-eye) game sprite of an explosive kamikaze payload module that
-bolts onto the central hardpoint of a combat robot, viewed from directly above. A
-crude, menacing armored warhead / bomb casing on a jagged mount plate. Hostile
-enemy faction design: dark gunmetal casing with red and orange plating, rust,
-scorch marks, a jagged skull-like emblem, a glaring red arming light and
-yellow-and-black hazard stripes around the warhead. Radially balanced, no single
-front. Bold readable silhouette, semi-flat stylized art with light cel shading,
-soft top lighting. Fully transparent background, no ground, no shadow, no text.
-Centered, the module filling about 65% of a 512x512 frame with generous even
-padding.
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: one large crude round warhead casing filling about
+80 percent of the module, painted with a thick bold hazard pattern of alternating
+yellow (hex e0b13c) and black (hex 1a1a1a) chevron bands running across it in a
+wide cross, scratched and scorched, and one dark gunmetal rim around the casing.
+The body is neutral dark gunmetal with angular battered armor edges and soot marks
+— no faction colors, no red, no orange plating. Only three shapes in total: casing,
+chevron cross, rim. The chevron bands must be wide and few — four or five bands,
+not a fine stripe pattern. No bolts, no panel lines, no rivets, no arming lights,
+no text, no gradients — flat solid colors with a thick dark outline. Unmistakably a
+crude improvised explosive payload. Radially balanced, no single front. Semi-flat
+stylized game art, soft top lighting. Fully transparent background, no ground, no
+shadow. Centered, the module filling about 65% of a 512x512 frame with generous
+even padding. Must stay readable when shrunk to 30 pixels.
 ```
 
 ---
@@ -111,227 +206,265 @@ padding.
 
 The directed-energy weapon induces high-voltage currents in the target and knocks its
 electrics and electronics out for 8 seconds — see `.docs/tasks/weapon-dew.md`. It must
-read as an **energy emitter, not a gun**: coils and arcs, no barrel and no shell, so a
-player can tell at a glance that this unit disables rather than kills. Keep it clearly
-distinct from the `ew` jammer module (which is an antenna mast, not a coil).
+read as an **energy emitter, not a gun**: no barrel and no shell, so a player can tell
+at a glance that this unit disables rather than kills.
+
+**Dominant form:** a thick ice-white ring of plasma — the **brightest** thing in
+the weapon set, which is its identity as much as its shape. Shapes: ring, core,
+body. Deliberately unlike the `ew` cross (which is an antenna mast, not a coil).
+Its ice-blue is the same family as the "disabled" arcs drawn over a knocked-out
+robot, and that rhyme is intended: this is the weapon that puts them there.
 
 ### Player (allied) — `weapon-dew-player.png`
 
 ```text
-Top-down (bird's-eye) game sprite of a compact directed-energy weapon (DEW) emitter
-module that bolts onto the central hardpoint of a combat robot, viewed from directly
-above. A small armored mount plate carrying a ring of copper induction coils around a
-central Tesla-style high-voltage electrode, with thin blue-white arcs of electricity
-crackling between the coil tips. Allied faction design: cool blue and teal plating with
-brushed steel and copper coil windings, a glowing cyan-white core. No barrel, no shell,
-no explosive — clearly an energy emitter, not a gun. Radially balanced so it reads from
-any angle. Bold readable silhouette, semi-flat stylized art with light cel shading, soft
-top lighting. Fully transparent background, no ground, no shadow, no text. Centered, the
-module filling about 65% of a 512x512 frame with generous even padding.
+Top-down (bird's-eye) game sprite of a compact directed-energy emitter module that
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: one thick glowing ring of ice white-blue plasma (hex
+d8eef7) filling about 80 percent of the module — the brightest element by far — a
+single bright core dot at its center, and a neutral dark gunmetal body ring behind
+it with clean rounded armor edges. No faction colors, no blue-and-teal plating, no
+cyan panels. Only three shapes in total: plasma ring, core, body. No coil windings,
+no bolts, no panel lines, no fine crackling arcs, no text, no gradients — flat solid
+colors with a thick dark outline around the silhouette. No barrel, no shell, no
+explosive: clearly an energy emitter, not a gun, and clearly not an antenna mast.
+Radially balanced so it reads from any angle. Semi-flat stylized game art, soft top
+lighting. Fully transparent background, no ground, no shadow. Centered, the module
+filling about 65% of a 512x512 frame with generous even padding. Must stay readable
+when shrunk to 30 pixels.
 ```
 
 ### Enemy (AI / hostile) — `weapon-dew-ai.png`
 
 ```text
-Top-down (bird's-eye) game sprite of a compact directed-energy weapon (DEW) emitter
-module that bolts onto the central hardpoint of a combat robot, viewed from directly
-above. A jagged armored mount plate carrying a crude ring of scorched copper induction
-coils around a central spiked high-voltage electrode, with violent violet-white arcs of
-electricity lashing between the coil tips. Hostile enemy faction design: dark gunmetal
-and red-orange plating, rust streaks and burn marks, a glaring magenta-white core. No
-barrel, no shell, no explosive — clearly a sinister energy emitter, not a gun. Radially
-balanced so it reads from any angle. Bold readable silhouette, semi-flat stylized art
-with light cel shading, soft top lighting. Fully transparent background, no ground, no
-shadow, no text. Centered, the module filling about 65% of a 512x512 frame with generous
-even padding.
+Top-down (bird's-eye) game sprite of a compact directed-energy emitter module that
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: one thick glowing ring of ice white-blue plasma (hex
+d8eef7) filling about 80 percent of the module — the brightest element by far — a
+single bright core dot at its center, and a neutral dark gunmetal body ring behind
+it with angular battered armor edges, rust streaks and burn marks. No faction
+colors, no red, no orange plating, no magenta. Only three shapes in total: plasma
+ring, core, body. No coil windings, no bolts, no panel lines, no fine crackling
+arcs, no text, no gradients — flat solid colors with a thick dark outline around the
+silhouette. No barrel, no shell, no explosive: clearly a sinister energy emitter,
+not a gun, and clearly not an antenna mast. Radially balanced so it reads from any
+angle. Semi-flat stylized game art, soft top lighting. Fully transparent background,
+no ground, no shadow. Centered, the module filling about 65% of a 512x512 frame with
+generous even padding. Must stay readable when shrunk to 30 pixels.
 ```
 
 ---
 
 ## Cannon — light direct-fire gun (the cheap default weapon)
 
-The workhorse: short reach (120 px), small damage (12) on a fast 0.8 s cooldown, no
-splash and no anti-air. It should read as the **plain, sturdy, unremarkable gun** — the
-baseline every other module is a deviation from, so keep it simpler and less exotic
-than the missile pod or the DEW coil. **Directional:** author it with the barrel
-pointing **up (north)**; see the rotation note in the spec above.
+The workhorse: short reach, small damage on a fast cooldown, no splash and no
+anti-air. It should read as the **plain, sturdy, unremarkable gun** — the baseline
+every other module is a deviation from.
+
+**Dominant form:** one thick brass barrel running the full length of the module.
+It is the only module with a single long axis, and at this size that elongation is
+worth more than any turret detail. Shapes: barrel, breech block, plate.
+**Directional:** barrel points **up (north)**.
 
 ### Player (allied) — `weapon-cannon-player.png`
 
 ```text
-Top-down (bird's-eye) game sprite of a compact autocannon turret module that bolts onto
-the central hardpoint of a combat robot, viewed from directly above. A small round
-armored turret on a mount plate with a single short stubby gun barrel pointing straight
-up toward the top of the frame, a slim recoil sleeve and a small ammo box on the side.
-Allied faction design: cool blue and teal plating with brushed steel, a dark gunmetal
-barrel and a small cyan status light. Plain, sturdy, utilitarian — clearly a simple
-projectile gun, not a missile launcher and not an energy weapon. Bold readable
-silhouette, semi-flat stylized art with light cel shading, soft top lighting. Fully
-transparent background, no ground, no shadow, no text, no muzzle flash. Centered, the
-module filling about 65% of a 512x512 frame with generous even padding.
+Top-down (bird's-eye) game sprite of a compact autocannon module that bolts onto the
+central hardpoint of a combat robot, viewed from directly above. Extremely simple,
+bold shapes: one thick brass gun barrel (hex c8a34a) running the full height of the
+module and pointing straight up toward the top of the frame, one chunky dark
+gunmetal breech block behind it, and a small neutral dark gunmetal mount plate under
+both, with clean rounded armor edges. No faction colors, no blue, no teal, no cyan.
+Only three shapes in total: barrel, breech, plate. No ammo box, no recoil sleeve, no
+bolts, no panel lines, no status lights, no text, no gradients — flat solid colors
+with a thick dark outline. Plain, sturdy, utilitarian: clearly a simple projectile
+gun, not a missile launcher and not an energy weapon. The long single barrel is the
+whole read. Semi-flat stylized game art, soft top lighting. Fully transparent
+background, no ground, no shadow, no muzzle flash. Centered, the module filling about
+65% of a 512x512 frame with generous even padding. Must stay readable when shrunk to
+30 pixels.
 ```
 
 ### Enemy (AI / hostile) — `weapon-cannon-ai.png`
 
 ```text
-Top-down (bird's-eye) game sprite of a compact autocannon turret module that bolts onto
-the central hardpoint of a combat robot, viewed from directly above. A crude angular
-armored turret on a jagged mount plate with a single short stubby gun barrel pointing
-straight up toward the top of the frame, a battered recoil sleeve and a dented ammo box
-on the side. Hostile enemy faction design: dark gunmetal and red-orange plating, rust
-streaks, scorch marks around the muzzle and a glaring red status light. Crude, brutal,
-utilitarian — clearly a simple projectile gun, not a missile launcher and not an energy
-weapon. Bold readable silhouette, semi-flat stylized art with light cel shading, soft
-top lighting. Fully transparent background, no ground, no shadow, no text, no muzzle
-flash. Centered, the module filling about 65% of a 512x512 frame with generous even
-padding.
+Top-down (bird's-eye) game sprite of a compact autocannon module that bolts onto the
+central hardpoint of a combat robot, viewed from directly above. Extremely simple,
+bold shapes: one thick brass gun barrel (hex c8a34a), scratched and soot-blackened
+at the muzzle, running the full height of the module and pointing straight up toward
+the top of the frame, one chunky dark gunmetal breech block behind it, and a small
+neutral dark gunmetal mount plate under both, with angular battered armor edges and
+rust streaks. No faction colors, no red, no orange plating. Only three shapes in
+total: barrel, breech, plate. No ammo box, no recoil sleeve, no bolts, no panel
+lines, no status lights, no text, no gradients — flat solid colors with a thick dark
+outline. Crude, brutal, utilitarian: clearly a simple projectile gun, not a missile
+launcher and not an energy weapon. The long single barrel is the whole read.
+Semi-flat stylized game art, soft top lighting. Fully transparent background, no
+ground, no shadow, no muzzle flash. Centered, the module filling about 65% of a
+512x512 frame with generous even padding. Must stay readable when shrunk to 30
+pixels.
 ```
 
 ---
 
 ## Missiles — guided launcher, the only surface-to-air weapon
 
-The heavy hitter and this side's **only answer to an enemy observer drone** (`canHitAir`):
-longest reach (170 px), biggest per-shot damage (22), slow 1.6 s cooldown, priciest gun
-in the list. It must read as **missiles, not a gun** — visible tube mouths / warhead
-noses, no long rifled barrel — and it should look meaningfully **heavier and more
-expensive** than the cannon. A slight upward tilt of the tubes is welcome as an anti-air
-cue. **Directional:** tubes point **up (north)**; see the rotation note in the spec above.
+The heavy hitter and this side's **only answer to an enemy observer drone**
+(`canHitAir`): longest reach, biggest per-shot damage, slow cooldown, priciest gun
+in the list. It must read as **missiles, not a gun**, and look meaningfully
+heavier than the cannon.
+
+**Dominant form:** **two** fat brick-red launch tubes with dark open mouths — not
+the old two-by-two cluster of four. Four tubes at 30 px are four 6 px specks; two
+tubes are two 10 px masses that still read as tubes. Shapes: two tubes, plate.
+**Directional:** tubes point **up (north)**.
 
 ### Player (allied) — `weapon-missiles-player.png`
 
 ```text
-Top-down (bird's-eye) game sprite of a compact guided-missile launcher module that bolts
-onto the central hardpoint of a combat robot, viewed from directly above. A boxy armored
-launcher pod on a mount plate holding a two-by-two cluster of open missile tubes aimed
-straight up toward the top of the frame, the pointed warhead noses visible inside the
-tube mouths, with a small guidance radar fin on the side. Allied faction design: cool
-blue and teal plating with brushed steel, dark tube interiors and small cyan seeker
-lights on the warhead tips. Clearly a missile pod, not a gun barrel — heavier and more
-elaborate than a simple cannon. Bold readable silhouette, semi-flat stylized art with
-light cel shading, soft top lighting. Fully transparent background, no ground, no shadow,
-no text, no smoke and no exhaust trails. Centered, the module filling about 65% of a
-512x512 frame with generous even padding.
+Top-down (bird's-eye) game sprite of a compact guided-missile launcher module that
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: exactly two fat parallel launch tubes in brick rust
+red (hex a8543a) side by side, running the full height of the module and aimed
+straight up toward the top of the frame, each with a large dark open mouth, sitting
+on a small neutral dark gunmetal mount plate with clean rounded armor edges. Exactly
+two tubes, not four, and each tube must be thick and chunky. No faction colors, no
+blue, no teal, no cyan. Only three shapes in total: two tubes, plate. No guidance
+fin, no seeker lights, no warhead noses, no bolts, no panel lines, no text, no
+gradients — flat solid colors with a thick dark outline. Clearly a missile pod,
+heavier and blockier than a gun barrel. Semi-flat stylized game art, soft top
+lighting. Fully transparent background, no ground, no shadow, no smoke, no exhaust
+trails. Centered, the module filling about 65% of a 512x512 frame with generous even
+padding. Must stay readable when shrunk to 30 pixels.
 ```
 
 ### Enemy (AI / hostile) — `weapon-missiles-ai.png`
 
 ```text
-Top-down (bird's-eye) game sprite of a compact guided-missile launcher module that bolts
-onto the central hardpoint of a combat robot, viewed from directly above. A crude angular
-armored launcher pod on a jagged mount plate holding a two-by-two cluster of open missile
-tubes aimed straight up toward the top of the frame, the pointed warhead noses visible
-inside the tube mouths, with a bent guidance antenna on the side. Hostile enemy faction
-design: dark gunmetal and red-orange plating, rust streaks, soot-blackened tube mouths
-and glowing red seeker lights on the warhead tips. Clearly a missile pod, not a gun
-barrel — heavier and more menacing than a simple cannon. Bold readable silhouette,
-semi-flat stylized art with light cel shading, soft top lighting. Fully transparent
-background, no ground, no shadow, no text, no smoke and no exhaust trails. Centered, the
-module filling about 65% of a 512x512 frame with generous even padding.
+Top-down (bird's-eye) game sprite of a compact guided-missile launcher module that
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: exactly two fat parallel launch tubes in brick rust
+red (hex a8543a), dented and streaked with rust, side by side, running the full
+height of the module and aimed straight up toward the top of the frame, each with a
+large soot-blackened open mouth, sitting on a small neutral dark gunmetal mount plate
+with angular battered armor edges. Exactly two tubes, not four, and each tube must be
+thick and chunky. No faction colors, no red plating, no orange plating beyond the
+tubes' own rust color. Only three shapes in total: two tubes, plate. No guidance
+antenna, no seeker lights, no warhead noses, no bolts, no panel lines, no text, no
+gradients — flat solid colors with a thick dark outline. Clearly a crude missile pod,
+heavier and blockier than a gun barrel. Semi-flat stylized game art, soft top
+lighting. Fully transparent background, no ground, no shadow, no smoke, no exhaust
+trails. Centered, the module filling about 65% of a 512x512 frame with generous even
+padding. Must stay readable when shrunk to 30 pixels.
 ```
 
 ---
 
 ## EW — electronic-warfare jammer module (no damage; blinds enemy scouts)
 
-An unarmed support module: it halves the effective sight range of enemy scouts inside a
-150 px aura (`jamRadius` + `combat.jamMultiplier`). It has to read as an **emitter of
-noise, not of energy or shells** — a mast of antennas and whip aerials with faint
-concentric interference rings. Keep it clearly distinct from its two neighbours: `radar`
-is a **dish that listens**, `dew` is a **coil ring that arcs**, `ew` is an **antenna mast
-that broadcasts static**.
+An unarmed support module: it halves the effective sight range of enemy scouts
+inside its aura (`jamRadius` + `combat.jamMultiplier`). It has to read as an
+**emitter of noise, not of energy or shells**.
+
+**Dominant form:** a bold plum X of four thick aerials reaching to the module's
+edge — a cross, where `dew` is a ring and `radar` is a disc. Shapes: four aerials
+(one form), hub, plate.
 
 ### Player (allied) — `weapon-ew-player.png`
 
 ```text
 Top-down (bird's-eye) game sprite of a compact electronic-warfare jammer module that
-bolts onto the central hardpoint of a combat robot, viewed from directly above. A small
-armored mount plate carrying a short central antenna mast ringed by four thin whip
-aerials and a cluster of tiny emitter panels, with faint concentric rings of broadcast
-interference radiating outward. Allied faction design: cool blue and teal plating with
-brushed steel and soft cyan signal glow on the aerial tips. No dish, no coils, no barrel
-and no warhead — clearly a signal jammer, distinct from a radar dish and from an energy
-emitter. Radially balanced so it reads from any angle. Bold readable silhouette,
-semi-flat stylized art with light cel shading, soft top lighting. Fully transparent
-background, no ground, no shadow, no text. Centered, the module filling about 65% of a
-512x512 frame with generous even padding.
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: four thick straight aerials in plum purple (hex
+8a72ab) arranged as a bold X reaching out to the edge of the module, one dark
+gunmetal hub where they cross, and a small neutral dark gunmetal mount plate beneath,
+with clean rounded armor edges. The aerials must be thick chunky bars, not thin
+wires. No faction colors, no blue, no teal, no cyan. Only three shapes in total:
+aerial cross, hub, plate. No interference rings, no emitter panels, no bolts, no
+panel lines, no status lights, no text, no gradients — flat solid colors with a thick
+dark outline. No dish, no ring of coils, no barrel and no warhead: clearly a signal
+jammer, and clearly distinct from a radar dish and from an emitter ring. Radially
+balanced so it reads from any angle. Semi-flat stylized game art, soft top lighting.
+Fully transparent background, no ground, no shadow. Centered, the module filling
+about 65% of a 512x512 frame with generous even padding. Must stay readable when
+shrunk to 30 pixels.
 ```
 
 ### Enemy (AI / hostile) — `weapon-ew-ai.png`
 
 ```text
 Top-down (bird's-eye) game sprite of a compact electronic-warfare jammer module that
-bolts onto the central hardpoint of a combat robot, viewed from directly above. A jagged
-armored mount plate carrying a crooked central antenna mast ringed by four bent spiky
-whip aerials and a cluster of battered emitter panels, with harsh concentric rings of
-broadcast interference radiating outward. Hostile enemy faction design: dark gunmetal and
-red-orange plating, rust streaks and a sickly magenta-red signal glow on the aerial tips.
-No dish, no coils, no barrel and no warhead — clearly a sinister signal jammer, distinct
-from a radar dish and from an energy emitter. Radially balanced so it reads from any
-angle. Bold readable silhouette, semi-flat stylized art with light cel shading, soft top
-lighting. Fully transparent background, no ground, no shadow, no text. Centered, the
-module filling about 65% of a 512x512 frame with generous even padding.
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: four thick straight aerials in plum purple (hex
+8a72ab), bent and scratched, arranged as a bold X reaching out to the edge of the
+module, one dark gunmetal hub where they cross, and a small neutral dark gunmetal
+mount plate beneath, with angular battered armor edges and rust streaks. The aerials
+must be thick chunky bars, not thin wires. No faction colors, no red, no orange
+plating, no magenta. Only three shapes in total: aerial cross, hub, plate. No
+interference rings, no emitter panels, no bolts, no panel lines, no status lights, no
+text, no gradients — flat solid colors with a thick dark outline. No dish, no ring of
+coils, no barrel and no warhead: clearly a sinister signal jammer, and clearly
+distinct from a radar dish and from an emitter ring. Radially balanced so it reads
+from any angle. Semi-flat stylized game art, soft top lighting. Fully transparent
+background, no ground, no shadow. Centered, the module filling about 65% of a 512x512
+frame with generous even padding. Must stay readable when shrunk to 30 pixels.
 ```
 
 ---
 
 ## FPV — loitering-munition carrier module (launches a swarm of strike drones)
 
-**Planned, art not generated yet.** A ground robot carrying a sealed launch canister
-that pops open and releases a small salvo of single-use FPV strike drones; each drone
-flies off, hits one target for about a cannon shot's damage, and is gone. The pod then
-reloads for several seconds.
+A ground robot carrying a sealed launch canister that pops open and releases a
+small salvo of single-use FPV strike drones; each drone flies off, hits one target
+for about a cannon shot's damage, and is gone. The pod then reloads.
 
-It must read as a **container that holds flyers**, not as a gun and not as the missile
-pod: the giveaway is a cluster of **open hexagonal launch cells with folded rotor blades
-visible inside**, plus split hatch doors hinged back over the shoulders of the plate. No
-barrel, no warhead noses, no dish, no coils. Next to `missiles` the difference has to be
-obvious at 24 px — missiles show **pointed noses in round tubes**, FPV shows **folded
-props in honeycomb cells**.
+**Dominant form:** an olive-drab canister perforated by **five** big dark launch
+cells — the salvo size is legible from the art itself. At 30 px the folded rotors
+and camera lenses the old brief asked for are 3 px each and cannot survive; what
+survives is the **perforated pattern**, which is unique in this set. If the salvo
+size in `gameConfig` changes, re-generate rather than let the art lie.
 
-**Not directional:** the drones leave straight up, so the module is authored radially
-balanced like `radar`/`ew`/`dew` and needs **no** `rotationOffset`. Draw **five** cells
-so the salvo size is legible from the art itself (a ring of four around one center cell
-keeps it symmetric — if the number changes in `gameConfig`, re-generate rather than let
-the art lie).
+**Not directional:** the drones leave straight up, so no `rotationOffset`.
 
 ### Player (allied) — `weapon-fpv-player.png`
 
 ```text
 Top-down (bird's-eye) game sprite of a compact FPV strike-drone carrier module that
-bolts onto the central hardpoint of a combat robot, viewed from directly above. A small
-armored mount plate carrying a hexagonal launch canister whose split hatch doors are
-folded open, revealing five honeycomb launch cells — one in the center ringed by four —
-each holding a tiny quad-rotor attack drone nested nose-up with its rotor arms folded
-in, so the folded props and a tiny camera lens are visible inside each cell. A slim
-control antenna and a small video-link module sit on the edge of the plate. Allied
-faction design: cool blue and teal plating with brushed steel, dark cell interiors and
-small cyan status lights ringing the canister rim. Clearly a container full of folded
-flying drones — not a missile pod with pointed warheads, not a gun barrel, not a dish.
-Radially balanced so it reads from any angle. Bold readable silhouette, semi-flat
-stylized art with light cel shading, soft top lighting. Fully transparent background, no
-ground, no shadow, no text, no smoke and no exhaust trails. Centered, the module filling
-about 65% of a 512x512 frame with generous even padding.
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: one thick rounded-square canister shell in matte olive
+drab green (hex 7d8452) filling about 85 percent of the module, perforated by exactly
+five large dark open launch cells — one in the center ringed by four — and a neutral
+dark gunmetal rim around the shell, with clean rounded armor edges. The five cells
+must be big dark holes, clearly countable. No faction colors, no blue, no teal, no
+cyan. Only three shapes in total: shell, five cells, rim. No drones visible inside,
+no rotor blades, no camera lenses, no hatch doors, no antenna, no bolts, no panel
+lines, no status lights, no text, no gradients — flat solid colors with a thick dark
+outline. Clearly a perforated launch canister — not a missile pod with two tubes, not
+a gun barrel, not a dish. Radially balanced so it reads from any angle. Semi-flat
+stylized game art, soft top lighting. Fully transparent background, no ground, no
+shadow, no smoke, no exhaust trails. Centered, the module filling about 65% of a
+512x512 frame with generous even padding. Must stay readable when shrunk to 30 pixels.
 ```
 
 ### Enemy (AI / hostile) — `weapon-fpv-ai.png`
 
 ```text
 Top-down (bird's-eye) game sprite of a compact FPV strike-drone carrier module that
-bolts onto the central hardpoint of a combat robot, viewed from directly above. A jagged
-armored mount plate carrying a crude hexagonal launch canister whose battered split
-hatch doors are wrenched open, revealing five honeycomb launch cells — one in the center
-ringed by four — each holding a tiny quad-rotor attack drone nested nose-up with its
-rotor arms folded in, so the folded props and a tiny camera lens are visible inside each
-cell. A bent control antenna and a taped-on video-link box sit on the edge of the plate.
-Hostile enemy faction design: dark gunmetal and red-orange plating, rust streaks,
-soot-blackened cell mouths and glaring red status lights ringing the canister rim.
-Clearly a sinister container full of folded flying drones — not a missile pod with
-pointed warheads, not a gun barrel, not a dish. Radially balanced so it reads from any
-angle. Bold readable silhouette, semi-flat stylized art with light cel shading, soft top
-lighting. Fully transparent background, no ground, no shadow, no text, no smoke and no
-exhaust trails. Centered, the module filling about 65% of a 512x512 frame with generous
-even padding.
+bolts onto the central hardpoint of a combat robot, viewed from directly above.
+Extremely simple, bold shapes: one thick rounded-square canister shell in matte olive
+drab green (hex 7d8452), scratched and streaked with rust, filling about 85 percent of
+the module, perforated by exactly five large soot-blackened open launch cells — one in
+the center ringed by four — and a neutral dark gunmetal rim around the shell, with
+angular battered armor edges. The five cells must be big dark holes, clearly countable.
+No faction colors, no red, no orange plating. Only three shapes in total: shell, five
+cells, rim. No drones visible inside, no rotor blades, no camera lenses, no hatch
+doors, no antenna, no bolts, no panel lines, no status lights, no text, no gradients —
+flat solid colors with a thick dark outline. Clearly a crude perforated launch canister
+— not a missile pod with two tubes, not a gun barrel, not a dish. Radially balanced so
+it reads from any angle. Semi-flat stylized game art, soft top lighting. Fully
+transparent background, no ground, no shadow, no smoke, no exhaust trails. Centered,
+the module filling about 65% of a 512x512 frame with generous even padding. Must stay
+readable when shrunk to 30 pixels.
 ```
 
 ### The munition itself is a second, separate sprite
@@ -357,9 +490,16 @@ So adding a module is two steps:
 1. Export transparent PNGs to `client/assets-src/sprites/`, named
    `weapon-<type>-<faction>.png` (e.g. `weapon-radar-ai.png`,
    `weapon-dew-player.png`), add the pair to the `SPRITES` table in
-   `client/scripts/encode-sprites.mjs` at `size: 64`, and run the script — modules
-   are drawn at 24 px, so 64² is already generous (see
+   `client/scripts/encode-sprites.mjs` at `size: 96`, and run the script — modules
+   are drawn at 30 px, so 96² is a comfortable 3× (see
    [README.md](README.md#where-the-files-live-masters-vs-what-ships)).
+
+   Art usually lands one weapon at a time, so pass the name to encode just that
+   pair and leave every other `.webp` untouched:
+
+   ```sh
+   node scripts/encode-sprites.mjs radar     # → weapon-radar-player + -ai
+   ```
 2. Add the pair to `weaponSprites`, keyed `owner → weapon`, using the shared
    `WEAPON_TARGET` size:
    ```ts
@@ -374,6 +514,13 @@ So adding a module is two steps:
    player: { cannon: { src: '…', targetSize: WEAPON_TARGET, rotationOffset: Math.PI / 2 } },
    ```
 
+**Modules are never team-tinted.** `RobotView` passes no tint to the hardpoint
+sprite, on purpose: multiplying a role colour by a side colour would destroy the
+one channel that survives the downscale, and it would do it for sides `AI2`/`AI3`
+specifically — where telling a cannon from a jammer matters most. The tinted
+chassis underneath still says whose robot it is.
+
 `UnitsGuideModal` reads the same `weaponSprites` table for its player-faction thumbnails,
 so a weapon gains its picture in the reference the moment it gains one on the field —
-there is no second list to update.
+there is no second list to update. That modal is also where a player *learns* the colour
+code, so it is worth opening after regenerating art.
