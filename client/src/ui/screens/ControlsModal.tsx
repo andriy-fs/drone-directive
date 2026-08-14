@@ -33,6 +33,9 @@ function droneControls(t: T): { keys: string[]; action: string }[] {
     { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'flyDrone') },
     { keys: ['F'], action: t('mainMenu', 'landRelease') },
     { keys: ['E'], action: t('mainMenu', 'fireWeapon') },
+    // The same keys, doing the other job — worth a row of its own, since which
+    // one they do depends on the Drone panel's toggle rather than on the key.
+    { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'panView') },
   ];
 }
 

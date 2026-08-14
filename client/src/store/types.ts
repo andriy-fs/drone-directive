@@ -190,6 +190,26 @@ export interface GameStateFields {
   droneFireRequested: boolean;
   /** HUD-facing drone status pushed from snapshots. */
   droneStatus: DroneStatus;
+  /**
+   * Whether the viewport rides the observer drone. Client-local by design: the
+   * camera feeds nothing in the simulation, so this is never a `Command` and
+   * never goes on the wire.
+   *
+   * While it is off the drone hovers where it was left (it still lights the fog
+   * around itself) and the flight keys pan the camera instead — the same thing
+   * they already do while the drone is down.
+   */
+  viewSyncedToDrone: boolean;
+  /**
+   * A replacement drone has rolled out and the player has not looked at it yet:
+   * a counter identifying the current notice, or 0 for none. Raised by the
+   * bridge on the local side's drone respawn, cleared when the view is synced.
+   *
+   * A counter rather than a flag so the toast can tell "this notice" from "the
+   * one before it" and time itself out without writing state back — two rebuilds
+   * in one match are otherwise indistinguishable.
+   */
+  droneReadyNotice: number;
   /** Build & program dialog visibility — opened by the HUD button or a double-click on your base. */
   buildDialogOpen: boolean;
   /** Player-editable settings + their defaults (see config/gameSettings). */
@@ -244,6 +264,17 @@ export interface GameActions {
   requestDroneFire: () => void;
   clearDroneRequests: () => void;
   setDroneStatus: (status: DroneStatus) => void;
+  /**
+   * Glue the viewport to the drone, or cut it loose. Unsyncing while the drone
+   * is riding a robot also releases it — a possessed robot takes no orders and
+   * holds no target of its own, so leaving one behind with nobody at the stick
+   * would strand it.
+   */
+  setViewSync: (on: boolean) => void;
+  /** Drop the "new drone ready" notice (synced, dismissed, or timed out). */
+  clearDroneReadyNotice: () => void;
+  /** Bridge-only: raise the "new drone ready" notice on a local respawn. */
+  noteDroneReady: () => void;
   setBuildDialogOpen: (open: boolean) => void;
   setLocale: (locale: Locale) => void;
   /**

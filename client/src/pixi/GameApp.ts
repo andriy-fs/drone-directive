@@ -356,15 +356,21 @@ export class GameApp {
   }
 
   /**
-   * Centre the viewport on the local side's observer drone (this player's eye).
-   * While that drone is shot down, the same keys pan the camera freely instead
-   * of leaving the view frozen — the player loses the drone's vision, not the
-   * ability to look around. Never falls back to *another* side's drone: online
-   * that would hand this client a live view of the opponent's scout.
+   * Centre the viewport on the local side's observer drone (this player's eye),
+   * as long as the player has the view synced to it. Unsynced — or with the
+   * drone shot down — the same keys pan the camera freely instead of leaving the
+   * view frozen: the player loses the drone's vision, not the ability to look
+   * around. Never falls back to *another* side's drone: online that would hand
+   * this client a live view of the opponent's scout.
+   *
+   * The sync flag is what keeps a rebuilt drone from yanking the player home.
+   * It is dropped when the drone dies (see `wireBus`), so the replacement that
+   * rolls out over the base 30 s later appears without moving the viewport, and
+   * the player decides when to go back to it.
    */
   private updateCamera(): void {
     const drone = dronesQuery(this.engine.world).entities.find((d) => d.owner === this.localSide);
-    if (drone) {
+    if (drone && useGameStore.getState().viewSyncedToDrone) {
       this.camera.centerOn(drone.position.x, drone.position.y);
       return;
     }
@@ -376,6 +382,17 @@ export class GameApp {
     const frameDt = Math.min(this.app.ticker.deltaMS / 1000, gameConfig.maxFrameDt);
     const step = gameConfig.camera.keyboardPanSpeed * frameDt;
     this.camera.panByWorld(dir.x * step, dir.y * step);
+  }
+
+  /**
+   * Put the viewport back on the drone for a new match. The sync flag survives
+   * the end of a match (it is plain store state), so without this a player whose
+   * drone was down when the last one finished would open the next one looking at
+   * an empty corner of a world they have not seen yet.
+   */
+  private resetView(store: GameState): void {
+    store.setViewSync(true);
+    store.clearDroneReadyNotice();
   }
 
   /** Subscribe app-layer observers (audio + store sync) to discrete engine events. */
@@ -418,6 +435,26 @@ export class GameApp {
       // online, the opponent's) factories out of this player's speakers.
       bus.on('entitySpawned', ({ kind, owner }) => {
         if (kind === 'robot' && owner === this.localSide) sfx.unitReady();
+      }),
+    );
+    // The two halves of "your eye was shot down, and here is the new one".
+    //
+    // Dropping the sync on death is what stops the replacement — which always
+    // rolls out over the base — from hauling the player back from wherever they
+    // were fighting. The notice then says a drone is up again, and the player
+    // chooses the moment to fly it. Same filter as the factory pip above: the
+    // opponent's eye is not this client's business.
+    //
+    // The opening drone is spawned straight into the world by `gameScene` with
+    // no event, so a `drone` spawn reaching here always means "rebuilt mid-match".
+    this.busUnsubs.push(
+      bus.on('entityDestroyed', ({ kind, owner }) => {
+        if (kind === 'drone' && owner === this.localSide) store().setViewSync(false);
+      }),
+    );
+    this.busUnsubs.push(
+      bus.on('entitySpawned', ({ kind, owner }) => {
+        if (kind === 'drone' && owner === this.localSide) store().noteDroneReady();
       }),
     );
     this.busUnsubs.push(bus.on('entityDestroyed', () => this.pushSnapshot()));
@@ -527,6 +564,7 @@ export class GameApp {
       else {
         // Clear any lingering online flag so a solo restart runs with the bot AI.
         store.updateSettings({ match: { online: false } });
+        this.resetView(store);
         this.engine.startMatch(useGameStore.getState().settings);
         this.engine.setLocalSide(Owner.Player);
       }
@@ -545,11 +583,7 @@ export class GameApp {
     // Solo / offline live loop.
     this.engine.setPaused(store.paused);
     this.enqueueFrom(Owner.Player, store.drainCommands());
-    this.engine.setDroneControl(Owner.Player, {
-      dir: store.droneInput,
-      possessPulse: store.dronePossessRequested,
-      firePulse: store.droneFireRequested,
-    });
+    this.engine.setDroneControl(Owner.Player, this.localDroneControl(store));
     store.clearDroneRequests();
     this.engine.tick(dt);
     this.snapshotAfterTick();
@@ -683,13 +717,32 @@ export class GameApp {
       return { commands: [], drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false }, pauseToggle };
     }
     const commands = store.drainCommands();
-    const drone: DroneControl = {
-      dir: { x: store.droneInput.x, y: store.droneInput.y },
+    const drone = this.localDroneControl(store);
+    store.clearDroneRequests();
+    return { commands, drone, pauseToggle };
+  }
+
+  /**
+   * The local side's stick for one tick, read off the store.
+   *
+   * `droneInput` does double duty: with the view synced it flies the drone, and
+   * with it loose the very same vector pans the camera (`updateCamera`). So the
+   * unsynced case has to send a zero stick, or the player would be walking the
+   * drone across the map every time they looked around. Deterministic either
+   * way — the input is authored here and goes on the wire already zeroed, so
+   * both peers step the same world.
+   *
+   * The pulses pass through untouched: while unsynced the input layer stops
+   * raising them (see `input/pointer.ts`), which leaves the release queued by
+   * `setViewSync` as the only one that can still arrive.
+   */
+  private localDroneControl(store: GameState): DroneControl {
+    const synced = store.viewSyncedToDrone;
+    return {
+      dir: synced ? { x: store.droneInput.x, y: store.droneInput.y } : { x: 0, y: 0 },
       possessPulse: store.dronePossessRequested,
       firePulse: store.droneFireRequested,
     };
-    store.clearDroneRequests();
-    return { commands, drone, pauseToggle };
   }
 
   private snapshotAfterTick(): void {
@@ -771,6 +824,7 @@ export class GameApp {
     // Nothing else clears `paused`, and a stale `true` from an earlier solo match
     // would freeze this client's world while the peer's kept running.
     store.setPaused(false);
+    this.resetView(store);
     this.engine.startMatch(useGameStore.getState().settings, seed);
     this.engine.setLocalSide(store.localSide);
     this.applyOnlineBaseSetup(store);

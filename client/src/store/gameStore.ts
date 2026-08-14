@@ -72,6 +72,19 @@ export const useGameStore = create<GameState>((set, get) => ({
   requestDroneFire: () => set({ droneFireRequested: true }),
   clearDroneRequests: () => set({ dronePossessRequested: false, droneFireRequested: false }),
   setDroneStatus: (status) => set({ droneStatus: status }),
+  setViewSync: (on) =>
+    set((s) => ({
+      viewSyncedToDrone: on,
+      // Looking at the drone again is what the notice was asking for.
+      droneReadyNotice: on ? 0 : s.droneReadyNotice,
+      // Cutting the view loose stops forwarding flight input, so a possessed
+      // robot would sit there with its target cleared every tick and nobody
+      // steering it. Bail out of the hull on the way out (one pulse = release).
+      dronePossessRequested:
+        !on && s.droneStatus.possessedRobotId !== null ? true : s.dronePossessRequested,
+    })),
+  clearDroneReadyNotice: () => set({ droneReadyNotice: 0 }),
+  noteDroneReady: () => set((s) => ({ droneReadyNotice: s.droneReadyNotice + 1 })),
   setBuildDialogOpen: (open) => set({ buildDialogOpen: open }),
   // Dictionaries are code-split, so switching language is "load, then switch":
   // the store never holds a locale whose dictionary is missing (see i18n/dictionaries.ts).
