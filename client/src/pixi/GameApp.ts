@@ -43,7 +43,10 @@ import { FogView } from './render/FogView';
 import { HoverTargetView, type HoverTarget } from './render/HoverTargetView';
 import { OrderMarkerView } from './render/OrderMarkerView';
 import { RallyView, type RallyMarker } from './render/RallyView';
-import { createObstaclesGraphic } from './render/ObstaclesView';
+import { createTerrainView } from './render/terrain/TerrainView';
+import { perfFlags } from './perf/perfFlags';
+import { PerfHud } from './perf/PerfHud';
+import { graphicsQuality } from './quality';
 import { WorldRenderer } from './render/WorldRenderer';
 
 /**
@@ -62,6 +65,9 @@ export class GameApp {
   private orderMarkerView: OrderMarkerView | null = null;
   private hoverView: HoverTargetView | null = null;
   private obstacleGfx: Container | null = null;
+  /** Frame-time readout — see `perf/perfFlags.ts`. Null unless `?perf=1`. */
+  private perfHud: PerfHud | null = null;
+  private qualityUnsub: (() => void) | null = null;
   /** Last known cursor position in screen px, or null when it is off the canvas / dragging a marquee. */
   private pointerScreen: { x: number; y: number } | null = null;
   /** Mirrors `canvas.style.cursor` so the style is only written when it actually changes. */
@@ -130,11 +136,33 @@ export class GameApp {
     await this.app.init({
       resizeTo: host,
       background: palette.background,
-      antialias: true,
+      // Pinned, not left to auto-detection. The terrain and ground meshes ship
+      // GLSL programs with no WGSL counterpart, so a fall-through to WebGPU would
+      // find them without a `gpuProgram` and silently drop the whole field. WebGL
+      // is already first in Pixi's default order — this makes that load-bearing
+      // rather than incidental. Adding WebGPU means adding `gpuProgram` to
+      // `render/terrain/terrainShaders.ts` and `render/GroundMesh.ts`.
+      preference: 'webgl',
+      // Both come from the player's graphics-quality setting; the perf harness can
+      // only force antialias *off*, never on, so a measurement run never quietly
+      // upgrades what the player chose.
+      antialias: perfFlags.antialias && graphicsQuality.antialias(),
       autoDensity: true,
-      resolution: window.devicePixelRatio || 1,
+      resolution: graphicsQuality.resolution(),
     });
     host.appendChild(this.app.canvas);
+    if (perfFlags.hud) this.perfHud = new PerfHud(host);
+
+    // The resolution half of the setting applies live; antialias cannot (context
+    // creation flag), and the settings dialog tells the player so.
+    this.qualityUnsub = graphicsQuality.onResolutionChange((resolution) => {
+      // One `resize` rather than assigning `renderer.resolution` — the setter
+      // re-resizes the render texture from its *own* current dimensions, so it
+      // reads whatever it just wrote. Passing the screen size explicitly, in CSS
+      // pixels, leaves nothing to infer.
+      const { width, height } = this.app.screen;
+      this.app.renderer.resize(width, height, resolution);
+    });
 
     this.layers = createLayers();
     // No ground until a match exists — it is sized off that match's grid, and
@@ -303,8 +331,16 @@ export class GameApp {
     // shared, so every pulse on screen — the dome, the order marker, the hover
     // reticle — is in the same phase.
     const now = performance.now();
+    if (this.perfHud) {
+      const ctx = this.engine.context;
+      this.perfHud.sample(this.app.ticker.deltaMS, {
+        inMatch: !!ctx,
+        paused: useGameStore.getState().paused,
+        robots: ctx ? robotsQuery(this.engine.world).entities.length : 0,
+      });
+    }
     this.worldRenderer.sync(selected, (e) => this.isVisibleToLocalSide(e), now);
-    this.fogView?.update(this.engine.context?.fog);
+    if (perfFlags.fog) this.fogView?.update(this.engine.context?.fog);
     this.rallyView?.update(this.localRallyMarkers());
     this.orderMarkerView?.update(now);
     const hovered = this.attackHoverTarget(selectedRobotIds);
@@ -965,10 +1001,16 @@ export class GameApp {
     }
   }
 
-  /** The ground surface is sized off `worldPixelSize`/`gameConfig.grid` — rebuild per match. */
+  /**
+   * The ground surface is sized off `worldPixelSize`/`gameConfig.grid` — rebuild
+   * per match. Takes the match's terrain: the decal scatter has to avoid blocked
+   * tiles and the bases' clear margins.
+   */
   private rebuildGround(): void {
     this.clearGround();
-    this.layers.ground.addChild(createGround());
+    const ctx = this.engine.context;
+    if (!ctx) return;
+    this.layers.ground.addChild(createGround(ctx.terrain));
   }
 
   /** Drop the ground surface (and anything else on its layer) — no match, nothing to stand on. */
@@ -983,16 +1025,23 @@ export class GameApp {
     this.layers.fog.addChild(this.fogView.container);
   }
 
+  /**
+   * The terrain field, drawn as landforms over the ground (see `TerrainView`).
+   * Kept on the ground layer, and therefore under the fog: unexplored terrain must
+   * stay hidden, cast shadows and crater ejecta included.
+   */
   private rebuildObstacles(): void {
     this.clearObstacles();
     const ctx = this.engine.context;
-    if (!ctx) return;
-    this.obstacleGfx = createObstaclesGraphic(ctx.terrain);
+    if (!ctx || !perfFlags.terrain) return;
+    this.obstacleGfx = createTerrainView(ctx.terrain);
     this.layers.ground.addChild(this.obstacleGfx);
   }
 
   private clearObstacles(): void {
-    this.obstacleGfx?.destroy();
+    // `children: true` because the terrain view is a stack of sub-layers now, not
+    // one flat container — destroying only the root would strand the rest.
+    this.obstacleGfx?.destroy({ children: true });
     this.obstacleGfx = null;
   }
 
@@ -1011,6 +1060,10 @@ export class GameApp {
     this.orderMarkerView = null;
     this.hoverView?.destroy();
     this.hoverView = null;
+    this.perfHud?.destroy();
+    this.perfHud = null;
+    this.qualityUnsub?.();
+    this.qualityUnsub = null;
     for (const unsub of this.busUnsubs) unsub();
     this.storeUnsub?.();
     this.storeUnsub = null;

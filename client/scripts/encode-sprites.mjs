@@ -56,12 +56,26 @@ const SPRITES = [
   // FPV strike drone — on-field 30 px (MUNITION_TARGET); one art set for every
   // side, tinted per owner, so there is no `-player`/`-ai` pair here.
   { name: 'fpv-munition', size: 96, quality: 90 },
-  // Terrain: opaque, tiled, and already at or near its display size.
-  { name: 'obstacle-crater', size: 64, quality: 90, alpha: false, seamless: true },
-  { name: 'obstacle-mountain', size: 64, quality: 90, alpha: false, seamless: true },
-  // Ground: repeats every 128 px of field (tilePx × GROUND_REPEAT_TILES), so 512
-  // still leaves 4× headroom — and it is the flattest, least detailed art here.
-  { name: 'ground-tile', size: 512, quality: 82, alpha: false, seamless: true },
+  // Terrain fills: opaque and tiled, but no longer one-cell tiles — `TerrainView`
+  // stretches each across the whole world masked to its terrain kind, repeating
+  // every ROCK_REPEAT_TILES (6) cells = 192 px of field. 512 is a ~2.7× downscale.
+  { name: 'obstacle-crater', size: 512, quality: 88, alpha: false, seamless: true },
+  { name: 'obstacle-mountain', size: 512, quality: 88, alpha: false, seamless: true },
+  // Ground: two seamless variants blended through a procedural mask, repeating
+  // every 256 px of field (tilePx × GROUND_REPEAT_TILES), so 1024 is 4× headroom —
+  // and they are the flattest, least detailed art here.
+  { name: 'ground-tile', size: 1024, quality: 82, alpha: false, seamless: true },
+  { name: 'ground-tile-alt', size: 1024, quality: 82, alpha: false, seamless: true },
+  // Terrain/ground decals: 2×2 sheets and one halo, cropped by `frame` in
+  // config/sprites.ts. Alpha, and NOT seamless — they are sheets, not tiles, so
+  // wrap-padding them would bleed one quadrant into the next.
+  { name: 'terrain-peaks', size: 512, quality: 90 },
+  // Stretched to a crater cluster's bounding box — up to ~400 px, so 512 is still
+  // headroom. It was tried at 768 and cost 203 KB: thin radial debris streaks are
+  // almost all alpha edge, which is the worst case for WebP, and this is
+  // background decor sitting under the fog.
+  { name: 'terrain-ejecta', size: 512, quality: 86 },
+  { name: 'ground-decals', size: 512, quality: 90 },
 ];
 
 /** The ffmpeg filter chain that turns a master into a correctly scaled RGBA/RGB frame. */

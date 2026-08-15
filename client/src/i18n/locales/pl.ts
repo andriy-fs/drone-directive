@@ -200,6 +200,16 @@ export const pl: Dict = {
     off: 'Wył.',
     volume: 'Głośność',
   },
+  graphics: {
+    title: 'Grafika',
+    settings: 'Ustawienia grafiki',
+    quality: 'Jakość',
+    high: 'Wysoka',
+    medium: 'Średnia',
+    low: 'Niska',
+    hint: 'Niższe ustawienia renderują mniej pikseli — płynniej na słabszych maszynach, mniej ostro na dokładnych ekranach.',
+    reload: 'Odśwież stronę, aby zastosować wygładzanie krawędzi.',
+  },
   online: {
     multiplayer: 'Tryb wieloosobowy',
     online2p: 'Online (2 graczy)',

@@ -1326,6 +1326,19 @@
   min-width: 140px;
 }
 
+/* Explanatory line under a settings row — what the choice above actually costs. */
+.modal__note {
+  margin: -4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/* The same line when it is asking for an action rather than describing one. */
+.modal__note--warn {
+  color: var(--radio-alert);
+}
+
 /* Hosted room code + its copy button, centred as one unit. The button is padded
    off the code so the wide letter-spacing doesn't crowd it. */
 .room-code {

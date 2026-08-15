@@ -5,8 +5,12 @@ import { markSoundReady } from './audio/sfx';
 import {
   baseSprites,
   droneSprite,
+  ejectaSprite,
+  groundAltSprite,
+  groundDecalSprites,
   groundSprite,
   munitionSprite,
+  peakSprites,
   robotSprites,
   spriteSources,
   terrainSprites,
@@ -53,11 +57,22 @@ export function loadGameAssets(): Promise<void> {
   return spriteLoad;
 }
 
+/**
+ * Loaded **one source at a time via `allSettled`**, not as one `Assets.load(array)`.
+ *
+ * Several sprites are optional by contract — the terrain decals in particular,
+ * whose whole design is "missing file → that pass is skipped" (see
+ * `.docs/sprites/terrain-peaks.md`). A batched `Assets.load` rejects as a unit, so
+ * one 404 would take the settled promise down with it and every *other* sprite
+ * would be left resolving to `null` for the life of the page. Settling per source
+ * makes the optional-asset contract actually hold.
+ */
 async function loadSprites(): Promise<void> {
-  try {
-    await Assets.load(spriteSources());
-  } catch (err) {
-    console.error('Failed to load sprite assets; using placeholders', err);
+  const sources = spriteSources();
+  const results = await Promise.allSettled(sources.map((src) => Assets.load(src)));
+  const failed = sources.filter((_, i) => results[i].status === 'rejected');
+  if (failed.length) {
+    console.error(`Failed to load ${failed.length} sprite asset(s); using placeholders`, failed);
   }
 }
 
@@ -174,14 +189,42 @@ export function getWeaponTexture(weapon: WeaponType, owner: Owner): ResolvedSpri
   return cached(`weapon:${art}:${weapon}`, weaponSprites[art]?.[weapon]);
 }
 
-/** Impassable-terrain tile for one terrain kind, or null (→ flat Graphics fill) if missing/unloaded. */
+/** Impassable-terrain fill texture for one terrain kind, or null (→ flat Graphics fill) if missing/unloaded. */
 export function getTerrainTexture(kind: TerrainKind): ResolvedSprite | null {
   return cached(`terrain:${kind}`, terrainSprites[kind]);
+}
+
+/** How many ridge decal variants exist — callers pick one by hash, so they need the count. */
+export const peakVariantCount = peakSprites.length;
+
+/** One ridge/summit decal variant, or null (→ cluster draws without peaks) if missing/unloaded. */
+export function getPeakTexture(variant: number): ResolvedSprite | null {
+  const i = variant % peakSprites.length;
+  return cached(`peak:${i}`, peakSprites[i]);
+}
+
+/** The crater debris halo, or null (→ crater draws without one) if missing/unloaded. */
+export function getEjectaTexture(): ResolvedSprite | null {
+  return cached('ejecta', ejectaSprite);
 }
 
 /** Walkable-ground tile, or null (→ flat background fill) if missing/unloaded. */
 export function getGroundTexture(): ResolvedSprite | null {
   return cached('ground', groundSprite);
+}
+
+/** The second ground variant blended over the first, or null (→ variant A alone) if missing/unloaded. */
+export function getGroundAltTexture(): ResolvedSprite | null {
+  return cached('ground:alt', groundAltSprite);
+}
+
+/** How many ground decal variants exist — callers pick one by hash. */
+export const groundDecalVariantCount = groundDecalSprites.length;
+
+/** One ground decal variant, or null (→ ground draws without decals) if missing/unloaded. */
+export function getGroundDecalTexture(variant: number): ResolvedSprite | null {
+  const i = variant % groundDecalSprites.length;
+  return cached(`groundDecal:${i}`, groundDecalSprites[i]);
 }
 
 /** Observer-drone sprite, or null (→ Graphics diamond in DroneView) if missing/unloaded. */

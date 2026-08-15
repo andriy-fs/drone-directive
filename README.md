@@ -103,6 +103,37 @@ Workspace-specific extras:
 | `npm run deploy -w server`    | Deploy to Cloudflare (needs `npx wrangler login`).                    |
 | `npm run codegen -w protocol` | Recompile the BARE schema; commit the result (see `protocol/README`). |
 
+### Performance readout
+
+Add `?perf=1` to the URL for an on-screen frame-time readout: fps and mean frame
+time, plus the **p95** and the worst frame since the run started. Read the p95 —
+panning that hitches every few frames can hold a respectable average while
+feeling broken, and the average is exactly the statistic that hides it. It also
+prints the conditions a reading was taken in (map size, robot count, whether the
+match is paused, `devicePixelRatio`), because a number without them is not
+comparable to the next one. The first 90 frames after a match starts are
+discarded, so texture uploads and the first build of the static geometry don't
+land in the numbers.
+
+Render layers can be switched off individually alongside it, which is how you
+find out *what* is slow instead of guessing:
+
+```
+?perf=1&terrain=0     whole terrain view off      &shadow=0   cast shadows off
+       &galt=0        second ground variant off   &depth=0    depth shading off
+       &gdec=0        ground decals off           &rim=0      cluster rim off
+       &fog=0         fog redraw off              &peaks=0    ridge decals off
+       &aa=0          antialias off
+```
+
+Turn one off, pan the observer drone for ten seconds, compare the p95. Whatever
+moves the number is the answer — see
+[.docs/tasks/terrain-render-cost.md](.docs/tasks/terrain-render-cost.md) for a
+worked example where every intuition about the cause was wrong.
+
+For a persistent setting rather than a one-off measurement, the title screen's
+**Graphics** button trades resolution and antialiasing for frame rate.
+
 ### Online multiplayer (dev)
 
 Solo vs. the bot by default; **Online (2P)** in the menu plays head-to-head.

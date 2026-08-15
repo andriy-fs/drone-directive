@@ -100,11 +100,17 @@ export const baseSprites: Partial<Record<Owner, SpriteDef>> = {
 };
 
 /**
- * Seamless impassable-terrain tiles keyed by `TerrainKind`, drawn per blocked
- * cell (one game tile wide; `ObstaclesView` scales each to
- * `gameConfig.grid.tilePx`). A missing entry falls back to the flat Graphics
- * fill. Add a terrain type by adding a key here plus one in `TerrainKind` — see
- * `.docs/sprites/obstacle-mountain.md` / `obstacle-crater.md`.
+ * Seamless **fill textures** for impassable terrain, keyed by `TerrainKind`.
+ *
+ * Not tiles: `TerrainView` stretches one `TilingSprite` per kind across the whole
+ * world and masks it to that kind's cells, so the texture is continuous in world
+ * space and a cluster reads as one landform rather than a grid of cells. Nothing
+ * about the landform lives in these files — shadow, rim and depth are drawn
+ * procedurally from each cluster's silhouette, which is why the art must carry no
+ * lighting of its own. See `.docs/sprites/obstacle-mountain.md`.
+ *
+ * A missing entry falls back to the flat Graphics fill (the procedural passes
+ * still run). Add a terrain type by adding a key here plus one in `TerrainKind`.
  */
 export const terrainSprites: Partial<Record<TerrainKind, SpriteDef>> = {
   [TerrainKind.Mountain]: { src: `${PUBLIC_BASE}obstacle-mountain.webp` },
@@ -112,12 +118,78 @@ export const terrainSprites: Partial<Record<TerrainKind, SpriteDef>> = {
 };
 
 /**
- * Seamless walkable-ground tile tiled across the whole field beneath the grid
- * (see `createGround`). Undefined → the flat `palette.background` fill.
+ * A 2×2 sheet cropped into four defs.
+ *
+ * `frame` is in the **shipped** texture's pixel space, so a quadrant is half of
+ * whatever `scripts/encode-sprites.mjs` encodes that sheet at — the one place in
+ * this file coupled to a number over there. Both sheets ship at 512², hence 256.
+ */
+function sheet2x2(src: string, quadrant: number, targetSize: number): SpriteDef[] {
+  return [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 1, y: 1 },
+  ].map(({ x, y }) => ({
+    src,
+    frame: { x: x * quadrant, y: y * quadrant, w: quadrant, h: quadrant },
+    targetSize,
+  }));
+}
+
+/** On-field size (px) for a ridge decal — ~3 tiles, big enough to be a summit, small enough that a blob fits several. */
+const PEAK_TARGET = 90;
+/** On-field size (px) for a ground decal — ~5 tiles. */
+const GROUND_DECAL_TARGET = 160;
+
+/**
+ * Ridge/summit decals laid at the interior high points of a mountain cluster (see
+ * `.docs/sprites/terrain-peaks.md`). **The one terrain asset with baked lighting**
+ * — it is the lit form itself — so its light direction must match `LIGHT` in
+ * `pixi/render/terrain/TerrainView.ts`. Empty/unloaded → clusters draw without
+ * peaks, which is a degraded look, not a broken one.
+ */
+export const peakSprites: SpriteDef[] = sheet2x2(`${PUBLIC_BASE}terrain-peaks.webp`, 256, PEAK_TARGET);
+
+/**
+ * The debris halo around a crater cluster, drawn **outside** the blocked footprint
+ * on passable ground — which is why it can't be part of the masked fill. Scaled to
+ * the cluster's bounding box rather than a fixed size, so it carries no
+ * `targetSize`. See `.docs/sprites/terrain-ejecta.md`.
+ */
+export const ejectaSprite: SpriteDef | undefined = {
+  src: `${PUBLIC_BASE}terrain-ejecta.webp`,
+};
+
+/**
+ * Seamless walkable-ground tile tiled across the whole field (see `createGround`).
+ * Undefined → the flat `palette.background` fill.
  */
 export const groundSprite: SpriteDef | undefined = {
   src: `${PUBLIC_BASE}ground-tile.webp`,
 };
+
+/**
+ * The second ground variant, blended over `groundSprite` through a procedural
+ * low-frequency mask. Same palette, different surface character: two periods with
+ * different phases and a soft mask between them stop the field reading as one
+ * repeating texture. Undefined → variant A alone.
+ */
+export const groundAltSprite: SpriteDef | undefined = {
+  src: `${PUBLIC_BASE}ground-tile-alt.webp`,
+};
+
+/**
+ * Marks scattered over the walkable surface at match start (tracks, scrap,
+ * concrete, burn scar). Recognisable objects can't live in the base tiles — they
+ * would prove the repeat — so they are placed individually instead. See
+ * `.docs/sprites/ground-decals.md`.
+ */
+export const groundDecalSprites: SpriteDef[] = sheet2x2(
+  `${PUBLIC_BASE}ground-decals.webp`,
+  256,
+  GROUND_DECAL_TARGET,
+);
 
 /**
  * The observer drone — **one** art set for every side, unlike the robot and base
@@ -240,7 +312,7 @@ export const menuBackdropSrc =
     ? `${PUBLIC_BASE}menu-backdrop.webp`
     : new URL('menu-backdrop.webp', window.location.href).toString();
 
-/** Unique image sources to preload (robots + bases + weapon modules + terrain). */
+/** Unique image sources to preload (robots + bases + weapon modules + terrain + decals). */
 export function spriteSources(): string[] {
   const srcs: string[] = [];
   for (const byChassis of Object.values(robotSprites)) {
@@ -253,7 +325,11 @@ export function spriteSources(): string[] {
     for (const def of Object.values(byWeapon)) if (def) srcs.push(def.src);
   }
   for (const def of Object.values(terrainSprites)) if (def) srcs.push(def.src);
+  for (const def of peakSprites) srcs.push(def.src);
+  for (const def of groundDecalSprites) srcs.push(def.src);
+  if (ejectaSprite) srcs.push(ejectaSprite.src);
   if (groundSprite) srcs.push(groundSprite.src);
+  if (groundAltSprite) srcs.push(groundAltSprite.src);
   if (droneSprite) srcs.push(droneSprite.src);
   if (munitionSprite) srcs.push(munitionSprite.src);
   return [...new Set(srcs)];
