@@ -12,11 +12,12 @@ import { GlobalSettingsBar } from './GlobalSettingsBar';
 import { MatchSetupPanel } from './MatchSetupPanel';
 import { MenuNav, type MenuMode } from './MenuNav';
 import { OnlinePanel } from './OnlinePanel';
+import { GraphicsSettingsModal } from './GraphicsSettingsModal';
 import { SoundSettingsModal } from './SoundSettingsModal';
 import { UnitsGuideModal } from './UnitsGuideModal';
 
 /** Which overlay the title screen is showing, or `null` for the menu itself. */
-type MenuModal = 'setup' | 'controls' | 'units' | 'sound' | null;
+type MenuModal = 'setup' | 'controls' | 'units' | 'sound' | 'graphics' | null;
 
 /**
  * Title screen. Three zones rather than one list: global preferences (language,
@@ -95,7 +96,11 @@ export function MainMenu() {
         <div className="menu-shell">
           <header className="menu-shell__header">
             <h1 className="menu__title">{t('mainMenu', 'title')}</h1>
-            <GlobalSettingsBar onOpenSound={() => setModal('sound')} onOpenControls={() => setModal('controls')} />
+            <GlobalSettingsBar
+              onOpenSound={() => setModal('sound')}
+              onOpenGraphics={() => setModal('graphics')}
+              onOpenControls={() => setModal('controls')}
+            />
           </header>
 
           <div className="menu-shell__body">
@@ -118,6 +123,8 @@ export function MainMenu() {
         <ControlsModal onClose={closeModal} />
       ) : modal === 'sound' ? (
         <SoundSettingsModal onClose={closeModal} />
+      ) : modal === 'graphics' ? (
+        <GraphicsSettingsModal onClose={closeModal} />
       ) : null}
     </>
   );

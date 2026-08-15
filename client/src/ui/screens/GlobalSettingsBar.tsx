@@ -2,7 +2,7 @@ import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
 import { useGameStore } from '../../store/gameStore';
 import { Button } from '../common/Button';
-import { CheckIcon, GlobeIcon, HelpCircleIcon, Volume2Icon, VolumeXIcon } from '../common/icons';
+import { CheckIcon, GlobeIcon, GraphicsIcon, HelpCircleIcon, Volume2Icon, VolumeXIcon } from '../common/icons';
 import { Menu, MenuButton, MenuItem, MenuItems } from '../common/Menu';
 import { LANGUAGE_OPTIONS } from './menuOptions';
 
@@ -19,9 +19,11 @@ import { LANGUAGE_OPTIONS } from './menuOptions';
  */
 export function GlobalSettingsBar({
   onOpenSound,
+  onOpenGraphics,
   onOpenControls,
 }: {
   onOpenSound: () => void;
+  onOpenGraphics: () => void;
   onOpenControls: () => void;
 }) {
   const t = useT();
@@ -67,6 +69,15 @@ export function GlobalSettingsBar({
         title={t('sound', 'settings')}
       >
         {sfx.isMuted() ? <VolumeXIcon size={16} aria-hidden /> : <Volume2Icon size={16} aria-hidden />}
+      </Button>
+
+      <Button
+        className="menu-bar__btn"
+        onClick={onOpenGraphics}
+        aria-label={t('graphics', 'settings')}
+        title={t('graphics', 'settings')}
+      >
+        <GraphicsIcon size={16} aria-hidden />
       </Button>
 
       <Button

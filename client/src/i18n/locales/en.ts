@@ -200,6 +200,16 @@ export const en: Dict = {
     off: 'Off',
     volume: 'Volume',
   },
+  graphics: {
+    title: 'Graphics',
+    settings: 'Graphics settings',
+    quality: 'Quality',
+    high: 'High',
+    medium: 'Medium',
+    low: 'Low',
+    hint: 'Lower settings render fewer pixels — smoother on weaker machines, softer on sharp displays.',
+    reload: 'Reload the page to apply antialiasing.',
+  },
   online: {
     multiplayer: 'Multiplayer',
     online2p: 'Online (2P)',

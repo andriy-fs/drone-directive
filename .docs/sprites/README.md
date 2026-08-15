@@ -12,15 +12,46 @@ robot chassis or base types are added, so art can be regenerated consistently.
   rendered on the robot's central hardpoint at 30 px. **Modules do not follow the
   faction palette below** — they carry a per-weapon colour code instead; see the
   two rules at the top of that file before regenerating any of them.
-- **[obstacle-mountain.md](obstacle-mountain.md)** — impassable-terrain tile (one
-  32 px cell, seamlessly tileable): a **mountain** massif. Blocks movement _and_
-  line of fire.
-- **[obstacle-crater.md](obstacle-crater.md)** — the other impassable-terrain tile,
-  same spec and palette but a collapsed impact **crater** (sinks instead of rises).
-  Blocks movement but **not** line of fire — robots shoot across it. The kind is
-  rolled per cluster from the seeded match rng.
-- **[ground.md](ground.md)** — the walkable ground surface tile (seamless,
-  full-field) that replaces the flat dark playfield fill.
+- **[obstacle-mountain.md](obstacle-mountain.md)** — the **fill texture** for
+  impassable mountain terrain. Blocks movement _and_ line of fire.
+- **[obstacle-crater.md](obstacle-crater.md)** — the fill texture for the other
+  impassable kind, a collapsed impact **crater** (sinks instead of rises). Blocks
+  movement but **not** line of fire — robots shoot across it. The kind is rolled
+  per cluster from the seeded match rng.
+- **[terrain-peaks.md](terrain-peaks.md)** — 2×2 sheet of ridge/summit decals laid
+  at the interior high points of a mountain cluster.
+- **[terrain-ejecta.md](terrain-ejecta.md)** — the debris halo drawn around a
+  crater cluster, outside its footprint.
+- **[ground.md](ground.md)** — the walkable ground surface: two seamless variants
+  blended together across the whole field.
+- **[ground-decals.md](ground-decals.md)** — 2×2 sheet of marks scattered over the
+  ground (tracks, scrap, concrete, burn scar).
+
+### Terrain art is not tile art — read this before regenerating any of it
+
+Terrain used to be drawn **one sprite per blocked 32 px cell**, so each asset was a
+finished, self-contained, wrap-around tile with its lighting baked in. That is what
+made a cluster read as a grid of identical pictures rather than as a landform, and
+it is gone. `src/pixi/render/terrain/TerrainView.ts` now draws **one masked
+`TilingSprite` per terrain kind across the whole world** and derives the landform
+procedurally from each cluster's own silhouette — cast shadow, boundary rim,
+distance-transform depth.
+
+The consequence for the art is a hard rule with one exception:
+
+- **Fills** (`obstacle-mountain`, `obstacle-crater`, both ground variants) carry
+  **no light whatsoever** — no sun, no shadow, no vignette, no implied edge or
+  slope. They supply material; the engine supplies form. Baked light gets a second
+  lighting pass on top of it and the cluster falls apart.
+- **`terrain-peaks` is the exception**: it *is* the lit form, so its light is baked
+  and must match the engine's global light vector — **from the upper left**. Even
+  there, a **cast** shadow is still forbidden; the engine draws that from the
+  silhouette.
+
+The old briefs also forbade centered composition and directional light in order to
+protect wrap-tiling, which is why the crater ended up unable to look like a crater.
+Those bans are lifted where they were paying for a constraint that no longer
+exists — see the top of each file.
 - **[menu-backdrop.md](menu-backdrop.md)** — the title-screen splash art shown
   behind the main menu before a match starts. **Key art, not a game object:**
   cinematic three-quarter view, 16:9, opaque — it keeps the palette and faction
@@ -147,6 +178,26 @@ screen for detail no display can resolve. See
    so both faction variants always have to be generated.
 
 ## Per-image checklist before accepting a generation
+
+### Terrain and ground
+
+- [ ] **Fills carry no light**: no sun, no cast or drop shadow, no vignette, no
+      edge darkening, no implied slope, edge or elevation anywhere in the frame.
+- [ ] **Fills are seamless**: check by offsetting the image half a tile and looking
+      for a cross-shaped seam.
+- [ ] **Fills have no dominant form** — nothing large enough to be recognised twice
+      when the texture repeats.
+- [ ] **Values are right in grayscale**: rock a step lighter than the ground, crater
+      floor clearly darker. If the three are indistinguishable in grayscale, the
+      generation failed regardless of how it looks in colour.
+- [ ] **Sheets (2×2)**: nothing touches a quadrant border — `frame` crops on the
+      quadrant and will slice anything on the line.
+- [ ] **Decals and peaks**: genuinely transparent background, outer edges feathered
+      to zero alpha, no baked cast shadow, nothing that looks raised off the ground
+      (except the peaks, which are the only thing that should).
+- [ ] Crater ejecta: the middle really is an empty hole — no bowl generated inside it.
+
+### Units, bases and modules
 
 - [ ] Transparent background (no white box, no shadow, no ground).
 - [ ] Pointing straight up, perfectly top-down (no perspective tilt).

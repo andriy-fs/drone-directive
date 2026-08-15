@@ -221,6 +221,20 @@ export interface Dict {
     off: string;
     volume: string;
   };
+  graphics: {
+    title: string;
+    /** The settings bar button's label. */
+    settings: string;
+    /** Label above the three quality chips. */
+    quality: string;
+    high: string;
+    medium: string;
+    low: string;
+    /** What the levels actually trade — shown under the chips. */
+    hint: string;
+    /** Shown only once a pick has changed something that needs the page reloaded. */
+    reload: string;
+  };
   online: {
     multiplayer: string;
     online2p: string;

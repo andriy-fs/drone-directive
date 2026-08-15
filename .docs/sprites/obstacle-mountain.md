@@ -1,132 +1,111 @@
-# Obstacle tile prompt — mountain
+# Terrain fill prompt — mountain rock
 
-The impassable-terrain tile currently in use — **a rocky mountain massif**. The
-crater in [obstacle-crater.md](obstacle-crater.md) is the alternative type: same
-job, same constraints, opposite elevation — the crater sinks below the battlefield,
-this rises above it.
+The **fill texture** for impassable mountain terrain. The crater floor in
+[obstacle-crater.md](obstacle-crater.md) is its counterpart: same job, same rules,
+opposite elevation.
 
-Obstacles are a boolean grid: **each blocked cell is one 32×32 px tile**
-(`ObstaclesView` draws one sprite per blocked cell), and cells cluster into
-multi-tile blobs, so the tile must **seamlessly tile** — adjacent cells should read
-as one continuous mountain, not a grid of squares.
+## This is a fill, not a tile — read this before generating
 
-This asset is **terrain, not a unit**, so it intentionally overrides some of the
-[Shared spec](README.md): it is **full-bleed and opaque** (no transparent margin,
-no centering), and **seamlessly tileable** (opposite edges match).
+The old brief asked for a finished 32 px tile with ledges, ravines and lighting
+baked in, drawn once per blocked cell. That is exactly what made a cluster read as
+a grid of identical pictures instead of a massif, so **the renderer changed and
+this asset changed role with it.**
 
-## Tile-specific spec
+`TerrainView` now draws **one `TilingSprite` per `TerrainKind` across the whole
+world**, masked to the union of that kind's cells. The texture is therefore
+continuous in world space — there is no per-cell seam to hide and no per-cell
+repeat to disguise. Everything that used to be baked into the tile is now drawn
+procedurally on top of the fill, from the cluster's own silhouette:
+
+| Read                    | Where it comes from now                                  |
+| ----------------------- | -------------------------------------------------------- |
+| Cast shadow             | `Graphics` silhouette, offset by the global light vector |
+| Lit / shadowed edges    | per-edge rim along the cluster boundary                  |
+| Height falling off      | distance-transform depth shading                          |
+| Ridges and summits      | [terrain-peaks.md](terrain-peaks.md) decals               |
+
+**Consequence, and it is the single most important line in this file: the texture
+must carry no light of its own.** Any baked sun, shadow, vignette or implied edge
+gets a second lighting pass applied on top of it and the cluster falls apart. Flat,
+even, ambient — the art supplies *material*, the engine supplies *form*.
+
+## Spec
 
 - **View:** strict orthographic **top-down**.
-- **Bleed:** the rock fills the **entire frame edge-to-edge** — no padding, no
-  transparent border. It replaces a solid cell.
-- **Seamless:** design so the **left edge matches the right, and top matches
-  bottom** (wrap-around tileable). Ridge lines, rock faces and shadows must **run
-  off the edges and continue on the opposite side**, so adjacent blocked cells fuse
-  into one continuous massif. **No single centered summit** and no radial,
-  cone-shaped composition (either telegraphs the grid when tiled) — ridges should
-  cross the frame diagonally, reading as a random crop out of one enormous mountain
-  range.
-- **Must read as impassable — this is the whole point.** It sits next to the flat,
-  smooth walkable ground of [ground.md](ground.md), and the contrast has to be
-  instant: **the terrain rises up**. Convey height in strict top-down by **lit
-  ridge crests and upper slope planes against deep black ravines and shadowed
-  flanks** — here the brightest lines read as the tops, the opposite cue to the
-  crater's dark-is-deep. **No flat floor anywhere in the frame**, no open ground, no
-  pass or valley through.
-- **Consistent light with the crater.** Both tiles can appear on the same map, so
-  they must be lit the same way — soft even top lighting, **short contact shadows**
-  only, never long directional cast shadows (those also fight the tiling).
-- **On-field size:** one game tile = **32 px** on screen, and at `maxZoom: 2` on a
-  retina display that becomes 128 device px. Author at **512×512** (models can't
-  generate usable seamless art below that), then **export downscaled to 128×128** —
-  that's 1:1 at max zoom, and resampling in an editor beats a 16× squeeze at draw
-  time.
-- **Palette — identical to the ground and crater tiles.** Same family as
-  [ground.md](ground.md): very dark, muted, desaturated **near-black deep charcoals
-  and dark blue-grays**, anchored on the `#0d1117` field background. **No new hues**
-  — no lighter slate, no brown, no warm stone, and **no snow, ice or bright peaks**.
-  The mountain is the same rock as the terrain around it; it differs by **form and
-  light, not colour**. This keeps the **overall value range** dark so bright blue
-  (player) and red (enemy) units always pop, while still allowing the crisp local
-  edge contrast height needs — the lit crests only a step brighter than the
-  surrounding ground, the ravines pure near-black, and no bright highlights
-  anywhere.
-- **Style:** clean stylized retro-futuristic RTS terrain, semi-flat with light cel
-  shading, soft even top lighting.
-- **Chunky, not noisy:** a cell is only **32 px** on screen. Use **a few large
-  geometric rock planes and ridges**, not a scatter of small stones or scree — fine
-  detail disappears at that size and turns the tile into flat noise, which is
-  exactly what makes it look drivable.
+- **Bleed:** fills the frame edge-to-edge — opaque, no padding, no transparent border.
+- **Seamless:** left edge matches right, top matches bottom. Still required: the
+  fill repeats every `ROCK_REPEAT_TILES` cells across the world, just no longer
+  every cell.
+- **No lighting of any kind.** No sun, no directional light, no cast or drop
+  shadows, no side-lit highlights, no vignette, no edge darkening, no baked
+  ambient occlusion, no implied slope, cliff edge, ridge line or horizon. Every
+  part of the frame equally lit and equally high.
+- **No dominant form.** No centered feature, no focal point, nothing large enough
+  to telegraph the repeat — a random crop out of an enormous rock field.
+- **Palette — deliberately *not* identical to the ground.** The old rule ("same
+  palette as the ground, differs by form and light, not colour") left the two
+  materials indistinguishable once the baked light was removed. Rock is now
+  **cold blue-gray and one value step lighter than the ground**, roughly `#1a2130`
+  to `#3b4762`, against the ground's `#0d1117` family. The overall mass stays dark
+  so units keep popping; the strong contrast is spent **locally**, at the cluster
+  boundary, where the rim and shadow are drawn.
+- **On-field scale:** shipped at 512², repeating every `ROCK_REPEAT_TILES` (6)
+  cells = 192 px of field, a ~2.7× downscale. Author medium-scale forms — a plate
+  should be tens of pixels on screen, not two.
+- **Chunky, not noisy.** Fine speckle averages to flat mean colour at this
+  downscale and reads as drivable gravel, which is the opposite of the point.
 
 ## Prompt
 
 ```text
-A perfectly seamless tileable top-down RTS terrain tile representing a steep rocky
-mountain massif, viewed from directly above.
+A perfectly seamless, tileable top-down texture of bare fractured mountain bedrock, seen from directly
+overhead with no perspective.
 
-This is NOT a walkable ground texture. It is a mass of mountain rock rising sharply
-above the surrounding landscape, with steep faces and sheer ravines. The terrain is
-clearly much higher than the land around it and cannot be climbed or crossed by
-vehicles.
+This is a FILL TEXTURE, not a finished tile and not a scene. It will be stretched across large irregular
+rock masses, and every shadow, edge, highlight and sense of elevation is added by the game engine on top
+of it. Therefore light it FLATLY and EVENLY, with pure ambient light arriving from every direction at
+once. No sun, no directional lighting, no cast shadows, no drop shadows, no side-lit highlights, no
+vignette, no darkening toward any edge, no baked ambient occlusion, and no implied slope, cliff edge,
+ridge line, horizon or change in elevation anywhere. Every part of the frame must look equally lit and
+equally high.
 
-The entire tile is occupied by angular mountain ridges, jagged crests and steep rock
-faces falling away on both sides. Deep black ravines and shadowed slopes create a
-strong illusion of height. The sharp ridge crests and the upper slope planes catch
-the light while the steep flanks and clefts stay in shadow, making the elevation
-instantly readable.
+Surface: dense cold bedrock — broad angular rock plates and slabs separated by tight dark fracture lines,
+with a coarse mineral grain between them. Medium-scale structure, evenly distributed across the whole
+frame. No individual boulders sitting on top, no scree, no gravel heaps, no sand, no vegetation, no snow,
+no ice, no man-made objects, no craters.
 
-There is no flat floor, no paths, no pass or valley through, no open terrain, no
-vegetation, no snow, no ice, no sand, no gravel and no scattered boulders. The image
-should read as one continuous mountain rock formation rather than individual stones.
+Colour: cold, desaturated blue-gray stone, roughly one value step LIGHTER than the near-black battlefield
+ground it will sit on (#0d1117), staying within a range of about #1a2130 to #3b4762. Muted and dark
+overall, with no bright highlights, no warm tones, no brown and no rust.
 
-Colour: exactly the same palette as the surrounding battlefield ground — a very
-dark, muted, desaturated near-black scheme of deep charcoals and dark blue-grays
-anchored on a #0d1117 background. It is the same charcoal rock as the terrain around
-it and differs only in form and lighting, never in hue: no lighter slate, no brown,
-no warm stone, no snow-capped or bright peaks, no new colours. The lit crests are
-only a step brighter than the surrounding ground and the ravines fall to near-black,
-with no bright highlights anywhere, so the tile stays firmly in the background and
-the bright blue and red units always pop against it.
+Seamless: the left edge continues into the right and the top into the bottom with no visible seam when
+repeated in a grid. No centered feature, no focal point, no single large form that would telegraph the
+repeat — even, homogeneous coverage that reads like a random crop out of an enormous rock field.
 
-The mountain continues seamlessly beyond every edge of the image. Ridge lines, rock
-faces and shadows connect perfectly across opposite edges so repeated tiles form one
-enormous continuous mountain range with no visible seams. It fills the entire frame
-edge to edge with no border and no transparent margin. Avoid any single centered
-summit and any radial or cone-shaped composition — ridges run across the frame and
-the image should feel like a random cropped section from a gigantic mountain range.
+Style: clean stylized semi-flat RTS game art, subtle cel shading, low saturation, low visual noise, bold
+medium-scale forms rather than fine speckle detail. It must still read as fractured rock when shown at
+roughly one third of its authored size.
 
-Lit from directly above with soft even lighting and only short tight contact
-shadows, no long directional cast shadows.
-
-Stylized semi-flat RTS game art, clean geometric shapes, subtle cel shading, low
-saturation, low visual noise, bold readable forms rather than fine detail, optimized
-to remain perfectly readable when reduced to a 32x32 pixel terrain tile.
-
-Square image, 512x512.
+Square image, 1024x1024.
 ```
 
-### Optional: variant tiles to break up repetition
+## How it is wired up
 
-The same blob is tiled from one texture, so a large obstacle can look repetitive.
-If you want, generate **2–3 variants** ("same seamless mountain tile, different
-ridge arrangement, same palette and style") and have `ObstaclesView` pick one per
-cell deterministically (e.g. by tile coordinate) — optional polish, not required.
-
-## How the tile is wired up
-
-Already done — this is the shape of it, for when the tile gets regenerated.
-
-1. Master at `client/assets-src/sprites/obstacle-mountain.png` (opaque, seamless),
-   shipped by `scripts/encode-sprites.mjs` as `public/obstacle-mountain.webp` at
-   **64×64** — twice the 32 px cell it is drawn at. Regenerate at any size; the
-   encoder pins the shipped one (and wrap-pads before scaling so the tile still
-   wraps).
-2. `terrainSprites[TerrainKind.Mountain]` in `src/config/sprites.ts`, with its `src`
+1. Master at `client/assets-src/sprites/obstacle-mountain.png` — **1024²**, opaque,
+   seamless. The name is unchanged from the old tile because the lookup is still
+   keyed by `TerrainKind`; only its role changed.
+2. `scripts/encode-sprites.mjs` ships it as `public/obstacle-mountain.webp` at
+   **512²** (`alpha: false, seamless: true` — the encoder wrap-pads 3×3 before
+   scaling so the wrap survives the downscale).
+3. `terrainSprites[TerrainKind.Mountain]` in `src/config/sprites.ts`; its `src` is
    in `spriteSources()` so it preloads.
-3. `createObstaclesGraphic()` in `src/pixi/render/ObstaclesView.ts` places one
-   `Sprite` per blocked cell, forced to `tilePx` × `tilePx` (32 px), and falls back
-   to the flat `palette.obstacle` fill when the image isn't loaded.
+4. `src/pixi/render/terrain/TerrainView.ts` builds the masked world `TilingSprite`
+   and draws shadow, depth and rim over it. A missing texture falls back to the
+   flat `palette.obstacle.fill`, and the procedural passes still run — the terrain
+   degrades to shaded silhouettes rather than disappearing.
 
-**Gameplay difference from the crater:** the mountain is the kind that blocks *line
-of fire* as well as movement (`sightGrid` in `src/engine/obstacles.ts`). Shots are
-absorbed by it; shots cross a crater. See [obstacle-crater.md](obstacle-crater.md).
+**Gameplay difference from the crater:** the mountain is the kind that blocks
+*line of fire* as well as movement (`sightGrid` in `src/engine/obstacles.ts`).
+Shots are absorbed by it; shots cross a crater. The rim inversion between the two
+(see [obstacle-crater.md](obstacle-crater.md)) is what makes that difference
+legible at a glance, so it is a gameplay-readability feature, not decoration.

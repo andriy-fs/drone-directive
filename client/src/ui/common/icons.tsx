@@ -26,6 +26,7 @@ import {
   SquareDashedMousePointer as LucideSquareDashedMousePointer,
   Hexagon as LucideHexagon,
   Globe as LucideGlobe,
+  MonitorCog as LucideMonitorCog,
   User as LucideUser,
   Users as LucideUsers,
   BookOpen as LucideBookOpen,
@@ -80,6 +81,7 @@ export const DomeIcon = LucideHexagon;
 
 /* The title screen: the global settings bar, then one per navigation entry. */
 export const GlobeIcon = LucideGlobe;
+export const GraphicsIcon = LucideMonitorCog;
 export const UserIcon = LucideUser;
 export const UsersIcon = LucideUsers;
 export const BookOpenIcon = LucideBookOpen;
