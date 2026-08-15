@@ -35,6 +35,8 @@ export const selectChat = (s: GameState) => s.chat;
 export const selectChatMessages = (s: GameState) => s.chat.messages;
 /** True once there is a conversation to open, in a match or long after one. */
 export const selectHasChat = (s: GameState) => s.chat.chatId !== null;
+/** The radio feed over the scene, oldest first. */
+export const selectRadio = (s: GameState) => s.radio;
 
 /** The local side's (first) base, or undefined if it has been destroyed. */
 export const selectPlayerBase = (s: GameState) => s.bases.find((b) => b.owner === s.localSide);

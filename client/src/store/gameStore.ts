@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { radioConfig } from '../config/radio';
 import { loadDict } from '../i18n/dictionaries';
 import { saveLocale, type Locale } from '../i18n/locale';
 import { Owner } from '@drone-directive/types/enums';
@@ -157,6 +158,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       };
     }),
   markChatRead: () => set((s) => (s.chat.unread === 0 ? {} : { chat: { ...s.chat, unread: 0 } })),
+  // Trimmed here rather than in the feed so the array can never grow past what is
+  // drawn: the director keeps talking whether or not anyone is looking at it.
+  pushRadioLine: (line) => set((s) => ({ radio: [...s.radio, line].slice(-radioConfig.maxLines) })),
+  // Called once a second by the feed. Returning `{}` when nothing aged out matters
+  // here more than anywhere else in this file — a fresh array every second would
+  // re-render the log (and restart its typewriter) for no news at all.
+  pruneRadio: (now) =>
+    set((s) => {
+      const kept = s.radio.filter((l) => now - l.at < radioConfig.lineTtlMs);
+      return kept.length === s.radio.length ? {} : { radio: kept };
+    }),
+  clearRadio: () => set((s) => (s.radio.length === 0 ? {} : { radio: [] })),
 }));
 
 /** Non-reactive handle for the app bridge (outside React). */

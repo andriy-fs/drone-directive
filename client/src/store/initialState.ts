@@ -69,4 +69,5 @@ export const initialState: GameStateFields = {
     soundOn: loadChatSound(),
     error: null,
   },
+  radio: [],
 };

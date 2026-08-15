@@ -14,6 +14,7 @@
 import type { ChatMessage, ChatSeat } from '@drone-directive/chat';
 import type { GameSettings, SettingsPatch } from '../config/gameSettings';
 import type { Locale } from '../i18n/locale';
+import type { RadioKey, RadioParams } from '../radio/types';
 import type { Command } from '@drone-directive/types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
 import type { ChassisType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
@@ -224,6 +225,35 @@ export interface GameStateFields {
   pendingOnline: PendingOnline | null;
   /** Chat with the online opponent — event-driven, and outlives the match (see ChatState). */
   chat: ChatState;
+  /** The radio feed over the scene — event-driven like `chat` (see RadioLine). */
+  radio: RadioLine[];
+}
+
+/**
+ * One line in the radio feed.
+ *
+ * The second slice with no engine snapshot behind it, after `chat`, and it breaks
+ * the same rule for the same reason: the director appends to it as bus events
+ * arrive, and rebuilding it from a tick would erase everything already said.
+ *
+ * Stores a phrase *key and seed* rather than the rendered text. Resolving late is
+ * what lets a line already hanging on screen switch language with the rest of the
+ * UI instead of freezing in whichever one it was born in — and the seed stays
+ * meaningful across locales that have different numbers of variants.
+ */
+export interface RadioLine {
+  /** Monotonic within a match; the React key, and the feed's ordering. */
+  id: number;
+  key: RadioKey;
+  /** Picks the variant: `variants[seed % variants.length]`. */
+  seed: number;
+  params: RadioParams;
+  /** Alert lines are read in red — the local player's losses, not the enemy's. */
+  alert: boolean;
+  /** `performance.now()` when it was said. Drives expiry, not display. */
+  at: number;
+  /** Milliseconds since the match started — the `[mm:ss]` prefix. */
+  elapsedMs: number;
 }
 
 /**
@@ -317,6 +347,16 @@ export interface GameActions {
   appendChatMessage: (entry: ChatMessage) => void;
   /** The player is looking at the log — clear the badge. */
   markChatRead: () => void;
+  /**
+   * Radio setters, all bridge-only (`client/src/pixi/radio/radioDirector.ts`).
+   * The UI only ever reads the feed and prunes it — nothing in the HUD can make
+   * a unit say something.
+   */
+  pushRadioLine: (line: RadioLine) => void;
+  /** Drop lines older than `radioConfig.lineTtlMs`; a no-op when none have expired. */
+  pruneRadio: (now: number) => void;
+  /** New match, empty feed. */
+  clearRadio: () => void;
 }
 
 /** The whole store: what it holds and what it does. */
