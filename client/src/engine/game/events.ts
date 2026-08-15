@@ -12,7 +12,20 @@ export type SceneName = 'menu' | 'game';
  */
 export interface GameEvents {
   entitySpawned: { id: string; kind: EntityKind; owner?: Owner };
-  entityDestroyed: { id: string; kind: EntityKind; owner?: Owner; pos: Vec2 };
+  /**
+   * `killerId` is whoever last put damage on it (`threat.attackerId`), read off
+   * the corpse before it leaves the world. Absent when nothing claimed the kill —
+   * a base has no `threat`, and an attacker can die first.
+   */
+  entityDestroyed: { id: string; kind: EntityKind; owner?: Owner; pos: Vec2; killerId?: string };
+  /**
+   * `owner` **spotted** something it could not see last tick — the rising edge of
+   * `systems/vision.ts`'s per-tick sets, which are otherwise rebuilt wholesale and
+   * expose no such moment. Fires once per contact, again if it is lost and refound.
+   * Nothing in the simulation consumes it: detection already works off the sets,
+   * and this exists so the app layer can narrate.
+   */
+  enemySpotted: { owner: Owner; targetId: string; targetKind: EntityKind; pos: Vec2 };
   baseDestroyed: { owner: Owner };
   projectileFired: { owner: Owner; pos: Vec2; weapon: WeaponType };
   /** A base spent its one-shot energy dome (see `systems/shield.ts`). */

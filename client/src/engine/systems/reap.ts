@@ -31,6 +31,9 @@ export function reapSystem(ctx: GameContext): boolean {
       kind,
       owner: e.owner,
       pos: { x: e.position.x, y: e.position.y },
+      // Read off the corpse while it is still in the world: `applyDamage` stamps
+      // the last attacker here, and this is the only place that still has it.
+      killerId: e.threat?.attackerId,
     });
     if (e.base && e.owner) {
       ctx.bus.emit('baseDestroyed', { owner: e.owner });

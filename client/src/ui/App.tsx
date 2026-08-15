@@ -6,6 +6,7 @@ import { ChatPanel } from './hud/ChatPanel';
 import { DirectivesHelpButton } from './hud/DirectivesHelpButton';
 import { DronePanel } from './hud/DronePanel';
 import { DroneReadyToast } from './hud/DroneReadyToast';
+import { RadioLog } from './hud/RadioLog';
 import { PauseButton } from './hud/PauseButton';
 import { SoundButton } from './hud/SoundButton';
 import { StatusPanel } from './hud/StatusPanel';
@@ -91,6 +92,10 @@ function App() {
             player is *not* being shown, so it has to reach eyes that are on the
             fight. It renders nothing unless there is a drone to announce. */}
         {inMatch && <DroneReadyToast />}
+        {/* Flavour over the scene, top-right — the one corner nothing else claims.
+            Mounted with the match and gone with it: unlike the chat, there is
+            nothing here worth keeping once the fighting stops. */}
+        {inMatch && <RadioLog />}
         {/* Three ways for the world to be standing still, and the player is owed
             the difference: a pause someone asked for, versus a lockstep step that
             cannot run yet. The link takes precedence — it is the one that might

@@ -31,6 +31,7 @@ import { lockstepConfig } from '../config/multiplayer';
 import { worldHash } from '../engine/worldHash';
 import { whenIdle } from '../utils/whenIdle';
 import { attachSelectionAudio } from './audio/selectionAudio';
+import { attachRadio, type RadioDirector } from './radio/radioDirector';
 import { sfx } from './audio/sfx';
 import { Camera } from './Camera';
 import { GameLoop } from './GameLoop';
@@ -69,6 +70,7 @@ export class GameApp {
   private detachPointer: (() => void) | null = null;
   private storeUnsub: (() => void) | null = null;
   private selectionAudioUnsub: (() => void) | null = null;
+  private radio: RadioDirector | null = null;
   private readonly busUnsubs: (() => void)[] = [];
   private destroyed = false;
   private snapshotTick = 0;
@@ -160,6 +162,12 @@ export class GameApp {
     // Selection never reaches the bus (it is store-only state), so its sounds
     // come off a store subscription rather than out of `wireBus`.
     this.selectionAudioUnsub = attachSelectionAudio(this.engine.world);
+    // The radio keeps its own subscriptions rather than joining `wireBus`: it has
+    // a dozen handlers, its own pacing state and a per-tick pump, and folding that
+    // into the audio/snapshot wiring would bury all three.
+    this.radio = attachRadio(this.engine.bus, this.engine.world, (owner, baseId) =>
+      this.hearsBase(owner, baseId),
+    );
 
     this.detachPointer = attachPointerControls(this.app, this.camera, this.engine, {
       // No `wake()` needed on either: an order can only be issued inside a match,
@@ -746,6 +754,10 @@ export class GameApp {
   }
 
   private snapshotAfterTick(): void {
+    // The radio's queue drains here rather than on its own timer: this is the
+    // one hook both the solo and the online tick paths already share, and it
+    // stops when the world does — a paused match should not keep narrating.
+    this.radio?.pump();
     this.snapshotTick += 1;
     if (this.snapshotTick >= gameConfig.hud.snapshotEveryTicks) {
       this.snapshotTick = 0;
@@ -1004,6 +1016,8 @@ export class GameApp {
     this.storeUnsub = null;
     this.selectionAudioUnsub?.();
     this.selectionAudioUnsub = null;
+    this.radio?.destroy();
+    this.radio = null;
     this.detachPointer?.();
     this.detachPointer = null;
     this.clearObstacles();

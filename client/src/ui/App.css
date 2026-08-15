@@ -491,6 +491,123 @@
   }
 }
 
+/* The radio feed: unit chatter straight onto the scene, top-right. The one free
+   corner — sidebar left, drone toast top-centre, chat bottom-right.
+
+   No background plate by design, which makes contrast the whole problem: the map
+   underneath is sand, water and explosions, and a terminal green dark enough to
+   look like a CRT (#006400) disappears on the light half of it. The fix is a
+   brighter green carried by a *dark* halo rather than a glow of its own colour —
+   the text-shadow below is two black passes for legibility plus one faint green
+   for the tube look. Tokens rather than literals so a tuning pass is four lines. */
+.radio-log {
+  --radio-green: #00d45a;
+  --radio-alert: #ff5252;
+  --radio-dim: #6ee7a8;
+  --radio-halo: 0 0 3px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 212, 90, 0.3);
+
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: min(360px, 42vw);
+  /* It sits over a canvas the player is dragging marquees across: it must never
+     take a click, and must never highlight when a drag passes over it. */
+  pointer-events: none;
+  user-select: none;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+
+.radio-log__line {
+  margin: 0;
+  color: var(--radio-green);
+  text-shadow: var(--radio-halo);
+  overflow-wrap: anywhere;
+  animation: radio-line-in 0.18s ease-out;
+}
+
+.radio-log__line--alert {
+  color: var(--radio-alert);
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.98),
+    0 1px 3px rgba(0, 0, 0, 0.9),
+    0 0 12px rgba(255, 82, 82, 0.35);
+}
+
+/* Older lines recede instead of being cut off — the feed reads as something
+   fading out of range rather than as a list being truncated. Depths match
+   `radioConfig.maxLines`; a seventh line would simply stay at the last step. */
+.radio-log__line:nth-last-child(2) {
+  opacity: 0.85;
+}
+.radio-log__line:nth-last-child(3) {
+  opacity: 0.7;
+}
+.radio-log__line:nth-last-child(4) {
+  opacity: 0.55;
+}
+.radio-log__line:nth-last-child(5) {
+  opacity: 0.4;
+}
+.radio-log__line:nth-last-child(n + 6) {
+  opacity: 0.28;
+}
+
+.radio-log__stamp {
+  opacity: 0.65;
+}
+
+.radio-log__speaker {
+  color: var(--radio-dim);
+  font-weight: 700;
+}
+
+.radio-log__line--alert .radio-log__speaker {
+  color: inherit;
+}
+
+.radio-log__cursor {
+  margin-left: 1px;
+  animation: radio-cursor 1.4s steps(1) infinite;
+}
+
+@keyframes radio-cursor {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes radio-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+/* The typewriter itself is disabled in the component (it checks the same query);
+   these are the two effects CSS owns. */
+@media (prefers-reduced-motion: reduce) {
+  .radio-log__line {
+    animation: none;
+  }
+
+  .radio-log__cursor {
+    animation: none;
+  }
+}
+
 .auto-build {
   display: flex;
   align-items: center;

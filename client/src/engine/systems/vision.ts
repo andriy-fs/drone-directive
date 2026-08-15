@@ -1,9 +1,10 @@
 import { gameConfig } from '../../config/gameConfig';
+import type { Vec2 } from '@drone-directive/types/entities';
 import type { Owner } from '@drone-directive/types/enums';
 import { distance } from '../../utils/math';
 import type { With } from 'miniplex';
 import type { BaseEntity, RobotEntity } from '../ecs/archetypes';
-import type { Entity } from '../ecs/entity';
+import type { Entity, EntityKind } from '../ecs/entity';
 import { isAlive } from '../ecs/guards';
 import { bases, drones, robots } from '../ecs/queries';
 import type { GameContext, TeamIntel } from '../game/context';
@@ -59,9 +60,14 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
     (e) => isEnemy(owner, e.owner) && isAlive(e) && e.weapon.jamRadius > 0 && !isDisabled(e),
   );
 
+  // The `enemySpotted` emits below all read the *previous* tick's set, which is
+  // still on `intel` until the assignment that follows each loop — that one
+  // comparison is the whole rising edge, and it costs no extra state.
   const visible = new Set<string>();
   for (const foe of enemyRobots(ctx, owner)) {
-    if (isSpotted(scouts, jammers, foe.position.x, foe.position.y)) visible.add(foe.id);
+    if (!isSpotted(scouts, jammers, foe.position.x, foe.position.y)) continue;
+    if (!intel.visibleRobotIds.has(foe.id)) emitSpotted(ctx, owner, foe.id, 'robot', foe.position);
+    visible.add(foe.id);
   }
   intel.visibleRobotIds = visible;
 
@@ -71,7 +77,9 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   // spotted by exactly the same rule.
   const visibleAir = new Set<string>();
   for (const foe of enemyAirTargets(ctx, owner)) {
-    if (isSpotted(scouts, jammers, foe.position.x, foe.position.y)) visibleAir.add(foe.id);
+    if (!isSpotted(scouts, jammers, foe.position.x, foe.position.y)) continue;
+    if (!intel.visibleAirIds.has(foe.id)) emitSpotted(ctx, owner, foe.id, 'drone', foe.position);
+    visibleAir.add(foe.id);
   }
   intel.visibleAirIds = visibleAir;
 
@@ -86,9 +94,21 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   for (const base of enemyBases(ctx, owner)) {
     if (!isBaseSpotted(scouts, jammers, base)) continue;
     visibleBases.add(base.id);
+    // Discovery, not visibility: a building found once stays found, so this
+    // announces at most once per base per match — the `visibleBaseIds` edge would
+    // re-fire every time the last scout looked away and back.
+    if (!intel.knownBaseIds.has(base.id)) emitSpotted(ctx, owner, base.id, 'base', base.position);
     intel.knownBaseIds.add(base.id);
   }
   intel.visibleBaseIds = visibleBases;
+}
+
+/**
+ * Announces a fresh contact. Copies the position because the entity keeps moving
+ * and the listener is an app-layer observer, not a system reading the same tick.
+ */
+function emitSpotted(ctx: GameContext, owner: Owner, targetId: string, targetKind: EntityKind, pos: Vec2): void {
+  ctx.bus.emit('enemySpotted', { owner, targetId, targetKind, pos: { x: pos.x, y: pos.y } });
 }
 
 function isSpotted(scouts: Scout[], jammers: RobotEntity[], x: number, y: number): boolean {
