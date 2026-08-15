@@ -109,8 +109,14 @@ function encode(sprite, work) {
  * at a new `size` so a stale sprite looks freshly updated. With no arguments the
  * behaviour is unchanged: everything is encoded.
  */
+/**
+ * Matched against whole `-` separated segments, not as a substring: `ew` must not
+ * drag in `weapon-dew-player`, and `fpv` must not drag in `fpv-munition`.
+ */
+const matches = (name, filter) => name === filter || name.split('-').includes(filter);
+
 const filters = process.argv.slice(2);
-const selected = filters.length ? SPRITES.filter((s) => filters.some((f) => s.name.includes(f))) : SPRITES;
+const selected = filters.length ? SPRITES.filter((s) => filters.some((f) => matches(s.name, f))) : SPRITES;
 if (filters.length && !selected.length) {
   console.error(`No sprite matches ${filters.join(', ')}`);
   process.exit(1);
