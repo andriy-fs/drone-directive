@@ -68,6 +68,10 @@ export const radioConfig = {
     lost: 6000,
     baseLost: 0,
     produced: 8000,
+    // The cap is a standing condition, not an event: a unit dies, the factory
+    // refills, and the side is back on it seconds later. Long enough that the
+    // second reminder lands only if the player really did leave it there.
+    capReached: 90000,
     shieldUp: 0,
     shieldDown: 0,
     shieldShattered: 0,
@@ -84,6 +88,7 @@ export const radioConfig = {
     lost: RadioPriority.Mid,
     baseLost: RadioPriority.High,
     produced: RadioPriority.Low,
+    capReached: RadioPriority.Mid,
     shieldUp: RadioPriority.High,
     shieldDown: RadioPriority.High,
     shieldShattered: RadioPriority.High,
@@ -105,6 +110,9 @@ export const radioConfig = {
     lost: true,
     baseLost: true,
     produced: false,
+    // Not a loss, but the factory has stopped and the player did not ask it to —
+    // the whole reason for the line is that this goes unnoticed in green.
+    capReached: true,
     shieldUp: false,
     shieldDown: true,
     shieldShattered: true,

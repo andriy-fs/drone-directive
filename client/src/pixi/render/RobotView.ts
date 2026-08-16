@@ -4,17 +4,33 @@ import { palette } from '../../config/palette';
 import type { RobotEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
 import { ChassisType, WeaponType } from '@drone-directive/types/enums';
-import { WEAPON_TARGET } from '../../config/sprites';
-import { getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
+import { LEGS_GAIT_STRIDE_PX, WEAPON_TARGET } from '../../config/sprites';
+import { getRobotGaitTextures, getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
+import { gaitPhase } from './gait';
 import { HealthBar } from './HealthBar';
 import { ownerColor, teamTint } from './ownerColor';
+
+/** Body roll at the peak of a stride, in radians (~2.6°). */
+const GAIT_SWAY_RAD = 0.045;
+/** Sideways waddle at the peak of a stride, in px, perpendicular to the heading. */
+const GAIT_BOB_PX = 0.9;
+/** Seconds for the gait to spin up from a standstill, or to settle back into one. */
+const GAIT_EASE_S = 0.15;
+/** Below this amplitude the walker is treated as stopped and snapped back to its stance. */
+const GAIT_REST = 0.02;
+/** Frame-time ceiling (s) for the amplitude easing, so a stalled tab doesn't jump it. */
+const GAIT_MAX_DT = 0.1;
 
 /**
  * View for a robot entity. If its chassis has a registered sprite it is drawn as
  * a (cropped) Sprite; otherwise a coloured Graphics placeholder (shape by
  * chassis, marker by weapon). `body` rotates with heading; the HP bar and
  * selection ring stay upright.
+ *
+ * A chassis with a **walk-cycle sheet** (only `legs` — see `robotGaitSprites`) also
+ * animates: `update` swaps the sprite's texture between the sheet's cells and rolls
+ * the body, both clocked off distance travelled rather than off the wall clock.
  */
 export class RobotView {
   readonly container: Container;
@@ -26,6 +42,19 @@ export class RobotView {
   private readonly healthBar: HealthBar;
   private readonly isEnemy: boolean;
   private lastClickAt = 0;
+
+  /** The chassis sprite, kept so the gait can retexture it; null on a Graphics placeholder. */
+  private readonly img: Sprite | null;
+  /** The walk-cycle cells in cycle order, or null for a chassis that doesn't walk. */
+  private readonly gait: ResolvedSprite[] | null;
+  private frame = 0;
+  /** Ground covered (px) since the cycle last reset; the gait's only clock. */
+  private travelled = 0;
+  private lastX: number;
+  private lastY: number;
+  /** Gait strength in `[0, 1]`, eased so a stopping walker doesn't freeze mid-lean. */
+  private amp = 0;
+  private lastNow: number;
 
   constructor(robot: RobotEntity) {
     const r = gameConfig.robots.radius;
@@ -53,7 +82,10 @@ export class RobotView {
     }
 
     this.body = new Container();
-    const sprite = robot.chassis && robot.owner ? getRobotTexture(robot.chassis, robot.owner) : null;
+    this.gait = getRobotGaitTextures(robot.chassis, robot.owner);
+    // Cell 0 of a walk cycle is the neutral stance, so a walker with a sheet and one
+    // without start from the same pose and the fallback costs nothing visually.
+    const sprite = this.gait?.[0] ?? getRobotTexture(robot.chassis, robot.owner);
     // Weapon-module overlay for the central hardpoint (radar/bomb have art);
     // when present it replaces the drawn weapon marker to avoid doubling up.
     const weaponSprite = robot.weaponType && robot.owner ? getWeaponTexture(robot.weaponType, robot.owner) : null;
@@ -71,10 +103,12 @@ export class RobotView {
       img.rotation = def.rotationOffset ?? 0;
       if (tint !== undefined) img.tint = tint;
       this.body.addChild(img);
+      this.img = img;
 
       outerRadius = target / 2;
     } else {
       this.body.addChild(drawBody(robot, r, !weaponSprite));
+      this.img = null;
     }
 
     // Note what is *not* passed here: the team tint. Every module is authored in
@@ -135,10 +169,13 @@ export class RobotView {
       });
     }
 
-    this.update(robot, false, true);
+    this.lastX = robot.position.x;
+    this.lastY = robot.position.y;
+    this.lastNow = performance.now();
+    this.update(robot, false, true, this.lastNow);
   }
 
-  update(robot: RobotEntity, selected: boolean, visible: boolean): void {
+  update(robot: RobotEntity, selected: boolean, visible: boolean, now: number): void {
     this.container.visible = visible;
     if (robot.position) this.container.position.set(robot.position.x, robot.position.y);
     this.body.rotation = robot.heading;
@@ -151,6 +188,65 @@ export class RobotView {
     this.stunned.visible = off;
     this.body.alpha = off ? 0.45 : 1;
     if (off) this.drawStunned();
+
+    // After `body.rotation`, which the sway adds to rather than replaces.
+    if (this.gait) this.walk(robot, visible && !off, now);
+  }
+
+  /**
+   * Advances the walk cycle: which cell of the sheet is showing, and how far the
+   * body is rolled and waddled off its heading.
+   *
+   * The cycle is clocked by **ground covered**, so it needs no separate rules for
+   * stopping, for a chassis speed, or for a walker inching along because something
+   * is in its way — all three fall out of "no travel, no step".
+   *
+   * The sway goes on `body` rather than on the chassis sprite because the weapon
+   * module is bolted to the hardpoint *inside* `body`: rolling the hull out from
+   * under its own gun would visibly unstick the two. The selection ring, the spotted
+   * marker and the HP bar sit outside `body` and stay level, which is right — they
+   * are interface, not hull.
+   */
+  private walk(robot: RobotEntity, stepping: boolean, now: number): void {
+    const frames = this.gait;
+    const img = this.img;
+    if (!frames || !img) return;
+
+    // Measured even on frames where the walker is fogged or knocked out, and only
+    // *spent* when it is stepping. Otherwise a march made out of sight is repaid in
+    // one lump the moment it is seen again, and the gait jumps to a random phase.
+    const dx = robot.position.x - this.lastX;
+    const dy = robot.position.y - this.lastY;
+    this.lastX = robot.position.x;
+    this.lastY = robot.position.y;
+
+    const dt = Math.min((now - this.lastNow) / 1000, GAIT_MAX_DT);
+    this.lastNow = now;
+
+    const step = stepping ? Math.hypot(dx, dy) : 0;
+    this.travelled += step;
+
+    // Eased, not switched: a walker that stops mid-stride would otherwise freeze at
+    // whatever angle the sway had reached and stand there leaning.
+    this.amp += ((step > 0 ? 1 : 0) - this.amp) * Math.min(1, dt / GAIT_EASE_S);
+    if (this.amp < GAIT_REST) {
+      this.amp = 0;
+      this.travelled = 0; // rest on cell 0, the stance the sheet is drawn around
+    }
+
+    const { frame, sway } = gaitPhase(this.travelled, LEGS_GAIT_STRIDE_PX, frames.length);
+    if (frame !== this.frame) {
+      this.frame = frame;
+      img.texture = frames[frame].texture;
+    }
+
+    const roll = sway * this.amp;
+    this.body.rotation += roll * GAIT_SWAY_RAD;
+    // `body.position` lives in the container's (unrotated) space, so the sideways
+    // direction has to be derived from the heading rather than borrowed from the
+    // rotation just applied.
+    const bob = roll * GAIT_BOB_PX;
+    this.body.position.set(-Math.sin(robot.heading) * bob, Math.cos(robot.heading) * bob);
   }
 
   /** The crackling cage over a knocked-out hull; re-rolled every frame. */

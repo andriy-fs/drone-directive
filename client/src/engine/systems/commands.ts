@@ -59,7 +59,7 @@ function applyCommand(ctx: GameContext, command: Command): void {
     case 'BuildRobot': {
       const base = baseById(ctx, command.baseId);
       if (!base) break;
-      if (atRobotCap(ctx, base.owner)) break; // at the per-side cap
+      if (atRobotCap(ctx.world, base.owner)) break; // at the per-side cap
       const cost = buildCost(command.order);
       if (!canAfford(ctx.resources, base.owner, cost)) break;
       spend(ctx.resources, base.owner, cost);

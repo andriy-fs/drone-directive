@@ -24,6 +24,22 @@ export interface SpriteDef {
 
 /** On-field diameter (px) for robot art; ~1.4 tiles. */
 const ROBOT_TARGET = 46;
+/**
+ * On-field diameter (px) for the **walker** chassis alone — the one robot that does
+ * not use `ROBOT_TARGET`.
+ *
+ * `targetSize` scales the whole frame, so it buys presence in proportion to how much
+ * of that frame the art actually inks. A tracked hull fills ~86% of its bounding box;
+ * a legged one, with six legs and the background between them, fills about half. At a
+ * shared 46 px the walker therefore came out the *widest* silhouette on the field and
+ * the *lightest*-looking one — precisely backwards for the chassis with the most hp.
+ * 52 restores mass parity by area rather than by width.
+ *
+ * The other half of that fix lives in the art (see `.docs/sprites/robots.md` § Legs):
+ * a weapon module is a fixed 30 px on every chassis, so a walker's hull has to be wide
+ * enough to carry one, or the module overhangs it and hides the body it is bolted to.
+ */
+const LEGS_TARGET = 52;
 /** On-field size (px) for a base; matches the 3-tile (96 px) footprint. */
 const BASE_TARGET = 96;
 /**
@@ -68,7 +84,7 @@ export const robotSprites: Partial<Record<Owner, Partial<Record<ChassisType, Spr
     legs: {
       src: `${PUBLIC_BASE}robot-legs-player.webp`,
       rotationOffset: Math.PI / 2,
-      targetSize: ROBOT_TARGET,
+      targetSize: LEGS_TARGET,
     },
   },
   [Owner.AI]: {
@@ -85,7 +101,7 @@ export const robotSprites: Partial<Record<Owner, Partial<Record<ChassisType, Spr
     legs: {
       src: `${PUBLIC_BASE}robot-legs-ai.webp`,
       rotationOffset: Math.PI / 2,
-      targetSize: ROBOT_TARGET,
+      targetSize: LEGS_TARGET,
     },
   },
 };
@@ -118,13 +134,20 @@ export const terrainSprites: Partial<Record<TerrainKind, SpriteDef>> = {
 };
 
 /**
- * A 2×2 sheet cropped into four defs.
+ * A 2×2 sheet cropped into four defs, **in reading order** — top-left, top-right,
+ * bottom-left, bottom-right. The decal sheets treat that as an unordered set of
+ * variants; the gait sheet treats it as the cycle order, so it is load-bearing there
+ * and the art briefs number the cells the same way.
  *
  * `frame` is in the **shipped** texture's pixel space, so a quadrant is half of
  * whatever `scripts/encode-sprites.mjs` encodes that sheet at — the one place in
- * this file coupled to a number over there. Both sheets ship at 512², hence 256.
+ * this file coupled to a number over there. The decal sheets ship at 512² (hence
+ * 256); the gait sheets ship at 256² (hence 128).
+ *
+ * `rotationOffset` is passed through to every cell, for sheets whose cells are units
+ * authored facing up rather than orientation-free decals.
  */
-function sheet2x2(src: string, quadrant: number, targetSize: number): SpriteDef[] {
+function sheet2x2(src: string, quadrant: number, targetSize: number, rotationOffset?: number): SpriteDef[] {
   return [
     { x: 0, y: 0 },
     { x: 1, y: 0 },
@@ -134,8 +157,44 @@ function sheet2x2(src: string, quadrant: number, targetSize: number): SpriteDef[
     src,
     frame: { x: x * quadrant, y: y * quadrant, w: quadrant, h: quadrant },
     targetSize,
+    rotationOffset,
   }));
 }
+
+/**
+ * Walk-cycle sheets keyed by **owner → chassis**, drawn instead of the still
+ * `robotSprites` entry when present. Only `legs` has one, and deliberately so: at
+ * this camera angle a wheel or a track barely reaches the silhouette, but six legs
+ * are half of one — a walker with rigid legs visibly *slides*, and it is also the
+ * slowest chassis in the game, so it is the unit the player watches march for
+ * longest. See `.docs/sprites/robots.md` § Legs.
+ *
+ * Four cells in cycle order: neutral stance (also the idle pose), tripod A, the
+ * mirrored passing stance, tripod B. `RobotView` advances them by **distance
+ * travelled**, so the gait starts, keeps pace and stops with the unit itself.
+ *
+ * A missing or half-loaded sheet falls back to the still sprite — see
+ * `getRobotGaitTextures`, which is all-or-nothing on purpose: a cycle with a hole in
+ * it looks worse than honest static art.
+ */
+export const robotGaitSprites: Partial<Record<Owner, Partial<Record<ChassisType, SpriteDef[]>>>> = {
+  [Owner.Player]: {
+    legs: sheet2x2(`${PUBLIC_BASE}robot-legs-player-gait.webp`, 128, LEGS_TARGET, Math.PI / 2),
+  },
+  [Owner.AI]: {
+    legs: sheet2x2(`${PUBLIC_BASE}robot-legs-ai-gait.webp`, 128, LEGS_TARGET, Math.PI / 2),
+  },
+};
+
+/**
+ * How far a walker travels (px) in one full four-cell gait cycle.
+ *
+ * A property of the **art**, not of the balance — it says how long the stride the
+ * artist drew is — which is why it lives here next to the sheet rather than in
+ * `gameConfig`. At the `legs` speed of 42 px/s it works out to ~1.75 cycles/s, i.e.
+ * about 7 texture swaps a second: the plod of something heavy, not a scurry.
+ */
+export const LEGS_GAIT_STRIDE_PX = 24;
 
 /** On-field size (px) for a ridge decal — ~3 tiles, big enough to be a summit, small enough that a blob fits several. */
 const PEAK_TARGET = 90;
@@ -318,6 +377,11 @@ export function spriteSources(): string[] {
   for (const byChassis of Object.values(robotSprites)) {
     if (!byChassis) continue;
     for (const def of Object.values(byChassis)) if (def) srcs.push(def.src);
+  }
+  // Four defs per sheet, one file — the de-dupe at the end collapses them.
+  for (const byChassis of Object.values(robotGaitSprites)) {
+    if (!byChassis) continue;
+    for (const defs of Object.values(byChassis)) for (const def of defs) srcs.push(def.src);
   }
   for (const def of Object.values(baseSprites)) if (def) srcs.push(def.src);
   for (const byWeapon of Object.values(weaponSprites)) {

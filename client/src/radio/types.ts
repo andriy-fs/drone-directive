@@ -14,6 +14,7 @@ export type RadioKey =
   | 'lost'
   | 'baseLost'
   | 'produced'
+  | 'capReached'
   | 'shieldUp'
   | 'shieldDown'
   | 'shieldShattered'
@@ -29,6 +30,7 @@ export const RADIO_KEYS: readonly RadioKey[] = [
   'lost',
   'baseLost',
   'produced',
+  'capReached',
   'shieldUp',
   'shieldDown',
   'shieldShattered',
@@ -100,6 +102,7 @@ export const SLOTS_BY_KEY: Record<RadioKey, readonly (typeof RADIO_SLOTS)[number
   lost: ['unit'],
   baseLost: [],
   produced: [],
+  capReached: [],
   shieldUp: [],
   shieldDown: [],
   shieldShattered: [],

@@ -183,7 +183,7 @@ function advancingCombatCount(ctx: GameContext, owner: Owner): number {
  * as soon as the AI can afford one, independent of whatever else is queued.
  */
 function ensureEwRobot(ctx: GameContext, owner: Owner, base: BaseEntity): void {
-  if (atRobotCap(ctx, owner)) return;
+  if (atRobotCap(ctx.world, owner)) return;
   const hasEw = robots(ctx.world).entities.some(
     (e) => e.owner === owner && isAlive(e) && e.weaponType === WeaponType.Ew,
   );
@@ -202,7 +202,7 @@ function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: 
   state.timer += dt;
   if (state.timer < state.nextIn) return;
 
-  if (atRobotCap(ctx, owner)) return; // shared per-side cap (same as the player)
+  if (atRobotCap(ctx.world, owner)) return; // shared per-side cap (same as the player)
 
   // Pull the next order from the preset sequence (cycling); the kamikaze bomb
   // lands as every 10th build (target picked later by `assignKamikaze`, once it

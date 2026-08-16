@@ -87,10 +87,11 @@ export class WorldRenderer {
    *
    * `now` is the caller's single wall-clock reading for the frame, shared with
    * the order marker and the hover reticle so every animated thing on screen
-   * pulses in one phase (and keeps pulsing while the match is paused).
+   * pulses in one phase (and keeps pulsing while the match is paused). A robot
+   * uses it only as a frame clock — its walk cycle is driven by distance, not time.
    */
   sync(selectedIds: Set<string>, isVisible: (e: Entity) => boolean, now: number): void {
-    for (const e of this.robots) this.robotViews.get(e.id)?.update(e, selectedIds.has(e.id), isVisible(e));
+    for (const e of this.robots) this.robotViews.get(e.id)?.update(e, selectedIds.has(e.id), isVisible(e), now);
     for (const e of this.bases) this.baseViews.get(e.id)?.update(e, isVisible(e), selectedIds.has(e.id));
     for (const e of this.projectiles) this.projectileViews.get(e.id)?.update(e);
     for (const e of this.explosions) this.explosionViews.get(e.id)?.update(e);
