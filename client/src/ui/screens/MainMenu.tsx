@@ -51,8 +51,8 @@ export function MainMenu() {
   // finished match. Nothing here waits for Start: the context is usually still
   // suspended at mount, and `music` retries itself on the first gesture.
   useEffect(() => {
-    music.startMenu();
-    return () => music.stopMenu();
+    music.play('menu');
+    return () => music.stop('menu');
   }, []);
 
   // A live session outranks the tab the player last pressed: a finished match

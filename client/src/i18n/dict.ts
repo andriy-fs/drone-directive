@@ -199,6 +199,7 @@ export interface Dict {
     unmute: string;
     mute: string;
     volume: string;
+    musicVolume: string;
     /** The HUD/menu button that opens the sound settings. */
     soundSettings: string;
     /** The Directives card's header button, which opens the directives reference. */
@@ -219,7 +220,10 @@ export interface Dict {
     effects: string;
     on: string;
     off: string;
+    /** Effects volume. Music has its own pair below — the two are separate buses. */
     volume: string;
+    music: string;
+    musicVolume: string;
   };
   graphics: {
     title: string;

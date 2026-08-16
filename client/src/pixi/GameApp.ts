@@ -33,6 +33,7 @@ import { whenIdle } from '../utils/whenIdle';
 import { attachSelectionAudio } from './audio/selectionAudio';
 import { attachRadio, type RadioDirector } from './radio/radioDirector';
 import { sfx } from './audio/sfx';
+import { music } from './audio/music';
 import { Camera } from './Camera';
 import { GameLoop } from './GameLoop';
 import { createGround } from './Grid';
@@ -528,6 +529,9 @@ export class GameApp {
         store().setBuildDialogOpen(false); // never carry an open dialog across matches
         if (scene === 'menu') {
           store().setStatus(GameStatus.Menu);
+          // The menu bed is `MainMenu`'s to start; this only lets go of the
+          // match one. The two fades overlap into a crossfade either way round.
+          music.stop('match');
           this.clearObstacles();
           this.clearGround();
           // Flush the emptied world to the canvas here rather than waiting for the
@@ -543,6 +547,11 @@ export class GameApp {
           // still decoding is skipped for that shot and heard on the next one —
           // there is nothing here to keep the player waiting for.
           void loadSoundAssets('match');
+          // The match bed, on the same signal and for the same reason: this is
+          // the one point both routes into a match pass through. It keeps
+          // playing through pause and through the game-over screens — the scene
+          // is still the match, only the status changed.
+          music.play('match');
           // Map size can change between matches — rebuild everything sized off
           // the grid so it reflects the size `applyMapSize` just set.
           this.rebuildGround();

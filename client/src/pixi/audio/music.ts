@@ -1,25 +1,33 @@
 /**
- * The title screen's music, kept apart from `sfx.ts` on purpose.
+ * The game's music, kept apart from `sfx.ts` on purpose.
  *
  * A cue is fired and forgotten: `sfx.play` looks its buffer up, starts it, and
- * never sees it again. Music is the opposite — one instance at a time, looping,
- * held for as long as the menu is on screen, faded rather than cut. It also
- * arrives late (megabytes, not kilobytes), so it is fetched on its own instead
- * of riding a `SoundTier`.
+ * never sees it again. Music is the opposite — one instance per track, looping,
+ * held for as long as its screen is on, faded rather than cut. It also arrives
+ * late (megabytes, not kilobytes), so it is fetched on its own instead of riding
+ * a `SoundTier`.
  *
- * Mute and master volume are **not** re-implemented here: `sound.muteAll()` and
- * `sound.volumeAll` in `sfx.ts` act on the shared `WebAudioContext`, which every
- * instance is downstream of — so the existing sound settings already govern this
- * without knowing it exists.
+ * **Music owns its own gain, and this is load-bearing.** It used to ride
+ * `sound.muteAll()` / `sound.volumeAll` from `sfx.ts`, which act on the shared
+ * `WebAudioContext` every instance hangs off — one knob for everything. The
+ * player wants two (music is switched off far more often than effects are), so
+ * the context gain is left alone at 1 and unmuted: `sfx` scales each cue as it
+ * plays it, and this module scales the instances below.
  *
- * Who drives it: `ui/screens/MainMenu`, mount and unmount. That is the same
- * "the interface plays its own sound" channel `ui/common/` uses for the button
- * click — the engine has no concept of a title screen, so there is no bus event
- * to hang this on, and `App` mounts the menu exactly when it should be heard.
+ * The off switch is also the traffic saver: `play` returns *before* `load()`
+ * when music is disabled, so a player who turned it off never fetches the
+ * megabytes. Cues are not lazy in the same way — kilobytes, and rarely muted.
+ *
+ * Who drives it: `ui/screens/MainMenu` (mount/unmount) for the menu bed, and
+ * `GameApp`'s `sceneChanged` for the match bed — the one place both routes into
+ * a match pass through, solo and online. The two tracks are independent slots,
+ * which is what makes the menu→match handover a crossfade without any code for
+ * one: the old track fades out while the new one fades in.
  */
 import { Assets } from 'pixi.js';
 import { sound, type IMediaInstance, type Sound } from '@pixi/sound';
-import { menuMusic } from '../../config/sounds';
+import { musicDefs, type MusicName } from '../../config/sounds';
+import { storage } from '../../utils/storage';
 import { whenIdle } from '../../utils/whenIdle';
 
 /** Long enough to read as the room coming up, short enough not to feel broken. */
@@ -28,38 +36,68 @@ const FADE_IN_MS = 1200;
 const FADE_OUT_MS = 600;
 const FADE_STEP_MS = 25;
 
-/** The menu is on screen and wants music. Every async path re-checks this. */
-let wanted = false;
-let track: Promise<Sound | null> | null = null;
-/** The instance the menu currently owns. An instance being faded out is not it. */
-let instance: IMediaInstance | null = null;
+/** Persisted preferences, mirroring `sfx`'s `dd:sfxMuted` / `dd:sfxVolume`. */
+const ENABLED_KEY = 'dd:musicEnabled';
+const VOLUME_KEY = 'dd:musicVolume';
+/** Music sits under the effects, which default to 1.0 — it is a bed, not an event. */
+const DEFAULT_VOLUME = 0.6;
+
+/** Which tracks their owner wants playing. Every async path re-checks this. */
+const wanted = new Set<MusicName>();
+/** The instance each track currently owns. One being faded out is not it. */
+const instances = new Map<MusicName, IMediaInstance>();
+/** Fetched once per page and reused, per track. */
+const tracks = new Map<MusicName, Promise<Sound | null>>();
 /** In-flight ramps, keyed by the instance they move — at most one each. */
 const fades = new WeakMap<IMediaInstance, ReturnType<typeof setInterval>>();
 /** A gesture listener is pending because the AudioContext is still suspended. */
 let armed = false;
 
-/**
- * Fetched once per page and reused. Resolves to `null` on failure — a missing
- * file means a silent menu, never a broken one, exactly as a missing cue does.
- */
-function load(): Promise<Sound | null> {
-  track ??= Assets.load<Sound>(menuMusic.src).catch((err: unknown) => {
-    console.error('Failed to load menu music; the title screen stays silent', err);
-    return null;
-  });
-  return track;
+let enabled = storage.getItem(ENABLED_KEY) !== 'off';
+let userVolume = readVolume();
+
+function readVolume(): number {
+  const stored = storage.getItem(VOLUME_KEY);
+  if (stored === null) return DEFAULT_VOLUME;
+  const v = Number(stored);
+  return Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : DEFAULT_VOLUME;
+}
+
+/** Where a track should sit right now: its calibration under the player's slider. */
+function level(name: MusicName): number {
+  return musicDefs[name].volume * userVolume;
 }
 
 /**
- * Ramps one instance's volume to `to` and runs `done` on arrival, replacing any
+ * Fetched once per page and reused. Resolves to `null` on failure — a missing
+ * file means a silent screen, never a broken one, exactly as a missing cue does.
+ */
+function load(name: MusicName): Promise<Sound | null> {
+  let pending = tracks.get(name);
+  if (!pending) {
+    pending = Assets.load<Sound>(musicDefs[name].src).catch((err: unknown) => {
+      console.error(`Failed to load the ${name} music; that screen stays silent`, err);
+      return null;
+    });
+    tracks.set(name, pending);
+  }
+  return pending;
+}
+
+/**
+ * Ramps one instance's volume to `to()` and runs `done` on arrival, replacing any
  * ramp already moving that same instance (a fade-out landing on something still
  * fading in — press Start inside the first second).
+ *
+ * The target is a *function* so that a slider moved mid-fade is honoured on the
+ * next step rather than being overwritten when the ramp lands on a level the
+ * player has since changed.
  *
  * `setInterval` rather than `requestAnimationFrame`: rAF stops in a hidden tab,
  * which would leave a fade-out parked half-way and the music playing quietly
  * under a match the player switched to another tab to start.
  */
-function rampTo(target: IMediaInstance, to: number, ms: number, done?: () => void): void {
+function rampTo(target: IMediaInstance, to: () => number, ms: number, done?: () => void): void {
   const running = fades.get(target);
   if (running !== undefined) clearInterval(running);
 
@@ -67,7 +105,7 @@ function rampTo(target: IMediaInstance, to: number, ms: number, done?: () => voi
   const started = performance.now();
   const timer = setInterval(() => {
     const t = Math.min((performance.now() - started) / ms, 1);
-    target.volume = from + (to - from) * t;
+    target.volume = from + (to() - from) * t;
     if (t < 1) return;
     clearInterval(timer);
     fades.delete(target);
@@ -103,11 +141,11 @@ function onGesture(): void {
   // Both listeners are `once`, so the one that fired is already gone; `disarm`
   // is here for its twin, which is not.
   disarm();
-  void start();
+  for (const name of wanted) void start(name);
 }
 
-async function start(): Promise<void> {
-  if (!wanted || instance) return;
+async function start(name: MusicName): Promise<void> {
+  if (!enabled || !wanted.has(name) || instances.has(name)) return;
 
   const ctx = sound.context.audioContext;
   // Read through a call rather than inline: `resume()` mutates `state` behind
@@ -124,51 +162,90 @@ async function start(): Promise<void> {
     }
   }
 
-  const asset = await load();
-  // The menu can be gone by now — the file is megabytes and the player may have
-  // pressed Start while it was still coming down.
-  if (!asset || !wanted || instance) return;
+  const asset = await load(name);
+  // The screen can be gone by now — the file is megabytes and the player may
+  // have pressed Start while it was still coming down.
+  if (!asset || !enabled || !wanted.has(name) || instances.has(name)) return;
 
   // `Sound.play` is synchronous for a preloaded buffer and a promise otherwise;
   // the union is real, so both shapes have to be handled.
   const playing = asset.play({ loop: true, volume: 0 });
   const next = playing instanceof Promise ? await playing : playing;
-  if (!wanted) {
+  if (!enabled || !wanted.has(name)) {
     next.stop();
     return;
   }
-  instance = next;
-  rampTo(next, menuMusic.volume, FADE_IN_MS);
+  instances.set(name, next);
+  rampTo(next, () => level(name), FADE_IN_MS);
+}
+
+/** Fades the instance a track owns out of existence, if it has one. */
+function fadeOut(name: MusicName): void {
+  // Detach *first* and fade the detached one — so a `play` arriving mid-fade
+  // (menu → match → menu, or a remount) sees no current instance and starts a
+  // fresh one over the top, rather than being turned away by a handle that is on
+  // its way out.
+  const leaving = instances.get(name);
+  instances.delete(name);
+  if (!leaving) return;
+  rampTo(leaving, () => 0, FADE_OUT_MS, () => leaving.stop());
 }
 
 export const music = {
   /**
-   * The title screen is up. Idempotent: a second call while it is already
+   * This track's screen is up. Idempotent: a second call while it is already
    * playing (or already waiting for a gesture) does nothing.
    *
    * The fetch is deferred to idle for the same reason the menu sound tier is —
    * the backdrop is the one asset the player is actually looking at, and this
    * file cannot be heard before a gesture anyway.
    */
-  startMenu(): void {
-    if (wanted) return;
-    wanted = true;
-    whenIdle(() => void start());
+  play(name: MusicName): void {
+    if (wanted.has(name)) return;
+    wanted.add(name);
+    whenIdle(() => void start(name));
+  },
+
+  /** This track's screen is leaving. */
+  stop(name: MusicName): void {
+    if (!wanted.delete(name)) return;
+    if (wanted.size === 0) disarm();
+    fadeOut(name);
+  },
+
+  isEnabled(): boolean {
+    return enabled;
   },
 
   /**
-   * The title screen is leaving. Detaches the instance *first* and fades the
-   * detached one — so a `startMenu` arriving mid-fade (menu → match → menu, or
-   * a remount) sees no current instance and starts a fresh one over the top,
-   * rather than being turned away by a handle that is on its way out.
+   * The music switch. Off fades everything playing out and, more to the point,
+   * stops any of it being fetched; on starts whatever screen is currently up —
+   * which is also when the file is finally downloaded.
    */
-  stopMenu(): void {
-    if (!wanted) return;
-    wanted = false;
-    disarm();
-    const leaving = instance;
-    instance = null;
-    if (!leaving) return;
-    rampTo(leaving, 0, FADE_OUT_MS, () => leaving.stop());
+  setEnabled(value: boolean): void {
+    if (enabled === value) return;
+    enabled = value;
+    storage.setItem(ENABLED_KEY, value ? 'on' : 'off');
+    if (value) {
+      for (const name of wanted) void start(name);
+    } else {
+      disarm();
+      for (const name of instances.keys()) fadeOut(name);
+    }
+  },
+
+  getVolume(): number {
+    return userVolume;
+  },
+
+  /** Music volume, 0..1, independent of the effects slider. Persisted. */
+  setVolume(value: number): void {
+    userVolume = Math.min(Math.max(value, 0), 1);
+    storage.setItem(VOLUME_KEY, String(userVolume));
+    // A fading instance picks the new level up on its next step (see `rampTo`);
+    // one sitting at its target has to be told.
+    for (const [name, playing] of instances) {
+      if (!fades.has(playing)) playing.volume = level(name);
+    }
   },
 };

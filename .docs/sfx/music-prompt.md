@@ -84,14 +84,17 @@ These are what the shipped file has to satisfy, whatever generated it:
 
 Three steps, in order:
 
-1. Encode: `ffmpeg -i new.wav -c:a libvorbis -q:a 3 -ar 44100 -ac 2 client/public/music/<name>.ogg`
-   (`-q:a 3` ≈ 112 kb/s, transparent for a bed at this level; the current file is
-   256 kb/s and 4.2 MB, which buys nothing over the 192 kb/s MP3 it came from).
-2. Measure: `ffmpeg -i <file> -af ebur128 -f null -` and reset `menuMusic.volume`
-   in `client/src/config/sounds.ts` so the bed lands near **−27 LUFS** after the
-   gain. The current track is −12.9 LUFS integrated, hence 0.25.
-3. Point `menuMusic.src` at the new file and delete the old one — nothing else
-   references it.
+1. Encode: drop the master into `client/assets-src/`, add a row to
+   `client/scripts/encode-music.mjs` and run it. (`-q:a 3` ≈ 112 kb/s,
+   transparent for a bed at this level; the current file predates the script and
+   still ships at 256 kb/s and 4.2 MB, which buys nothing over the 192 kb/s MP3
+   it came from.)
+2. Measure — the script prints the integrated loudness — and reset
+   `musicDefs.menu.volume` in `client/src/config/sounds.ts` so the bed lands near
+   **−27 LUFS** at the music slider's default 0.6. The current track is −12.9 LUFS
+   integrated, hence 0.42.
+3. Point `musicDefs.menu.src` at the new file and delete the old one — nothing
+   else references it.
 
 ## Alternatives, if this direction stops working
 
