@@ -1,5 +1,6 @@
 import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
+import { music } from '../../pixi/audio/music';
 import { useGameStore } from '../../store/gameStore';
 import { Button } from '../common/Button';
 import { CheckIcon, GlobeIcon, GraphicsIcon, HelpCircleIcon, Volume2Icon, VolumeXIcon } from '../common/icons';
@@ -59,16 +60,22 @@ export function GlobalSettingsBar({
         </MenuItems>
       </Menu>
 
-      {/* `sfx` owns mute state, not the store, so this icon is only as fresh as
-          the last render — which is fine: the only way to change it from here is
-          the dialog this button opens, and closing it re-renders the menu. */}
+      {/* `sfx` and `music` own their settings, not the store, so this icon is
+          only as fresh as the last render — which is fine: the only way to
+          change them from here is the dialog this button opens, and closing it
+          re-renders the menu. Crossed out only when both channels are off; music
+          alone being silenced is not a muted game. */}
       <Button
         className="menu-bar__btn"
         onClick={onOpenSound}
         aria-label={t('aria', 'soundSettings')}
         title={t('sound', 'settings')}
       >
-        {sfx.isMuted() ? <VolumeXIcon size={16} aria-hidden /> : <Volume2Icon size={16} aria-hidden />}
+        {sfx.isMuted() && !music.isEnabled() ? (
+          <VolumeXIcon size={16} aria-hidden />
+        ) : (
+          <Volume2Icon size={16} aria-hidden />
+        )}
       </Button>
 
       <Button

@@ -16,10 +16,20 @@ the near-black `#0d1117` palette of [ground.md](ground.md), and the stylized
 semi-flat cel-shaded RTS style.
 
 The machines in the prompt are described with the **same wording as the sprites
-they depict** — the walker and tracked chassis from [robots.md](robots.md), the
-quad-rotor eye from [drone.md](drone.md), the enemy war factory from
-[bases.md](bases.md) — so the splash and the battlefield behind it agree. Re-sync
-those phrases if a unit's art is redesigned.
+they depict** — all three chassis from [robots.md](robots.md), the quad-rotor eye
+from [drone.md](drone.md), the cannon module from [weapons.md](weapons.md), the
+enemy war factory from [bases.md](bases.md) — so the splash and the battlefield
+behind it agree. Re-sync those phrases if a unit's art is redesigned.
+
+**The walker is a six-legged siege platform, not a biped.** This is the mistake
+the first accepted backdrop made: it showed a tall two-legged mech, a silhouette
+that exists nowhere in the game. `legs` is the heaviest chassis — a broad armored
+hull about two thirds the unit's width, carried on **exactly six short, thick,
+heavily armored legs, three per side**, the mass in the hull and not in the limbs
+(see [robots.md → Legs](robots.md#legs--armored-walker-mech), which spells out why
+a spider silhouette is wrong). At the backdrop's low camera it is **squat and wide,
+lower than it is broad** — closer to a tank on legs than to a mech that towers over
+the frame.
 
 ## Backdrop-specific spec
 
@@ -43,10 +53,16 @@ those phrases if a unit's art is redesigned.
 - **Palette — identical to the rest of the set.** Deep charcoals and dark
   blue-grays anchored on `#0d1117`; cool **blue/teal/cyan** glow on the allied
   machines, hostile **red/orange** glow on the enemy side. Nothing else saturated.
-- **Subjects: only units that exist in the game.** The allied walker (`legs`) and
-  tracked (`tracks`) chassis, the observer drone, and the enemy base — drawn from
-  the same descriptions as their sprites. No infantry, no aircraft, no vehicles
-  the game doesn't have.
+- **Subjects: only units that exist in the game.** All three allied chassis —
+  the six-legged walker (`legs`), the tracked tank (`tracks`) and the wheeled
+  buggy (`wheels`) — plus the observer drone and the enemy base, drawn from the
+  same descriptions as their sprites. No bipedal mechs, no infantry, no aircraft,
+  no vehicles the game doesn't have.
+- **Weapons are modules, not built-in guns.** A robot's gun is a separate part
+  bolted to a flat circular hardpoint in the middle of its deck. If the key art
+  arms anything, it is one plain **cannon module** — a single thick brass barrel
+  on a dark gunmetal breech, no faction colour on the gun itself, and **not
+  firing**.
 - **No text.** No title, no logo, no interface, no watermark, no border — the menu
   renders its own title over the image.
 - **Style:** clean stylized retro-futuristic RTS **key art**, semi-flat with light
@@ -59,22 +75,37 @@ Cinematic key-art splash screen for a retro-futuristic top-down RTS, drawn as a
 wide 16:9 landscape illustration. A low three-quarter camera close to the ground,
 looking across a dark war-torn battlefield under a heavy overcast night sky.
 
-In the left third of the frame, in the foreground, a tall allied armored walker
-mech on articulated legs stands facing away into the field — sleek allied faction
-design: cool blue and teal armor plating with brushed-steel edges and clean cyan
-accent lines, a glowing cyan optic and a hexagon chevron insignia on its carapace,
-a flat circular weapon hardpoint on the top of the hull. Just behind it, smaller
-and partly in shadow, a heavy tracked allied battle robot on two thick caterpillar
-tracks. Above and slightly left, a small quad-rotor observer drone hovers — four
-slender arms splayed in an X, rotors as soft translucent motion-blurred discs, a
-glowing cyan camera eye underneath, its light catching the mech's shoulder.
+In the left third of the frame, in the foreground, an allied six-legged armored
+siege walker stands facing away into the field. It is NOT a humanoid or bipedal
+mech: it is a massive low-slung machine whose broad armored body is the whole
+silhouette, as wide and solid as a tank hull, carried on exactly SIX short, thick,
+heavily armored articulated legs — three down its left side and three down its
+right, splayed out like a beetle's, each stubby and piston-like rather than long
+and spidery, planted on the ground. It is wider than it is tall, squat and heavy,
+hunkered close to the earth, and it does not tower over the frame. Sleek allied
+faction design: cool blue and teal armor plating with brushed-steel edges and clean
+cyan accent lines, a glowing cyan optic and a hexagon chevron insignia on its
+carapace. On a flat circular hardpoint in the middle of its top deck sits a bolted-on
+cannon module — one thick brass gun barrel on a chunky dark gunmetal breech, not
+firing.
+
+Just behind it, smaller and partly in shadow, a heavy allied tracked battle robot:
+a boxy sturdy hull sitting low between two thick caterpillar tracks, with the same
+blue and teal plating and its own circular deck hardpoint. Above and slightly left,
+a small quad-rotor observer drone hovers — a compact rounded body with four slender
+arms splayed in an X, rotors as soft translucent motion-blurred discs, a glowing
+cyan gimbal camera eye looking down, its light catching the walker's carapace.
 
 The ground is packed charcoal earth and ash with faint hairline cracks, scattered
 fine gravel and worn scorch marks, running back to a low flat horizon. In the right
-third, far in the background, the silhouette of a hostile enemy war factory: a
-brutal angular fortress of gunmetal plating with red and orange panels, jagged
-antenna masts, smokestacks and glowing red vents, a menacing red beacon, with faint
-red light and thin smoke bleeding into the haze around it.
+third, at middle distance, a light allied wheeled combat buggy drives away from the
+camera toward the enemy line — a lean angular open-frame chassis on chunky rugged
+off-road wheels, small in the frame, blue and teal with a faint cyan glow, kicking
+up a thin trail of dust. Far behind it, in the right third of the background, the
+silhouette of a hostile enemy war factory: a brutal angular fortress of gunmetal
+plating with red and orange panels, jagged antenna masts, smokestacks and glowing
+red vents, a menacing red beacon, with faint red light and thin smoke bleeding into
+the haze around it.
 
 The middle of the image is deliberately empty — open ground and low atmospheric haze
 between the allied units on the left and the enemy stronghold on the right, with no
@@ -86,6 +117,11 @@ the allied machines, hostile red and orange glow on the enemy side, and nothing 
 saturated. Overall very dark and low contrast, no bright sky, no moon, no sunburst,
 no strong highlight anywhere near the centre of the frame, so light interface text
 stays perfectly readable over the image.
+
+Only machines that belong to this army: a six-legged walker, a tracked tank and a
+wheeled buggy. No bipedal or humanoid mech, no two-legged robot, no arms, hands,
+head or cockpit canopy, no infantry, no tanks with turrets and gun mantlets, no
+aircraft, no helicopters, no spacecraft.
 
 No text, no title, no logo, no user interface, no watermark, no border, no frame.
 Fills the whole image edge to edge.
@@ -128,5 +164,10 @@ it into the WebGL texture cache would cost VRAM for something Pixi never draws.
 - [ ] Dark and low-contrast enough that near-white text reads over it everywhere.
 - [ ] No text, logo, UI or watermark anywhere in the frame.
 - [ ] Palette matches the field art: `#0d1117` charcoals, blue/cyan allies, red enemy.
-- [ ] The machines match the actual sprites (walker, tracks, quad-rotor drone, enemy base).
-- [ ] Survives a portrait crop — the allied mech still in frame at 9:16.
+- [ ] The machines match the actual sprites (six-legged walker, tracks, wheels,
+      quad-rotor drone, enemy base).
+- [ ] **Count the legs:** exactly six on the walker, three a side. No biped.
+- [ ] The walker is squat and hull-heavy — body wider than the leg span is tall,
+      not a spider and not a towering mech.
+- [ ] Any gun is a module sitting on a circular deck hardpoint, and it isn't firing.
+- [ ] Survives a portrait crop — the walker still in frame at 9:16.

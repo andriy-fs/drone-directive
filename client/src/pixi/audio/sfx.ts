@@ -6,6 +6,13 @@
  *
  * The AudioContext still starts suspended and must be resumed after a user
  * gesture (see `resume`, called from the Start button).
+ *
+ * **The switch and the slider here govern the cues only.** They used to be
+ * `sound.muteAll()` and `sound.volumeAll`, which act on the shared
+ * `WebAudioContext` — and so silenced the music too, since every instance hangs
+ * off it. The player now has separate music settings, so the context gain is
+ * left alone at 1 and unmuted: this module scales each cue as it plays it (one
+ * choke point, `play` below) and `music.ts` scales its own instances.
  */
 import { sound, webaudio, type PlayOptions } from '@pixi/sound';
 import { soundDefs, type SoundName } from '../../config/sounds';
@@ -24,6 +31,20 @@ const VOLUME_KEY = 'dd:sfxVolume';
  */
 const ready = new Set<SoundName>();
 
+/**
+ * The player's effects settings, held here rather than on the shared context —
+ * see the file header. Read once at module load; absence means the default.
+ */
+let muted = storage.getItem(MUTED_KEY) === 'on';
+let volume = readVolume();
+
+function readVolume(): number {
+  const stored = storage.getItem(VOLUME_KEY);
+  if (stored === null) return 1;
+  const v = Number(stored);
+  return Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : 1;
+}
+
 /** Context time of the last pip/boom of each rate-limited cue. */
 let lastUnitReadyAt = -Infinity;
 let lastExplosionAt = -Infinity;
@@ -40,9 +61,9 @@ const chassisCue: Record<ChassisType, SoundName> = {
 };
 
 function play(name: SoundName, options?: { speed?: number; volumeScale?: number }): void {
-  if (!ready.has(name)) return;
+  if (muted || !ready.has(name)) return;
   const def = soundDefs[name];
-  const opts: PlayOptions = { volume: def.volume * (options?.volumeScale ?? 1) };
+  const opts: PlayOptions = { volume: def.volume * volume * (options?.volumeScale ?? 1) };
   // Set `speed` only when there is one to set: `Sound.play` spreads the caller's
   // options *over* its defaults, so a present-but-undefined key overwrites the
   // default of 1 and the playback rate ends up NaN.
@@ -65,12 +86,6 @@ export function markSoundReady(name: SoundName): void {
 function init(): void {
   const ctx = sound.context;
   if (ctx instanceof webaudio.WebAudioContext) ctx.autoPause = false;
-
-  const storedVolume = Number(storage.getItem(VOLUME_KEY));
-  sound.volumeAll = Number.isFinite(storedVolume) && storage.getItem(VOLUME_KEY) !== null
-    ? Math.min(Math.max(storedVolume, 0), 1)
-    : 1;
-  if (storage.getItem(MUTED_KEY) === 'on') sound.muteAll();
 }
 
 init();
@@ -81,25 +96,25 @@ export const sfx = {
     void sound.context.audioContext.resume();
   },
 
+  /**
+   * The effects switch. Cues already in flight are left to finish — they are
+   * fractions of a second, and stopping them mid-transient is its own click.
+   */
   setMuted(value: boolean): void {
-    // Always go through muteAll/unmuteAll — assigning `sound.context.muted`
-    // directly skips the library's `refresh()` and never reaches the graph.
-    if (value) sound.muteAll();
-    else sound.unmuteAll();
+    muted = value;
     storage.setItem(MUTED_KEY, value ? 'on' : 'off');
   },
   isMuted(): boolean {
-    return sound.context.muted;
+    return muted;
   },
 
-  /** Master volume, 0..1. Persisted; the mute switch is independent of it. */
+  /** Effects volume, 0..1. Persisted; the mute switch is independent of it. */
   setVolume(value: number): void {
-    const v = Math.min(Math.max(value, 0), 1);
-    sound.volumeAll = v;
-    storage.setItem(VOLUME_KEY, String(v));
+    volume = Math.min(Math.max(value, 0), 1);
+    storage.setItem(VOLUME_KEY, String(volume));
   },
   getVolume(): number {
-    return sound.volumeAll;
+    return volume;
   },
 
   cannonShot(): void {

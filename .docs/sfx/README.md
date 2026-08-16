@@ -79,50 +79,72 @@ chaotic option in the packs if length stops mattering.
 
 ## The music
 
-One track, and only on the title screen: `client/public/music/terminal-standby.ogg`
-(2:53, Ogg Vorbis ~256 kb/s, 4.2 MB). It is **not** in `public/sounds/` and not a
+Two tracks, one per screen. Neither is in `public/sounds/` and neither is a
 `SoundName` — that directory is the Kenney packs as downloaded, and everything in
 the table above is a one-shot the player never gets a handle on.
 
+| Track | File | Length | What it is |
+| --- | --- | --- | --- |
+| `menu` | `music/terminal-standby.ogg` | 2:53, 4.2 MB | The title screen. A hangar before deployment: patient, unresolved, no arc. |
+| `match` | `music/standing-orders.ogg` | 2:58, 2.2 MB | The match, from the first frame to the game-over screen. Machines executing orders while something goes wrong off-screen — a flat bed with a slow mechanical pulse and no climax, because the track has no idea whether the match is two minutes or twenty. |
+
 | | Cue | Music |
 | --- | --- | --- |
-| Table | `soundDefs` in `config/sounds.ts` | `menuMusic` in the same file |
+| Table | `soundDefs` in `config/sounds.ts` | `musicDefs` in the same file |
 | Player | `pixi/audio/sfx.ts` | `pixi/audio/music.ts` |
-| Fetch | by `SoundTier`, with the rest of its wave | its own lazy `Assets.load`, at idle |
-| Lifetime | fire and forget | one looping instance, held and faded |
-| Driven by | the EventBus, `selectionAudio`, `ui/common/` | `MainMenu`'s mount/unmount |
+| Fetch | by `SoundTier`, with the rest of its wave | its own lazy `Assets.load`, at idle, **and only if music is on** |
+| Lifetime | fire and forget | one looping instance per track, held and faded |
+| Driven by | the EventBus, `selectionAudio`, `ui/common/` | `MainMenu`'s mount/unmount (menu), `GameApp`'s `sceneChanged` (match) |
 
-Three things about it are load-bearing:
+Four things about it are load-bearing:
 
 - **It starts on the first gesture, not on Start.** Autoplay policy keeps the
   AudioContext suspended, and the first thing a player touches is usually a
   difficulty chip — so `music.ts` arms a one-shot `pointerdown`/`keydown`
   listener and retries there. Hanging it off `sfx.resume()` in Start would mean
   the music only ever began as the menu was leaving.
-- **Mute and master volume are not re-implemented for it.** `sound.muteAll()`
-  and `sound.volumeAll` act on the shared `WebAudioContext`; the music instance
-  is downstream of it, so the existing Sound settings already govern it. The
-  consequence worth knowing: the settings dialog labels that switch *Effects*,
-  and it now silences the music too.
-- **`menuMusic.volume` (0.25) is the only mix number.** The track masters at
-  −12.9 LUFS with peaks at 0 dBFS, where the cues are transients peaking at −1 —
-  at 1.0 it buries all of them. 0.25 puts the bed near −27 LUFS, under a
-  `button-click` at 0.15. Swap the file → re-measure
-  (`ffmpeg -i file -af ebur128 -f null -`) and reset this.
+- **Music has its own switch, its own slider, and its own gain.** It used to ride
+  `sound.muteAll()` / `sound.volumeAll`, which act on the shared
+  `WebAudioContext` that every instance hangs off — one knob for everything, so
+  the *Effects* switch silenced the music too. Now the context gain is left at 1
+  and unmuted: `sfx.play` scales each cue as it fires it, `music.ts` scales its
+  own instances. Four preferences, four `dd:` keys — `dd:sfxMuted`, `dd:sfxVolume`
+  (default 1), `dd:musicEnabled`, `dd:musicVolume` (default **0.6**; music sits
+  under the effects because it is a bed, not an event).
+- **The music switch is also the traffic saver.** `music.play()` returns before
+  `Assets.load` when music is off, so a player who turned it off never fetches
+  the megabytes; turning it back on downloads and starts the current screen's
+  track there and then. Cues are deliberately *not* lazy in the same way — they
+  are kilobytes, and they are rarely switched off.
+- **The `volume` in `musicDefs` is each file's calibration, under the slider.**
+  Both tracks master near −13 LUFS with peaks at 0 dBFS, where the cues are
+  transients peaking at −1 — at 1.0 either buries all of them. The numbers
+  (menu 0.42, match 0.24) are set so that at the slider's default 0.6 the menu
+  bed lands near −27 LUFS and the match bed near −30: the match track plays under
+  every cue in the game, so it sits a further 3 dB down. Swap a file →
+  re-encode and re-measure, then reset the number.
 
-The brief it was generated from — the prompt, the negative prompt, why each
-constraint is there, and what to re-measure after regenerating — is
-[`music-prompt.md`](music-prompt.md). Same role as the cue descriptions above:
-it is what the track is *supposed* to be, and it outlives the file.
+The briefs they were generated from — prompts, negative prompts, why each
+constraint is there, and what to re-measure after regenerating — are
+[`music-prompt.md`](music-prompt.md) (menu) and
+[`main-soundtrack-prompt.md`](main-soundtrack-prompt.md) (match). Same role as
+the cue descriptions above: they are what the tracks are *supposed* to be, and
+they outlive the files.
 
-The track is a linear piece rather than a composed loop, so `loop: true` repeats
-it over an audible seam. A 1.2 s fade-in and a 0.6 s fade-out cover the entry and
-the exit; nothing covers the wrap, and at 2:53 few players will still be on the
-menu to hear it.
+**Encoding.** `client/scripts/encode-music.mjs` re-encodes the masters in
+`client/assets-src/` to Ogg Vorbis at `-q:a 3` (~112 kb/s) and prints each
+result's integrated loudness, which is the number the `musicDefs` arithmetic
+above is done against. Run it by hand and commit the output, like the sprite and
+favicon encoders. Vorbis rather than MP3 is not a preference: MP3 and AAC carry
+an encoder priming delay that would turn every loop wrap into an audible gap.
+`terminal-standby.ogg` predates the script and has no master here — it still
+ships at ~256 kb/s, which buys nothing over the 192 kb/s MP3 it came from.
 
-Its 4.2 MB is roughly a third of what the deployed site weighs, and it buys
-nothing over the 192 kb/s MP3 it was transcoded from — re-encoding at `-q:a 3`
-(~112 kb/s, ~2.4 MB) is transparent for a bed at this level if that ever matters.
+Both tracks are linear pieces rather than composed loops, so `loop: true` repeats
+over an audible seam. A 1.2 s fade-in and a 0.6 s fade-out cover entry and exit —
+and, because the two tracks are independent slots, the menu→match handover is a
+crossfade with no code written for one. Nothing covers the wrap; at ~3 minutes
+each, the menu rarely reaches it and a long match simply will.
 
 ## Rules for a replacement file
 

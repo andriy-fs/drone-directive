@@ -69,24 +69,40 @@ export interface SoundDef {
 /** Where in `public/sounds/` a cue's file lives. */
 const src = (file: string) => `${PUBLIC_BASE}sounds/${file}.ogg`;
 
+/** The two music beds. One plays at a time, except during a menu↔match crossfade. */
+export type MusicName = 'menu' | 'match';
+
+export interface MusicDef {
+  src: string;
+  /**
+   * The file's calibration, applied *under* the player's music slider — the level
+   * this track sits at when that slider is at its default 60%. See below.
+   */
+  volume: number;
+}
+
 /**
- * The title screen's music bed — deliberately *not* a `SoundName`.
+ * The music beds — deliberately *not* `SoundName`s.
  *
- * Every cue above is a one-shot fired and forgotten; this one loops, needs a
- * handle to fade and stop, and is two orders of magnitude larger than any of
- * them, so it gets its own player (`pixi/audio/music.ts`) and its own lazy
- * fetch instead of a tier. It lives in `public/music/`, not `public/sounds/` —
- * that directory is the Kenney packs as downloaded, and this is not one.
+ * Every cue above is a one-shot fired and forgotten; these loop, need a handle to
+ * fade and stop, and are two orders of magnitude larger than any cue, so they get
+ * their own player (`pixi/audio/music.ts`) and their own lazy fetch instead of a
+ * tier. They live in `public/music/`, not `public/sounds/` — that directory is
+ * the Kenney packs as downloaded, and these are not.
  *
- * `volume` is the one number to turn. The track masters at −12.9 LUFS with peaks
- * at 0 dBFS (the cues are short transients peaking at −1), so at 1.0 it would
- * bury every one of them; 0.25 puts the bed around −27 LUFS, which reads as
- * background under a `button-click` at 0.15.
+ * `volume` is the one number to turn per track, and it is an *absolute*
+ * calibration: both files master near −13 LUFS with peaks at 0 dBFS (the cues are
+ * short transients peaking at −1), so at 1.0 either would bury every one of them.
+ * The player's music slider multiplies these, and the numbers below are set so
+ * that at its **default 0.6** the menu bed lands near −27 LUFS and the match bed
+ * near −30 — the match track plays under every cue in the game, so it sits a
+ * further 3 dB down. Swap a file → re-measure (`node scripts/encode-music.mjs`
+ * prints the integrated loudness) and reset.
  */
-export const menuMusic = {
-  src: `${PUBLIC_BASE}music/terminal-standby.ogg`,
-  volume: 0.25,
-} as const;
+export const musicDefs: Record<MusicName, MusicDef> = {
+  menu: { src: `${PUBLIC_BASE}music/terminal-standby.ogg`, volume: 0.42 },
+  match: { src: `${PUBLIC_BASE}music/standing-orders.ogg`, volume: 0.24 },
+};
 
 export const soundDefs: Record<SoundName, SoundDef> = {
   explosion: { src: src('sci-fi/explosionCrunch_000'), volume: 1.0, tier: 'match' },
