@@ -26,6 +26,7 @@ import type { RobotEntity } from '../../engine/ecs/archetypes';
 import { robots } from '../../engine/ecs/queries';
 import type { EcsWorld } from '../../engine/ecs/world';
 import type { GameBus } from '../../engine/game/eventBus';
+import { atRobotCap } from '../../engine/systems/production';
 import { radioConfig } from '../../config/radio';
 import { loadBank } from '../../radio/bank';
 import type { RadioKey, RadioParams, UnitRef } from '../../radio/types';
@@ -68,6 +69,12 @@ export function createRadioDirector(deps: RadioDeps): RadioDirector {
   const unsubs: (() => void)[] = [];
   let nextLineId = 1;
   let matchStartedAt = deps.now();
+  /**
+   * Edge detection for the robot cap. Being at the cap is a *state*, not a bus
+   * event — nothing is emitted when production quietly declines to refill — so it
+   * is sampled per tick in `pump` and only the crossing into it is offered.
+   */
+  let wasAtCap = false;
 
   /**
    * A unit's name, minted on first mention and kept afterwards — including past
@@ -152,6 +159,7 @@ export function createRadioDirector(deps: RadioDeps): RadioDirector {
     counters.clear();
     nextLineId = 1;
     matchStartedAt = deps.now();
+    wasAtCap = false;
     deps.clear();
     // Kick the chunk off now rather than on the first line: it is a few tens of
     // kilobytes and the feed simply renders nothing until it lands.
@@ -254,6 +262,13 @@ export function createRadioDirector(deps: RadioDeps): RadioDirector {
   return {
     pump: () => {
       const now = deps.now();
+      // Sampled here rather than in a handler: the player reaches the cap by
+      // queueing as well as by rolling a unit out, and nothing on the bus covers
+      // the first. The line itself is rate-limited like any other (`keyCooldownMs`).
+      const atCap = atRobotCap(deps.world, deps.localSide());
+      if (atCap && !wasAtCap) offer('capReached', {}, null);
+      wasAtCap = atCap;
+
       const line = budget.take(now);
       if (line) say(line, now);
     },

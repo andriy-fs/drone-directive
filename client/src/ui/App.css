@@ -239,6 +239,16 @@
   color: var(--text-dim);
 }
 
+/* The unit tally against its cap. Amber one slot out, red once production has
+   actually stopped — the same red/green pair the drone panel already uses. */
+.hud__row-value--near-cap {
+  color: #fbbf24;
+}
+
+.hud__row-value--cap {
+  color: #f87171;
+}
+
 .hud__muted {
   margin: 0;
   font-size: 14px;

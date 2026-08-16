@@ -7,23 +7,31 @@ import type { Rng } from '../../utils/rng';
 import type { BaseEntity } from '../ecs/archetypes';
 import { spawnRobot } from '../ecs/factory';
 import { bases, robots } from '../ecs/queries';
+import type { EcsWorld } from '../ecs/world';
 import { buildCost, canAfford, spend } from '../economy';
 import type { GameContext } from '../game/context';
 import { isTaskBlockedForWeapon, scriptForTask } from '../tasks/taskDefinitions';
 import { setGoal } from './movement';
 
-/** Robots a side already has committed: living units + everything still queued. */
-export function sideRobotLoad(ctx: GameContext, owner: Owner): number {
-  let n = robots(ctx.world).entities.filter((e) => e.owner === owner).length;
-  for (const b of bases(ctx.world).entities) {
+/**
+ * Robots a side already has committed: living units + everything still queued.
+ *
+ * Takes the world rather than a `GameContext` so the read is available to a
+ * *reader* of the simulation and not only to a system inside it — the radio
+ * director watches the cap from the Pixi layer, and has no context to hand over.
+ */
+export function sideRobotLoad(world: EcsWorld, owner: Owner): number {
+  let n = 0;
+  for (const e of robots(world).entities) if (e.owner === owner) n++;
+  for (const b of bases(world).entities) {
     if (b.owner === owner) n += b.production.queue.length;
   }
   return n;
 }
 
 /** Whether a side is at the shared per-side robot cap (no more should be queued). */
-export function atRobotCap(ctx: GameContext, owner: Owner): boolean {
-  return sideRobotLoad(ctx, owner) >= gameConfig.production.maxRobots;
+export function atRobotCap(world: EcsWorld, owner: Owner): boolean {
+  return sideRobotLoad(world, owner) >= gameConfig.production.maxRobots;
 }
 
 /**
@@ -40,7 +48,7 @@ export function productionSystem(ctx: GameContext, dt: number): void {
     const prod = base.production;
 
     // Auto-build: refill an empty queue if affordable and under the side cap.
-    if (prod.queue.length === 0 && !atRobotCap(ctx, base.owner)) {
+    if (prod.queue.length === 0 && !atRobotCap(ctx.world, base.owner)) {
       if (prod.autoBuild) {
         tryEnqueue(ctx, base, prod.autoBuild);
       } else if (prod.autoBuildPreset) {

@@ -1,3 +1,4 @@
+import { gameConfig } from '../../config/gameConfig';
 import { useT } from '../../i18n';
 import { selectLocalSide, selectPlayerBase, selectResources, selectRobots } from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
@@ -33,6 +34,18 @@ export function StatusPanel() {
 
   const myRobotCount = robots.filter((r) => r.owner === localSide).length;
   const queueLength = playerBase?.queueLength ?? 0;
+  // Read as `7/12`, like the base's HP row above it — the cap is invisible
+  // otherwise, and a factory that has quietly stopped looks like a bug.
+  //
+  // The tally is living units, but the *cap* counts what is queued too (see
+  // `sideRobotLoad`), so the colour is driven by the load and not by the number
+  // on screen: at 10 built + 2 queued the row reads `10/12` and is already red,
+  // which is exactly the state the player needs explained.
+  const maxRobots = gameConfig.production.maxRobots;
+  const robotLoad = myRobotCount + queueLength;
+  let capClass = '';
+  if (robotLoad >= maxRobots) capClass = 'hud__row-value--cap';
+  else if (robotLoad >= maxRobots - 1) capClass = 'hud__row-value--near-cap';
   const auto = playerBase?.autoBuild ?? null;
   const stopAuto = () => {
     if (playerBase) enqueueCommand({ kind: 'SetAutoBuild', baseId: playerBase.id, order: null });
@@ -67,7 +80,9 @@ export function StatusPanel() {
 
       <div className="hud__row">
         <span className="hud__row-label">{t('hud', 'units')}</span>
-        <span className="hud__row-value">{myRobotCount}</span>
+        <span className={`hud__row-value ${capClass}`.trim()}>
+          {myRobotCount}/{maxRobots}
+        </span>
       </div>
 
       <div className={`build-progress ${!queueLength ? 'build-progress--idle' : ''}`.trim()}>

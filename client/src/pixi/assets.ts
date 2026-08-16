@@ -11,6 +11,7 @@ import {
   groundSprite,
   munitionSprite,
   peakSprites,
+  robotGaitSprites,
   robotSprites,
   spriteSources,
   terrainSprites,
@@ -172,6 +173,29 @@ function artOwner(owner: Owner): Owner {
 export function getRobotTexture(chassis: ChassisType, owner: Owner): ResolvedSprite | null {
   const art = artOwner(owner);
   return cached(`robot:${art}:${chassis}`, robotSprites[art]?.[chassis]);
+}
+
+/**
+ * The walk-cycle frames for a chassis in cycle order, or null if that owner/chassis
+ * has no sheet — which is every chassis but `legs` (see `robotGaitSprites`).
+ *
+ * **All or nothing.** One unresolved cell returns null for the whole cycle rather
+ * than a shorter one: a gait that skips a phase reads as a stutter, which is a worse
+ * failure than the still sprite the caller falls back to. In practice the four cells
+ * share a single file, so they resolve or fail together anyway — this just makes the
+ * contract say so.
+ */
+export function getRobotGaitTextures(chassis: ChassisType, owner: Owner): ResolvedSprite[] | null {
+  const art = artOwner(owner);
+  const defs = robotGaitSprites[art]?.[chassis];
+  if (!defs?.length) return null;
+  const frames: ResolvedSprite[] = [];
+  for (const [i, def] of defs.entries()) {
+    const frame = cached(`robot:${art}:${chassis}:gait:${i}`, def);
+    if (!frame) return null;
+    frames.push(frame);
+  }
+  return frames;
 }
 
 /** Faction base sprite, or null (→ Graphics placeholder) if missing/unloaded. */

@@ -45,6 +45,11 @@ const SPRITES = [
   ...['tracks', 'wheels', 'legs'].flatMap((chassis) =>
     ['player', 'ai'].map((side) => ({ name: `robot-${chassis}-${side}`, size: 128, quality: 90 })),
   ),
+  // The `legs` walk cycle: a 2×2 sheet of gait phases, cropped by `frame` in
+  // config/sprites.ts. 256 ships four 128² cells — the same per-frame resolution as
+  // the still robots above, since a cell is drawn at the same 46 px they are. Alpha,
+  // and NOT seamless: it is a sheet, so wrap-padding would bleed one cell into the next.
+  ...['player', 'ai'].map((side) => ({ name: `robot-legs-${side}-gait`, size: 256, quality: 90 })),
   // Bases — on-field 96 px (BASE_TARGET), already the smallest sensible master.
   ...['player', 'ai'].map((side) => ({ name: `base-${side}`, size: 256, quality: 90 })),
   // Weapon modules — on-field 30 px (WEAPON_TARGET).
@@ -137,21 +142,40 @@ if (filters.length && !selected.length) {
 }
 
 const known = new Set(SPRITES.map((s) => s.name));
-const orphans = readdirSync(SRC_DIR)
-  .filter((f) => f.endsWith('.png'))
-  .map((f) => f.replace(/\.png$/, ''))
-  .filter((name) => !known.has(name));
+const masters = new Set(
+  readdirSync(SRC_DIR)
+    .filter((f) => f.endsWith('.png'))
+    .map((f) => f.replace(/\.png$/, '')),
+);
+
+const orphans = [...masters].filter((name) => !known.has(name));
 if (orphans.length) {
   // A master with no entry would silently never ship. Louder than a comment.
   console.error(`Masters with no entry in SPRITES (add them or delete them): ${orphans.join(', ')}`);
   process.exitCode = 1;
 }
 
+/**
+ * The other direction: an entry whose master has not been drawn yet. Skipped with a
+ * note rather than treated as an error, because the documented order of work is
+ * "add the entry, then generate the art" — the table is where a planned asset is
+ * declared, and a run must not fail (and abandon every *later* sprite in the loop)
+ * just because one is still pending.
+ *
+ * A misspelled entry is still caught, from the other side: the master it fails to
+ * match shows up in `orphans` above.
+ */
+const pending = selected.filter((s) => !masters.has(s.name));
+if (pending.length) {
+  console.log(`Declared in SPRITES but not generated yet, skipped: ${pending.map((s) => s.name).join(', ')}\n`);
+}
+
 const work = mkdtempSync(join(tmpdir(), 'dd-sprites-'));
+const encoded = selected.filter((s) => masters.has(s.name));
 let before = 0;
 let after = 0;
 try {
-  for (const sprite of selected) {
+  for (const sprite of encoded) {
     const size = encode(sprite, work);
     before += size.before;
     after += size.after;
@@ -161,7 +185,11 @@ try {
 } finally {
   rmSync(work, { recursive: true, force: true });
 }
-console.log(`\n${selected.length} sprites: ${kb(before)} → ${kb(after)} (${Math.round((1 - after / before) * 100)}% smaller)`);
+if (encoded.length) {
+  console.log(`\n${encoded.length} sprites: ${kb(before)} → ${kb(after)} (${Math.round((1 - after / before) * 100)}% smaller)`);
+} else {
+  console.log('\nNothing to encode.');
+}
 
 function kb(bytes) {
   return `${(bytes / 1024).toFixed(1).padStart(7)} KB`;

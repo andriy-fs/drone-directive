@@ -5,6 +5,10 @@ for **Gemini** and **ChatGPT** image generation. Keep these in sync when new
 robot chassis or base types are added, so art can be regenerated consistently.
 
 - **[robots.md](robots.md)** — one prompt per chassis × faction (player / enemy).
+  **`legs` is the exception**: it ships as a 2×2 **walk-cycle sheet** (four gait
+  phases in one 1024² frame), because six legs are half of a walker's silhouette
+  and a still sprite makes it slide across the ground. Its still sprite is cut out
+  of cell 1 of that sheet rather than generated on its own.
 - **[drone.md](drone.md)** — the player's flying observer drone (single sprite).
 - **[bases.md](bases.md)** — player base + AI (enemy) base.
 - **[weapons.md](weapons.md)** — top-mounted weapon module overlays (cannon,
@@ -171,6 +175,12 @@ screen for detail no display can resolve. See
    Bases use `targetSize` ≈ 96 (3 tiles × 32 px). Tracks currently ships as a
    cropped reference sheet (`frame`); replacing it with a clean whole-image master
    means deleting its `frame`.
+
+   **The `legs` walk-cycle sheet is the one robot asset that does carry `frame`
+   crops**, and it goes in a second table — `robotGaitSprites`, four `SpriteDef`s
+   built by `sheet2x2(src, 128, 46, Math.PI / 2)`. The still `robotSprites.legs`
+   entry stays exactly as it is: the units guide reads it, and `RobotView` falls
+   back to it when the sheet is missing.
 5. **Per-faction art is already wired:** `robotSprites` and `weaponSprites` key on
    `owner → chassis` / `owner → weapon`, and `baseSprites` on `owner`. Only two art
    sets exist (player and opponent); every side past the first opponent reuses the
@@ -205,3 +215,36 @@ screen for detail no display can resolve. See
 - [ ] Reads clearly at small size; strong silhouette.
 - [ ] Correct faction palette/vibe; enemy obviously hostile.
 - [ ] Clear central hardpoint left free for the weapon marker (robots).
+- [ ] **The hull is wide enough to carry a 30 px module.** Lay a 30 px disc over the
+      sprite at its on-field size: it must land *inside* the solid body, not overhang
+      it. A hull narrower than its own weapon disappears under it — see
+      [robots.md](robots.md) § "The hull has to be wide enough to carry a weapon
+      module", where this cost a full regeneration.
+- [ ] **Mass, not width.** A unit whose silhouette is mostly gaps reads as light no
+      matter how wide its bounding box is. `tracks` and `wheels` ink ~86% of theirs;
+      anything under ~65% is a unit that will look flimsy next to them.
+
+### Walk-cycle sheets (the `legs` chassis)
+
+The renderer swaps **only the texture** between cells, so anything that differs
+besides the legs becomes a twitch on screen. Check in this order — the first item
+is the one that fails:
+
+- [ ] **The body is nailed down**: carapace, insignia and hardpoint at the same
+      position, scale and angle in all four cells. Stack the four quadrants in an
+      image editor and blink between them — the body must not breathe.
+- [ ] **Only the legs differ.** No re-designed plating, no moved optic, no extra
+      or missing greeble in one cell.
+- [ ] Identical lighting, palette and line weight across cells — and for the enemy,
+      identical rust and scorch placement (wear that wanders reads as flicker).
+- [ ] Exactly six legs, three per side, with visible background gaps between
+      neighbours. Legs that touch merge into a blob at 46 px and the gait vanishes.
+- [ ] Cells 2 and 4 are true mirrors of each other; cell 1 is a symmetric stance
+      (it is also the **idle pose** the unit rests in).
+- [ ] Nothing touches or crosses a quadrant border — `frame` slices exactly there.
+- [ ] **The body is about two thirds of the cell wide and the legs are short.** The
+      two general robot checks above (module fit, ink fraction) are the ones a walker
+      fails, because "six legs radiating from a core" is what an image model reaches
+      for and it is a spider, not a siege platform.
+- [ ] Flip the four cells at 52 px (`LEGS_TARGET`, not 46): it must read as walking,
+      not as jitter.
