@@ -79,22 +79,16 @@ describe('base placement — corners', () => {
     expect(enemyCornerFor(0xbeef)).toEqual(enemyCornerFor(0xbeef));
   });
 
-  it("spawns each side's starter robots on the inward side of its own base", () => {
+  it('seats every side with a base and an observer drone, and no robots at all', () => {
     const engine = new GameEngine();
     engine.startMatch(settings(MapSize.Small, 3), 7);
-    const half = (gameConfig.grid.width * gameConfig.grid.tilePx) / 2;
 
-    for (const base of engine.world.with('base', 'position').entities) {
-      const starters = engine.world.with('robot', 'position').entities.filter((r) => r.owner === base.owner);
-      expect(starters.length).toBeGreaterThan(0);
-      // Robots sit between their base and the middle of the map, never outside it.
-      for (const r of starters) {
-        const towardMiddle = base.position.x < half ? r.position.x > base.position.x : r.position.x < base.position.x;
-        expect(towardMiddle).toBe(true);
-      }
-    }
-    // Sanity: a four-way match really seats four distinct sides.
+    // A four-way match really seats four distinct sides…
     const owners = engine.world.with('base').entities.map((b) => b.owner);
     expect(new Set(owners)).toEqual(new Set([Owner.Player, Owner.AI, Owner.AI2, Owner.AI3]));
+    // …each with its eye…
+    expect(new Set(engine.world.with('drone').entities.map((d) => d.owner))).toEqual(new Set(owners));
+    // …and nobody is handed a single robot: every unit in the match is produced.
+    expect(engine.world.with('robot').entities).toHaveLength(0);
   });
 });

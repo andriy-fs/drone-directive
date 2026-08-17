@@ -36,11 +36,11 @@ export const en: Dict = {
   },
   difficulty: {
     easy: 'Easy',
-    easyHint: 'You start with one extra robot',
+    easyHint: 'The AI builds up more slowly',
     normal: 'Normal',
-    normalHint: 'Even start',
+    normalHint: 'The AI builds up at your pace',
     hard: 'Hard',
-    hardHint: 'Each AI starts with one extra robot',
+    hardHint: 'The AI builds up faster',
   },
   mapSize: {
     label: 'Map size',

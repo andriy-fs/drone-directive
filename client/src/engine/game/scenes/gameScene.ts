@@ -1,7 +1,6 @@
 import { gameConfig } from '../../../config/gameConfig';
-import type { Vec2 } from '@drone-directive/types/entities';
-import { ChassisType, Controller, Difficulty, Owner, WeaponType } from '@drone-directive/types/enums';
-import { spawnBase, spawnDrone, spawnRobot } from '../../ecs/factory';
+import { Owner } from '@drone-directive/types/enums';
+import { spawnBase, spawnDrone } from '../../ecs/factory';
 import { isAlive } from '../../ecs/guards';
 import { bases } from '../../ecs/queries';
 import { clearWorld } from '../../ecs/world';
@@ -27,13 +26,6 @@ import { visionSystem } from '../../systems/vision';
 import type { GameContext } from '../context';
 import type { Scene } from '../scene';
 
-const STARTER_SPECS: { chassis: ChassisType; weapon: WeaponType }[] = [
-  { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon },
-  { chassis: ChassisType.Wheels, weapon: WeaponType.Missiles },
-  { chassis: ChassisType.Legs, weapon: WeaponType.Cannon },
-  { chassis: ChassisType.Tracks, weapon: WeaponType.Missiles },
-];
-
 /** The live match: builds the world on enter, runs the system pipeline each tick. */
 export class GameScene implements Scene {
   readonly name = 'game';
@@ -52,15 +44,11 @@ export class GameScene implements Scene {
     // Restart entity ids from 0 so both networked peers assign identical ids.
     resetIds();
 
+    // Every side starts with its base and nothing else. No free robots: the cap of
+    // `production.maxRobots` slots is the player's to spend on the army their plan
+    // wants, and difficulty scales what the bots can afford rather than what they
+    // are handed (see `createGameContext`).
     for (const p of gameConfig.bases.placements) spawnBase(world, p.owner, p.tx, p.ty);
-
-    // Online matches ignore the asymmetric Easy/Hard presets (those only make sense
-    // against the bots) and give both human sides the symmetric Normal player count.
-    const counts = gameConfig.difficulty[this.ctx.online ? Difficulty.Normal : this.ctx.difficulty];
-    for (const side of this.ctx.roster) {
-      const isBot = side.controller === Controller.Bot;
-      spawnStarters(this.ctx, side.owner, isBot ? counts.ai : counts.player);
-    }
 
     // Bases are impassable: stamp their footprints into the pathfinding grid.
     refreshNavObstacles(this.ctx);
@@ -156,25 +144,5 @@ export class GameScene implements Scene {
     this.over = true;
     // No survivor at all (simultaneous last kills) → nobody wins.
     this.ctx.bus.emit('gameOver', { winner: alive[0] ?? null });
-  }
-}
-
-/** Places `count` starter robots just outside a base, toward the field. */
-function spawnStarters(ctx: GameContext, owner: Owner, count: number): void {
-  const fp = gameConfig.bases.footprintTiles;
-  const placement = gameConfig.bases.placements.find((p) => p.owner === owner) ?? gameConfig.bases.placements[0];
-  const bcx = placement.tx + Math.floor(fp / 2);
-  const bcy = placement.ty + Math.floor(fp / 2);
-  const { tilePx } = gameConfig.grid;
-  // Line them up on the inward side of the base — the enemy corner varies per
-  // match, so this is derived rather than passed in.
-  const dirX = bcx < gameConfig.grid.width / 2 ? 1 : -1;
-
-  for (let i = 0; i < count; i++) {
-    const tx = bcx + dirX * (2 + i);
-    const ty = bcy + (i % 2 === 0 ? 0 : 1);
-    const pos: Vec2 = { x: (tx + 0.5) * tilePx, y: (ty + 0.5) * tilePx };
-    const spec = STARTER_SPECS[i % STARTER_SPECS.length];
-    spawnRobot(ctx.world, owner, pos, spec.chassis, spec.weapon);
   }
 }

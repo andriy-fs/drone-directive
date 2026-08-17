@@ -35,11 +35,11 @@ export const ru: Dict = {
   },
   difficulty: {
     easy: 'Лёгкий',
-    easyHint: 'У вас на одного робота больше',
+    easyHint: 'ИИ развивается медленнее',
     normal: 'Нормальный',
-    normalHint: 'Равный старт',
+    normalHint: 'ИИ развивается наравне с вами',
     hard: 'Сложный',
-    hardHint: 'У каждого ИИ на одного робота больше',
+    hardHint: 'ИИ развивается быстрее',
   },
   mapSize: {
     label: 'Размер карты',

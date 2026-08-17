@@ -185,14 +185,18 @@ continuous auto-build loop).
 ## How a match flows
 
 1. On the **main menu**, pick a language, difficulty, and map size, and
-   optionally configure the base (auto-produce a chosen robot, and/or a
-   default directive for new robots).
-2. Earn resources over time; **build** and **program** robots, or fly the
+   optionally switch on auto-production (a chosen robot built on repeat, and/or
+   a default directive for new robots) — it starts off, so every unit is yours
+   to choose.
+2. You start with a base and an observer drone, and no robots at all: the whole
+   army is built to whatever plan you pick. Difficulty decides how fast the
+   bots can afford theirs.
+3. Earn resources over time; **build** and **program** robots, or fly the
    observer drone yourself — keeping it clear of enemy missile units, which
    will shoot it down and leave you without an eye for 30 seconds.
-3. Send units to **attack the enemy base** while defending your own — the
+4. Send units to **attack the enemy base** while defending your own — the
    enemy AI adapts to how the fight is going.
-4. Destroy the enemy base to win (or lose if yours falls). Then **Play Again**
+5. Destroy the enemy base to win (or lose if yours falls). Then **Play Again**
    or return to the menu.
 
 ## Architecture

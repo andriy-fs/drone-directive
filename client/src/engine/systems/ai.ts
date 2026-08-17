@@ -93,8 +93,8 @@ function ensureFactoryDefault(base: BaseEntity): void {
 }
 
 /**
- * The other half: anything that still reached `Idle` — a starter robot from
- * `spawnStarters`, a program refused for its weapon — takes up the base line.
+ * The other half: anything that still reached `Idle` — a robot off a factory with
+ * no default task, a program refused for its weapon — takes up the base line.
  */
 function sweepIdle(ctx: GameContext, owner: Owner): void {
   for (const robot of robots(ctx.world).entities) {

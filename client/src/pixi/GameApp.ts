@@ -519,8 +519,8 @@ export class GameApp {
     );
     this.busUnsubs.push(bus.on('entitySpawned', () => this.pushSnapshot()));
     this.busUnsubs.push(
-      // Starter robots and the opening drone emit nothing, so this event already
-      // means "produced mid-match". The owner filter is what keeps the AI's (and,
+      // The opening drone emits nothing, and no side starts with robots, so this
+      // event already means "produced mid-match". The owner filter keeps the AI's (and,
       // online, the opponent's) factories out of this player's speakers.
       bus.on('entitySpawned', ({ kind, owner }) => {
         if (kind === 'robot' && owner === this.localSide) sfx.unitReady();

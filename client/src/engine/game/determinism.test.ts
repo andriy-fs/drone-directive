@@ -67,11 +67,14 @@ describe('lockstep determinism', () => {
   });
 
   it('stays identical with bots seated alongside the two humans', () => {
-    const a = runMatch(SEED, 150, 2);
-    const b = runMatch(SEED, 150, 2);
+    // Long enough for the bots to have produced: nobody starts with robots, and
+    // the first bot order is enqueued at 3 s and takes another 4 s to build.
+    const TICKS = 450; // 15 s
+    const a = runMatch(SEED, TICKS, 2);
+    const b = runMatch(SEED, TICKS, 2);
     expect(b.units).toEqual(a.units);
     expect(b.obstacles).toEqual(a.obstacles);
-    // The bots really did play — they build past the four starters each side gets.
+    // The bots really did play — a match that never ticked holds bases only.
     expect(a.units.length).toBeGreaterThan(runMatch(SEED, 0, 2).units.length);
   });
 

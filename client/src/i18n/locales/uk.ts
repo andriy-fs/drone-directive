@@ -35,11 +35,11 @@ export const uk: Dict = {
   },
   difficulty: {
     easy: 'Легкий',
-    easyHint: 'У вас на одного робота більше',
+    easyHint: 'ШІ розвивається повільніше',
     normal: 'Звичайний',
-    normalHint: 'Рівний старт',
+    normalHint: 'ШІ розвивається нарівні з вами',
     hard: 'Складний',
-    hardHint: 'У кожного ШІ на одного робота більше',
+    hardHint: 'ШІ розвивається швидше',
   },
   mapSize: {
     label: 'Розмір карти',

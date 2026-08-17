@@ -66,8 +66,9 @@ peers and separates simulation from presentation:
   sees itself as blue), box-selection (you can only select your own side), and the
   HUD's "your resources / your base". Host = `Player`, guest = `AI`.
 
-Online matches use symmetric Normal starter counts for the human sides (the
-asymmetric Easy/Hard presets only make sense against a bot).
+Online matches force `Difficulty.Normal` (clamped once in `createGameContext`).
+Difficulty scales the bots' economy, and it never crosses the wire — `StartMessage`
+carries no field for it, so a value only one peer knew would desync both worlds.
 
 ### Bots online
 

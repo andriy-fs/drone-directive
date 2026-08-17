@@ -434,11 +434,16 @@ export const gameConfig = {
     hoverPulsePeriod: 1.2,
   },
 
-  /** Starting robot counts per side, by difficulty. */
+  /**
+   * Economy multipliers by difficulty, applied to **bot sides only** — nobody
+   * starts with free robots, so how fast a side can afford its army is the whole
+   * difficulty curve. `normal` is 1× on both counts: the bot plays by exactly the
+   * player's rules, and only `easy`/`hard` bend them. See `createGameContext`.
+   */
   difficulty: {
-    easy: { player: 3, ai: 2 }, // player starts with one extra
-    normal: { player: 2, ai: 2 }, // even
-    hard: { player: 2, ai: 3 }, // AI starts with one extra
+    easy: { aiStartingResources: 0.75, aiIncome: 0.6 },
+    normal: { aiStartingResources: 1, aiIncome: 1 },
+    hard: { aiStartingResources: 1.25, aiIncome: 1.4 },
   },
 
   /** Randomly generated impassable terrain. */
@@ -453,7 +458,7 @@ export const gameConfig = {
     minBlobTiles: 4,
     /** Max tiles per cluster. Actual size is a random count of *distinct* tiles in `[min, max]`. */
     maxBlobTiles: 16,
-    /** Tiles kept clear around each base (Chebyshev) — covers spawns + starters. */
+    /** Tiles kept clear around each base (Chebyshev) — covers the production spawn ring. */
     baseClearMargin: 6,
     /**
      * Chance a cluster is a crater rather than a mountain. Both block driving;
