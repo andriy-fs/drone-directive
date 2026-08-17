@@ -29,6 +29,7 @@ const valid: Record<Command['kind'], Command> = {
     order: { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon, task: TaskType.Scout },
   },
   SetAutoBuild: { kind: 'SetAutoBuild', baseId: 'base_1', order: null },
+  SetDefaultTask: { kind: 'SetDefaultTask', baseId: 'base_1', task: TaskType.Guard },
   MoveRobots: { kind: 'MoveRobots', robotIds: ['robot_1', 'robot_2'], point: inBounds },
   AttackTarget: { kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_2' },
   SetRallyPoint: { kind: 'SetRallyPoint', baseId: 'base_1', point: inBounds },
@@ -141,6 +142,19 @@ describe('parseCommands', () => {
       { kind: 'SetRallyPoint', baseId: '', point: inBounds },
     ];
     expect(parse(offMap)).toEqual([]);
+  });
+
+  it('lets a base default task through, null included, and refuses anything else', () => {
+    // Null is a setting, not an absence: "the robots I build carry no program".
+    const clear = { kind: 'SetDefaultTask', baseId: 'base_1', task: null };
+    expect(parse([clear])).toEqual([clear]);
+
+    const junk = [
+      { kind: 'SetDefaultTask', baseId: 'base_1', task: 'noSuchTask' },
+      { kind: 'SetDefaultTask', baseId: 'base_1' }, // absent is not a state here
+      { kind: 'SetDefaultTask', baseId: '', task: TaskType.Guard },
+    ];
+    expect(parse(junk)).toEqual([]);
   });
 
   it('validates against the limits it is handed, not a captured copy', () => {

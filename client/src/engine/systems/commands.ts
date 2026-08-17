@@ -29,6 +29,7 @@ export function isCommandFrom(ctx: GameContext, command: Command, side: Owner): 
       return ownedBySide(command.robotId);
     case 'BuildRobot':
     case 'SetAutoBuild':
+    case 'SetDefaultTask':
     case 'SetRallyPoint':
     case 'ActivateShield':
       return ownedBySide(command.baseId);
@@ -69,6 +70,13 @@ function applyCommand(ctx: GameContext, command: Command): void {
     case 'SetAutoBuild': {
       const base = baseById(ctx, command.baseId);
       if (base) base.production.autoBuild = command.order;
+      break;
+    }
+    case 'SetDefaultTask': {
+      const base = baseById(ctx, command.baseId);
+      // Nothing to clamp: the task is one of a closed set either way, and an
+      // order carrying its own `task` still wins over this in `productionSystem`.
+      if (base) base.production.defaultTask = command.task;
       break;
     }
     case 'MoveRobots': {

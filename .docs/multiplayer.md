@@ -35,7 +35,9 @@ ProjectileView.ts`'s flame flicker and `client/src/pixi/audio/sfx.ts`'s noise
   to be applied on the same tick by both peers, not held locally in the HUD. So
   does the base's one-shot energy dome, as `ActivateShield`: it decides what the
   next twenty seconds of damage do, and a peer that raised it a tick later would
-  be playing a different match.)
+  be playing a different match. And so does the directive a base stamps on the
+  robots it builds, as `SetDefaultTask` — the pre-game base setup rides it into a
+  networked match, which is why the setting survives with auto-production off.)
 
 Two things were _not_ deterministic and had to be fixed — RNG seeding from
 `Date.now()` and a process-global entity-id counter; see [Determinism

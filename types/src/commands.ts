@@ -12,6 +12,12 @@ export type Command =
   | { kind: 'BuildRobot'; baseId: string; order: BuildOrder }
   /** Repeat this order continuously (player single-model auto-build), or null = off. */
   | { kind: 'SetAutoBuild'; baseId: string; order: BuildOrder | null }
+  /**
+   * The program a base stamps on the robots it produces, or null = none (they
+   * roll out Idle). Two states, not the three a `BuildOrder.task` has: an order
+   * may defer to this setting, but the setting itself has nothing to defer to.
+   */
+  | { kind: 'SetDefaultTask'; baseId: string; task: TaskType | null }
   /** Move the given robots to `point` in a compact formation (right-click move). */
   | { kind: 'MoveRobots'; robotIds: string[]; point: Vec2 }
   /** Order the given robots to focus-fire a specific target — robot or base (right-click attack). */

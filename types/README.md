@@ -8,7 +8,7 @@ consts it defines.
 | Subpath                           | Holds                                                                      |
 | --------------------------------- | -------------------------------------------------------------------------- |
 | `@drone-directive/types/enums`    | `Owner`, `TaskType`, `ChassisType`, `WeaponType`, `MapSize`, `Difficulty`… |
-| `@drone-directive/types/commands` | `Command` — the five player orders the whole game funnels through.         |
+| `@drone-directive/types/commands` | `Command` — every player order the whole game funnels through.             |
 | `@drone-directive/types/entities` | `Vec2`, `BuildOrder`, `ResourcePool`, `DroneControl`.                      |
 | `@drone-directive/types/tasks`    | Task/script value types.                                                   |
 

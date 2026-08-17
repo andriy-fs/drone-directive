@@ -11,9 +11,9 @@ import { Switch } from '../common/Switch';
  * and new-robot directive — behind the gear.
  *
  * Shared by both title-screen modes rather than owned by the solo panel, because
- * the setting means the same thing in both: online it reaches the world as a
- * `SetAutoBuild` command at the first networked tick (see `GameApp`), which is
- * the same route the in-match build dialog uses.
+ * the setting means the same thing in both: online it reaches the world at the
+ * first networked tick as `SetDefaultTask` + `SetAutoBuild` commands (see
+ * `GameApp`), which is the same route the in-match build dialog uses.
  */
 export function BaseSetupRow({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }) {
   const t = useT();
