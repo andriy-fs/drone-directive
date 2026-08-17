@@ -86,9 +86,11 @@ Three steps, in order:
 
 1. Encode: drop the master into `client/assets-src/`, add a row to
    `client/scripts/encode-music.mjs` and run it. (`-q:a 3` ≈ 112 kb/s,
-   transparent for a bed at this level; the current file predates the script and
-   still ships at 256 kb/s and 4.2 MB, which buys nothing over the 192 kb/s MP3
-   it came from.)
+   transparent for a bed at this level. The file that shipped before this brief
+   arrived finished at 205 kb/s / 4.2 MB; re-encoding it through that row took it
+   to 1.9 MB with no measurable change in loudness. A replacement should be
+   encoded from its own master instead, so it is not a second-generation lossy
+   file.)
 2. Measure — the script prints the integrated loudness — and reset
    `musicDefs.menu.volume` in `client/src/config/sounds.ts` so the bed lands near
    **−27 LUFS** at the music slider's default 0.6. The current track is −12.9 LUFS

@@ -47,11 +47,18 @@ Everything in `client/public/` is mirrored into `dist/` by Vite, which is how th
 end up at the root of the served site — or, for the first two, at the root of the
 assets directory where wrangler reads them as config and never serves them:
 
-- **`_headers`** — marks `/assets/*` `immutable`. Those filenames carry a content
-  hash, so a changed file is a changed URL. Cloudflare's default for assets is
-  `max-age=0, must-revalidate`, which costs a 304 per chunk on every load. The
-  unhashed files (sprites, sounds, music) keep that default on purpose: the asset
-  pipelines overwrite them in place.
+- **`_headers`** — the caching policy. Cloudflare's default for assets is
+  `max-age=0, must-revalidate`, which is correct and needlessly expensive: only
+  `/assets/*` is content-hashed, so a returning player would revalidate ~270
+  unhashed files before a match could start. Four tiers, longest-lived first:
+  `/assets/*` is `immutable` for a year (a changed file is a changed URL); icons
+  and the social card get a week; sounds and music a day; sprites (`/*.webp`) an
+  hour, because the art pipeline overwrites them in place and art is what gets
+  iterated. Everything but `/assets/*` and `index.html` also carries
+  `stale-while-revalidate`, which is what makes the short windows cheap — the
+  browser paints from cache immediately and refreshes in the background.
+  `index.html` stays on `must-revalidate`: its URL never changes but its contents
+  name every hashed chunk, so a stale copy pins a previous deploy.
 - **`.assetsignore`** — keeps `public/.tmp/` (the sprite pipeline's scratch space,
   ~12 MB of PNG masters) off the CDN. It's gitignored, so CI never sees it, but a
   deploy from a local working tree is not a clean checkout and would ship it.

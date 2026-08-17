@@ -36,16 +36,24 @@ const SRC_DIR = fileURLToPath(new URL('../assets-src/', import.meta.url));
 const OUT_DIR = fileURLToPath(new URL('../public/music/', import.meta.url));
 
 /**
- * One row per track that has a master here.
+ * One row per track that has a master here. A row whose master is missing is
+ * reported and skipped rather than fatal — same rule the sprite encoder uses for
+ * art that has not been drawn yet.
  *
- * `terminal-standby` is deliberately absent: it arrived as a finished `.ogg` and
- * there is no master in `assets-src/` to re-encode. A row whose master is missing
- * is reported and skipped rather than fatal — same rule the sprite encoder uses
- * for art that has not been drawn yet.
+ * `terminal-standby`'s master shares its output's basename because it *is* the
+ * output's ancestor: it arrived as a finished 205 kb/s `.ogg` with no earlier
+ * source, shipped that way for a while, and was moved into `assets-src/` (out of
+ * the build) so this script would have something to re-encode. Its row is
+ * therefore the one lossy→lossy transcode here — acceptable at these bitrates for
+ * a bed sitting ~27 dB down, and the alternative was shipping double the bytes of
+ * every other track forever. Do not "clean up" the master as a duplicate: delete
+ * it and the only 205 kb/s copy goes with it.
  */
 const TRACKS = [
   // The in-match bed, generated from `.docs/sfx/main-soundtrack-prompt.md`.
   { name: 'standing-orders', src: 'game_music.mp3', quality: 3 },
+  // The title-screen bed. See the note above about its master.
+  { name: 'terminal-standby', src: 'terminal-standby.ogg', quality: 3 },
 ];
 
 const filters = process.argv.slice(2);
