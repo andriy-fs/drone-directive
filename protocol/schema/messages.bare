@@ -118,6 +118,15 @@ type ActivateShield struct {
     baseId: str
 }
 
+# The program a base stamps on the robots it produces; absent = none (Idle).
+# `optional<TaskType>` rather than the flattened `BuildTask` above: a build order
+# has a third state ("take the base's default"), a base default has nothing to
+# defer to, so two states is all it can mean.
+type SetDefaultTask struct {
+    baseId: str
+    task: optional<TaskType>
+}
+
 # Union order *is* the tag numbering, so a new command is appended last and the
 # ones already out there keep the tags they had. That is a courtesy to whoever
 # reads a packet dump, not compatibility: PROTOCOL_VERSION is bumped regardless.
@@ -128,7 +137,8 @@ type Command union {
     MoveRobots |
     AttackTarget |
     SetRallyPoint |
-    ActivateShield
+    ActivateShield |
+    SetDefaultTask
 }
 
 # ---------------------------------------------------------------------------

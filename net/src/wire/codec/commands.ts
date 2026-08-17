@@ -61,6 +61,12 @@ export function commandToWire(command: Command): wire.Command {
       };
     case 'ActivateShield':
       return { tag: 'ActivateShield', baseId: command.baseId };
+    case 'SetDefaultTask':
+      return {
+        tag: 'SetDefaultTask',
+        baseId: command.baseId,
+        task: command.task === null ? null : TASK_TO_WIRE[command.task],
+      };
   }
 }
 
@@ -88,8 +94,14 @@ export function commandFromWire(command: wire.Command): Command {
         baseId: command.baseId,
         point: command.point === null ? null : { ...command.point },
       };
-    // Nothing to copy: the only field is a string.
+    // Nothing to copy: the only fields are a string and a scalar enum.
     case 'ActivateShield':
       return { kind: 'ActivateShield', baseId: command.baseId };
+    case 'SetDefaultTask':
+      return {
+        kind: 'SetDefaultTask',
+        baseId: command.baseId,
+        task: command.task === null ? null : TASK_FROM_WIRE[command.task],
+      };
   }
 }

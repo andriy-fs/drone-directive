@@ -526,6 +526,42 @@ export function writeActivateShield(bc: bare.ByteCursor, x: ActivateShield): voi
     bare.writeString(bc, x.baseId)
 }
 
+function read3(bc: bare.ByteCursor): TaskType | null {
+    return bare.readBool(bc) ? readTaskType(bc) : null
+}
+
+function write3(bc: bare.ByteCursor, x: TaskType | null): void {
+    bare.writeBool(bc, x != null)
+    if (x != null) {
+        writeTaskType(bc, x)
+    }
+}
+
+/**
+ * The program a base stamps on the robots it produces; absent = none (Idle).
+ * `optional<TaskType>` rather than the flattened `BuildTask` above: a build order
+ * has a third state ("take the base's default"), a base default has nothing to
+ * defer to, so two states is all it can mean.
+ */
+export type SetDefaultTask = {
+    readonly tag: "SetDefaultTask"
+    readonly baseId: string
+    readonly task: TaskType | null
+}
+
+export function readSetDefaultTask(bc: bare.ByteCursor): SetDefaultTask {
+    return {
+        tag: "SetDefaultTask",
+        baseId: bare.readString(bc),
+        task: read3(bc),
+    }
+}
+
+export function writeSetDefaultTask(bc: bare.ByteCursor, x: SetDefaultTask): void {
+    bare.writeString(bc, x.baseId)
+    write3(bc, x.task)
+}
+
 /**
  * Union order *is* the tag numbering, so a new command is appended last and the
  * ones already out there keep the tags they had. That is a courtesy to whoever
@@ -539,6 +575,7 @@ export type Command =
     | AttackTarget
     | SetRallyPoint
     | ActivateShield
+    | SetDefaultTask
 
 export function readCommand(bc: bare.ByteCursor): Command {
     const offset = bc.offset
@@ -558,6 +595,8 @@ export function readCommand(bc: bare.ByteCursor): Command {
             return readSetRallyPoint(bc)
         case 6:
             return readActivateShield(bc)
+        case 7:
+            return readSetDefaultTask(bc)
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -600,6 +639,11 @@ export function writeCommand(bc: bare.ByteCursor, x: Command): void {
         case "ActivateShield": {
             bare.writeU8(bc, 6)
             writeActivateShield(bc, x)
+            break
+        }
+        case "SetDefaultTask": {
+            bare.writeU8(bc, 7)
+            writeSetDefaultTask(bc, x)
             break
         }
     }
@@ -651,7 +695,7 @@ export function writeWorldCheck(bc: bare.ByteCursor, x: WorldCheck): void {
     bare.writeU32(bc, x.hash)
 }
 
-function read3(bc: bare.ByteCursor): readonly Command[] {
+function read4(bc: bare.ByteCursor): readonly Command[] {
     const len = bare.readUintSafe(bc)
     if (len === 0) {
         return []
@@ -663,18 +707,18 @@ function read3(bc: bare.ByteCursor): readonly Command[] {
     return result
 }
 
-function write3(bc: bare.ByteCursor, x: readonly Command[]): void {
+function write4(bc: bare.ByteCursor, x: readonly Command[]): void {
     bare.writeUintSafe(bc, x.length)
     for (let i = 0; i < x.length; i++) {
         writeCommand(bc, x[i])
     }
 }
 
-function read4(bc: bare.ByteCursor): WorldCheck | null {
+function read5(bc: bare.ByteCursor): WorldCheck | null {
     return bare.readBool(bc) ? readWorldCheck(bc) : null
 }
 
-function write4(bc: bare.ByteCursor, x: WorldCheck | null): void {
+function write5(bc: bare.ByteCursor, x: WorldCheck | null): void {
     bare.writeBool(bc, x != null)
     if (x != null) {
         writeWorldCheck(bc, x)
@@ -700,18 +744,18 @@ export type TickMessage = {
 export function readTickMessage(bc: bare.ByteCursor): TickMessage {
     return {
         tick: bare.readU32(bc),
-        commands: read3(bc),
+        commands: read4(bc),
         drone: readDroneControl(bc),
-        check: read4(bc),
+        check: read5(bc),
         pauseToggle: bare.readBool(bc),
     }
 }
 
 export function writeTickMessage(bc: bare.ByteCursor, x: TickMessage): void {
     bare.writeU32(bc, x.tick)
-    write3(bc, x.commands)
+    write4(bc, x.commands)
     writeDroneControl(bc, x.drone)
-    write4(bc, x.check)
+    write5(bc, x.check)
     bare.writeBool(bc, x.pauseToggle)
 }
 
@@ -1067,7 +1111,7 @@ export function decodeChatSendMessage(bytes: Uint8Array): ChatSendMessage {
     return result
 }
 
-function read5(bc: bare.ByteCursor): readonly ChatEntry[] {
+function read6(bc: bare.ByteCursor): readonly ChatEntry[] {
     const len = bare.readUintSafe(bc)
     if (len === 0) {
         return []
@@ -1079,7 +1123,7 @@ function read5(bc: bare.ByteCursor): readonly ChatEntry[] {
     return result
 }
 
-function write5(bc: bare.ByteCursor, x: readonly ChatEntry[]): void {
+function write6(bc: bare.ByteCursor, x: readonly ChatEntry[]): void {
     bare.writeUintSafe(bc, x.length)
     for (let i = 0; i < x.length; i++) {
         writeChatEntry(bc, x[i])
@@ -1097,13 +1141,13 @@ export type ChatHistoryMessage = {
 
 export function readChatHistoryMessage(bc: bare.ByteCursor): ChatHistoryMessage {
     return {
-        entries: read5(bc),
+        entries: read6(bc),
         peerOnline: bare.readBool(bc),
     }
 }
 
 export function writeChatHistoryMessage(bc: bare.ByteCursor, x: ChatHistoryMessage): void {
-    write5(bc, x.entries)
+    write6(bc, x.entries)
     bare.writeBool(bc, x.peerOnline)
 }
 

@@ -54,6 +54,8 @@ describe('command round-trip', () => {
       { kind: 'SetRallyPoint', baseId: 'base_1', point: { x: 640.75, y: 320.5 } },
       { kind: 'SetRallyPoint', baseId: 'base_1', point: null },
       { kind: 'ActivateShield', baseId: 'base_1' },
+      { kind: 'SetDefaultTask', baseId: 'base_1', task: TaskType.DefendBase },
+      { kind: 'SetDefaultTask', baseId: 'base_1', task: null },
     ];
     expect(roundTrip(commands).commands).toEqual(commands);
   });

@@ -101,6 +101,12 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
       kind: v.literal('ActivateShield'),
       baseId: idSchema,
     }),
+    // Nullable but never absent: a base default has only "this program" or "none".
+    SetDefaultTask: v.object({
+      kind: v.literal('SetDefaultTask'),
+      baseId: idSchema,
+      task: v.nullable(v.picklist(Object.values(TaskType))),
+    }),
   } satisfies Record<Command['kind'], v.GenericSchema>;
 
   // The annotation is the other half of the guarantee: the parsed result must be
@@ -119,6 +125,7 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
     commandSchemas.AttackTarget,
     commandSchemas.SetRallyPoint,
     commandSchemas.ActivateShield,
+    commandSchemas.SetDefaultTask,
   ]);
 }
 

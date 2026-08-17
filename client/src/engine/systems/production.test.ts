@@ -217,6 +217,31 @@ describe('commandsSystem — SetAutoBuild (single-model, order-based)', () => {
   });
 });
 
+describe('commandsSystem — SetDefaultTask', () => {
+  it('sets the base directive; a build order without a task of its own inherits it', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    ctx.commands.push({ kind: 'SetDefaultTask', baseId: base.id, task: TaskType.Guard });
+    commandsSystem(ctx);
+    expect(base.production!.defaultTask).toBe(TaskType.Guard);
+
+    base.production!.queue.push({ chassis: ChassisType.Tracks, weapon: WeaponType.Cannon });
+    expect(buildOne(ctx, base).script!.programId).toBe(TaskType.Guard);
+  });
+
+  it('clears the directive when told null — new robots roll out Idle', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    base.production!.defaultTask = TaskType.Guard;
+    ctx.commands.push({ kind: 'SetDefaultTask', baseId: base.id, task: null });
+    commandsSystem(ctx);
+    expect(base.production!.defaultTask).toBeNull();
+
+    base.production!.queue.push({ chassis: ChassisType.Tracks, weapon: WeaponType.Cannon });
+    expect(buildOne(ctx, base).script!.programId).toBe(TaskType.Idle);
+  });
+});
+
 describe('per-side robot cap (shared by player and AI)', () => {
   function fillToCap(ctx: GameContext) {
     for (let i = 0; i < gameConfig.production.maxRobots; i++) {

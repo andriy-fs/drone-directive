@@ -963,25 +963,27 @@ export class GameApp {
    * directly to the world, and each client only knows its own, so two peers
    * would build different worlds from the same seed. The setup is per-player
    * though, not part of the handshake, so it travels the way every other base
-   * change does — as a `SetAutoBuild` on the command queue, screened against the
-   * side that sent it and applied at the same tick on both peers.
+   * change does — on the command queue, screened against the side that sent it
+   * and applied at the same tick on both peers.
    *
-   * The new-robot directive rides inside the order's `task`, which
-   * `productionSystem` prefers over the base's `defaultTask`. That is the only
-   * route online: there is no command for `defaultTask` itself, so with
-   * auto-production off the directive has nothing to travel on and is left to
-   * the in-match build dialog.
+   * Two commands, because the two settings are independent: the directive goes
+   * as a `SetDefaultTask` unconditionally (`null` included — that is a real
+   * setting, "robots roll out with no program"), and the auto-build order only
+   * when there is one. It used to ride solely inside `SetAutoBuild.order.task`,
+   * which meant a player who chose a directive but no auto-production silently
+   * lost it online.
    */
   private applyOnlineBaseSetup(store: GameState): void {
     const { autoBuild, defaultProgram } = useGameStore.getState().settings.base;
-    if (!autoBuild) return;
     const base = basesQuery(this.engine.world).entities.find((e) => e.owner === store.localSide);
     if (!base) return;
-    store.enqueueCommand({
-      kind: 'SetAutoBuild',
-      baseId: base.id,
-      order: { ...autoBuild, task: defaultProgram },
-    });
+    store.enqueueCommand({ kind: 'SetDefaultTask', baseId: base.id, task: defaultProgram });
+    // The order keeps its own `task` too: `productionSystem` prefers it over the
+    // base default, which is exactly what happens offline, where `gameScene`
+    // applies both settings.
+    if (autoBuild) {
+      store.enqueueCommand({ kind: 'SetAutoBuild', baseId: base.id, order: { ...autoBuild, task: defaultProgram } });
+    }
   }
 
   /** End an online match (peer left / error / disconnect) and return to the menu. */
