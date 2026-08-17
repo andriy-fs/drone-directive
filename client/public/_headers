@@ -1,0 +1,12 @@
+# Response headers for the static deploy. Cloudflare reads this from the root of
+# the assets directory (Vite copies `public/` into `dist/`) and does not serve the
+# file itself.
+#
+# Everything under `/assets/` carries a content hash in its filename, so a changed
+# file is a changed URL and the old one is never asked for again — the one case
+# where `immutable` is honest. Cloudflare's default for assets is
+# `max-age=0, must-revalidate`, which costs a 304 round-trip per chunk on every
+# load. The unhashed files in `public/` (sprites, sounds, music) keep that default
+# on purpose: they are overwritten in place by the sprite/audio pipelines.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -227,7 +227,11 @@ uses it locally for a malformed `VITE_MULTIPLAYER_URL` (`LockstepSession.open`).
 
 [`server/wrangler.toml`](../server/wrangler.toml) is the whole deployment config:
 
-- `name = "drone-directive-relay"` → `wss://drone-directive-relay.<SUBDOMAIN>.workers.dev`.
+- `name = "drone-directive-relay"`, reached at `wss://relay.drone-directive.space`
+  via the `[[routes]]` `custom_domain` entry. Its own hostname, not the game's:
+  the relay routes a match at the **root path**, where the static site's
+  `index.html` lives (`.docs/deployment.md` has the full reasoning). `workers.dev`
+  is disabled as a side effect of declaring a route.
 - One DO binding, `ROOM` → `class_name = "Room"` (which is why `Room` is re-exported
   from the Worker entry — wrangler needs it as a named export of `main`).
 - `[[migrations]] new_sqlite_classes = ["Room"]`. **The relay never touches

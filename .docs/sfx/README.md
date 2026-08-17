@@ -23,9 +23,10 @@ Two consequences worth holding on to:
   anything in it silently kills whichever cue points at it. Adding a cue is one
   row in the table; changing one is one path.
 - **The whole library ships.** `client/public/` is copied into `dist/` wholesale,
-  so all 7.6 MB of it goes to GitHub Pages on a site that would otherwise be
+  so all 7.6 MB of it is uploaded to the CDN on a site that would otherwise be
   ~6.3 MB. That is a deliberate trade for keeping the source material at hand
-  and never duplicating a file.
+  and never duplicating a file. (`public/.assetsignore` excludes only the sprite
+  pipeline's scratch dir — see `.docs/deployment.md`.)
 
 **Format is `.ogg`, straight from the pack — no conversion step anywhere.** Ogg
 Vorbis is gapless, so unlike MP3 and AAC it carries no encoder priming delay

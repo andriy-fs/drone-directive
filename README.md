@@ -1,6 +1,6 @@
 # Drone Directive
 
-**[▶ Play now](https://andriy-fs.github.io/drone-directive/)**
+**[▶ Play now](https://drone-directive.space/)**
 
 A browser-based top-down real-time strategy game where you build, arm, and
 program robots to destroy the enemy base before it destroys yours.

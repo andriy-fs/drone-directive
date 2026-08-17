@@ -361,15 +361,11 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
  * DOM background, so it is deliberately absent from `spriteSources()` and never
  * enters the texture cache. A missing file degrades to the flat `--bg` fill.
  *
- * Keep this as an absolute URL from the current page rather than a bare
- * `./menu-backdrop.webp`: the value is injected into an inline CSS custom
- * property, and in production that relative URL gets resolved against the built
- * CSS bundle under `/assets/`, which causes the GitHub Pages 404.
+ * Must stay root-absolute, which `PUBLIC_BASE` now is (`base: '/'`). The value is
+ * injected into an inline CSS custom property, so a bare `./menu-backdrop.webp`
+ * would resolve against the built CSS bundle under `/assets/` and 404.
  */
-export const menuBackdropSrc =
-  typeof window === 'undefined'
-    ? `${PUBLIC_BASE}menu-backdrop.webp`
-    : new URL('menu-backdrop.webp', window.location.href).toString();
+export const menuBackdropSrc = `${PUBLIC_BASE}menu-backdrop.webp`;
 
 /** Unique image sources to preload (robots + bases + weapon modules + terrain + decals). */
 export function spriteSources(): string[] {

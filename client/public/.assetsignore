@@ -1,0 +1,9 @@
+# Paths Cloudflare must not publish, even though Vite copied them into `dist/`.
+# Vite mirrors `public/` wholesale, so anything a local workflow parks in there
+# would otherwise ship — a deploy from a working tree is not a clean checkout.
+# Wrangler reads this from the root of the assets directory and never serves the
+# file itself.
+#
+# `.tmp/` is the sprite pipeline's scratch space: PNG masters and intermediates
+# (see `.docs/sprites/README.md`). Gitignored, so CI never sees it.
+.tmp/

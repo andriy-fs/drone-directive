@@ -4,6 +4,14 @@ name = "drone-directive-relay"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
+# The relay lives on its own hostname, not on the game's. It routes a match at the
+# root path (`/?room=…`), which is exactly where the static site's `index.html`
+# would sit — one origin cannot serve both without moving the match endpoint. A
+# subdomain keeps the wire protocol untouched. See `.docs/deployment.md`.
+[[routes]]
+pattern = "relay.drone-directive.space"
+custom_domain = true
+
 # One Durable Object per room pairs the two player sockets and relays ticks.
 [[durable_objects.bindings]]
 name = "ROOM"

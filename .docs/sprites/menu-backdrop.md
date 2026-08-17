@@ -147,8 +147,8 @@ it into the WebGL texture cache would cost VRAM for something Pixi never draws.
    stores in 205 KB. The art is dark with wide smooth gradients, which is the worst
    case for banding, so do not drop below q90.
 2. Register the path in `client/src/config/sprites.ts` beside the sprite maps — a
-   plain string, not a `SpriteDef`, and built off the same `PUBLIC_BASE` so it keeps
-   working under the production `base: './'` (GitHub Pages):
+   plain string, not a `SpriteDef`, and built off the same `PUBLIC_BASE` so there is
+   one place that knows where public files live:
    ```ts
    export const menuBackdropSrc = `${PUBLIC_BASE}menu-backdrop.webp`;
    ```
@@ -156,6 +156,26 @@ it into the WebGL texture cache would cost VRAM for something Pixi never draws.
    `--splash-image` custom property; `App.css` composites it under the scrim
    gradient, over `var(--bg)`. A missing file degrades to the flat `#0d1117`
    background — the menu still works, it just isn't pretty.
+
+### The social card is cropped from the same master
+
+`client/public/social-card.jpg` is the `og:image` in `index.html`. It exists as its
+own file because Open Graph wants **1.91:1** and this art is 16:9 — handing the
+backdrop straight to an unfurler lets the platform crop it, and the platform does
+not know the walker and the enemy factory are the subject. Regenerate it whenever
+the backdrop changes:
+
+```bash
+cd client
+ffmpeg -y -i assets-src/menu-backdrop.png \
+  -vf "crop=1672:878:0:55,scale=1200:630:flags=lanczos" -q:v 4 public/social-card.jpg
+```
+
+The crop takes its height almost entirely off the top: that band is empty sky,
+while the machines sit low against the horizon. JPEG, not WebP — every unfurler
+handles it, and at ~80 KB the format costs nothing here. Keep it under ~300 KB
+(some crawlers skip larger) and keep the dimensions in the `og:image:width` /
+`og:image:height` tags in step, since unfurlers trust those before fetching.
 
 ## Per-image checklist before accepting a generation
 

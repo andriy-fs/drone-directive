@@ -10,6 +10,24 @@ import App from './ui/App.tsx';
 // first paint in the right language — no flash of English.
 const locale = useGameStore.getState().locale;
 
+/**
+ * Keeps `<html lang>` in step with the UI language. `index.html` ships `lang="en"`
+ * because that is all a static file can know, but the locale is store state and
+ * can be auto-detected or switched at any time — leaving the attribute stale tells
+ * crawlers and screen readers that Ukrainian text is English.
+ *
+ * A store subscription rather than a component effect: this is a document-level
+ * concern, and no part of the React tree owns `<html>`.
+ */
+const applyDocumentLang = (value: Locale) => {
+  document.documentElement.lang = value;
+};
+
+applyDocumentLang(locale);
+useGameStore.subscribe((state, previous) => {
+  if (state.locale !== previous.locale) applyDocumentLang(state.locale);
+});
+
 loadDict(locale)
   .catch((error: unknown) => {
     // The chunk never arrived (offline, stale deploy). Fall back to English — load

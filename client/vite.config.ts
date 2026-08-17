@@ -29,7 +29,10 @@ export default defineConfig(({ mode }) => {
   const token = loadEnv(mode, process.cwd(), 'VITE_').VITE_CF_BEACON_TOKEN?.trim() || '';
 
   return {
-    base: mode === 'production' ? './' : '/',
+    // The site is served from the root of its own domain, so absolute paths are
+    // correct. (It used to be `./` in production, to survive GitHub Pages serving
+    // the game from a `/<repo>/` subpath.)
+    base: '/',
     plugins: [react(), token ? cloudflareWebAnalytics(token) : null],
   };
 });

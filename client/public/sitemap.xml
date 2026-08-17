@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- One URL, because the game is one page: the menu, the match and every screen
+     live behind it with no routing (see the `not_found_handling` note in
+     .docs/deployment.md). The four UI languages are not separate URLs either —
+     the locale is store state, so there is nothing to declare with hreflang. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://drone-directive.space/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

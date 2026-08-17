@@ -16,6 +16,7 @@
     "dev": "npm run dev -w client",
     "dev:relay": "npm run dev -w server",
     "build": "npm run build -w client",
+    "deploy": "./scripts/deploy.sh",
     "lint": "eslint .",
     "preview": "npm run preview -w client",
     "test": "npm run test -w net && npm run test -w chat && npm run test -w client",

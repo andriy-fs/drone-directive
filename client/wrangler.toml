@@ -1,0 +1,29 @@
+# Static hosting for the built game, on Cloudflare. Deploy with
+# `npm run deploy -w client` (requires `wrangler login`); `npm run build` first,
+# since this uploads `dist/` and never produces it.
+#
+# An *assets-only* Worker: there is no `main`, so no script runs per request and
+# Cloudflare serves `dist/` from its edge. The relay Worker is deliberately a
+# separate deploy on `relay.` — see `.docs/deployment.md` for why the two halves
+# stay independent.
+name = "drone-directive"
+compatibility_date = "2026-08-17"
+
+[assets]
+directory = "./dist"
+# Left at the default (a real 404) rather than the SPA fallback. The game has no
+# client-side routes to deep-link into, so serving `index.html` for unknown paths
+# would buy nothing and cost a lot: a mistyped sprite or sound URL would come back
+# as HTML with status 200, and the Pixi loader would fail on the contents instead
+# of on the request.
+
+# `custom_domain`, not a route pattern: Cloudflare creates and owns the proxied
+# DNS records for these names, which is why the zone's apex holds no A record of
+# its own. Both names serve the game; neither redirects to the other.
+[[routes]]
+pattern = "drone-directive.space"
+custom_domain = true
+
+[[routes]]
+pattern = "www.drone-directive.space"
+custom_domain = true
