@@ -1,12 +1,54 @@
 # Response headers for the static deploy. Cloudflare reads this from the root of
 # the assets directory (Vite copies `public/` into `dist/`) and does not serve the
-# file itself.
+# file itself. Later rules do not merge with earlier ones — the most specific
+# matching rule wins — so each group below is complete on its own.
 #
-# Everything under `/assets/` carries a content hash in its filename, so a changed
-# file is a changed URL and the old one is never asked for again — the one case
-# where `immutable` is honest. Cloudflare's default for assets is
-# `max-age=0, must-revalidate`, which costs a 304 round-trip per chunk on every
-# load. The unhashed files in `public/` (sprites, sounds, music) keep that default
-# on purpose: they are overwritten in place by the sprite/audio pipelines.
+# Cloudflare's default for assets is `max-age=0, must-revalidate`: correct, and
+# needlessly expensive. Everything the game draws or plays lives in `public/` with
+# no hash in its name, so a returning player revalidates ~270 files before a match
+# can start. These rules trade a bounded window of staleness for that.
+
+# Hashed by Vite, so a changed file is a changed URL and the old one is never
+# requested again — the one case where `immutable` is honest.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Sprites and the title art. The shortest window of the three: the sprite pipeline
+# overwrites these in place (`scripts/encode-sprites.mjs`), and art is what gets
+# iterated on. `stale-while-revalidate` is what makes the short `max-age` cheap —
+# inside the day, the browser paints from cache immediately and refreshes in the
+# background, so a returning player never waits on a round-trip for art.
+/*.webp
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+# Cues and music: 269 files, and the library is treated as source material that is
+# added to rather than edited (see `.docs/sfx/README.md`), so a longer window costs
+# nothing. Music in particular is megabytes the player should pay for once.
+/sounds/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/music/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# Icons and the social card. Named individually rather than by pattern because
+# these are the only root files of their types and the list is the point: each one
+# is fetched on essentially every page load (or, for the card, by an unfurler that
+# never reuses its cache), and each was otherwise revalidating for a file that
+# changes once a year.
+/favicon.ico
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/apple-touch-icon.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/icons.svg
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+/social-card.jpg
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+# Not cached long on purpose: `index.html` is the only file whose URL never
+# changes but whose contents point at everything else. A stale copy would keep
+# loading a previous deploy's chunks.
+/
+  Cache-Control: public, max-age=0, must-revalidate

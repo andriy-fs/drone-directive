@@ -86,7 +86,7 @@ the table above is a one-shot the player never gets a handle on.
 
 | Track | File | Length | What it is |
 | --- | --- | --- | --- |
-| `menu` | `music/terminal-standby.ogg` | 2:53, 4.2 MB | The title screen. A hangar before deployment: patient, unresolved, no arc. |
+| `menu` | `music/terminal-standby.ogg` | 2:53, 1.9 MB | The title screen. A hangar before deployment: patient, unresolved, no arc. |
 | `match` | `music/standing-orders.ogg` | 2:58, 2.2 MB | The match, from the first frame to the game-over screen. Machines executing orders while something goes wrong off-screen — a flat bed with a slow mechanical pulse and no climax, because the track has no idea whether the match is two minutes or twenty. |
 
 | | Cue | Music |
@@ -138,8 +138,13 @@ result's integrated loudness, which is the number the `musicDefs` arithmetic
 above is done against. Run it by hand and commit the output, like the sprite and
 favicon encoders. Vorbis rather than MP3 is not a preference: MP3 and AAC carry
 an encoder priming delay that would turn every loop wrap into an audible gap.
-`terminal-standby.ogg` predates the script and has no master here — it still
-ships at ~256 kb/s, which buys nothing over the 192 kb/s MP3 it came from.
+`terminal-standby.ogg` predates the script: it arrived finished at ~205 kb/s with
+no earlier source, so that file was moved to `client/assets-src/` and is now its
+own master, re-encoded through the same row as everything else. That one row is a
+lossy→lossy transcode, which is why it is the exception and not the pattern — it
+took the shipped file from 4.2 MB to 1.9 MB at identical integrated loudness
+(−12.9 LUFS) and sample-identical length, so the loop seam and `musicDefs.menu.volume`
+were both unaffected.
 
 Both tracks are linear pieces rather than composed loops, so `loop: true` repeats
 over an audible seam. A 1.2 s fade-in and a 0.6 s fade-out cover entry and exit —
