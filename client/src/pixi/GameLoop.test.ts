@@ -52,11 +52,18 @@ class FakeTicker {
 function spyLoop() {
   const steps: number[] = [];
   const renders: number[] = [];
+  // `stalled` mimics the lockstep wait: while true, `update` refuses the step
+  // and the loop must keep its budget.
+  const state = { stalled: false };
   const loop = new GameLoop(
-    (dt) => steps.push(dt),
+    (dt) => {
+      if (state.stalled) return false;
+      steps.push(dt);
+      return true;
+    },
     (alpha) => renders.push(alpha),
   );
-  return { loop, steps, renders };
+  return { loop, steps, renders, state };
 }
 
 describe('GameLoop fixed step', () => {
@@ -83,6 +90,65 @@ describe('GameLoop fixed step', () => {
 
     ticker.frame(10_000);
     expect(steps).toHaveLength(Math.floor(gameConfig.maxFrameDt / gameConfig.fixedDt));
+  });
+});
+
+describe('GameLoop lockstep stall', () => {
+  it('keeps the budget of a stalled step and catches up once input arrives', () => {
+    const ticker = new FakeTicker();
+    const { loop, steps, renders, state } = spyLoop();
+    loop.start(ticker.asTicker);
+
+    // Three fixed steps' worth of frames, all stalled: the world never advances,
+    // but rendering carries on and the budget stays banked.
+    state.stalled = true;
+    for (let i = 0; i < 3; i++) ticker.frame(FIXED_MS);
+    expect(steps).toHaveLength(0);
+    expect(renders).toHaveLength(3);
+
+    // The peer's input lands: one ordinary frame drains the whole backlog.
+    state.stalled = false;
+    ticker.frame(FIXED_MS);
+    expect(steps).toHaveLength(4);
+  });
+
+  it('caps the banked budget so a long stall cannot flood the recovery frame', () => {
+    const ticker = new FakeTicker();
+    const { loop, steps, state } = spyLoop();
+    loop.start(ticker.asTicker);
+
+    state.stalled = true;
+    for (let i = 0; i < 100; i++) ticker.frame(FIXED_MS);
+    expect(steps).toHaveLength(0);
+
+    state.stalled = false;
+    ticker.frame(FIXED_MS);
+    expect(steps.length).toBeLessThanOrEqual(Math.floor(gameConfig.maxFrameDt / gameConfig.fixedDt));
+    expect(steps.length).toBeGreaterThan(1); // still a catch-up burst, not a single step
+  });
+
+  it('renders with alpha clamped to at most 1 while stalled', () => {
+    const ticker = new FakeTicker();
+    const { loop, renders, state } = spyLoop();
+    loop.start(ticker.asTicker);
+
+    state.stalled = true;
+    for (let i = 0; i < 5; i++) ticker.frame(FIXED_MS);
+    for (const alpha of renders) expect(alpha).toBeLessThanOrEqual(1);
+  });
+
+  it('does not count a stalled step as having run for parking purposes', () => {
+    const ticker = new FakeTicker();
+    const { loop, state } = spyLoop();
+    loop.start(ticker.asTicker);
+
+    state.stalled = true;
+    ticker.frame(FIXED_MS);
+    expect(loop.park()).toBe(false); // no step was actually consumed
+
+    state.stalled = false;
+    ticker.frame(FIXED_MS);
+    expect(loop.park()).toBe(true);
   });
 });
 
@@ -123,9 +189,11 @@ describe('GameLoop parking', () => {
     const store = { restartRequested: false, matchRunning: false };
     const loop: GameLoop = new GameLoop(
       () => {
-        if (!store.restartRequested) return;
-        store.restartRequested = false;
-        store.matchRunning = true;
+        if (store.restartRequested) {
+          store.restartRequested = false;
+          store.matchRunning = true;
+        }
+        return true; // never a stall: the menu consumes every step it gets
       },
       () => {
         if (!store.matchRunning) loop.park();

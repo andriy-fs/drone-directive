@@ -1,4 +1,4 @@
-import { Application, Container } from 'pixi.js';
+import { Application, Container, UPDATE_PRIORITY } from 'pixi.js';
 import { gameConfig } from '../config/gameConfig';
 import { palette } from '../config/palette';
 import type { BaseEntity, DroneEntity, RobotEntity } from '../engine/ecs/archetypes';
@@ -95,6 +95,15 @@ export class GameApp {
   private onlinePaused = false;
   /** When the current lockstep stall began (`0` while the match is advancing). */
   private stalledSince = 0;
+  /**
+   * A rolling count of recent networked steps and how many of them stalled, for
+   * the perf readout. A stall costs no frame time at all — the loop renders
+   * straight through it — so the frame timings cannot distinguish "the world is
+   * waiting on the peer" from "the world is running fine", and those two need
+   * completely different fixes.
+   */
+  private stepWindow = 0;
+  private stallWindow = 0;
   private hostResizeObserver: ResizeObserver | null = null;
   /**
    * Whether the sprite textures are decoded and a world may be built. Starts
@@ -230,7 +239,31 @@ export class GameApp {
       () => this.render(),
     );
     this.loop.start(this.app.ticker);
+
+    // Runs *after* Pixi's own draw, which `Application` adds at LOW — so this is
+    // the first point in the frame where every millisecond the main thread owed
+    // has been paid. Only wired under `?perf=1`: it exists to answer one
+    // question, and an idle game should not pay for it. See `frameBusyMs`.
+    if (this.perfHud) {
+      this.app.ticker.add(this.measureFrameBusy, this, UPDATE_PRIORITY.UTILITY);
+    }
   }
+
+  /**
+   * Main-thread time the whole frame took, draw included — measured from the top
+   * of `GameLoop.onTick` to after Pixi has submitted.
+   *
+   * Read against the frame *interval*: when the two are close the thread is
+   * saturated and the work is real; when the interval is far larger the thread
+   * spent the difference doing nothing, and the frame rate is being set by
+   * something outside this process — vsync, the compositor, or another program
+   * competing for the GPU. The game's own `sim` and `render` figures cannot tell
+   * those apart, because Pixi's draw lands between them and the next frame.
+   */
+  private frameBusyMs = 0;
+  private readonly measureFrameBusy = (): void => {
+    this.frameBusyMs = performance.now() - this.loop.frameStartedAt;
+  };
 
   /**
    * Claim the sprites at full priority, once. Called the first time a match is
@@ -334,11 +367,22 @@ export class GameApp {
     const now = performance.now();
     if (this.perfHud) {
       const ctx = this.engine.context;
-      this.perfHud.sample(this.app.ticker.deltaMS, {
-        inMatch: !!ctx,
-        paused: useGameStore.getState().paused,
-        robots: ctx ? robotsQuery(this.engine.world).entities.length : 0,
-      });
+      this.perfHud.sample(
+        this.app.ticker.deltaMS,
+        {
+          sim: this.loop.simMs,
+          render: this.loop.renderMs,
+          busy: this.frameBusyMs,
+          resolution: this.app.renderer.resolution,
+          steps: this.loop.steps,
+        },
+        {
+          inMatch: !!ctx,
+          paused: useGameStore.getState().paused,
+          robots: ctx ? robotsQuery(this.engine.world).entities.length : 0,
+          stalled: this.session?.isStarted && this.stepWindow > 0 ? this.stallWindow / this.stepWindow : null,
+        },
+      );
     }
     this.worldRenderer.sync(selected, (e) => this.isVisibleToLocalSide(e), now);
     if (perfFlags.fog) this.fogView?.update(this.engine.context?.fog);
@@ -583,8 +627,16 @@ export class GameApp {
     );
   }
 
-  /** One fixed step: apply control flags, forward input, advance, snapshot. */
-  private step(dt: number): void {
+  /**
+   * One fixed step: apply control flags, forward input, advance, snapshot.
+   *
+   * Returns whether the step was consumed (see `UpdateFn`). `false` comes from
+   * exactly one place — a lockstep stall in `stepOnline` — so the loop keeps
+   * that step's budget and catches up when the peer's input arrives. Every
+   * other early exit is not a stall and must cost its step, or the menu and
+   * match-start behaviour would change.
+   */
+  private step(dt: number): boolean {
     const store = useGameStore.getState();
 
     // Online lobby request (host/join/leave), raised by the UI. Not gated below:
@@ -598,7 +650,7 @@ export class GameApp {
     // a later step — and `idle` knows not to park the loop while it does.
     if (this.startHeld) {
       this.requestAssets();
-      return;
+      return true;
     }
 
     // A networked match whose `start` handshake has arrived.
@@ -606,7 +658,7 @@ export class GameApp {
       const start = this.pendingOnlineStart;
       this.pendingOnlineStart = null;
       this.beginOnlineMatch(start.seed, start.mapSize, start.aiCount);
-      return;
+      return true;
     }
 
     if (store.restartRequested || store.menuRequested) {
@@ -621,7 +673,7 @@ export class GameApp {
         this.engine.startMatch(useGameStore.getState().settings);
         this.engine.setLocalSide(Owner.Player);
       }
-      return;
+      return true;
     }
 
     // Networked match: advance under lockstep instead of ticking directly.
@@ -629,8 +681,7 @@ export class GameApp {
     // `stepOnline`, which needs it non-null for the whole tick.
     const session = this.session;
     if (session?.isStarted && store.online.status === OnlineStatus.InMatch) {
-      this.stepOnline(session, dt, store);
-      return;
+      return this.stepOnline(session, dt, store);
     }
 
     // Solo / offline live loop.
@@ -640,11 +691,25 @@ export class GameApp {
     store.clearDroneRequests();
     this.engine.tick(dt);
     this.snapshotAfterTick();
+    return true;
   }
 
-  /** Advance one networked tick once both sides' inputs for it have arrived (else stall). */
-  private stepOnline(session: LockstepSession, dt: number, store: GameState): void {
-    if (!session.ready(this.netTick)) return void this.noteStall(store);
+  /**
+   * Advance one networked tick once both sides' inputs for it have arrived —
+   * else stall, returning `false` so the loop keeps the step's budget.
+   */
+  private stepOnline(session: LockstepSession, dt: number, store: GameState): boolean {
+    // Halved rather than reset, so the ratio keeps a memory of the recent past
+    // instead of restarting from whatever the last few steps happened to do.
+    if (++this.stepWindow > 120) {
+      this.stepWindow >>= 1;
+      this.stallWindow >>= 1;
+    }
+    if (!session.ready(this.netTick)) {
+      this.stallWindow++;
+      this.noteStall(store);
+      return false;
+    }
     this.noteRunning(store);
 
     const side = store.localSide;
@@ -684,6 +749,7 @@ export class GameApp {
     session.scheduleLocal(this.netTick + session.inputDelay, this.captureLocalInput(store));
     this.netTick += 1;
     this.snapshotAfterTick();
+    return true;
   }
 
   /**
@@ -878,6 +944,8 @@ export class GameApp {
     this.netTick = 0;
     this.onlinePaused = false;
     this.stalledSince = 0;
+    this.stepWindow = 0;
+    this.stallWindow = 0;
     // Nothing else clears `paused`, and a stale `true` from an earlier solo match
     // would freeze this client's world while the peer's kept running.
     store.setPaused(false);
@@ -962,6 +1030,8 @@ export class GameApp {
     this.pendingOnlineStart = null;
     this.onlinePaused = false;
     this.stalledSince = 0;
+    this.stepWindow = 0;
+    this.stallWindow = 0;
     store.setPaused(false);
   }
 
@@ -1060,6 +1130,7 @@ export class GameApp {
     this.session?.disconnect();
     this.session = null;
     this.loop?.stop();
+    this.app.ticker.remove(this.measureFrameBusy, this);
     this.worldRenderer?.destroy();
     this.fogView?.destroy();
     this.fogView = null;

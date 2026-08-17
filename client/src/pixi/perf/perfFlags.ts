@@ -12,6 +12,12 @@
  * The method is what is worth keeping: turn one layer off, pan, read the p95.
  * Whatever moves the number is the answer.
  *
+ * That method assumes the cost *is* in the drawing. When turning the quality down
+ * moves nothing, the readout's `sim`/`render` split says which half to search
+ * before any layer is switched off — and in a networked match `net stall` says
+ * whether the world is slow for a third reason entirely: not frame cost at all,
+ * but waiting on the peer's input.
+ *
  * Everything defaults to current behaviour, so a URL without parameters runs the
  * game exactly as it does normally and this file costs one `URLSearchParams` parse.
  *
