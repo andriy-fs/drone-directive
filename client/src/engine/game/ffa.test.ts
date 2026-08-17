@@ -147,12 +147,23 @@ describe('bots in a free-for-all', () => {
     const ctx = engine.context!;
     const ai2Base = engine.world.with('base', 'position').entities.find((b) => b.owner === Owner.AI2)!;
 
-    // Park an enemy bot's robots on AI2's doorstep and give AI2 idle defenders.
+    // Park an enemy bot's robots on AI2's doorstep. No side starts with units, so
+    // AI2's defenders are spawned here too — idle, which is what `mobilizeDefense`
+    // is expected to pull off the fence.
     for (let i = 0; i < gameConfig.ai.massRushThreshold; i++) {
       spawnRobot(
         ctx.world,
         Owner.AI,
         { x: ai2Base.position.x + 20 + i, y: ai2Base.position.y },
+        ChassisType.Tracks,
+        WeaponType.Cannon,
+      );
+    }
+    for (let i = 0; i < 3; i++) {
+      spawnRobot(
+        ctx.world,
+        Owner.AI2,
+        { x: ai2Base.position.x - 20 - i, y: ai2Base.position.y },
         ChassisType.Tracks,
         WeaponType.Cannon,
       );

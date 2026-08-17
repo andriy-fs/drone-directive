@@ -35,11 +35,11 @@ export const pl: Dict = {
   },
   difficulty: {
     easy: 'Łatwy',
-    easyHint: 'Zaczynasz z jednym dodatkowym robotem',
+    easyHint: 'SI rozwija się wolniej',
     normal: 'Normalny',
-    normalHint: 'Równy start',
+    normalHint: 'SI rozwija się w twoim tempie',
     hard: 'Trudny',
-    hardHint: 'Każda SI zaczyna z jednym dodatkowym robotem',
+    hardHint: 'SI rozwija się szybciej',
   },
   mapSize: {
     label: 'Rozmiar mapy',

@@ -36,8 +36,10 @@ describe('worldHash', () => {
     expect(guest).toBe(host);
   });
 
+  // 300 ticks (10 s), not the 120 the other cases use: no side starts with
+  // robots, so the world holds none until the bot's first build lands (~7 s).
   it('notices a single robot a thousandth of a pixel out of place', () => {
-    const a = peer(Owner.Player, 1, 120);
+    const a = peer(Owner.Player, 1, 300);
     const before = worldHash(a.world);
     const robot = a.world.with('robot', 'position').entities[0];
     robot.position.x += 0.001;
@@ -45,7 +47,7 @@ describe('worldHash', () => {
   });
 
   it('notices a difference in hp', () => {
-    const a = peer(Owner.Player, 1, 120);
+    const a = peer(Owner.Player, 1, 300);
     const before = worldHash(a.world);
     const robot = a.world.with('robot').entities[0];
     robot.hp = (robot.hp ?? 0) - 1;

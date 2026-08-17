@@ -21,7 +21,7 @@ export interface MatchSettings {
    * seats at most `MAX_SIDES`, and a networked match already spends two of them.
    */
   aiOpponents: number;
-  /** True only for networked matches — the second side is a remote human, and starters are symmetric. */
+  /** True only for networked matches — the second side is a remote human, and difficulty is forced to Normal. */
   online: boolean;
 }
 
@@ -63,7 +63,10 @@ export const defaultBuildOrder: BuildOrder = {
 export function createDefaultSettings(): GameSettings {
   return {
     match: { difficulty: Difficulty.Normal, mapSize: MapSize.Medium, aiOpponents: 1, online: false },
-    // Auto-produce tracked robots by default, set to Guard.
-    base: { autoBuild: { ...defaultBuildOrder }, defaultProgram: TaskType.Guard },
+    // Auto-production is OFF by default: a side gets `production.maxRobots` slots
+    // for the whole match, and they belong to the player's plan, not to a default
+    // model queued before the first shot. The directive still stands by, so a base
+    // switched on later starts building on Guard.
+    base: { autoBuild: null, defaultProgram: TaskType.Guard },
   };
 }

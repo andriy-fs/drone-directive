@@ -126,8 +126,8 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
         <>
           {/* Same rows in the same order as the solo panel, so switching tabs
               moves as little as possible. Difficulty is the one absent row: the
-              engine forces Normal for every online match (see `gameScene`), and
-              the host has no way to tell the guest otherwise — `StartMessage`
+              engine forces Normal for every online match (see `createGameContext`),
+              and the host has no way to tell the guest otherwise — `StartMessage`
               carries no difficulty. A picker here would set nothing. */}
           <PickerGroup label={t('mainMenu', 'opponents')}>
             <ChipPicker

@@ -2,7 +2,7 @@ import { applySidePlacements, gameConfig } from '../../config/gameConfig';
 import { clampAiOpponents, type GameSettings } from '../../config/gameSettings';
 import type { Command } from '@drone-directive/types/commands';
 import type { DroneControl, ResourcePool, Vec2 } from '@drone-directive/types/entities';
-import { Controller, Owner, PLAYABLE_OWNERS, type Difficulty } from '@drone-directive/types/enums';
+import { Controller, Difficulty, Owner, PLAYABLE_OWNERS } from '@drone-directive/types/enums';
 import { generateObstacles, movementGrid, sightGrid, type ObstacleGrid, type TerrainGrid } from '../obstacles';
 import type { EcsWorld } from '../ecs/world';
 import type { GameBus } from './eventBus';
@@ -122,9 +122,34 @@ function byOwner<T>(make: () => T): Record<Owner, T> {
   return out;
 }
 
-/** Every side starts with the same wallet; `Neutral` holds one it can never spend. */
-function emptyResources(): ResourcePool {
-  return byOwner(() => gameConfig.economy.startingResources);
+/** The sides this roster seats as bots — the only ones difficulty touches. */
+function botOwners(roster: Roster): Set<Owner> {
+  return new Set(roster.filter((s) => s.controller === Controller.Bot).map((s) => s.owner));
+}
+
+/**
+ * Starting wallets. Humans all get the same one; a bot's is scaled by the
+ * difficulty table (1× on Normal). `Neutral` holds one it can never spend.
+ */
+function startingResources(bots: Set<Owner>, difficulty: Difficulty): ResourcePool {
+  const base = gameConfig.economy.startingResources;
+  const scale = gameConfig.difficulty[difficulty].aiStartingResources;
+  const out = byOwner<number>(() => base);
+  for (const owner of bots) out[owner] = base * scale;
+  return out;
+}
+
+/**
+ * Per-side income multiplier for `stepEconomy`: `1` for every human side, the
+ * difficulty table's `aiIncome` for the bots. This is the difficulty curve —
+ * with no starting robots, how fast a side can *afford* an army is the whole
+ * of it, and a bot that is gated by `canAfford` needs nothing else changed.
+ */
+function incomeRates(bots: Set<Owner>, difficulty: Difficulty): Record<Owner, number> {
+  const scale = gameConfig.difficulty[difficulty].aiIncome;
+  const out = byOwner(() => 1);
+  for (const owner of bots) out[owner] = scale;
+  return out;
 }
 
 /**
@@ -153,6 +178,11 @@ export interface GameContext {
   world: EcsWorld;
   bus: GameBus;
   resources: ResourcePool;
+  /**
+   * Income multiplier per side, applied by `economySystem` — `1` for humans, the
+   * difficulty table's `aiIncome` for bots. Fixed for the match.
+   */
+  incomeRate: Record<Owner, number>;
   /** Per-tile terrain kind — what the renderer draws, and what the two grids below derive from. */
   terrain: TerrainGrid;
   /** Terrain-only *impassable* grid (mountains + craters): pathfinding and roam-target picking. */
@@ -165,9 +195,10 @@ export interface GameContext {
   /** Pathfinding grid: `obstacles` + living base footprints (see `navGrid.ts`). */
   navObstacles: ObstacleGrid;
   rng: Rng;
+  /** The difficulty actually in force — already clamped to Normal online, see `createGameContext`. */
   difficulty: Difficulty;
   settings: GameSettings;
-  /** True for networked matches: the second human side is a real peer, and starters are symmetric. */
+  /** True for networked matches: the second human side is a real peer. */
   online: boolean;
   commands: Command[];
   /** Who is playing this match, in seating order — see `buildRoster`. */
@@ -210,17 +241,24 @@ export function createGameContext(
   );
   const terrain = generateObstacles(rng);
   const obstacles = movementGrid(terrain);
+  // Online matches force Normal: difficulty never crosses the wire (`StartMessage`
+  // has no field for it), and a setting only one peer knows would desync the two
+  // worlds the moment a bot's wallet diverged. Clamped here, once, so everything
+  // downstream can read `ctx.difficulty` plainly.
+  const difficulty = settings.match.online ? Difficulty.Normal : settings.match.difficulty;
+  const bots = botOwners(roster);
   return {
     world,
     bus,
-    resources: emptyResources(),
+    resources: startingResources(bots, difficulty),
+    incomeRate: incomeRates(bots, difficulty),
     terrain,
     obstacles,
     sightBlockers: sightGrid(terrain),
     // Seeded with terrain only; GameScene.enter stamps base footprints once bases exist.
     navObstacles: obstacles,
     rng,
-    difficulty: settings.match.difficulty,
+    difficulty,
     settings,
     online: settings.match.online,
     commands,
