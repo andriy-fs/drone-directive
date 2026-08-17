@@ -1,0 +1,13 @@
+# Cloudflare's "Managed robots.txt" is on for this zone, so what a crawler
+# actually receives is its block *prepended* to this file: `Content-Signal:
+# search=yes,ai-train=no,use=reference`, `User-agent: * / Allow: /`, and a
+# `Disallow: /` for the named AI crawlers (GPTBot, ClaudeBot, CCBot, Bytespider,
+# Google-Extended and friends). Curl the live URL to see the whole thing.
+#
+# That already allows search engines everything, so this file deliberately carries
+# only the one directive Cloudflare does not add. An `Allow: /` group here would
+# just be a second `User-agent: *` group saying what the first one said.
+#
+# `Sitemap` is a global directive — it applies regardless of position or of which
+# user-agent group precedes it.
+Sitemap: https://drone-directive.space/sitemap.xml

@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy to Cloudflare
 
 on:
   push:
@@ -7,18 +7,17 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-  actions: write
 
 concurrency:
-  group: pages
+  group: deploy
   cancel-in-progress: true
 
 jobs:
-  build:
+  # The static game, as an assets-only Worker on drone-directive.space (see
+  # client/wrangler.toml). Tests gate the deploy: a red suite must not reach the
+  # domain.
+  deploy-client:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -29,58 +28,30 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
-
       - name: Install dependencies
         run: npm install
 
       - name: Run tests
         run: npm test
 
+      # The relay hostname is deliberately NOT passed here: it lives in
+      # `client/.env.production`. An unset repository variable expands to an empty
+      # string, which shadows the env file instead of falling back to it, and the
+      # build would quietly ship the localhost dev relay.
       - name: Build app
         run: npm run build
         env:
-          VITE_MULTIPLAYER_URL: ${{ vars.VITE_MULTIPLAYER_URL }}
           VITE_CF_BEACON_TOKEN: ${{ vars.VITE_CF_BEACON_TOKEN }}
 
-      - name: Remove stale Pages artifacts from this run
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            });
+      - name: Deploy static site
+        run: npm run deploy -w client
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-            for (const artifact of artifacts.data.artifacts.filter((item) => item.name === 'github-pages')) {
-              await github.rest.actions.deleteArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                artifact_id: artifact.id,
-              });
-            }
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: ./client/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
-
-  # Deploys the multiplayer relay Worker to Cloudflare. Independent of the Pages
-  # deploy; authenticates non-interactively via the CLOUDFLARE_* secrets.
+  # The multiplayer relay, on relay.drone-directive.space. Independent of the
+  # client deploy — no ordering dependency, since the two are linked only by the
+  # build-time VITE_MULTIPLAYER_URL, and that hostname is stable.
   deploy-worker:
     runs-on: ubuntu-latest
     steps:

@@ -10,16 +10,78 @@
     <link rel="icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d1117" />
     <!-- The title-screen splash is the first thing the player sees, but its URL is
          built in JS and handed to CSS as a custom property (config/sprites.ts →
          MainMenu), so without this the fetch cannot even start until the whole
          bundle has parsed and run. Preloading here moves it into the HTML parser,
          alongside the bundle instead of behind it.
-         The `/` prefix is required (the file lives in public/); Vite rewrites it to
-         `./menu-backdrop.webp` under `base: './'`, matching what `new URL(...,
-         location.href)` resolves to in sprites.ts — the same URL, hence one fetch. -->
+         The `/` prefix must match what `menuBackdropSrc` builds from
+         `import.meta.env.BASE_URL` (`/`, since `base: '/'`) — the same URL, hence
+         one fetch rather than two. -->
     <link rel="preload" as="image" href="/menu-backdrop.webp" fetchpriority="high" />
-    <title>Drone Directive</title>
+
+    <title>Drone Directive — free browser RTS</title>
+    <meta
+      name="description"
+      content="Build, arm and program robots to destroy the enemy base before it destroys yours. A free top-down real-time strategy game in the browser — no install, no sign-up."
+    />
+    <!-- `www` is a second custom domain serving the same Worker, so without this
+         the two hostnames are duplicate content. Points at the apex. -->
+    <link rel="canonical" href="https://drone-directive.space/" />
+
+    <!-- Open Graph / Twitter. URLs here must be absolute: unfurlers fetch them out
+         of context and do not resolve relative paths. `social-card.jpg` is cropped
+         to OG's 1.91:1 from the backdrop master (see .docs/sprites/menu-backdrop.md)
+         so the composition survives — the 16:9 backdrop would get cut by the
+         platform instead. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Drone Directive" />
+    <meta property="og:title" content="Drone Directive — free browser RTS" />
+    <meta
+      property="og:description"
+      content="Build, arm and program robots to destroy the enemy base before it destroys yours. Play solo against bots or online against a friend."
+    />
+    <meta property="og:url" content="https://drone-directive.space/" />
+    <meta property="og:image" content="https://drone-directive.space/social-card.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A blue six-legged siege walker and tracked robot on a dark battlefield, facing a distant enemy factory glowing red."
+    />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="ru_RU" />
+    <meta property="og:locale:alternate" content="uk_UA" />
+    <meta property="og:locale:alternate" content="pl_PL" />
+    <!-- Title, description and image are inherited from the og:* tags above; only
+         the card type has no Open Graph equivalent. -->
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Structured data. The interface is translated into four languages but the
+         markup cannot be: there is one URL, and `<html lang>` is rewritten at
+         runtime from the store (src/main.tsx), so `inLanguage` is the honest place
+         to say what the game speaks. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "Drone Directive",
+        "url": "https://drone-directive.space/",
+        "image": "https://drone-directive.space/social-card.jpg",
+        "description": "A top-down real-time strategy game in the browser. Build, arm and program robots to destroy the enemy base before it destroys yours.",
+        "genre": ["Real-time strategy", "Strategy"],
+        "gamePlatform": "Web browser",
+        "applicationCategory": "Game",
+        "operatingSystem": "Any",
+        "playMode": ["SinglePlayer", "MultiPlayer"],
+        "inLanguage": ["en", "ru", "uk", "pl"],
+        "isAccessibleForFree": true,
+        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
     <!-- Boot placeholder: shown while the UI locale chunk loads, before React mounts
          (see src/main.tsx). Inline + literal colours so it needs no stylesheet. -->
     <style>

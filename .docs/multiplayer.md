@@ -4,7 +4,8 @@ Two-human online matches over a thin WebSocket relay (bots may fill the other
 seats — see "Bots online" below). **Implemented** — this documents how it works.
 Constraints fixed going in:
 
-- **UI stays on GitHub Pages** (static) — the backend is a separate service.
+- **UI stays static** — no server rendering; the backend is a separate service on
+  its own hostname (`.docs/deployment.md`).
 - **Backend: Cloudflare Workers + Durable Objects.**
 - **No pause in networked matches** — drop that concern entirely rather than
   synchronize it.
