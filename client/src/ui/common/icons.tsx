@@ -39,6 +39,12 @@ import {
   Ear as LucideEar,
   Zap as LucideZap,
   Plane as LucidePlane,
+  Rows3 as LucideRows3,
+  Columns3 as LucideColumns3,
+  Triangle as LucideTriangle,
+  Square as LucideSquare,
+  Maximize2 as LucideMaximize2,
+  Ban as LucideBan,
 } from 'lucide-react';
 
 /** The shape every icon here has — so callers can take one as a prop without importing lucide. */
@@ -101,3 +107,15 @@ export const SatelliteDishIcon = LucideSatelliteDish;
 export const EarIcon = LucideEar;
 export const ZapIcon = LucideZap;
 export const PlaneIcon = LucidePlane;
+
+/**
+ * Formation shapes. Each glyph is read as the plan view of the shape itself:
+ * stacked bars for a file, bars abreast for a rank, and so on — the label only
+ * confirms what the tile already says.
+ */
+export const ColumnFormationIcon = LucideRows3;
+export const LineFormationIcon = LucideColumns3;
+export const WedgeFormationIcon = LucideTriangle;
+export const BoxFormationIcon = LucideSquare;
+export const SpreadFormationIcon = LucideMaximize2;
+export const NoFormationIcon = LucideBan;

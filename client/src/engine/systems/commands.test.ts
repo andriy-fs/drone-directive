@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
+import type { Command } from '@drone-directive/types/commands';
+import { ChassisType, FormationType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { spawnBase, spawnRobot } from '../ecs/factory';
 import { makeGuard } from '../tasks/taskDefinitions';
@@ -185,5 +186,110 @@ describe('commandsSystem — ActivateShield', () => {
     const theirs = spawnBase(ctx.world, Owner.AI, 20, 20);
     expect(isCommandFrom(ctx, { kind: 'ActivateShield', baseId: mine.id }, Owner.Player)).toBe(true);
     expect(isCommandFrom(ctx, { kind: 'ActivateShield', baseId: theirs.id }, Owner.Player)).toBe(false);
+  });
+});
+
+describe('commandsSystem — SetFormation', () => {
+  const spawnTrio = (ctx: ReturnType<typeof makeCtx>) => [
+    spawnRobot(ctx.world, Owner.Player, { x: 100, y: 100 }, ChassisType.Tracks, WeaponType.Cannon),
+    spawnRobot(ctx.world, Owner.Player, { x: 140, y: 100 }, ChassisType.Tracks, WeaponType.Ew),
+    spawnRobot(ctx.world, Owner.Player, { x: 180, y: 100 }, ChassisType.Wheels, WeaponType.Radar),
+  ];
+
+  it('stamps one shared group id on everyone named', () => {
+    const ctx = makeCtx();
+    const trio = spawnTrio(ctx);
+    ctx.commands.push({ kind: 'SetFormation', robotIds: trio.map((r) => r.id), formation: FormationType.Box });
+    commandsSystem(ctx);
+
+    const stamped = trio.map((r) => r.script!.blackboard.formation);
+    expect(stamped.every((f) => f?.type === FormationType.Box)).toBe(true);
+    expect(new Set(stamped.map((f) => f?.gid)).size).toBe(1);
+  });
+
+  it('gives the same order the same group id twice — re-clicking a tile is idempotent', () => {
+    const ctx = makeCtx();
+    const trio = spawnTrio(ctx);
+    const ids = trio.map((r) => r.id);
+    ctx.commands.push({ kind: 'SetFormation', robotIds: ids, formation: FormationType.Line });
+    commandsSystem(ctx);
+    const first = trio[0].script!.blackboard.formation?.gid;
+
+    // Same members, named in the opposite order: the same group, so the same id.
+    ctx.commands.push({ kind: 'SetFormation', robotIds: [...ids].reverse(), formation: FormationType.Line });
+    commandsSystem(ctx);
+    expect(trio[0].script!.blackboard.formation?.gid).toBe(first);
+  });
+
+  it('null falls the group out', () => {
+    const ctx = makeCtx();
+    const trio = spawnTrio(ctx);
+    const ids = trio.map((r) => r.id);
+    ctx.commands.push({ kind: 'SetFormation', robotIds: ids, formation: FormationType.Wedge });
+    commandsSystem(ctx);
+    ctx.commands.push({ kind: 'SetFormation', robotIds: ids, formation: null });
+    commandsSystem(ctx);
+    expect(trio.every((r) => r.script!.blackboard.formation === undefined)).toBe(true);
+  });
+
+  it('only the local side can form up its opponent', () => {
+    const ctx = makeCtx();
+    const mine = spawnRobot(ctx.world, Owner.Player, { x: 100, y: 100 }, ChassisType.Tracks, WeaponType.Cannon);
+    const theirs = spawnRobot(ctx.world, Owner.AI, { x: 200, y: 100 }, ChassisType.Tracks, WeaponType.Cannon);
+    const own: Command = { kind: 'SetFormation', robotIds: [mine.id], formation: FormationType.Line };
+    const mixed: Command = { kind: 'SetFormation', robotIds: [mine.id, theirs.id], formation: FormationType.Line };
+
+    expect(isCommandFrom(ctx, own, Owner.Player)).toBe(true);
+    expect(isCommandFrom(ctx, mixed, Owner.Player)).toBe(false);
+  });
+});
+
+describe('commandsSystem — a formation survives the orders that replace a script', () => {
+  const formUp = (ctx: ReturnType<typeof makeCtx>) => {
+    const pair = [
+      spawnRobot(ctx.world, Owner.Player, { x: 100, y: 100 }, ChassisType.Tracks, WeaponType.Cannon),
+      spawnRobot(ctx.world, Owner.Player, { x: 140, y: 100 }, ChassisType.Tracks, WeaponType.Cannon),
+    ];
+    ctx.commands.push({ kind: 'SetFormation', robotIds: pair.map((r) => r.id), formation: FormationType.Wedge });
+    commandsSystem(ctx);
+    return pair;
+  };
+
+  it('survives a new directive', () => {
+    const ctx = makeCtx();
+    const pair = formUp(ctx);
+    ctx.commands.push({ kind: 'AssignTask', robotId: pair[0].id, task: TaskType.AttackBase });
+    commandsSystem(ctx);
+    expect(pair[0].script!.programId).toBe(TaskType.AttackBase);
+    expect(pair[0].script!.blackboard.formation?.type).toBe(FormationType.Wedge);
+  });
+
+  it('survives a right-click move order', () => {
+    const ctx = makeCtx();
+    const pair = formUp(ctx);
+    ctx.commands.push({ kind: 'MoveRobots', robotIds: pair.map((r) => r.id), point: { x: 400, y: 400 } });
+    commandsSystem(ctx);
+    expect(pair.every((r) => r.script!.blackboard.formation?.type === FormationType.Wedge)).toBe(true);
+    // ...and the move order still landed: everyone has a destination of their own.
+    expect(pair.every((r) => r.movement!.goal !== undefined)).toBe(true);
+  });
+
+  it('survives an ordered attack on a specific target', () => {
+    const ctx = makeCtx();
+    const pair = formUp(ctx);
+    const foe = spawnBase(ctx.world, Owner.AI, 20, 20);
+    ctx.commands.push({ kind: 'AttackTarget', robotIds: pair.map((r) => r.id), targetId: foe.id });
+    commandsSystem(ctx);
+    expect(pair[0].script!.programId).toBe(TaskType.AttackTarget);
+    expect(pair[0].script!.blackboard.formation?.type).toBe(FormationType.Wedge);
+  });
+
+  it('sends a formation to its slots, not to one shared point', () => {
+    const ctx = makeCtx();
+    const pair = formUp(ctx);
+    ctx.commands.push({ kind: 'MoveRobots', robotIds: pair.map((r) => r.id), point: { x: 600, y: 100 } });
+    commandsSystem(ctx);
+    const goals = pair.map((r) => r.movement!.goal);
+    expect(goals[0]).not.toEqual(goals[1]);
   });
 });

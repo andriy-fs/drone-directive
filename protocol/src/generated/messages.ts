@@ -348,6 +348,64 @@ export function writeBuildOrder(bc: bare.ByteCursor, x: BuildOrder): void {
     writeBuildTask(bc, x.task)
 }
 
+/**
+ * The shape a group of robots holds. Where each robot stands inside the shape is
+ * never on the wire: both peers derive it from the units' weapons, identically.
+ */
+export enum Formation {
+    Column = "Column",
+    Line = "Line",
+    Wedge = "Wedge",
+    Box = "Box",
+    Spread = "Spread",
+}
+
+export function readFormation(bc: bare.ByteCursor): Formation {
+    const offset = bc.offset
+    const tag = bare.readU8(bc)
+    switch (tag) {
+        case 0:
+            return Formation.Column
+        case 1:
+            return Formation.Line
+        case 2:
+            return Formation.Wedge
+        case 3:
+            return Formation.Box
+        case 4:
+            return Formation.Spread
+        default: {
+            bc.offset = offset
+            throw new bare.BareError(offset, "invalid tag")
+        }
+    }
+}
+
+export function writeFormation(bc: bare.ByteCursor, x: Formation): void {
+    switch (x) {
+        case Formation.Column: {
+            bare.writeU8(bc, 0)
+            break
+        }
+        case Formation.Line: {
+            bare.writeU8(bc, 1)
+            break
+        }
+        case Formation.Wedge: {
+            bare.writeU8(bc, 2)
+            break
+        }
+        case Formation.Box: {
+            bare.writeU8(bc, 3)
+            break
+        }
+        case Formation.Spread: {
+            bare.writeU8(bc, 4)
+            break
+        }
+    }
+}
+
 export type AssignTask = {
     readonly tag: "AssignTask"
     readonly robotId: string
@@ -562,6 +620,41 @@ export function writeSetDefaultTask(bc: bare.ByteCursor, x: SetDefaultTask): voi
     write3(bc, x.task)
 }
 
+function read4(bc: bare.ByteCursor): Formation | null {
+    return bare.readBool(bc) ? readFormation(bc) : null
+}
+
+function write4(bc: bare.ByteCursor, x: Formation | null): void {
+    bare.writeBool(bc, x != null)
+    if (x != null) {
+        writeFormation(bc, x)
+    }
+}
+
+/**
+ * The shape the named robots hold from now on; absent = fall out of formation.
+ * Two states, like `SetDefaultTask` and unlike a build order's tri-state task:
+ * a selection either holds a shape or holds none, with nothing to defer to.
+ */
+export type SetFormation = {
+    readonly tag: "SetFormation"
+    readonly robotIds: readonly string[]
+    readonly formation: Formation | null
+}
+
+export function readSetFormation(bc: bare.ByteCursor): SetFormation {
+    return {
+        tag: "SetFormation",
+        robotIds: read1(bc),
+        formation: read4(bc),
+    }
+}
+
+export function writeSetFormation(bc: bare.ByteCursor, x: SetFormation): void {
+    write1(bc, x.robotIds)
+    write4(bc, x.formation)
+}
+
 /**
  * Union order *is* the tag numbering, so a new command is appended last and the
  * ones already out there keep the tags they had. That is a courtesy to whoever
@@ -576,6 +669,7 @@ export type Command =
     | SetRallyPoint
     | ActivateShield
     | SetDefaultTask
+    | SetFormation
 
 export function readCommand(bc: bare.ByteCursor): Command {
     const offset = bc.offset
@@ -597,6 +691,8 @@ export function readCommand(bc: bare.ByteCursor): Command {
             return readActivateShield(bc)
         case 7:
             return readSetDefaultTask(bc)
+        case 8:
+            return readSetFormation(bc)
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -644,6 +740,11 @@ export function writeCommand(bc: bare.ByteCursor, x: Command): void {
         case "SetDefaultTask": {
             bare.writeU8(bc, 7)
             writeSetDefaultTask(bc, x)
+            break
+        }
+        case "SetFormation": {
+            bare.writeU8(bc, 8)
+            writeSetFormation(bc, x)
             break
         }
     }
@@ -695,7 +796,7 @@ export function writeWorldCheck(bc: bare.ByteCursor, x: WorldCheck): void {
     bare.writeU32(bc, x.hash)
 }
 
-function read4(bc: bare.ByteCursor): readonly Command[] {
+function read5(bc: bare.ByteCursor): readonly Command[] {
     const len = bare.readUintSafe(bc)
     if (len === 0) {
         return []
@@ -707,18 +808,18 @@ function read4(bc: bare.ByteCursor): readonly Command[] {
     return result
 }
 
-function write4(bc: bare.ByteCursor, x: readonly Command[]): void {
+function write5(bc: bare.ByteCursor, x: readonly Command[]): void {
     bare.writeUintSafe(bc, x.length)
     for (let i = 0; i < x.length; i++) {
         writeCommand(bc, x[i])
     }
 }
 
-function read5(bc: bare.ByteCursor): WorldCheck | null {
+function read6(bc: bare.ByteCursor): WorldCheck | null {
     return bare.readBool(bc) ? readWorldCheck(bc) : null
 }
 
-function write5(bc: bare.ByteCursor, x: WorldCheck | null): void {
+function write6(bc: bare.ByteCursor, x: WorldCheck | null): void {
     bare.writeBool(bc, x != null)
     if (x != null) {
         writeWorldCheck(bc, x)
@@ -744,18 +845,18 @@ export type TickMessage = {
 export function readTickMessage(bc: bare.ByteCursor): TickMessage {
     return {
         tick: bare.readU32(bc),
-        commands: read4(bc),
+        commands: read5(bc),
         drone: readDroneControl(bc),
-        check: read5(bc),
+        check: read6(bc),
         pauseToggle: bare.readBool(bc),
     }
 }
 
 export function writeTickMessage(bc: bare.ByteCursor, x: TickMessage): void {
     bare.writeU32(bc, x.tick)
-    write4(bc, x.commands)
+    write5(bc, x.commands)
     writeDroneControl(bc, x.drone)
-    write5(bc, x.check)
+    write6(bc, x.check)
     bare.writeBool(bc, x.pauseToggle)
 }
 
@@ -1111,7 +1212,7 @@ export function decodeChatSendMessage(bytes: Uint8Array): ChatSendMessage {
     return result
 }
 
-function read6(bc: bare.ByteCursor): readonly ChatEntry[] {
+function read7(bc: bare.ByteCursor): readonly ChatEntry[] {
     const len = bare.readUintSafe(bc)
     if (len === 0) {
         return []
@@ -1123,7 +1224,7 @@ function read6(bc: bare.ByteCursor): readonly ChatEntry[] {
     return result
 }
 
-function write6(bc: bare.ByteCursor, x: readonly ChatEntry[]): void {
+function write7(bc: bare.ByteCursor, x: readonly ChatEntry[]): void {
     bare.writeUintSafe(bc, x.length)
     for (let i = 0; i < x.length; i++) {
         writeChatEntry(bc, x[i])
@@ -1141,13 +1242,13 @@ export type ChatHistoryMessage = {
 
 export function readChatHistoryMessage(bc: bare.ByteCursor): ChatHistoryMessage {
     return {
-        entries: read6(bc),
+        entries: read7(bc),
         peerOnline: bare.readBool(bc),
     }
 }
 
 export function writeChatHistoryMessage(bc: bare.ByteCursor, x: ChatHistoryMessage): void {
-    write6(bc, x.entries)
+    write7(bc, x.entries)
     bare.writeBool(bc, x.peerOnline)
 }
 

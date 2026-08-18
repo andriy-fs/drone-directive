@@ -1,6 +1,6 @@
 import type { Command } from '@drone-directive/types/commands';
 import type { DroneControl } from '@drone-directive/types/entities';
-import { ChassisType, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, FormationType, TaskType, WeaponType } from '@drone-directive/types/enums';
 import * as v from 'valibot';
 
 /**
@@ -101,6 +101,13 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
       kind: v.literal('ActivateShield'),
       baseId: idSchema,
     }),
+    // Nullable but never absent, for the same reason as `SetDefaultTask` below:
+    // a selection either holds a shape or holds none.
+    SetFormation: v.object({
+      kind: v.literal('SetFormation'),
+      robotIds: robotIdsSchema,
+      formation: v.nullable(v.picklist(Object.values(FormationType))),
+    }),
     // Nullable but never absent: a base default has only "this program" or "none".
     SetDefaultTask: v.object({
       kind: v.literal('SetDefaultTask'),
@@ -126,6 +133,7 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
     commandSchemas.SetRallyPoint,
     commandSchemas.ActivateShield,
     commandSchemas.SetDefaultTask,
+    commandSchemas.SetFormation,
   ]);
 }
 

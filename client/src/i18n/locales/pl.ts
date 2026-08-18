@@ -114,6 +114,22 @@ export const pl: Dict = {
     rallyNone: 'nie ustawiony',
     rallyHint:
       'PPM na mapie — ustaw, gdzie zbierają się nowe jednostki z dyrektywami „Bezczynny” i „Obrona”; PPM na bazie — usuń punkt.',
+    directiveHeading: 'Dyrektywa',
+    formationHeading: 'Szyk',
+  },
+  formations: {
+    column: 'Kolumna',
+    line: 'Linia',
+    wedge: 'Klin',
+    box: 'Czworobok',
+    spread: 'Rozproszenie',
+    none: 'Bez szyku',
+    columnNote: 'Dwójkami, w głąb. Kształt, który przechodzi przez wąskie przejście bez blokowania całej grupy.',
+    lineNote: 'Szeregi, działa z przodu. Najszerszy front — i na tyle ciasno, że zagłuszarka osłania wszystkich.',
+    wedgeNote: 'Wąskie ostrze rozchodzące się ku tyłowi. Uniwersalny szyk do natarcia.',
+    boxNote: 'Zwarty kwadrat: radar, zagłuszarka i kamikaze w środkowych polach. Szyk eskorty — i najbardziej wrażliwy na jeden wybuch.',
+    spreadNote: 'Linia w odstępach większych niż promień wybuchu. Przetrwa kamikaze i nalot dronów, ale skrzydła wypadają poza zagłuszarkę.',
+    noneNote: 'Rozejść się. Każda jednostka znów idzie sama.',
   },
   programs: {
     idle: 'Bezczynny',

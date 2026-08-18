@@ -17,7 +17,7 @@ import type { Locale } from '../i18n/locale';
 import type { RadioKey, RadioParams } from '../radio/types';
 import type { Command } from '@drone-directive/types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
-import type { ChassisType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
+import type { ChassisType, FormationType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import type { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus } from './enums';
 
 /** HUD-facing observer-drone status (projected from the ECS world). */
@@ -40,6 +40,8 @@ export interface RobotSnapshot {
   task: TaskType;
   hp: number;
   maxHp: number;
+  /** The shape this robot marches in, or null = none. Drives the formation tiles' highlight. */
+  formation: FormationType | null;
 }
 
 /** HUD-facing view of a base's one-shot energy dome (see `engine/systems/shield.ts`). */

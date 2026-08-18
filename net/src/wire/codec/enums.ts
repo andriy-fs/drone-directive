@@ -1,6 +1,6 @@
 import type { WireMapSize } from '@drone-directive/protocol';
 import * as wire from '@drone-directive/protocol/codec';
-import { ChassisType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, FormationType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
 
 /**
  * `Record<DomainValue, WireValue>` in one direction and its inverse in the other.
@@ -35,6 +35,14 @@ export const TASK_TO_WIRE: Record<TaskType, wire.TaskType> = {
   [TaskType.Overwatch]: wire.TaskType.Overwatch,
   [TaskType.DefendBase]: wire.TaskType.DefendBase,
   [TaskType.GroupAttack]: wire.TaskType.GroupAttack,
+};
+
+export const FORMATION_TO_WIRE: Record<FormationType, wire.Formation> = {
+  [FormationType.Column]: wire.Formation.Column,
+  [FormationType.Line]: wire.Formation.Line,
+  [FormationType.Wedge]: wire.Formation.Wedge,
+  [FormationType.Box]: wire.Formation.Box,
+  [FormationType.Spread]: wire.Formation.Spread,
 };
 
 /**
@@ -72,6 +80,7 @@ export const WEAPON_FROM_WIRE = invert(WEAPON_TO_WIRE);
 export const TASK_FROM_WIRE = invert(TASK_TO_WIRE);
 export const MAP_SIZE_FROM_WIRE = invert(MAP_SIZE_TO_WIRE);
 export const TASK_FROM_BUILD_TASK = invert(TASK_TO_BUILD_TASK);
+export const FORMATION_FROM_WIRE = invert(FORMATION_TO_WIRE);
 
 /** The `mapSize` query param is still text (it precedes any message) — map it here too. */
 const WIRE_MAP_SIZE_STRINGS: Record<MapSize, WireMapSize> = {

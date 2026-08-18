@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultSettings, type GameSettings } from '../config/gameSettings';
 import { GameEngine } from './game/engine';
-import { MapSize, Owner } from '@drone-directive/types/enums';
+import { FormationType, MapSize, Owner } from '@drone-directive/types/enums';
 import { worldHash } from './worldHash';
 
 /**
@@ -86,6 +86,22 @@ describe('worldHash', () => {
     const base = a.world.with('base', 'position').entities[0];
     a.world.addComponent(base, 'shieldSpent', true);
     expect(worldHash(a.world)).not.toBe(before);
+  });
+
+  it('notices a formation one peer knows about and the other does not', () => {
+    const a = peer(Owner.Player, 1, 300);
+    const robot = a.world.with('script', 'movement').entities[0];
+    expect(robot).toBeDefined();
+    const before = worldHash(a.world);
+
+    robot.script.blackboard.formation = { gid: 'g1', type: FormationType.Line };
+    const formed = worldHash(a.world);
+    expect(formed).not.toBe(before);
+
+    // The same members in a different shape are a different set of orders, and
+    // the positions they produce next tick diverge accordingly.
+    robot.script.blackboard.formation = { gid: 'g1', type: FormationType.Box };
+    expect(worldHash(a.world)).not.toBe(formed);
   });
 
   it('ignores presentation state, which legitimately differs per client', () => {

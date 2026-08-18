@@ -381,6 +381,15 @@ export const gameConfig = {
     /** Overwatch: distance (px) behind an advancing friendly group's centroid an unarmed spotter trails at. */
     overwatchTrailDistance: 180,
     /**
+     * Overwatch, but for a jammer: an `ew` hull trails this close instead, because
+     * its job is an *aura* rather than a pair of eyes. The spotter's 180 px sits
+     * outside `weapons.ew.jamRadius` (150), so a jammer keeping the scout's
+     * distance protects nobody at all — the one thing it exists to do. Kept well
+     * inside the bubble rather than at its rim so the group it trails stays
+     * covered while the gap breathes.
+     */
+    jammerTrailDistance: 90,
+    /**
      * DefendBase: an enemy this close (px) to the robot's **own base** is
      * intercepted. Deliberately wider than `ai.threatRange` (220), so the
      * defence line is already moving by the time the bot calls itself
@@ -403,6 +412,35 @@ export const gameConfig = {
     stuckEpsilon: 0.5,
     stuckAfter: 0.4,
     retreatSeconds: 0.5,
+    /**
+     * Formation keeping — see `engine/systems/task/formation.ts`.
+     *
+     * `spacing` is per shape because the shape *is* the trade-off: at 36 px a
+     * 3×3 box has a half-diagonal of ~76 px, comfortably inside an `ew` hull's
+     * `jamRadius` (150) — and just as comfortably inside a kamikaze's blast
+     * (`explosionRadius` 120 plus `robots.radius`). `spread` is set past that
+     * blast on purpose: it buys survival against area damage by giving up the
+     * jammer's bubble, and those are the only two ways to be wrong here.
+     *
+     * `lead` is how far ahead of the group's own centroid the whole frame is
+     * projected each tick, which is what makes a formation *walk*: stragglers
+     * pull the centroid back and the slots come back with it, so the group
+     * paces itself to its slowest member with no leader and no stored state. It
+     * must exceed `grid.tilePx` (32) or `setGoal` would keep finding the goal in
+     * the same tile and never re-path.
+     *
+     * `slack` is how close to its slot counts as "dressed" — below it the unit
+     * holds instead of shuffling. `bombReleaseRange` is how near the enemy the
+     * group must be before a kamikaze stops holding the line and runs its own
+     * program: staying in formation all the way in would waste the one unit
+     * whose whole purpose is to arrive alone.
+     */
+    formation: {
+      spacing: { column: 44, line: 44, wedge: 48, box: 36, spread: 140 },
+      lead: 64,
+      slack: 12,
+      bombReleaseRange: 260,
+    },
   },
 
   /** Transient visual effects. */

@@ -162,6 +162,24 @@
   margin: 0 0 8px;
 }
 
+/* Names a grid of tiles inside a card, one step quieter than the card's own
+   heading: two grids of orders share the Directive card, and without a label
+   each they read as one long grid of unrelated buttons. The top margin is what
+   separates the pair; the first one sits under the health bar, which brings its
+   own gap. */
+.hud__subheading {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  opacity: 0.75;
+  margin: 12px 0 6px;
+}
+
+.hud__subheading:first-of-type {
+  margin-top: 8px;
+}
+
 /* The card chrome the sidebar is moving onto, section by section — see HudCard.
    It sits a shade above the sidebar so the panel reads as a raised surface. */
 .hud-card {

@@ -1,5 +1,5 @@
 import type { Vec2 } from './entities';
-import type { TaskType } from './enums';
+import type { FormationType, TaskType } from './enums';
 
 /**
  * Robot behaviour is a **priority-ordered list of directives** ("when → do"),
@@ -98,5 +98,28 @@ export interface RobotScript {
      * back below the threshold and turn around.
      */
     committed?: boolean;
+    /**
+     * The formation this robot marches in, or absent = none. Deliberately *not*
+     * a slot: only the shape and which group it belongs to are remembered, and
+     * the slot itself is recomputed every tick from whoever is still alive under
+     * the same `gid`. Losses therefore close the ranks instead of leaving gaps,
+     * and there is no stale geometry to keep in step across two peers.
+     *
+     * Survives a change of program — `preserveFormation` in `systems/commands.ts`
+     * carries it across every order that replaces the script wholesale.
+     */
+    formation?: RobotFormation;
   };
+}
+
+/** A robot's membership of one formation: the shared group id plus the shape it holds. */
+export interface RobotFormation {
+  /**
+   * Shared by every robot the order named, derived from their ids — so both
+   * peers compute the same string for the same order without one telling the
+   * other. Two identical selections ordered twice land on the same id, which is
+   * harmless: they *are* the same group.
+   */
+  gid: string;
+  type: FormationType;
 }

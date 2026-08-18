@@ -1,5 +1,5 @@
 import type { Command } from '@drone-directive/types/commands';
-import { ChassisType, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, FormationType, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setNetDebug } from '../debug';
 import { parseCommands, parseDroneControl, type CommandLimits } from './validation';
@@ -34,6 +34,7 @@ const valid: Record<Command['kind'], Command> = {
   AttackTarget: { kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_2' },
   SetRallyPoint: { kind: 'SetRallyPoint', baseId: 'base_1', point: inBounds },
   ActivateShield: { kind: 'ActivateShield', baseId: 'base_1' },
+  SetFormation: { kind: 'SetFormation', robotIds: ['robot_1', 'robot_2'], formation: FormationType.Wedge },
 };
 
 const parse = (raw: unknown, over: Partial<CommandLimits> = {}) => parseCommands(raw, 'peer', { ...limits, ...over });
@@ -94,11 +95,25 @@ describe('parseCommands', () => {
       { kind: 'MoveRobots', robotIds: ['robot_1', 7], point: inBounds },
       { kind: 'AttackTarget', robotIds: [], targetId: 'base_2' },
       { kind: 'AttackTarget', robotIds: ['robot_1'], targetId: '' },
+      { kind: 'SetFormation', robotIds: [], formation: FormationType.Line },
+      { kind: 'SetFormation', robotIds: tooMany, formation: FormationType.Line },
     ];
     expect(parse(junk)).toEqual([]);
     // Exactly at the cap is still a legal order.
     const atCap = { kind: 'MoveRobots', robotIds: tooMany.slice(0, limits.maxRobots), point: inBounds };
     expect(parse([atCap])).toHaveLength(1);
+  });
+
+  it('rejects a formation that is not one of the shapes, and lets null through as "fall out"', () => {
+    const clear = { kind: 'SetFormation', robotIds: ['robot_1'], formation: null };
+    expect(parse([clear])).toEqual([clear]);
+
+    const junk = [
+      { kind: 'SetFormation', robotIds: ['robot_1'], formation: 'phalanx' },
+      { kind: 'SetFormation', robotIds: ['robot_1'], formation: 3 },
+      { kind: 'SetFormation', robotIds: ['robot_1'] }, // absent is not the same as null
+    ];
+    expect(parse(junk)).toEqual([]);
   });
 
   it('rejects a shield activation whose base id is empty or oversized', () => {

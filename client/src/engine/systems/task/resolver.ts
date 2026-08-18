@@ -22,6 +22,7 @@ import {
   overwatchOutcome,
   retreatToBaseOutcome,
 } from './outcomes';
+import { applyFormations } from './formation';
 import { searchOutcome } from './roam';
 import type { MoveIntent, Outcome } from './types';
 
@@ -44,6 +45,12 @@ import type { MoveIntent, Outcome } from './types';
  * out (`combat.ts` only ever consumes it).
  */
 export function taskSystem(ctx: GameContext, dt: number): void {
+  // Three passes rather than one, because formation keeping needs to see the
+  // whole side's intents before any of them becomes a goal: where a robot should
+  // stand depends on where its group is going, and that is not knowable while
+  // the group is still being resolved one robot at a time.
+  const resolved = new Map<string, Outcome>();
+
   for (const e of robots(ctx.world)) {
     // Decay first, so the tick a robot recovers on is the tick it acts again —
     // identically on both peers.
@@ -53,7 +60,14 @@ export function taskSystem(ctx: GameContext, dt: number): void {
     if (e.threat && e.threat.underFireLeft > 0) {
       e.threat.underFireLeft = Math.max(0, e.threat.underFireLeft - dt);
     }
-    runProgram(ctx, e);
+    resolved.set(e.id, runProgram(ctx, e));
+  }
+
+  applyFormations(ctx, resolved);
+
+  for (const e of robots(ctx.world)) {
+    const out = resolved.get(e.id);
+    if (out) applyOutcome(ctx, e, out);
   }
 
   for (const b of bases(ctx.world)) {
@@ -97,7 +111,8 @@ function baseTurretTarget(ctx: GameContext, base: BaseEntity): string | undefine
   return nearest(pos, knownEnemyRobots(ctx, base.owner).filter(inReach))?.id;
 }
 
-function runProgram(ctx: GameContext, e: RobotEntity): void {
+/** Walks a robot's directive list and reports what it wants, without acting on it. */
+function runProgram(ctx: GameContext, e: RobotEntity): Outcome {
   const program = getProgram(e.script.programId);
 
   let move: MoveIntent | undefined;
@@ -117,15 +132,21 @@ function runProgram(ctx: GameContext, e: RobotEntity): void {
 
   if (!fireSet) fire = airTarget(ctx, e);
 
+  return { move, fire };
+}
+
+/** Turns a settled intent into a goal and a target — after formations have had their say. */
+function applyOutcome(ctx: GameContext, e: RobotEntity, out: Outcome): void {
+  const move = out.move;
   if (move?.kind === 'goal') {
     setGoal(ctx, e, move.x, move.y); // movement system sets the Moving state
   } else if (move?.kind === 'hold') {
     clearGoal(e);
-    e.movement.state = fire ? RobotState.Attacking : RobotState.Idle;
+    e.movement.state = out.fire ? RobotState.Attacking : RobotState.Idle;
   }
   // move === undefined → no autonomous move intent: leave the current goal
   // untouched so a manually issued destination (right-click) is obeyed.
-  e.targetId = fire;
+  e.targetId = out.fire;
 }
 
 /**

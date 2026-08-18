@@ -129,6 +129,25 @@ describe('taskSystem — Overwatch (unarmed support role)', () => {
     );
   });
 
+  it('trails a jammer close enough that its bubble actually covers the group', () => {
+    const ctx = makeCtx(2);
+    spawnBase(ctx.world, Owner.Player, 4, 33);
+    const jammer = spawnRobot(ctx.world, Owner.Player, { x: 200, y: 900 }, ChassisType.Tracks, WeaponType.Ew);
+    jammer.script = makeOverwatch();
+    const vanguard = spawnRobot(ctx.world, Owner.Player, { x: 900, y: 900 }, ChassisType.Tracks, WeaponType.Cannon);
+    vanguard.script = { programId: TaskType.AttackBase, blackboard: {} };
+
+    taskSystem(ctx, DT);
+
+    const goal = jammer.movement!.goal!;
+    const gap = distance(goal.x, goal.y, vanguard.position!.x, vanguard.position!.y);
+    expect(gap).toBeCloseTo(gameConfig.behavior.jammerTrailDistance, 5);
+    // The point of the whole exception: a spotter's distance would leave the
+    // group it is escorting outside the one thing this hull contributes.
+    expect(gap).toBeLessThan(gameConfig.robots.weapons.ew.jamRadius);
+    expect(gameConfig.behavior.overwatchTrailDistance).toBeGreaterThan(gameConfig.robots.weapons.ew.jamRadius);
+  });
+
   it('hovers near its own base when no friendly group is advancing', () => {
     const ctx = makeCtx(9);
     const base = spawnBase(ctx.world, Owner.Player, 4, 33);
