@@ -4,7 +4,6 @@ import { ClipboardCheckIcon, HourglassIcon, PauseIcon } from './common/icons';
 import { HudCard } from './common/HudCard';
 import { ChatPanel } from './hud/ChatPanel';
 import { DirectivesHelpButton } from './hud/DirectivesHelpButton';
-import { DronePanel } from './hud/DronePanel';
 import { DroneReadyToast } from './hud/DroneReadyToast';
 import { RadioLog } from './hud/RadioLog';
 import { PauseButton } from './hud/PauseButton';
@@ -79,11 +78,6 @@ function App() {
           >
             <ProgrammingPanel />
           </HudCard>
-
-          <div className="hud__section">
-            <h2 className="hud__heading">{t('hud', 'drone')}</h2>
-            <DronePanel />
-          </div>
         </aside>
       )}
       <main className="viewport">

@@ -1,18 +1,26 @@
 import { gameConfig } from '../../config/gameConfig';
 import { useT } from '../../i18n';
-import { selectLocalSide, selectPlayerBase, selectResources, selectRobots } from '../../store/selectors';
+import {
+  selectDroneReadyNotice,
+  selectDroneStatus,
+  selectLocalSide,
+  selectPlayerBase,
+  selectResources,
+  selectRobots,
+  selectViewSync,
+} from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
+import { DroneMode } from '../../store/enums';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
-import { DomeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
+import { DomeIcon, EyeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
 import { selectAllOwnRobots } from '../hooks/useSelectAllHotkey';
 import { BuildRobotModal } from './BuildRobotModal';
 import { programLabel } from './programOptions';
 
 /**
  * Everything the local side has and can spend: its bank, its base, its army's
- * size, what the base is currently building, and the two actions that start from
- * here. The base and unit tallies used to be sections of their own listing every
+ * size, what the base is currently building, and the actions that start from here. The base and unit tallies used to be sections of their own listing every
  * side in the match — with the opponents' rows gone they were one number each,
  * and belong next to the resources they compete for.
  *
@@ -26,6 +34,10 @@ export function StatusPanel() {
   const localSide = useGameStore(selectLocalSide);
   const playerBase = useGameStore(selectPlayerBase);
   const robots = useGameStore(selectRobots);
+  const drone = useGameStore(selectDroneStatus);
+  const viewSynced = useGameStore(selectViewSync);
+  const droneReady = useGameStore(selectDroneReadyNotice) > 0;
+  const setViewSync = useGameStore((s) => s.setViewSync);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   // Dialog visibility lives in the store so a double-click on the base (canvas
   // side) opens the very same dialog as this panel's button.
@@ -60,6 +72,14 @@ export function StatusPanel() {
   const raiseShield = () => {
     if (playerBase) enqueueCommand({ kind: 'ActivateShield', baseId: playerBase.id });
   };
+  // The view toggle sits with the shield rather than in a section of its own: it
+  // is one of the things the player *does* from here, and the drone's own readout
+  // was the same subject reported twice. A replacement always rolls out over the
+  // base, so the view is cut loose the moment the drone dies and stays loose —
+  // the tile nags until the player decides to go back, instead of hauling them
+  // off the fight they were watching.
+  const droneDown = drone.mode === DroneMode.Down;
+
   let shieldLabel = t('statusPanel', 'shield');
   if (shieldOn) shieldLabel = t('statusPanel', 'shieldUp');
   else if (shield?.spent) shieldLabel = t('statusPanel', 'shieldSpent');
@@ -119,7 +139,9 @@ export function StatusPanel() {
 
       {/* The same tiles as the directive grid: the things a player starts from
           this section, one of which (select-all) is otherwise a shortcut they have
-          to know about before they can use it. */}
+          to know about before they can use it. The last two are the dome — dark
+          until an enemy is actually at the door, and dark for good once used,
+          there is exactly one per match — and the drone view toggle. */}
       <div className="tile-grid">
         <Button className="tile" onClick={() => setBuildOpen(true)} disabled={!playerBase}>
           <FactoryIcon className="tile__icon" size={22} />
@@ -129,16 +151,24 @@ export function StatusPanel() {
           <SelectAllIcon className="tile__icon" size={22} />
           <span>{t('statusPanel', 'selectAll')}</span>
         </Button>
-        {/* Odd tile out, so it takes the whole row. Dark until an enemy is
-            actually at the door, and dark for good once used — there is exactly
-            one of these per match. */}
         <Button
-          className={`tile tile--wide ${shieldOn ? 'tile--on' : ''}`.trim()}
+          className={`tile ${shieldOn ? 'tile--on' : ''}`.trim()}
           onClick={raiseShield}
           disabled={!canRaiseShield}
         >
           <DomeIcon className="tile__icon" size={22} />
           <span>{shieldLabel}</span>
+        </Button>
+        <Button
+          className={`tile tile--view ${droneReady ? 'tile--ready' : ''}`.trim()}
+          // Nothing to sync to while it is being rebuilt; the view is already free.
+          disabled={droneDown}
+          aria-pressed={viewSynced}
+          title={t('hud', 'viewSyncHint')}
+          onClick={() => setViewSync(!viewSynced)}
+        >
+          <EyeIcon className="tile__icon" size={22} />
+          <span>{viewSynced ? t('hud', 'viewDrone') : t('hud', 'viewFree')}</span>
         </Button>
       </div>
 

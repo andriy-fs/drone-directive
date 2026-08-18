@@ -56,11 +56,8 @@ export interface Dict {
     command: string;
     units: string;
     directive: string;
-    drone: string;
-    piloting: string;
-    observing: string;
     paused: string;
-    /** The Drone section's view-sync toggle, in its two states (see DronePanel). */
+    /** The Command section's view-sync tile, in its two states (see StatusPanel). */
     viewDrone: string;
     viewFree: string;
     /** What the toggle does, for the tooltip. */
@@ -107,16 +104,11 @@ export interface Dict {
     buildProgram: string;
     /** The tile that does what Ctrl+A does, for a player who doesn't know Ctrl+A. */
     selectAll: string;
-    /** The Drone section's status line while the drone is shot down (see DronePanel). */
-    droneDown: string;
     /**
-     * The replacement is up. Shown until the player syncs the view back to it —
-     * the camera deliberately does not move on its own (see GameApp.wireBus).
+     * The toast over the canvas announcing that a replacement drone is up, and its
+     * action. Shown until the player syncs the view back to it — the camera
+     * deliberately does not move on its own (see GameApp.wireBus).
      */
-    droneReady: string;
-    /** The status line while the view has been cut loose from a living drone. */
-    droneFreeView: string;
-    /** The toast over the canvas that announces the same thing, and its action. */
     droneReadyToast: string;
     droneReadyAction: string;
     /** The energy-dome tile before the match's single charge has been used. */
