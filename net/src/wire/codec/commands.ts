@@ -4,6 +4,8 @@ import type { BuildOrder } from '@drone-directive/types/entities';
 import {
   CHASSIS_FROM_WIRE,
   CHASSIS_TO_WIRE,
+  FORMATION_FROM_WIRE,
+  FORMATION_TO_WIRE,
   TASK_FROM_BUILD_TASK,
   TASK_FROM_WIRE,
   TASK_TO_BUILD_TASK,
@@ -67,6 +69,12 @@ export function commandToWire(command: Command): wire.Command {
         baseId: command.baseId,
         task: command.task === null ? null : TASK_TO_WIRE[command.task],
       };
+    case 'SetFormation':
+      return {
+        tag: 'SetFormation',
+        robotIds: command.robotIds,
+        formation: command.formation === null ? null : FORMATION_TO_WIRE[command.formation],
+      };
   }
 }
 
@@ -102,6 +110,14 @@ export function commandFromWire(command: wire.Command): Command {
         kind: 'SetDefaultTask',
         baseId: command.baseId,
         task: command.task === null ? null : TASK_FROM_WIRE[command.task],
+      };
+    case 'SetFormation':
+      // Same reason as `MoveRobots`: the generated list is readonly and the
+      // engine keeps its own copy of the ids.
+      return {
+        kind: 'SetFormation',
+        robotIds: [...command.robotIds],
+        formation: command.formation === null ? null : FORMATION_FROM_WIRE[command.formation],
       };
   }
 }

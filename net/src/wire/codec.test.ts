@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import type { DroneControl } from '@drone-directive/types/entities';
 import type { Command } from '@drone-directive/types/commands';
-import { ChassisType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, FormationType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { decodeServerMessage, encodeTick, ErrorCode, mapSizeToQueryParam } from './codec';
 
 /**
@@ -56,7 +56,18 @@ describe('command round-trip', () => {
       { kind: 'ActivateShield', baseId: 'base_1' },
       { kind: 'SetDefaultTask', baseId: 'base_1', task: TaskType.DefendBase },
       { kind: 'SetDefaultTask', baseId: 'base_1', task: null },
+      { kind: 'SetFormation', robotIds: ['robot_1', 'robot_2'], formation: FormationType.Box },
+      { kind: 'SetFormation', robotIds: ['robot_3'], formation: null },
     ];
+    expect(roundTrip(commands).commands).toEqual(commands);
+  });
+
+  it('carries every formation shape distinctly', () => {
+    const commands: Command[] = Object.values(FormationType).map((formation) => ({
+      kind: 'SetFormation',
+      robotIds: ['robot_1'],
+      formation,
+    }));
     expect(roundTrip(commands).commands).toEqual(commands);
   });
 

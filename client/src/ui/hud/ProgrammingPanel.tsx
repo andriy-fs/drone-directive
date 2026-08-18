@@ -9,6 +9,7 @@ import {
   selectSelectedIds,
 } from '../../store/selectors';
 import { Bar } from '../common/Bar';
+import { FormationPicker } from './FormationPicker';
 import { programLabel } from './programOptions';
 import { TaskPicker } from './TaskPicker';
 
@@ -105,7 +106,15 @@ export function ProgrammingPanel() {
         value={inert ? 1 : maxHp > 0 ? hp / maxHp : 0}
       />
 
+      {/* Two grids of tiles under one card, so they need saying apart: the first
+          is what the units are *for*, the second is how they travel while doing
+          it. Without the sub-headings the twelve tiles read as one grid of
+          twelve unrelated orders. */}
+      <h3 className="hud__subheading">{t('programming', 'directiveHeading')}</h3>
       <TaskPicker robots={mine} />
+
+      <h3 className="hud__subheading">{t('programming', 'formationHeading')}</h3>
+      <FormationPicker robots={mine} />
 
       {/* Kept mounted and at a fixed height even when it has nothing to say — it
           holds two rows for a base and one for a robot. */}

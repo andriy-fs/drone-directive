@@ -1,5 +1,5 @@
 import type { BuildOrder, Vec2 } from './entities';
-import type { TaskType } from './enums';
+import type { FormationType, TaskType } from './enums';
 
 /**
  * Intents pushed from React/UI onto the store's command queue and drained by the
@@ -35,4 +35,13 @@ export type Command =
    * single charge — which punishes itself — whereas silently dropping a
    * panic-button press would be indistinguishable from the game having frozen.
    */
-  | { kind: 'ActivateShield'; baseId: string };
+  | { kind: 'ActivateShield'; baseId: string }
+  /**
+   * The shape the given robots hold from now on, or null = fall out of formation.
+   * The command names a *selection*, not a standing squad: applying it stamps one
+   * shared group id on everyone listed, and that group is only ever as alive as
+   * its members. Where each robot stands inside the shape is deliberately absent
+   * from the payload — the engine derives it from the unit's weapon every tick,
+   * so the line re-dresses itself as members die instead of keeping their holes.
+   */
+  | { kind: 'SetFormation'; robotIds: string[]; formation: FormationType | null };

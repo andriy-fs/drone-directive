@@ -203,6 +203,9 @@ export function evadeOutcome(ctx: GameContext, e: RobotEntity): Outcome {
   return {
     move: {
       kind: 'goal',
+      // `reactive`: a dodge is the one move intent formation keeping does not
+      // overrule — see `MoveIntent` in `./types`.
+      reactive: true,
       x: clamp(pos.x + px * dist, 0, worldPixelSize.width),
       y: clamp(pos.y + py * dist, 0, worldPixelSize.height),
     },
@@ -251,6 +254,11 @@ export function retreatToBaseOutcome(ctx: GameContext, e: RobotEntity): Outcome 
  * `overwatchTrailDistance` back toward home — close enough to keep spotting
  * for it without leading the charge. With no such push under way, it instead
  * hovers near its own base, roaming like a Guard for early-warning coverage.
+ *
+ * A jammer trails *closer* (`jammerTrailDistance`): what an `ew` hull contributes
+ * is a bubble, not a pair of eyes, and the spotter's distance is wider than
+ * `jamRadius` — so a jammer holding it would cover none of the units it is
+ * following. Same directive, different reason to be there.
  */
 export function overwatchOutcome(ctx: GameContext, e: RobotEntity): Outcome {
   const home = ownBase(ctx, e.owner);
@@ -266,7 +274,8 @@ export function overwatchOutcome(ctx: GameContext, e: RobotEntity): Outcome {
     const dx = hp.x - centroid.x;
     const dy = hp.y - centroid.y;
     const len = vecLength(dx, dy) || 1;
-    const trail = gameConfig.behavior.overwatchTrailDistance;
+    const trail =
+      e.weapon.jamRadius > 0 ? gameConfig.behavior.jammerTrailDistance : gameConfig.behavior.overwatchTrailDistance;
     return {
       move: {
         kind: 'goal',

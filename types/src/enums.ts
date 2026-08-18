@@ -81,6 +81,31 @@ export const TaskType = {
 } as const;
 export type TaskType = (typeof TaskType)[keyof typeof TaskType];
 
+/**
+ * The shape a group of robots holds while it moves and fights. Chosen by the
+ * player for a whole selection; *where each robot stands* inside the shape is
+ * not chosen at all — the engine derives it from the unit's `WeaponType`, so a
+ * jammer is never left at the point and a radar is never the first thing shot.
+ *
+ * The set is a spectrum of one trade-off, and the numbers in `gameConfig` are
+ * what make it real: a tight shape fits inside an `ew` hull's `jamRadius` (150)
+ * — and inside a kamikaze's `explosionRadius` (120) as well. `Spread` buys the
+ * second at the cost of the first.
+ */
+export const FormationType = {
+  /** File two abreast: the shape that fits through a gorge. */
+  Column: 'column',
+  /** Ranks abreast, guns forward — the widest frontage. */
+  Line: 'line',
+  /** Rows of growing width: a narrow point that opens out behind it. */
+  Wedge: 'wedge',
+  /** Compact square with the support hulls in the middle cells — the escort shape. */
+  Box: 'box',
+  /** A line at more than a blast radius' spacing: survives area damage, outgrows the jammer's bubble. */
+  Spread: 'spread',
+} as const;
+export type FormationType = (typeof FormationType)[keyof typeof FormationType];
+
 export const RobotState = {
   Idle: 'idle',
   Moving: 'moving',

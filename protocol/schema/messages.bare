@@ -81,6 +81,16 @@ type BuildOrder struct {
     task: BuildTask
 }
 
+# The shape a group of robots holds. Where each robot stands inside the shape is
+# never on the wire: both peers derive it from the units' weapons, identically.
+type Formation enum {
+    COLUMN = 0
+    LINE = 1
+    WEDGE = 2
+    BOX = 3
+    SPREAD = 4
+}
+
 type AssignTask struct {
     robotId: str
     task: TaskType
@@ -127,6 +137,14 @@ type SetDefaultTask struct {
     task: optional<TaskType>
 }
 
+# The shape the named robots hold from now on; absent = fall out of formation.
+# Two states, like `SetDefaultTask` and unlike a build order's tri-state task:
+# a selection either holds a shape or holds none, with nothing to defer to.
+type SetFormation struct {
+    robotIds: list<str>
+    formation: optional<Formation>
+}
+
 # Union order *is* the tag numbering, so a new command is appended last and the
 # ones already out there keep the tags they had. That is a courtesy to whoever
 # reads a packet dump, not compatibility: PROTOCOL_VERSION is bumped regardless.
@@ -138,7 +156,8 @@ type Command union {
     AttackTarget |
     SetRallyPoint |
     ActivateShield |
-    SetDefaultTask
+    SetDefaultTask |
+    SetFormation
 }
 
 # ---------------------------------------------------------------------------

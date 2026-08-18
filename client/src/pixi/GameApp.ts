@@ -1229,5 +1229,6 @@ function toRobotSnapshot(e: RobotEntity): RobotSnapshot {
     task: e.script.programId,
     hp: e.hp,
     maxHp: e.maxHp,
+    formation: e.script.blackboard.formation?.type ?? null,
   };
 }

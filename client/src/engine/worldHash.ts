@@ -53,8 +53,16 @@ export function worldHash(world: EcsWorld): number {
     // distinguishable from "at zero".
     const dome = e.shield ? `${Math.round(e.shield.hp * 1000)}/${Math.round(e.shield.left * 1000)}` : '-';
     const spent = e.shieldSpent ? '1' : '0';
+    // Which formation, and which group of it. Membership is what decides where a
+    // robot is told to stand next tick, so peers that disagree about it diverge
+    // in position immediately afterwards — the divergence would be caught either
+    // way, but a tick later and one step further from its cause. The shape goes
+    // in with the group because the same members in a box and in a line are two
+    // different sets of orders.
+    const form = e.script?.blackboard.formation;
+    const line = form ? `${form.gid}/${form.type}` : '-';
     parts.push(
-      `${e.id}:${e.owner ?? '-'}:${x}:${y}:${hp}:${e.script?.programId ?? '-'}:${off}:${dome}:${spent}`,
+      `${e.id}:${e.owner ?? '-'}:${x}:${y}:${hp}:${e.script?.programId ?? '-'}:${off}:${dome}:${spent}:${line}`,
     );
   }
   // Entity order comes from the ECS store and should already match, but sorting

@@ -128,6 +128,27 @@ export interface Dict {
     rallyPoint: string;
     rallyNone: string;
     rallyHint: string;
+    /** Sub-headings above the two tile grids in the Directive card. */
+    directiveHeading: string;
+    formationHeading: string;
+  };
+  /**
+   * Formation shapes. `none` is a tile like the others — "fall out" is a choice
+   * the player makes, not a missing value — so it carries a note of its own.
+   */
+  formations: {
+    column: string;
+    line: string;
+    wedge: string;
+    box: string;
+    spread: string;
+    none: string;
+    columnNote: string;
+    lineNote: string;
+    wedgeNote: string;
+    boxNote: string;
+    spreadNote: string;
+    noneNote: string;
   };
   programs: {
     idle: string;
