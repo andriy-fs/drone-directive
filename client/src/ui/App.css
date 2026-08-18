@@ -396,62 +396,6 @@
   opacity: 0.45;
 }
 
-.drone-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/* Drone shot down: the status line reads as an alert, not as ordinary status. */
-.drone-panel--down .hud__status {
-  color: #f87171;
-}
-
-/* A replacement is up and unwatched. Good news, so green rather than the red
-   above — it is still an alert, just not a loss. */
-.drone-panel--ready .hud__status {
-  color: #4ade80;
-}
-
-.drone-panel__sync {
-  margin-top: 4px;
-  font-size: 13px;
-  padding: 6px 8px;
-}
-
-/* Synced is the resting state and looks like it; the pressed styling is for the
-   pair being *apart*, which is the condition worth spotting at a glance. */
-.drone-panel__sync[aria-pressed='false'] {
-  border-color: #3a4a63;
-  color: var(--accent);
-}
-
-/* The nag: while a rebuilt drone has not been looked at, the button that takes
-   you to it keeps asking. Stops the moment the view is synced. */
-.drone-panel__sync--ready {
-  animation: drone-sync-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes drone-sync-pulse {
-  0%,
-  100% {
-    border-color: #4ade80;
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
-  }
-  50% {
-    border-color: #4ade80;
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.22);
-  }
-}
-
-/* A player who has asked for less motion gets the colour without the throb. */
-@media (prefers-reduced-motion: reduce) {
-  .drone-panel__sync--ready {
-    animation: none;
-    border-color: #4ade80;
-  }
-}
-
 /* "Your new drone is up" over the world. Top-centre, clear of the HUD sidebar
    on the left and of the chat panel in the bottom-right; the toast itself takes
    clicks (its action is the point), the strip around it does not. */
@@ -800,6 +744,41 @@
   gap: 8px;
   min-height: 0;
   padding: 8px 10px;
+}
+
+/* Synced is the resting state and looks like it; the styling is for the view and
+   its drone being *apart*, which is the condition worth spotting at a glance.
+   Scoped to the view tile — the directive tiles are `aria-pressed` too, and there
+   an unpressed tile is just an option nobody picked. */
+.tile--view[aria-pressed='false'] {
+  border-color: #3a4a63;
+  color: var(--accent);
+}
+
+/* The nag: while a rebuilt drone has not been looked at, the tile that takes you
+   to it keeps asking. Stops the moment the view is synced. */
+.tile--ready {
+  animation: tile-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tile-pulse {
+  0%,
+  100% {
+    border-color: #4ade80;
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+  }
+  50% {
+    border-color: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.22);
+  }
+}
+
+/* A player who has asked for less motion gets the colour without the throb. */
+@media (prefers-reduced-motion: reduce) {
+  .tile--ready {
+    animation: none;
+    border-color: #4ade80;
+  }
 }
 
 /* Doubled with `:hover` so the active tile keeps its blue under the cursor —
