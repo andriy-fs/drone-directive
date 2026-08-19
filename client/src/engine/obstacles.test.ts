@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../config/gameConfig';
 import { TerrainKind } from '@drone-directive/types/enums';
 import { createRng } from '../utils/rng';
-import { generateObstacles, hasLineOfSight, isBlockedGrid, movementGrid, sightGrid, tileCentre } from './obstacles';
+import {
+  generateObstacles,
+  hasClearance,
+  hasLineOfSight,
+  isBlockedGrid,
+  movementGrid,
+  sightGrid,
+  tileCentre,
+} from './obstacles';
 
 /** A 3-wide map row of one kind, flanked by open ground, for straight-line LOS checks. */
 function stripe(kind: TerrainKind): TerrainKind[][] {
@@ -77,5 +85,50 @@ describe('generateObstacles', () => {
     const kinds = new Set(generateObstacles(createRng(3)).flat());
     expect(kinds.has(TerrainKind.Mountain)).toBe(true);
     expect(kinds.has(TerrainKind.Crater)).toBe(true);
+  });
+});
+
+/**
+ * The width question, which `hasLineOfSight` deliberately does not answer: a
+ * shot is a point and a hull is 22 px across, so a diagonal that threads between
+ * two rocks is a clean line of fire and an impassable route.
+ */
+describe('hasClearance', () => {
+  const radius: number = gameConfig.robots.radius;
+
+  /** An open grid with the listed tiles blocked. */
+  function grid(blocked: readonly (readonly [number, number])[]): boolean[][] {
+    const { width, height } = gameConfig.grid;
+    const g = Array.from({ length: height }, () => new Array<boolean>(width).fill(false));
+    for (const [tx, ty] of blocked) g[ty][tx] = true;
+    return g;
+  }
+
+  it('passes a hull down open ground', () => {
+    expect(hasClearance(grid([]), tileCentre(2, 2), tileCentre(12, 9), radius)).toBe(true);
+  });
+
+  it('refuses a segment that crosses a blocked tile', () => {
+    const g = grid([[7, 2]]);
+    expect(hasClearance(g, tileCentre(2, 2), tileCentre(12, 2), radius)).toBe(false);
+  });
+
+  it('refuses a gap a round would fly through but a hull would not fit', () => {
+    // Two rocks diagonally adjacent: the corner between them is a clear line but
+    // there is nowhere for a 22 px body to be while it crosses.
+    const g = grid([
+      [6, 5],
+      [7, 6],
+    ]);
+    const from = tileCentre(6, 6);
+    const to = tileCentre(7, 5);
+    expect(hasLineOfSight(g, from, to)).toBe(true);
+    expect(hasClearance(g, from, to, radius)).toBe(false);
+  });
+
+  it('reports a single point by the ground it stands on', () => {
+    const at = tileCentre(4, 4);
+    expect(hasClearance(grid([]), at, at, radius)).toBe(true);
+    expect(hasClearance(grid([[4, 4]]), at, at, radius)).toBe(false);
   });
 });
