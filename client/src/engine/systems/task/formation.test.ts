@@ -4,8 +4,12 @@ import { gameConfig } from '../../../config/gameConfig';
 import type { RobotEntity } from '../../ecs/archetypes';
 import { spawnBase, spawnRobot } from '../../ecs/factory';
 import type { GameContext } from '../../game/context';
+import { isBlockedGrid, tileOf } from '../../obstacles';
 import { makeCtx } from '../testkit';
-import { applyFormations, FORMATION_RANK, formationSlots } from './formation';
+import { clearGoal, setGoal } from '../movement';
+import { movementSystem } from '../movement';
+import { separationSystem } from '../separation';
+import { applyFormations, FORMATION_RANK, formationSlots, toleranceFor } from './formation';
 import type { Outcome } from './types';
 
 /**
@@ -19,6 +23,21 @@ import type { Outcome } from './types';
  */
 
 const cfg = gameConfig.behavior.formation;
+const DT = 1 / 30;
+
+/** A map with nothing on it. */
+function openGround(): boolean[][] {
+  const n = gameConfig.grid.width;
+  return Array.from({ length: n }, () => Array.from({ length: n }, () => false));
+}
+
+/** Solid rock except one open column of tiles at `tx`, from `fromTy` down. */
+function corridor(ctx: GameContext, tx: number, fromTy: number): void {
+  const n = gameConfig.grid.width;
+  ctx.navObstacles = Array.from({ length: n }, (_, ty) =>
+    Array.from({ length: n }, (_, x) => !(x === tx && ty >= fromTy)),
+  );
+}
 
 /** A robot with a known weapon, parked where it is put. */
 function robot(ctx: GameContext, id: string, weapon: WeaponType, x = 0, y = 0): RobotEntity {
@@ -275,25 +294,46 @@ describe('applyFormations — what overrules a slot', () => {
     expect(resolved.get('r_1')?.move).toEqual({ kind: 'goal', x: 1000, y: 0 });
   });
 
-  it('collapses a slot that lands in a mountain onto the frame origin', () => {
+  it('files a group down a one-tile corridor instead of piling it onto one point', () => {
     const ctx = makeCtx();
-    const members = [robot(ctx, 'r_1', WeaponType.Cannon, 100, 100), robot(ctx, 'r_2', WeaponType.Cannon, 100, 140)];
-    // Wall off everything except a two-tile-wide corridor along y — the gorge
-    // case: every outboard slot is blocked at once, so the group has to file.
-    const tiles = gameConfig.grid.width;
-    ctx.navObstacles = Array.from({ length: tiles }, (_, ty) =>
-      Array.from({ length: tiles }, (_, tx) => !(tx === 3 || ty === 3)),
-    );
+    const members = Array.from({ length: 5 }, (_, i) => robot(ctx, `r_${i}`, WeaponType.Cannon, 96 + i * 8, 112));
+    // A single open column of tiles running north-south: nothing wider than one
+    // robot fits, so the shape has to become a file whatever was ordered.
+    corridor(ctx, 3, 3);
+
+    const resolved = formUp(members, FormationType.Line, Object.fromEntries(
+      members.map((e) => [e.id, { move: { kind: 'goal' as const, x: 112, y: 1000 } }]),
+    ));
+    applyFormations(ctx, resolved);
+
+    // Every goal distinct — the pile-up that the old collapse-to-origin produced
+    // is precisely what jammed the mouth of a pass.
+    const goals = members
+      .map((e) => resolved.get(e.id)?.move)
+      .filter((m): m is { kind: 'goal'; x: number; y: number } => m?.kind === 'goal');
+    const distinct = new Set(goals.map((g) => `${g.x.toFixed(1)},${g.y.toFixed(1)}`));
+    expect(distinct.size).toBe(goals.length);
+    // ...and none of them is inside the rock.
+    for (const g of goals) {
+      const tile = tileOf({ x: g.x, y: g.y });
+      expect(isBlockedGrid(ctx.navObstacles, tile.tx, tile.ty)).toBe(false);
+    }
+  });
+
+  it('keeps the ordered shape where there is room for it', () => {
+    const ctx = makeCtx();
+    const members = [robot(ctx, 'r_1', WeaponType.Cannon, 400, 400), robot(ctx, 'r_2', WeaponType.Cannon, 440, 400)];
+    ctx.navObstacles = openGround();
 
     const resolved = formUp(members, FormationType.Line);
     applyFormations(ctx, resolved);
 
-    // Both are pointed at the same place — the origin — rather than at slots
-    // buried in the rock, which is what filing through a pass looks like here.
+    // Abreast: on open ground a line stays a line, so the two goals differ across
+    // the axis of travel rather than along it.
     const a = resolved.get('r_1')?.move;
     const b = resolved.get('r_2')?.move;
-    if (a?.kind === 'goal' && b?.kind === 'goal') expect({ x: a.x, y: a.y }).toEqual({ x: b.x, y: b.y });
-    else expect.unreachable('both should still have somewhere to go');
+    if (a?.kind === 'goal' && b?.kind === 'goal') expect(Math.abs(a.y - b.y)).toBeGreaterThan(1);
+    else expect.unreachable('both should have been given a slot');
   });
 
   it('leaves robots with no formation entirely alone', () => {
@@ -304,5 +344,133 @@ describe('applyFormations — what overrules a slot', () => {
 
     applyFormations(ctx, resolved);
     expect(resolved.get('r_1')?.move).toEqual({ kind: 'goal', x: 1000, y: 0 });
+  });
+});
+
+/**
+ * The invariant that was broken in the first cut of this feature, written down so
+ * it fails the build rather than the game: a formation shares the field with
+ * `separationSystem`, and any shape whose slots (or whose tolerance) let two
+ * robots inside `radius * 2` will judder forever as the two systems fight.
+ */
+describe('formationSlots — geometry that separation can live with', () => {
+  const minDist = gameConfig.robots.radius * 2;
+
+  for (const type of Object.values(FormationType)) {
+    it(`keeps every pair of slots at least ${minDist} px apart in a ${type}`, () => {
+      const ctx = makeCtx();
+      // A mixed twelve, so ranks are populated and the widest layouts are exercised.
+      const weapons = [WeaponType.Cannon, WeaponType.Missiles, WeaponType.Ew, WeaponType.Radar];
+      const members = Array.from({ length: 12 }, (_, i) => robot(ctx, `r_${i}`, weapons[i % weapons.length]));
+
+      const slots = [...formationSlots(members, type).values()];
+      expect(slots).toHaveLength(members.length);
+      for (let i = 0; i < slots.length; i++) {
+        for (let j = i + 1; j < slots.length; j++) {
+          const gap = Math.hypot(slots[i].ax - slots[j].ax, slots[i].ay - slots[j].ay);
+          expect(gap).toBeGreaterThanOrEqual(minDist);
+        }
+      }
+    });
+
+    it(`leaves a ${type} enough tolerance that neighbours never close inside the push distance`, () => {
+      const spacing = cfg.spacing[type];
+      // `release` is the binding one: it is the widest a robot may sit off its
+      // slot and still be left alone, so a pair can close the gap by twice it.
+      const { slack, release } = toleranceFor(spacing);
+      expect(spacing - 2 * release).toBeGreaterThan(minDist);
+      expect(slack).toBeLessThan(release);
+    });
+  }
+});
+
+describe('applyFormations — a settled formation stops moving', () => {
+  it('parks a box without overlaps and without flapping between hold and drive', () => {
+    const ctx = makeCtx();
+    ctx.navObstacles = openGround();
+    const members = Array.from({ length: 9 }, (_, i) =>
+      robot(ctx, `r_${i}`, WeaponType.Cannon, 600 + (i % 3) * 30, 600 + Math.floor(i / 3) * 30),
+    );
+    for (const e of members) e.script.blackboard.formation = { gid: 'g1', type: FormationType.Box };
+
+    let flips = 0;
+    let previouslyHolding = new Map<string, boolean>();
+    for (let tick = 0; tick < 400; tick++) {
+      const resolved = new Map<string, Outcome>();
+      // Nobody advancing: the frame is pinned, so the group has a fixed shape to
+      // settle into — the state a parked escort is in for most of a match.
+      for (const e of members) resolved.set(e.id, { move: { kind: 'hold' } });
+      applyFormations(ctx, resolved);
+      for (const e of members) {
+        const move = resolved.get(e.id)?.move;
+        if (move?.kind === 'goal') setGoal(ctx, e, move.x, move.y);
+        else clearGoal(e);
+      }
+      movementSystem(ctx, DT);
+      separationSystem(ctx);
+
+      if (tick > 250) {
+        for (const e of members) {
+          const holding = e.movement.goal === undefined;
+          if (previouslyHolding.get(e.id) !== undefined && previouslyHolding.get(e.id) !== holding) flips++;
+        }
+      }
+      previouslyHolding = new Map(members.map((e) => [e.id, e.movement.goal === undefined]));
+    }
+
+    // Nobody standing on anybody: this is the overlap that was visible on screen.
+    for (let i = 0; i < members.length; i++) {
+      for (let j = i + 1; j < members.length; j++) {
+        const gap = Math.hypot(
+          members[i].position.x - members[j].position.x,
+          members[i].position.y - members[j].position.y,
+        );
+        expect(gap).toBeGreaterThanOrEqual(gameConfig.robots.radius * 2 - 0.01);
+      }
+    }
+    // ...and nobody twitching: the hysteresis band is what buys this.
+    expect(flips).toBe(0);
+  });
+});
+
+describe('layoutFor — the ground overrules the shape', () => {
+  const goingSouth = (members: RobotEntity[]) =>
+    formUp(members, FormationType.Line, Object.fromEntries(
+      members.map((e) => [e.id, { move: { kind: 'goal' as const, x: e.position.x, y: 1200 } }]),
+    ));
+
+  /** How wide, across the axis of travel, the group was actually told to stand. */
+  const frontage = (members: RobotEntity[], resolved: Map<string, Outcome>) => {
+    const xs = members
+      .map((e) => resolved.get(e.id)?.move)
+      .filter((m): m is { kind: 'goal'; x: number; y: number } => m?.kind === 'goal')
+      .map((m) => m.x);
+    return xs.length > 1 ? Math.max(...xs) - Math.min(...xs) : 0;
+  };
+
+  it('narrows a line to a column in a two-tile pass, and to a file in a one-tile pass', () => {
+    const ctx = makeCtx();
+    const members = Array.from({ length: 6 }, (_, i) => robot(ctx, `r_${i}`, WeaponType.Cannon, 112, 100 + i * 12));
+
+    ctx.navObstacles = openGround();
+    const open = goingSouth(members);
+    applyFormations(ctx, open);
+    const openFrontage = frontage(members, open);
+
+    // Two tiles wide (a column fits, a six-abreast line does not).
+    const n = gameConfig.grid.width;
+    ctx.navObstacles = Array.from({ length: n }, () => Array.from({ length: n }, (_, x) => !(x === 3 || x === 4)));
+    const twoWide = goingSouth(members);
+    applyFormations(ctx, twoWide);
+    const columnFrontage = frontage(members, twoWide);
+
+    corridor(ctx, 3, 0);
+    const oneWide = goingSouth(members);
+    applyFormations(ctx, oneWide);
+    const fileFrontage = frontage(members, oneWide);
+
+    expect(openFrontage).toBeGreaterThan(columnFrontage);
+    expect(columnFrontage).toBeGreaterThan(fileFrontage);
+    expect(fileFrontage).toBeLessThan(1); // a file has no frontage at all
   });
 });

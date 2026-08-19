@@ -64,6 +64,52 @@ export const FORMATION_RANK: Record<WeaponType, 0 | 1 | 2> = {
 };
 
 /**
+ * The two tolerances a shape gets, derived from its spacing: how close to its
+ * slot a robot has to be before it stops (`slack`), and how far out it has to
+ * drift before it sets off again (`release`).
+ *
+ * Both are derived rather than configured, because the formation is not the only
+ * thing moving these robots: `systems/separation.ts` pushes apart anything closer
+ * than `robots.radius * 2`. **The binding number is `release`, not `slack`** —
+ * that is the widest a robot may sit off its slot and still be left alone, so two
+ * neighbours can close the gap between their slots by `2 * release`. If that
+ * brings them inside the push distance, separation opens the pair, the slots pull
+ * them shut, and they judder in place forever.
+ *
+ * A 12 px tolerance did exactly that to the 36 px box (36 − 24 = 12, well inside
+ * the 22 px push), and the first attempt at a fix bounded `slack` while letting
+ * `release` be twice it — which quietly put the same bug back. Measured, the box
+ * then never reached its own spacing at all: every robot declared itself dressed
+ * while still overlapping, and the group sat on the separation floor shuffling.
+ *
+ * The 0.8 (rather than the whole half-clearance) keeps the worst case strictly
+ * clear of the threshold instead of sitting on it.
+ */
+export function toleranceFor(spacing: number): { slack: number; release: number } {
+  const cfg = gameConfig.behavior.formation;
+  const halfClearance = (spacing - gameConfig.robots.radius * 2) / 2;
+  const release = Math.min(cfg.slackCap * cfg.holdReleaseFactor, 0.8 * halfClearance);
+  return { slack: release / cfg.holdReleaseFactor, release };
+}
+
+/**
+ * Single file — one robot wide. Not a `FormationType` because it is not something
+ * the player picks: the terrain hands it out when nothing wider will fit through
+ * (see `layoutFor`), and the shape the player chose is left untouched in the
+ * blackboard so the HUD still shows it and the group resumes it in the open.
+ */
+const FILE = 'file';
+
+/** A shape to lay out: one the player chose, or the file the ground forced. */
+export type Layout = FormationType | typeof FILE;
+
+/** Spacing for a layout; the file marches at the column's interval. */
+function spacingFor(layout: Layout): number {
+  const spacing = gameConfig.behavior.formation.spacing;
+  return layout === FILE ? spacing[FormationType.Column] : spacing[layout];
+}
+
+/**
  * A slot in the formation's own frame: `ax` runs along the direction of travel
  * (0 at the front, negative behind it), `ay` across it.
  */
@@ -95,12 +141,18 @@ function abreast(n: number, spacing: number): number[] {
  * and the shape — no world, no randomness, no time — which is what makes the
  * whole feature testable without a running match.
  */
-export function formationSlots(members: readonly RobotEntity[], type: FormationType): Map<string, Slot> {
+export function formationSlots(members: readonly RobotEntity[], layout: Layout): Map<string, Slot> {
   const ordered = marchingOrder(members);
-  const spacing = gameConfig.behavior.formation.spacing[type];
+  const spacing = spacingFor(layout);
   const slots = new Map<string, Slot>();
 
-  switch (type) {
+  switch (layout) {
+    case FILE: {
+      // Single file, nose to tail: what a one-tile gap leaves room for. Never
+      // offered as a choice — terrain hands it out, see `layoutFor`.
+      ordered.forEach((e, i) => slots.set(e.id, { ax: -i * spacing, ay: 0 }));
+      break;
+    }
     case FormationType.Column: {
       // Two abreast, deepening: the shape that still fits down a two-tile gorge.
       ordered.forEach((e, i) => {
@@ -156,6 +208,174 @@ export function formationSlots(members: readonly RobotEntity[], type: FormationT
   }
 
   return slots;
+}
+
+/**
+ * Where the formation's frame is pinned this tick.
+ *
+ * **Advancing:** on the group's own centroid, pushed `lead` ahead. That is what
+ * paces the body to its slowest member — a straggler drags the centroid back and
+ * every slot comes back with it — and it costs nothing while everyone is moving
+ * anyway.
+ *
+ * **Stopped:** on the *guide* — the first hull in marching order — by placing the
+ * frame so that the guide is already standing in its own slot. Anchoring a
+ * stationary group on its centroid does not converge: each robot chases a slot
+ * defined relative to an average that its own movement then shifts, so somebody
+ * is always a little out of place and the whole lattice creeps. Measured, a
+ * parked box never reached its 36 px spacing at all — it sat at the 22 px
+ * separation floor and shuffled indefinitely. Dressing on one robot gives the
+ * others a fixed thing to line up on, which is what a drill line does and for the
+ * same reason.
+ *
+ * Then the frame is slid sideways if the ground demands it, so a group entering a
+ * pass takes the middle of it instead of grinding along one wall.
+ */
+function originFor(
+  ctx: GameContext,
+  mobile: readonly RobotEntity[],
+  slots: Map<string, Slot>,
+  marching: Vec2,
+  facing: Vec2,
+  advancing: boolean,
+): Vec2 {
+  let origin = marching;
+
+  if (!advancing) {
+    const guide = marchingOrder(mobile)[0];
+    const slot = slots.get(guide.id);
+    if (slot) {
+      origin = {
+        x: guide.position.x - (facing.x * slot.ax - facing.y * slot.ay),
+        y: guide.position.y - (facing.y * slot.ax + facing.x * slot.ay),
+      };
+    }
+  }
+
+  const shift = centringShift(ctx, slots, origin, facing);
+  if (shift === 0) return origin;
+  return {
+    x: clamp(origin.x - facing.y * shift, 0, worldPixelSize.width),
+    y: clamp(origin.y + facing.x * shift, 0, worldPixelSize.height),
+  };
+}
+
+/**
+ * How far sideways the frame has to slide for the shape to fit the gap it is in,
+ * or 0 when it already fits. Only what is actually needed: a group standing near
+ * a cliff with plenty of room on its own side is left where it is.
+ */
+function centringShift(ctx: GameContext, slots: Map<string, Slot>, origin: Vec2, facing: Vec2): number {
+  const radius: number = gameConfig.robots.radius;
+  let needed = radius;
+  for (const slot of slots.values()) needed = Math.max(needed, Math.abs(slot.ay) + radius);
+
+  const span = corridorSpan(ctx, origin, facing);
+  let shift = 0;
+  if (span.right < needed) shift -= needed - span.right;
+  if (span.left < needed) shift += needed - span.left;
+  return shift;
+}
+
+/**
+ * The shape the group can actually hold here — the one the player chose while
+ * there is room for it, and something narrower while there is not.
+ *
+ * The ladder is chosen shape → `Column` → single file, and it is re-decided every
+ * tick from the ground rather than latched, so a group squeezes down entering a
+ * pass and opens back out on the far side without anybody ordering it to. The
+ * player's choice is never rewritten: this is a temporary answer to the terrain,
+ * and `blackboard.formation.type` still says what the group is *for*.
+ *
+ * The first version of this had no such step and instead collapsed each blocked
+ * slot onto the frame's origin, on the theory that a gorge would file the group
+ * automatically. It does not: a point is not a file. Every unit whose slot hit
+ * rock was handed the *same* goal, they piled onto one tile, separation shoved
+ * them apart, and the anti-jam retreat cycled them back and forth in the mouth of
+ * the pass. Deciding the shape once, for the whole group, is what that should
+ * have been.
+ */
+function layoutFor(
+  ctx: GameContext,
+  mobile: readonly RobotEntity[],
+  type: FormationType,
+  origin: Vec2,
+  facing: Vec2,
+): Layout {
+  const ladder: Layout[] =
+    type === FormationType.Column ? [FormationType.Column, FILE] : [type, FormationType.Column, FILE];
+  // The span, not the distance to the nearer wall: the frame gets recentred in
+  // whatever gap it is in (see `centringShift`), so what limits the shape is how
+  // wide the gap is, not how badly the group happens to be hugging one side.
+  const span = corridorSpan(ctx, origin, facing);
+  const clear = (span.left + span.right) / 2;
+
+  for (const layout of ladder) {
+    if (halfWidthOf(mobile, layout) <= clear) return layout;
+  }
+  // Not even a file fits, which means the frame itself is standing in rock. The
+  // file is still the right answer: its slots run *along* the axis, so the group
+  // queues up behind whoever can move instead of bunching at the obstruction.
+  return FILE;
+}
+
+/** How far the shape reaches to either side of its own axis, robot included. */
+function halfWidthOf(mobile: readonly RobotEntity[], layout: Layout): number {
+  let widest = 0;
+  for (const slot of formationSlots(mobile, layout).values()) widest = Math.max(widest, Math.abs(slot.ay));
+  return widest + gameConfig.robots.radius;
+}
+
+/**
+ * How much clear ground the frame has on each side, up to the widest shape there
+ * is any point measuring for.
+ *
+ * Sampled at more than one point along the axis — at the origin and one `lead`
+ * further on — and the narrowest reading wins. One sample would have the group
+ * still reading "open" with the pass directly in front of it and then flipping
+ * shape the moment the origin crossed the threshold; looking ahead lets it fold
+ * before it arrives, which is also what it looks like when it is done on purpose.
+ *
+ * The two sides are reported separately because a group is rarely centred in the
+ * gap it is walking into: what decides whether a shape fits is the *span*, and
+ * what the frame then needs is a nudge toward the middle of it.
+ */
+function corridorSpan(ctx: GameContext, origin: Vec2, facing: Vec2): { left: number; right: number } {
+  // An eighth of a tile: the reading has to be good to a few pixels, because the
+  // whole question it settles is whether a shape clears a gap by a hair. The walk
+  // stops at the first blocked sample, so open ground is the only case that pays
+  // for the resolution, and it pays in array lookups.
+  const step = gameConfig.grid.tilePx / 8;
+  const limit = Math.max(...Object.values(gameConfig.behavior.formation.spacing)) + gameConfig.robots.radius;
+  const lead = gameConfig.behavior.formation.lead;
+  const samples: Vec2[] = [origin, { x: origin.x + facing.x * lead, y: origin.y + facing.y * lead }];
+
+  // The edge lies somewhere between the last clear sample and the first blocked
+  // one, so the midpoint of that bracket is reported rather than its floor: the
+  // floor understates every reading by up to a full step, and two understated
+  // sides add up to a span narrow enough to file a group that would have fitted.
+  const measure = (from: Vec2, sign: number, cap: number): number => {
+    for (let offset = step; offset <= cap; offset += step) {
+      if (blockedAt(ctx, from, facing, sign * offset)) return offset - step / 2;
+    }
+    return cap;
+  };
+
+  let left = limit;
+  let right = limit;
+  for (const from of samples) {
+    right = measure(from, 1, right);
+    left = measure(from, -1, left);
+  }
+  return { left, right };
+}
+
+/** Is the point `offset` px to the side of `from` (perpendicular to `facing`) impassable? */
+function blockedAt(ctx: GameContext, from: Vec2, facing: Vec2, offset: number): boolean {
+  const x = clamp(from.x - facing.y * offset, 0, worldPixelSize.width);
+  const y = clamp(from.y + facing.x * offset, 0, worldPixelSize.height);
+  const tile = tileOf({ x, y });
+  return isBlockedGrid(ctx.navObstacles, tile.tx, tile.ty);
 }
 
 /** The marching order split into consecutive runs of equal rank (empty ranks collapse). */
@@ -230,10 +450,15 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
 
   const facing = facingOf(ctx, mobile, goals, anchor, resolved);
   const lead = advancing ? cfg.lead : 0;
-  const origin = { x: anchor.x + facing.x * lead, y: anchor.y + facing.y * lead };
+  const marching = { x: anchor.x + facing.x * lead, y: anchor.y + facing.y * lead };
 
   const contact = inContact(ctx, mobile, anchor, resolved);
-  const slots = formationSlots(mobile, type);
+  // What fits here, which is not always what was ordered — see `layoutFor`. The
+  // marching origin is good enough to probe the ground with; the final origin
+  // needs the slots, and the slots need the layout.
+  const layout = layoutFor(ctx, mobile, type, marching, facing);
+  const slots = formationSlots(mobile, layout);
+  const origin = originFor(ctx, mobile, slots, marching, facing, advancing);
 
   for (const e of mobile) {
     const out = resolved.get(e.id);
@@ -268,38 +493,74 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
 
     const slot = slots.get(e.id);
     if (!slot) continue;
-    out.move = slotIntent(ctx, e, origin, facing, slot);
+    out.move = slotIntent(ctx, e, origin, facing, slot, layout);
   }
 }
 
 /** The move intent that puts `e` on its slot — or holds it, if it is already there. */
-function slotIntent(ctx: GameContext, e: RobotEntity, origin: Vec2, facing: Vec2, slot: Slot): MoveIntent {
-  // Rotate the slot out of the formation's frame into the world's: `ax` along
-  // `facing`, `ay` across it.
-  let x = origin.x + facing.x * slot.ax - facing.y * slot.ay;
-  let y = origin.y + facing.y * slot.ax + facing.x * slot.ay;
+function slotIntent(
+  ctx: GameContext,
+  e: RobotEntity,
+  origin: Vec2,
+  facing: Vec2,
+  slot: Slot,
+  layout: Layout,
+): MoveIntent {
+  const spacing = spacingFor(layout);
 
-  // A slot that lands in a mountain collapses onto the frame's origin. That is
-  // all the "narrow pass" handling this needs: in a gorge every outboard slot is
-  // blocked at once, so the group files through the middle by itself instead of
-  // grinding against the rock and cycling through anti-jam retreats forever.
-  const tile = tileOf({ x, y });
-  if (isBlockedGrid(ctx.navObstacles, tile.tx, tile.ty)) {
-    x = origin.x;
-    y = origin.y;
-  }
-  x = clamp(x, 0, worldPixelSize.width);
-  y = clamp(y, 0, worldPixelSize.height);
+  // A lone boulder inside otherwise open ground: shuffle along the rank, then
+  // drop back a rank, and only give up if none of that is free. What must never
+  // happen is the whole blocked half of a shape being handed one shared point —
+  // that is not a formation collapsing gracefully, it is a pile-up.
+  const placed = firstFreePlacement(ctx, origin, facing, slot, spacing);
+  if (!placed) return { kind: 'hold' };
+  const { x, y } = placed;
 
-  const cfg = gameConfig.behavior.formation;
   const dx = e.position.x - x;
   const dy = e.position.y - y;
+  // Wider to leave than to enter: a robot that has stopped (no goal of its own)
+  // stays stopped until it has drifted out to `release`. Without the band, one on
+  // the boundary flips between holding and driving every tick, and every flip is
+  // a `setGoal`/`clearGoal` pair with a fresh A* in it.
+  const { slack, release } = toleranceFor(spacing);
+  const threshold = e.movement.goal === undefined ? release : slack;
+
   // Already dressed, or out in front of it: hold. The second test is what keeps a
   // fast hull from reversing into its place — it waits for the line instead of
   // driving backwards through it.
   const ahead = dx * facing.x + dy * facing.y;
-  if (vecLength(dx, dy) <= cfg.slack || ahead > cfg.slack) return { kind: 'hold' };
+  if (vecLength(dx, dy) <= threshold || ahead > slack) return { kind: 'hold' };
   return { kind: 'goal', x, y };
+}
+
+/**
+ * The slot itself if its ground is clear, else the nearest alternative along the
+ * rank and then one rank back, else nothing. Candidates are tried in a fixed
+ * order so two peers place the same robot identically.
+ */
+function firstFreePlacement(
+  ctx: GameContext,
+  origin: Vec2,
+  facing: Vec2,
+  slot: Slot,
+  spacing: number,
+): Vec2 | undefined {
+  const candidates: Slot[] = [
+    slot,
+    { ax: slot.ax, ay: slot.ay + spacing / 2 },
+    { ax: slot.ax, ay: slot.ay - spacing / 2 },
+    { ax: slot.ax, ay: slot.ay + spacing },
+    { ax: slot.ax, ay: slot.ay - spacing },
+    { ax: slot.ax - spacing, ay: slot.ay },
+  ];
+
+  for (const candidate of candidates) {
+    const x = clamp(origin.x + facing.x * candidate.ax - facing.y * candidate.ay, 0, worldPixelSize.width);
+    const y = clamp(origin.y + facing.y * candidate.ax + facing.x * candidate.ay, 0, worldPixelSize.height);
+    const tile = tileOf({ x, y });
+    if (!isBlockedGrid(ctx.navObstacles, tile.tx, tile.ty)) return { x, y };
+  }
+  return undefined;
 }
 
 /**

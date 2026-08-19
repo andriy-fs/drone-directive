@@ -1,7 +1,7 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { RobotState, TaskType } from '@drone-directive/types/enums';
-import { clamp, vecLength } from '../../utils/math';
+import { clamp, distance, vecLength } from '../../utils/math';
 import type { BaseEntity, Navigable, RobotEntity } from '../ecs/archetypes';
 import { isAlive } from '../ecs/guards';
 import { bases, robots } from '../ecs/queries';
@@ -92,6 +92,18 @@ function maybeStartRetreat(ctx: GameContext, e: RobotEntity, dt: number): void {
   }
   const base = baseContaining(ctx, pos);
   if (!m.goal && !base) {
+    m.stuckTime = 0;
+    return;
+  }
+
+  // All but arrived, and merely being jostled by whoever else is standing here:
+  // that is not a jam. Backing such a robot out is actively wrong once formations
+  // exist — the thing pinning it is its own side closing up around it, and the
+  // retreat would drive it out of the line it just spent the march reaching. A
+  // real jam is a robot with somewhere far to be and no way to get there, which
+  // this leaves untouched.
+  const settling = gameConfig.robots.radius * 2;
+  if (m.goal && distance(pos.x, pos.y, m.goal.x, m.goal.y) <= settling) {
     m.stuckTime = 0;
     return;
   }

@@ -127,3 +127,53 @@ describe('movementSystem — disabled robots', () => {
     expect(robot.movement!.retreatTime ?? 0).toBe(0);
   });
 });
+
+/**
+ * The anti-jam retreat exists for a robot that has somewhere far to be and no way
+ * to get there. It must not fire for one that has all but arrived and is merely
+ * being closed in on by its own side — which is the normal state of affairs the
+ * moment formations exist, and where backing out is the worst available answer.
+ */
+describe('anti-jam retreat — what counts as jammed', () => {
+  const DT = 1 / 30;
+  /** Pins the robot in place past `stuckAfter`; true if the retreat ever started. */
+  const stalls = (
+    ctx: ReturnType<typeof makeCtx>,
+    robot: { position?: { x: number; y: number }; movement?: { retreatTime?: number } },
+  ): boolean => {
+    const at = { ...(robot.position ?? { x: 0, y: 0 }) };
+    let retreated = false;
+    for (let i = 0; i < Math.ceil((gameConfig.behavior.stuckAfter / DT) * 3); i++) {
+      movementSystem(ctx, DT);
+      // A retreat can start and run out again inside this window, so catch the
+      // fact of it rather than the state at the end.
+      if ((robot.movement?.retreatTime ?? 0) > 0) retreated = true;
+      if (robot.position) {
+        robot.position.x = at.x;
+        robot.position.y = at.y;
+      }
+    }
+    return retreated;
+  };
+
+  it('leaves a robot that has essentially arrived alone', () => {
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    robot.script = makeAttackBase();
+    // Its place in the line, a few pixels away, with a neighbour standing on it.
+    robot.movement!.goal = { x: 400 + gameConfig.robots.radius, y: 400 };
+    robot.movement!.destination = { ...robot.movement!.goal };
+
+    expect(stalls(ctx, robot)).toBe(false);
+  });
+
+  it('still retreats a robot with a long way to go and no way through', () => {
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    robot.script = makeAttackBase();
+    robot.movement!.goal = { x: 900, y: 400 };
+    robot.movement!.destination = { x: 900, y: 400 };
+
+    expect(stalls(ctx, robot)).toBe(true);
+  });
+});
