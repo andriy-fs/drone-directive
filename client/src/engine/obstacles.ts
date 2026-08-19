@@ -268,3 +268,41 @@ export function hasLineOfSight(grid: ObstacleGrid, from: Vec2, to: Vec2): boolea
     }
   }
 }
+
+/**
+ * True if a body of `radius` can drive straight from `a` to `b` without
+ * clipping anything on `grid` — the segment itself and both flanks of the
+ * corridor it sweeps.
+ *
+ * **Not** `hasLineOfSight`, and the difference is two things at once. That one
+ * asks a question about *fire*, so it reads `sightBlockers` (mountains only, a
+ * crater is shot over) and it has no width: a round is a point. This asks a
+ * question about *driving*, so it reads `navObstacles` and a hull is 22 px wide
+ * — a diagonal that threads exactly between two rocks is a clean line of sight
+ * and an impassable route.
+ *
+ * Sampled rather than rasterised: half a tile between samples, so nothing
+ * narrower than a tile can hide between two of them, and three probes per sample
+ * (centre and both flanks). Callers use it to prove a shortcut is safe, so it
+ * must never say yes wrongly; saying no wrongly only costs a corner that could
+ * have been cut.
+ */
+export function hasClearance(grid: ObstacleGrid, a: Vec2, b: Vec2, radius: number): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  const steps = Math.max(1, Math.ceil(len / (gameConfig.grid.tilePx / 2)));
+  const nx = len > 1e-6 ? -dy / len : 0;
+  const ny = len > 1e-6 ? dx / len : 0;
+
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const px = a.x + dx * t;
+    const py = a.y + dy * t;
+    for (const side of [0, radius, -radius]) {
+      const tile = tileOf({ x: px + nx * side, y: py + ny * side });
+      if (isBlockedGrid(grid, tile.tx, tile.ty)) return false;
+    }
+  }
+  return true;
+}

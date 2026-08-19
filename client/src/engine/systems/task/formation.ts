@@ -6,7 +6,8 @@ import type { RobotEntity } from '../../ecs/archetypes';
 import { isAlive, isPositioned } from '../../ecs/guards';
 import { robots } from '../../ecs/queries';
 import type { GameContext } from '../../game/context';
-import { isBlockedGrid, tileOf } from '../../obstacles';
+import { hasClearance, isBlockedGrid, tileOf } from '../../obstacles';
+import { findPath } from '../../pathfinding';
 import { isDisabled } from '../status';
 import { findById, knownEnemyBases, knownEnemyRobots } from '../targeting';
 import { centroidOf } from './roam';
@@ -238,6 +239,7 @@ function originFor(
   marching: Vec2,
   facing: Vec2,
   advancing: boolean,
+  route: readonly Vec2[] | undefined,
 ): Vec2 {
   let origin = marching;
 
@@ -252,7 +254,7 @@ function originFor(
     }
   }
 
-  const shift = centringShift(ctx, slots, origin, facing);
+  const shift = centringShift(ctx, slots, origin, facing, route);
   if (shift === 0) return origin;
   return {
     x: clamp(origin.x - facing.y * shift, 0, worldPixelSize.width),
@@ -265,12 +267,18 @@ function originFor(
  * or 0 when it already fits. Only what is actually needed: a group standing near
  * a cliff with plenty of room on its own side is left where it is.
  */
-function centringShift(ctx: GameContext, slots: Map<string, Slot>, origin: Vec2, facing: Vec2): number {
+function centringShift(
+  ctx: GameContext,
+  slots: Map<string, Slot>,
+  origin: Vec2,
+  facing: Vec2,
+  route: readonly Vec2[] | undefined,
+): number {
   const radius: number = gameConfig.robots.radius;
   let needed = radius;
   for (const slot of slots.values()) needed = Math.max(needed, Math.abs(slot.ay) + radius);
 
-  const span = corridorSpan(ctx, origin, facing);
+  const span = corridorSpan(ctx, origin, facing, route);
   let shift = 0;
   if (span.right < needed) shift -= needed - span.right;
   if (span.left < needed) shift += needed - span.left;
@@ -301,13 +309,14 @@ function layoutFor(
   type: FormationType,
   origin: Vec2,
   facing: Vec2,
+  route: readonly Vec2[] | undefined,
 ): Layout {
   const ladder: Layout[] =
     type === FormationType.Column ? [FormationType.Column, FILE] : [type, FormationType.Column, FILE];
   // The span, not the distance to the nearer wall: the frame gets recentred in
   // whatever gap it is in (see `centringShift`), so what limits the shape is how
   // wide the gap is, not how badly the group happens to be hugging one side.
-  const span = corridorSpan(ctx, origin, facing);
+  const span = corridorSpan(ctx, origin, facing, route);
   const clear = (span.left + span.right) / 2;
 
   for (const layout of ladder) {
@@ -340,7 +349,12 @@ function halfWidthOf(mobile: readonly RobotEntity[], layout: Layout): number {
  * gap it is walking into: what decides whether a shape fits is the *span*, and
  * what the frame then needs is a nudge toward the middle of it.
  */
-function corridorSpan(ctx: GameContext, origin: Vec2, facing: Vec2): { left: number; right: number } {
+function corridorSpan(
+  ctx: GameContext,
+  origin: Vec2,
+  facing: Vec2,
+  route: readonly Vec2[] | undefined,
+): { left: number; right: number } {
   // An eighth of a tile: the reading has to be good to a few pixels, because the
   // whole question it settles is whether a shape clears a gap by a hair. The walk
   // stops at the first blocked sample, so open ground is the only case that pays
@@ -348,7 +362,7 @@ function corridorSpan(ctx: GameContext, origin: Vec2, facing: Vec2): { left: num
   const step = gameConfig.grid.tilePx / 8;
   const limit = Math.max(...Object.values(gameConfig.behavior.formation.spacing)) + gameConfig.robots.radius;
   const lead = gameConfig.behavior.formation.lead;
-  const samples: Vec2[] = [origin, { x: origin.x + facing.x * lead, y: origin.y + facing.y * lead }];
+  const samples: Vec2[] = [origin, lookAhead(route, origin, facing, lead)];
 
   // The edge lies somewhere between the last clear sample and the first blocked
   // one, so the midpoint of that bracket is reported rather than its floor: the
@@ -426,7 +440,7 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
   // it to mean nothing) is also what makes the HUD tile switch itself off once a
   // group has been whittled down to its last survivor.
   if (members.length <= 1) {
-    for (const e of members) delete e.script.blackboard.formation;
+    for (const e of members) leaveFormation(e);
     return;
   }
 
@@ -448,17 +462,25 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
     .filter((m): m is Extract<MoveIntent, { kind: 'goal' }> => m?.kind === 'goal');
   const advancing = goals.length > 0;
 
-  const facing = facingOf(ctx, mobile, goals, anchor, resolved);
+  // The road the group is on, not the line to where it is going. Everything the
+  // frame does from here is measured along it: which way the shape is dressed
+  // (`facingOf`), where the frame is projected to (`marching`), and where the
+  // ground is probed for room (`corridorSpan`). See `routeFor`.
+  const guide = marchingOrder(mobile)[0];
+  const groupGoal = groupGoalOf(guide, goals, resolved);
+  const route = groupGoal ? routeFor(ctx, guide, anchor, groupGoal) : undefined;
+
+  const facing = facingOf(ctx, mobile, goals, anchor, resolved, route);
   const lead = advancing ? cfg.lead : 0;
-  const marching = { x: anchor.x + facing.x * lead, y: anchor.y + facing.y * lead };
+  const marching = lead > 0 ? lookAhead(route, anchor, facing, lead) : anchor;
 
   const contact = inContact(ctx, mobile, anchor, resolved);
   // What fits here, which is not always what was ordered — see `layoutFor`. The
   // marching origin is good enough to probe the ground with; the final origin
   // needs the slots, and the slots need the layout.
-  const layout = layoutFor(ctx, mobile, type, marching, facing);
+  const layout = layoutFor(ctx, mobile, type, marching, facing, route);
   const slots = formationSlots(mobile, layout);
-  const origin = originFor(ctx, mobile, slots, marching, facing, advancing);
+  const origin = originFor(ctx, mobile, slots, marching, facing, advancing, route);
 
   for (const e of mobile) {
     const out = resolved.get(e.id);
@@ -468,7 +490,7 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
     // is on top of the enemy, the kamikaze stops dressing the line and runs its
     // own program the rest of the way in.
     if (contact && e.weapon.explosionRadius > 0) {
-      delete e.script.blackboard.formation;
+      leaveFormation(e);
       continue;
     }
 
@@ -493,11 +515,34 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
 
     const slot = slots.get(e.id);
     if (!slot) continue;
-    out.move = slotIntent(ctx, e, origin, facing, slot, layout);
+    // **A formation may never take a robot's movement away.** When nowhere in
+    // the shape can be stood on, `slotIntent` declines rather than holding, and
+    // the robot keeps whatever the resolver gave it. The worst case is then the
+    // behaviour from before formations existed — everybody drives at the
+    // objective on their own A*, which is scruffy but *arrives*; the alternative,
+    // measured, is a squad that stands at a rock face until the match ends,
+    // because a `hold` clears the goal, a cleared goal freezes the centroid, and
+    // the frozen centroid re-derives the same impossible frame every tick.
+    const intent = slotIntent(ctx, e, origin, facing, slot, layout);
+    if (intent) out.move = intent;
   }
 }
 
-/** The move intent that puts `e` on its slot — or holds it, if it is already there. */
+/**
+ * Takes a robot out of its group, cache and all. The route is only ever a group's
+ * road, so leaving one that is a robot's last tie to it behind would have the
+ * hull carry a stale polyline into whatever group it joins next.
+ */
+function leaveFormation(e: RobotEntity): void {
+  delete e.script.blackboard.formation;
+  delete e.script.blackboard.formationRoute;
+}
+
+/**
+ * The move intent that puts `e` on its slot — or holds it, if it is already
+ * there, or nothing at all if the slot and every fallback for it are inside
+ * rock, in which case the caller leaves the robot's own intent standing.
+ */
 function slotIntent(
   ctx: GameContext,
   e: RobotEntity,
@@ -505,7 +550,7 @@ function slotIntent(
   facing: Vec2,
   slot: Slot,
   layout: Layout,
-): MoveIntent {
+): MoveIntent | undefined {
   const spacing = spacingFor(layout);
 
   // A lone boulder inside otherwise open ground: shuffle along the rank, then
@@ -513,7 +558,7 @@ function slotIntent(
   // happen is the whole blocked half of a shape being handed one shared point —
   // that is not a formation collapsing gracefully, it is a pile-up.
   const placed = firstFreePlacement(ctx, origin, facing, slot, spacing);
-  if (!placed) return { kind: 'hold' };
+  if (!placed) return undefined; // no ground to stand on — see the caller
   const { x, y } = placed;
 
   const dx = e.position.x - x;
@@ -564,20 +609,234 @@ function firstFreePlacement(
 }
 
 /**
+ * The group's marching route: the A* polyline from the group's own anchor to
+ * wherever the group as a whole is going, cached on the guide.
+ *
+ * This is the thing that stops a formation marching its frame into a mountain.
+ * The frame used to be projected along the *straight* line from the group to its
+ * objective, and a wall across that line is invisible from here: `corridorSpan`
+ * only measures sideways, so rock dead ahead reads as open ground, the shape is
+ * left as ordered, the slots land in the cliff, and `firstFreePlacement` hands
+ * every member a `hold` — which clears its goal, which freezes the centroid the
+ * frame is anchored to. The group then stands at the rock face forever,
+ * confidently re-deciding the same thing every tick. Following the route the
+ * units would have driven anyway means the frame bends around the corner with
+ * them, and `corridorSpan` starts measuring the gap they are actually entering.
+ *
+ * One A* per *group*, not per unit, and only when the objective moves to another
+ * tile or the group has been shoved off its own line — so the common case (a
+ * squad walking at a base that is not going anywhere) pays for one path and then
+ * nothing. An unreachable goal is cached as an empty route, which is what keeps
+ * a hopeless objective from costing a full search every tick.
+ *
+ * The cache lives on the guide because the guide is already the one member the
+ * frame is defined against; losing it (the guide dies, an order replaces the
+ * script) costs one A* on the next tick, which is the right price for an event
+ * that rare.
+ */
+function routeFor(ctx: GameContext, guide: RobotEntity, anchor: Vec2, goal: Vec2): readonly Vec2[] | undefined {
+  const bb = guide.script.blackboard;
+  const tile = tileOf(goal);
+  const cached = bb.formationRoute;
+  let points: readonly Vec2[] | undefined =
+    cached && cached.goalTx === tile.tx && cached.goalTy === tile.ty ? cached.points : undefined;
+
+  // A tile and a half off the line: enough that ordinary jostling and the
+  // sideways slide of `centringShift` don't re-path, little enough that a group
+  // pushed into the next gorge stops marching along the one it left.
+  if (points && points.length > 0 && projectOnRoute(points, anchor).drift > gameConfig.grid.tilePx * 1.5) {
+    points = undefined;
+  }
+
+  if (!points) {
+    const built = smoothRoute(ctx, anchor, findPath(ctx.navObstacles, anchor, goal));
+    bb.formationRoute = { goalTx: tile.tx, goalTy: tile.ty, points: built };
+    points = built;
+  }
+  return points.length > 0 ? points : undefined;
+}
+
+/**
+ * Pulls the slack out of an A* result: a waypoint is dropped whenever a hull can
+ * drive straight from the last kept point to the one after it.
+ *
+ * The frame *has* to have this. `findPath` walks tile centres, so on a diagonal
+ * its output is a staircase that swings half a tile either side of the line the
+ * group actually travels — and the frame's origin positions every slot, so a
+ * wobbling polyline wobbles the whole lattice. Measured on a nine-strong march
+ * across open ground, the raw staircase cost 5060 hold/drive flips against 280
+ * once smoothed, and put a group into anti-jam retreats it had no business in.
+ *
+ * Greedy and one-pass: O(n²) probes worst case on a path of a few dozen points,
+ * paid once per group per objective, not per unit and not per tick. Only the
+ * *group's* route is smoothed here; every unit still drives the staircase its own
+ * `setGoal` built, which is stage B1's job to fix and a much wider change.
+ */
+function smoothRoute(ctx: GameContext, from: Vec2, points: readonly Vec2[]): Vec2[] {
+  if (points.length === 0) return []; // nowhere to go: the caller reads that as "no route"
+  const radius: number = gameConfig.robots.radius;
+  const kept: Vec2[] = [];
+  let anchor = from;
+  let i = 0;
+  while (i < points.length) {
+    // The furthest point still reachable in a straight line from where we are;
+    // never fewer than one step, so this always terminates.
+    let furthest = i;
+    for (let j = points.length - 1; j > i; j--) {
+      if (hasClearance(ctx.navObstacles, anchor, points[j], radius)) {
+        furthest = j;
+        break;
+      }
+    }
+    kept.push(points[furthest]);
+    anchor = points[furthest];
+    i = furthest + 1;
+  }
+  // Headed by where it was built from, and that head is load-bearing: the route
+  // is a *line* the group walks along, and everything downstream works by
+  // projecting the group's anchor onto it and stepping forward. Without the
+  // head, a smoothed straight run collapses to the single point it ends at, the
+  // projection has nowhere to advance along, and every look-ahead returns the
+  // objective itself — which puts the whole frame on top of the enemy base and
+  // dissolves the formation into six units racing there on their own.
+  return [{ x: from.x, y: from.y }, ...kept];
+}
+
+/**
+ * Where `p` sits on the polyline: how far along it the closest point is (measured
+ * from the head), and how far `p` had to reach to get there. The second number is
+ * what tells the route it has gone stale.
+ */
+function projectOnRoute(points: readonly Vec2[], p: Vec2): { along: number; drift: number } {
+  let best = { along: 0, drift: distance(p.x, p.y, points[0].x, points[0].y) };
+  let travelled = 0;
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = vecLength(dx, dy);
+    if (len > 1e-6) {
+      const t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / (len * len), 0, 1);
+      const drift = distance(p.x, p.y, a.x + dx * t, a.y + dy * t);
+      if (drift < best.drift) best = { along: travelled + len * t, drift };
+    }
+    travelled += len;
+  }
+  return best;
+}
+
+/**
+ * The point `along` px from the head of the polyline — carrying *straight on*
+ * past the far end rather than stopping at it.
+ *
+ * The extrapolation is not a detail. The route ends at the objective, and the
+ * frame is projected a `lead` in front of the group, so for the last stretch of
+ * every march the look-ahead is past the end of the road. Clamping there
+ * collapses the projection onto the group's own centroid while it is still
+ * advancing — and a formation anchored on its own centroid while moving does not
+ * converge (see `originFor`): measured, it cost a nine-strong squad 4160
+ * hold/drive flips over an approach that costs 240 when the frame keeps pointing
+ * the way it was going.
+ */
+function pointAtDistance(points: readonly Vec2[], along: number): Vec2 {
+  let remaining = along;
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const len = distance(a.x, a.y, b.x, b.y);
+    if (remaining <= len) {
+      const t = len > 1e-6 ? remaining / len : 0;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+    remaining -= len;
+  }
+
+  const last = points[points.length - 1];
+  if (points.length < 2) return last;
+  const prev = points[points.length - 2];
+  const len = distance(prev.x, prev.y, last.x, last.y);
+  if (len < 1e-6) return last;
+  return { x: last.x + ((last.x - prev.x) / len) * remaining, y: last.y + ((last.y - prev.y) / len) * remaining };
+}
+
+/**
+ * `ahead` px further on: along the route where there is one, straight along the
+ * axis where there isn't.
+ *
+ * The route contributes the *step*, not the position — the group is moved
+ * forward by however far the road moves forward over that stretch, from wherever
+ * the group happens to be standing. Snapping the frame onto the road instead
+ * (the obvious reading of "march along the route") is measurably wrong: a group
+ * whose centroid sits a few px off the line gets yanked sideways onto it every
+ * tick, and with a box's 5.6 px release tolerance that is a hold/drive flip for
+ * everybody, every tick — 5291 of them on a march that costs 280 this way. The
+ * road decides which way forward is; the group decides where it is.
+ */
+function lookAhead(route: readonly Vec2[] | undefined, from: Vec2, facing: Vec2, lead: number): Vec2 {
+  if (!route) return { x: from.x + facing.x * lead, y: from.y + facing.y * lead };
+  const step = routeStep(route, from, lead);
+  return { x: from.x + step.x, y: from.y + step.y };
+}
+
+/** How far, and in which direction, the route itself moves over the `lead` px after `from`. */
+function routeStep(route: readonly Vec2[], from: Vec2, lead: number): Vec2 {
+  const { along } = projectOnRoute(route, from);
+  const at = pointAtDistance(route, along);
+  const target = pointAtDistance(route, along + lead);
+  return { x: target.x - at.x, y: target.y - at.y };
+}
+
+/**
+ * Where the group as a whole is headed — the objective the route is built to, not
+ * the slot anybody is driving to. The guide's own goal first (the same flank the
+ * axis dresses on, see `facingOf`), the centroid of everyone's goals second.
+ *
+ * Reactive intents are excluded: a dodge is 48 px sideways for a second and a bit,
+ * and letting one re-plan the whole group's march would swing the axis — and
+ * spend an A* — every time somebody is shot at.
+ */
+function groupGoalOf(
+  guide: RobotEntity,
+  goals: readonly Extract<MoveIntent, { kind: 'goal' }>[],
+  resolved: Map<string, Outcome>,
+): Vec2 | undefined {
+  const own = resolved.get(guide.id)?.move;
+  if (own?.kind === 'goal' && !own.reactive) return { x: own.x, y: own.y };
+
+  const marching = goals.filter((g) => !g.reactive);
+  if (marching.length === 0) return undefined;
+  let sx = 0;
+  let sy = 0;
+  for (const g of marching) {
+    sx += g.x;
+    sy += g.y;
+  }
+  return { x: sx / marching.length, y: sy / marching.length };
+}
+
+/**
  * Which way the formation is pointed, as a unit vector. Taken from where the
  * group is trying to go, not from where it happens to be looking, so every member
  * computes the same axis from the same shared facts:
  *
- * 1. the **guide's** own goal — the first hull in marching order, the way a drill
- *    line dresses on one flank. Averaging everybody's goals instead reads as
- *    noise the moment the group is searching rather than attacking: roam targets
- *    point every which way, their mean sits on top of the group, and a formation
- *    with no axis stops dead. One guide gives the body a direction to commit to;
- * 2. failing that, the centroid of whatever goals there are, so a guide that has
+ * 1. the **route** — the next stretch of the polyline the group is marching
+ *    along, taken half a `lead` out so the axis turns as the group reaches a
+ *    corner rather than after it. Pointing the axis at the objective instead
+ *    (which is what this did first) aims the whole frame through whatever stands
+ *    between the two, and a formation cannot walk through a mountain; the route
+ *    is where the group's own units are going anyway, so dressing on it costs
+ *    nothing and never points at rock;
+ * 2. failing that (nowhere reachable to go), the **guide's** own goal — the first
+ *    hull in marching order, the way a drill line dresses on one flank. Averaging
+ *    everybody's goals instead reads as noise the moment the group is searching
+ *    rather than attacking: roam targets point every which way, their mean sits
+ *    on top of the group, and a formation with no axis stops dead;
+ * 3. failing that, the centroid of whatever goals there are, so a guide that has
  *    stopped does not pin the rest;
- * 3. failing that (the whole line is stopped and shooting), whatever the guide is
+ * 4. failing that (the whole line is stopped and shooting), whatever the guide is
  *    shooting at;
- * 4. failing that, the guide's heading — always defined, so this never degenerates.
+ * 5. failing that, the guide's heading — always defined, so this never degenerates.
  */
 function facingOf(
   ctx: GameContext,
@@ -585,8 +844,15 @@ function facingOf(
   goals: readonly Extract<MoveIntent, { kind: 'goal' }>[],
   anchor: Vec2,
   resolved: Map<string, Outcome>,
+  route: readonly Vec2[] | undefined,
 ): Vec2 {
   const guide = marchingOrder(mobile)[0];
+
+  if (route) {
+    const step = routeStep(route, anchor, gameConfig.behavior.formation.lead / 2);
+    const unit = unitOf(step.x, step.y);
+    if (unit) return unit;
+  }
 
   const guideGoal = resolved.get(guide.id)?.move;
   if (guideGoal?.kind === 'goal') {
@@ -617,8 +883,11 @@ function facingOf(
 
 /** Unit vector from `a` to `b`, or undefined when the two coincide. */
 function unitFrom(a: Vec2, b: Vec2): Vec2 | undefined {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
+  return unitOf(b.x - a.x, b.y - a.y);
+}
+
+/** The direction of a vector, or undefined when it has no length to speak of. */
+function unitOf(dx: number, dy: number): Vec2 | undefined {
   const len = vecLength(dx, dy);
   if (len < 1e-6) return undefined;
   return { x: dx / len, y: dy / len };

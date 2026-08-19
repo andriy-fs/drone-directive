@@ -109,7 +109,26 @@ export interface RobotScript {
      * carries it across every order that replaces the script wholesale.
      */
     formation?: RobotFormation;
+    /**
+     * The group's marching route, cached on whichever member is currently the
+     * *guide* (first in marching order). See `formationRouteFor` in
+     * `engine/systems/task/formation.ts`.
+     *
+     * A cache, not state: it is a pure function of the navigation grid and the
+     * group's goal, so both peers rebuild the same polyline from the same shared
+     * facts and it stays out of `worldHash`. Losing it (the guide dies, an order
+     * replaces the script) costs one A* on the next tick and nothing else.
+     */
+    formationRoute?: FormationRoute;
   };
+}
+
+/** A group's cached A* route: the goal tile it was built for, plus the waypoints. */
+export interface FormationRoute {
+  goalTx: number;
+  goalTy: number;
+  /** `findPath` output — world-space waypoints, or empty when the goal is unreachable. */
+  points: Vec2[];
 }
 
 /** A robot's membership of one formation: the shared group id plus the shape it holds. */
