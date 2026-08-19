@@ -339,13 +339,16 @@ describe('applyFormations — what overrules a slot', () => {
 
   it('hands a robot back its own objective when its slot is in rock', () => {
     const ctx = openCtx();
-    const members = Array.from({ length: 5 }, (_, i) => robot(ctx, `r_${i}`, WeaponType.Cannon, 96 + i * 8, 112));
-    // The group is at the very mouth of the corridor: the file's rear slots fall
-    // outside it, in the rock the group has just come from. Nothing can stand
-    // there, and a formation is not allowed to answer that with `hold` — a hold
-    // clears the goal, a cleared goal freezes the centroid, and the frame is
-    // anchored on the centroid. That is the deadlock this valve exists for.
-    corridor(ctx, 3, 3);
+    const members = Array.from({ length: 5 }, (_, i) => robot(ctx, `r_${i}`, WeaponType.Cannon, 112, 104 + i * 4));
+    // A dead end: three open tiles and rock on every other side. Wherever the
+    // shape puts its slots, most of them are in the cliff, and a formation is not
+    // allowed to answer that with `hold` — a hold clears the goal, a cleared goal
+    // freezes the centroid, and the frame is anchored on the centroid. That is
+    // the deadlock this valve exists for.
+    const n = gameConfig.grid.width;
+    ctx.navObstacles = Array.from({ length: n }, (_, ty) =>
+      Array.from({ length: n }, (_, tx) => !(tx === 3 && ty >= 3 && ty <= 5)),
+    );
 
     const objective = { kind: 'goal' as const, x: 112, y: 1000 };
     const resolved = formUp(members, FormationType.Line, Object.fromEntries(members.map((e) => [e.id, { move: objective }])));
@@ -608,4 +611,65 @@ describe('applyFormations — a march that has to go round something', () => {
     const centroid = members.reduce((a, e) => ({ x: a.x + e.position.x / 6, y: a.y + e.position.y / 6 }), { x: 0, y: 0 });
     expect(Math.hypot(goal.x - centroid.x, goal.y - centroid.y)).toBeLessThan(200);
   });
+});
+
+/**
+ * Only `Box` (and falling out of formation altogether) actually got a group
+ * anywhere; ordering `Column`, `Wedge` or `Spread` left it standing, and `Line`
+ * moved at half pace. That is not five bugs, it is one number: the frame is
+ * projected `lead` ahead of the group's centroid, slots are laid out with `ax=0`
+ * at the *front* rank, so a deep shape's centre of mass hangs far behind the
+ * point being projected and cancels the pull — see `depthOf`. A box is the one
+ * shape whose cells are centred on their own middle by construction, which is
+ * the whole of why it was the one shape that worked.
+ */
+describe('applyFormations — every shape a player can order actually marches', () => {
+  /** Eight mixed hulls, so every rank is populated and the deep shapes are deep. */
+  function squad(ctx: GameContext): RobotEntity[] {
+    const weapons = [
+      WeaponType.Cannon,
+      WeaponType.Cannon,
+      WeaponType.Cannon,
+      WeaponType.Cannon,
+      WeaponType.Missiles,
+      WeaponType.Missiles,
+      WeaponType.Ew,
+      WeaponType.Radar,
+    ];
+    return weapons.map((w, i) => robot(ctx, `r_${i}`, w, 200 + (i % 3) * 30, 200 + Math.floor(i / 3) * 30));
+  }
+
+  for (const type of Object.values(FormationType)) {
+    it(`walks a squad ordered into a ${type} all the way to its objective`, () => {
+      const ctx = openCtx();
+      const members = squad(ctx);
+      for (const e of members) e.script.blackboard.formation = { gid: 'g1', type };
+      const goal = { x: 1100, y: 1100 };
+
+      const centre = () => ({
+        x: members.reduce((a, e) => a + e.position.x, 0) / members.length,
+        y: members.reduce((a, e) => a + e.position.y, 0) / members.length,
+      });
+      const startDist = Math.hypot(goal.x - centre().x, goal.y - centre().y);
+
+      for (let tick = 0; tick < 900; tick++) {
+        const resolved = new Map<string, Outcome>();
+        for (const e of members) resolved.set(e.id, { move: { kind: 'goal', x: goal.x, y: goal.y } });
+        applyFormations(ctx, resolved);
+        for (const e of members) {
+          const move = resolved.get(e.id)?.move;
+          if (move?.kind === 'goal') setGoal(ctx, e, move.x, move.y);
+          else if (move?.kind === 'hold') clearGoal(e);
+        }
+        movementSystem(ctx, DT);
+        separationSystem(ctx);
+      }
+
+      // A `spread` is 140 px between neighbours, so its centroid legitimately
+      // settles further out than a box's — the bar is "arrived", not "arrived on
+      // the exact pixel". Before the fix a spread made 11% of this and a wedge 4%.
+      const endDist = Math.hypot(goal.x - centre().x, goal.y - centre().y);
+      expect(endDist, `${type} stopped ${endDist.toFixed(0)} px short of ${startDist.toFixed(0)}`).toBeLessThan(200);
+    });
+  }
 });
