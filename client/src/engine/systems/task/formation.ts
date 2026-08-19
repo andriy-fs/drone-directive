@@ -328,6 +328,34 @@ function layoutFor(
   return FILE;
 }
 
+/**
+ * Where the shape's own centre of mass sits along the axis — zero or negative,
+ * because slots are laid out with `ax = 0` at the front rank and the ranks
+ * behind it at negative offsets.
+ *
+ * This is the difference between a shape that marches and one that stands still,
+ * and it is pure arithmetic. The frame is projected `lead` (64 px) ahead of the
+ * group's centroid, and the group is pulled toward wherever its slots are; so
+ * the *net* pull on the body is `lead` plus this number. Measured over eight
+ * mixed hulls: a box's cells are centred on their own middle by construction
+ * (+4.5, so it keeps the whole 64 and marches), a line of three ranks gives back
+ * 27 (36 left, marches), a column gives back 60 (4 left, crawls), a wedge 67
+ * (−3, stops), and a spread 87 — a *negative* 23 px, which asks the group to
+ * reverse. That is exactly the ladder of shapes that worked and didn't: box and
+ * line arrived, column and spread made 11% of the distance, the wedge 4%.
+ *
+ * Subtracting it puts every shape on the same 64 px of pull, which is what
+ * `gameConfig`'s comment on `lead` always claimed the number meant. It is not a
+ * per-shape tuning constant: it falls out of whatever geometry `formationSlots`
+ * hands over, so a new shape gets it for free.
+ */
+function depthOf(slots: Map<string, Slot>): number {
+  if (slots.size === 0) return 0;
+  let sum = 0;
+  for (const slot of slots.values()) sum += slot.ax;
+  return sum / slots.size;
+}
+
 /** How far the shape reaches to either side of its own axis, robot included. */
 function halfWidthOf(mobile: readonly RobotEntity[], layout: Layout): number {
   let widest = 0;
@@ -472,14 +500,17 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
 
   const facing = facingOf(ctx, mobile, goals, anchor, resolved, route);
   const lead = advancing ? cfg.lead : 0;
-  const marching = lead > 0 ? lookAhead(route, anchor, facing, lead) : anchor;
 
   const contact = inContact(ctx, mobile, anchor, resolved);
-  // What fits here, which is not always what was ordered — see `layoutFor`. The
-  // marching origin is good enough to probe the ground with; the final origin
-  // needs the slots, and the slots need the layout.
-  const layout = layoutFor(ctx, mobile, type, marching, facing, route);
+  // What fits here, which is not always what was ordered — see `layoutFor`. A
+  // point a `lead` up the road is good enough to probe the ground with; the final
+  // origin needs the slots, and the slots need the layout.
+  const probe = lead > 0 ? lookAhead(route, anchor, facing, lead) : anchor;
+  const layout = layoutFor(ctx, mobile, type, probe, facing, route);
   const slots = formationSlots(mobile, layout);
+  // `lead` is measured to where the shape's *centre of mass* should sit, not to
+  // its nose — see `depthOf`.
+  const marching = lead > 0 ? lookAhead(route, anchor, facing, lead - depthOf(slots)) : anchor;
   const origin = originFor(ctx, mobile, slots, marching, facing, advancing, route);
 
   for (const e of mobile) {
