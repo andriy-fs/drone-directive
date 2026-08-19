@@ -2,10 +2,16 @@
  * The game's music, kept apart from `sfx.ts` on purpose.
  *
  * A cue is fired and forgotten: `sfx.play` looks its buffer up, starts it, and
- * never sees it again. Music is the opposite — one instance per track, looping,
- * held for as long as its screen is on, faded rather than cut. It also arrives
- * late (megabytes, not kilobytes), so it is fetched on its own instead of riding
- * a `SoundTier`.
+ * never sees it again. Music is the opposite — one instance per track, held for
+ * as long as its screen is on, faded rather than cut. It also arrives late
+ * (megabytes, not kilobytes), so it is fetched on its own instead of riding a
+ * `SoundTier`.
+ *
+ * Two of the four tracks are looping beds (`menu`, `match`); the other two are
+ * the outcome stingers, which play once and end themselves (`playOnce`, and the
+ * `loop` flag in `musicDefs`). They are here rather than in `sfx.ts` because
+ * everything above still applies to them — a handle, a fade, a lazy megabyte
+ * fetch, and the music slider rather than the effects one.
  *
  * **Music owns its own gain, and this is load-bearing.** It used to ride
  * `sound.muteAll()` / `sound.volumeAll` from `sfx.ts`, which act on the shared
@@ -18,11 +24,12 @@
  * when music is disabled, so a player who turned it off never fetches the
  * megabytes. Cues are not lazy in the same way — kilobytes, and rarely muted.
  *
- * Who drives it: `ui/screens/MainMenu` (mount/unmount) for the menu bed, and
- * `GameApp`'s `sceneChanged` for the match bed — the one place both routes into
- * a match pass through, solo and online. The two tracks are independent slots,
- * which is what makes the menu→match handover a crossfade without any code for
- * one: the old track fades out while the new one fades in.
+ * Who drives it: `ui/screens/MainMenu` (mount/unmount) for the menu bed,
+ * `GameApp`'s `sceneChanged` for the match bed — the one place both routes into a
+ * match pass through, solo and online — and `GameApp`'s `gameOver` /
+ * `sideEliminated` for the stingers. The tracks are independent slots, which is
+ * what makes every handover a crossfade without any code for one: the old track
+ * fades out while the new one comes in.
  */
 import { Assets } from 'pixi.js';
 import { sound, type IMediaInstance, type Sound } from '@pixi/sound';
@@ -52,6 +59,14 @@ const tracks = new Map<MusicName, Promise<Sound | null>>();
 const fades = new WeakMap<IMediaInstance, ReturnType<typeof setInterval>>();
 /** A gesture listener is pending because the AudioContext is still suspended. */
 let armed = false;
+/**
+ * Bumped every time a track starts. A one-shot's `complete` callback also fires
+ * when the instance is `stop`ped, so a stinger cut short by *Play Again* runs its
+ * release ~600 ms into the next match — by which point the slot may already be
+ * somebody else's. Carrying the generation it was created with makes that late
+ * callback a no-op instead of a slot it clears out from under a live instance.
+ */
+const generations = new Map<MusicName, number>();
 
 let enabled = storage.getItem(ENABLED_KEY) !== 'off';
 let userVolume = readVolume();
@@ -167,16 +182,39 @@ async function start(name: MusicName): Promise<void> {
   // have pressed Start while it was still coming down.
   if (!asset || !enabled || !wanted.has(name) || instances.has(name)) return;
 
+  // A bed fades up from nothing; a stinger starts *at* level. Ramping one in over
+  // 1.2 s would fade across its downbeat, which is the entire cue.
+  const { loop } = musicDefs[name];
+  const gen = (generations.get(name) ?? 0) + 1;
+  generations.set(name, gen);
   // `Sound.play` is synchronous for a preloaded buffer and a promise otherwise;
   // the union is real, so both shapes have to be handled.
-  const playing = asset.play({ loop: true, volume: 0 });
+  const playing = asset.play({
+    loop,
+    volume: loop ? 0 : level(name),
+    // One-shots let go of their own slot: without this the track would still be
+    // `wanted` when the next match ended and the second win would play nothing.
+    complete: loop ? undefined : () => release(name, gen),
+  });
   const next = playing instanceof Promise ? await playing : playing;
   if (!enabled || !wanted.has(name)) {
     next.stop();
     return;
   }
   instances.set(name, next);
-  rampTo(next, () => level(name), FADE_IN_MS);
+  if (loop) rampTo(next, () => level(name), FADE_IN_MS);
+}
+
+/**
+ * A one-shot reached its end: drop it, without the fade `stop` would apply.
+ * Ignored if a newer instance of the same track has started since (see
+ * `generations`).
+ */
+function release(name: MusicName, gen: number): void {
+  if (generations.get(name) !== gen) return;
+  wanted.delete(name);
+  instances.delete(name);
+  if (wanted.size === 0) disarm();
 }
 
 /** Fades the instance a track owns out of existence, if it has one. */
@@ -204,6 +242,39 @@ export const music = {
     if (wanted.has(name)) return;
     wanted.add(name);
     whenIdle(() => void start(name));
+  },
+
+  /**
+   * Fire a one-shot track now — the outcome stingers, at the moment the game-over
+   * modal goes up. Three things separate it from `play`:
+   *
+   * - **It ducks the match bed out.** The bed is a loop with no arc, written not
+   *   knowing how the match ends; leaving it under the stinger would play two
+   *   unrelated pieces at once. `stop` fades it over 600 ms, which is the same
+   *   crossfade the menu→match handover already uses.
+   * - **It does not wait for idle.** `play`'s deferral is right for a bed nobody
+   *   is waiting on; here the picture is already on screen.
+   * - **It is idempotent per outcome.** A free-for-all defeat is raised twice —
+   *   `sideEliminated` and then `gameOver` — and must be heard once.
+   */
+  playOnce(name: MusicName): void {
+    if (wanted.has(name)) return;
+    music.stop('match');
+    wanted.add(name);
+    void start(name);
+  },
+
+  /**
+   * Warm a track's file without playing it, so a stinger fired at game over is
+   * already in memory rather than starting a download at the moment it is needed.
+   * Memoized by `load`, so calling it every match start costs one fetch a page.
+   *
+   * Gated on `enabled` like everything else here: a player who turned music off
+   * must not be made to fetch it anyway. That is the whole traffic-saving
+   * property of this module and it is easy to lose from exactly this function.
+   */
+  prefetch(name: MusicName): void {
+    if (enabled) void load(name);
   },
 
   /** This track's screen is leaving. */

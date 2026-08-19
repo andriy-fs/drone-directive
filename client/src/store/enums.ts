@@ -27,6 +27,25 @@ export const GameStatus = { Menu: 'menu', Playing: 'playing', Won: 'won', Lost: 
 export type GameStatus = (typeof GameStatus)[keyof typeof GameStatus];
 
 /**
+ * How far the end-of-match transition has got — and deliberately *not* part of
+ * `GameStatus`, which is the engine's truth about who won and is set the instant
+ * the last base falls. This is about what the player is being *shown*: the field
+ * held on the burning wreck, then a fade to black, then the outcome card. Only
+ * `GameApp` writes it (`.docs/tasks/outcome-transition.md`).
+ */
+export const OutcomePhase = {
+  /** A match is running, or none is. */
+  None: 'none',
+  /** The blast plays out on the live field; nothing on screen has changed yet. */
+  Hold: 'hold',
+  /** The veil fades the world — HUD included — down to black. */
+  Veil: 'veil',
+  /** Out of the black: the outcome art, then the card. */
+  Reveal: 'reveal',
+} as const;
+export type OutcomePhase = (typeof OutcomePhase)[keyof typeof OutcomePhase];
+
+/**
  * Why an online match is standing still, when it is. Lockstep freezes both worlds
  * the moment one side's input for the current tick is missing, so a stall is
  * normal and recoverable — but indistinguishable from a crash unless the HUD says

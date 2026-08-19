@@ -60,6 +60,11 @@ exists — see the top of each file.
   behind the main menu before a match starts. **Key art, not a game object:**
   cinematic three-quarter view, 16:9, opaque — it keeps the palette and faction
   language below but overrides the top-down/square/transparent rules.
+- **[game-over.md](game-over.md)** — the three end-of-match splashes (victory,
+  defeat, opponent left), shown behind the game-over modal. **Key art** on the
+  same terms as the backdrop above, from the same camera, and with one extra hard
+  rule: **no fire** — wreckage burns as dull embers, because a flame anywhere near
+  the centre eats the modal's text.
 
 ## What exists today (regenerate against this list)
 

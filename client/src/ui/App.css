@@ -928,6 +928,84 @@
   z-index: 8;
 }
 
+/* End-of-match splash (see .docs/sprites/game-over.md). Unlike `--splash` this
+   one really is a dialog backdrop: it covers the frozen battlefield rather than
+   sitting under it, so it keeps `.dialog-backdrop`'s stacking and carries its own
+   scrim *over* the art — the game-over modal is opaque, so there is no
+   translucent panel here to darken the picture the way the menu shell does. */
+.dialog-backdrop.dialog-backdrop--outcome {
+  background-color: var(--bg);
+  background-image: linear-gradient(rgba(5, 8, 13, 0.5), rgba(5, 8, 13, 0.78)),
+    var(--splash-image, none);
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  /* Second beat of the reveal: the art comes up out of the veil's black rather
+     than replacing the battlefield in one frame. */
+  animation: outcome-art-in 600ms ease-out both;
+}
+
+/* Third beat: the card, a moment behind the art it sits on. */
+.modal.modal--outcome {
+  animation: outcome-card-in 350ms ease-out 250ms both;
+}
+
+/* First beat: the world — HUD and all — fades to black under the phase timer in
+   GameApp. `forwards` matters, and so does never fading back out: the art above
+   is painted on top of this, so a veil that returned to transparent would show
+   the frozen battlefield through the gaps in a still-fading picture. */
+.outcome-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  background: var(--bg);
+  animation: outcome-veil-in 900ms ease-in forwards;
+}
+
+/* The decided match stops taking clicks; see `settling` in App.tsx. */
+.viewport--settling {
+  pointer-events: none;
+}
+
+@keyframes outcome-veil-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes outcome-art-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes outcome-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The delay itself is cancelled in `GameApp.beginOutcome`, which jumps straight
+   to the card; these are the fades that would still have run. */
+@media (prefers-reduced-motion: reduce) {
+  .outcome-veil,
+  .dialog-backdrop.dialog-backdrop--outcome,
+  .modal.modal--outcome {
+    animation: none;
+  }
+}
+
 .dialog-frame {
   position: fixed;
   inset: 0;

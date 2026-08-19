@@ -9,6 +9,11 @@ Written for a text-to-music model (Suno / Udio / MusicGen and friends). Where th
 target and the file disagree, the target wins — regenerate rather than talk
 yourself into what came out.
 
+Its siblings are [`main-soundtrack-prompt.md`](main-soundtrack-prompt.md) (the
+match bed) and [`outcome-stingers-prompt.md`](outcome-stingers-prompt.md) (the
+victory/defeat one-shots, which borrow this track's 4-note motif and resolve or
+break it). Keep the four in the same idiom.
+
 ## The prompt
 
 ```

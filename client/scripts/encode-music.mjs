@@ -54,6 +54,28 @@ const TRACKS = [
   { name: 'standing-orders', src: 'game_music.mp3', quality: 3 },
   // The title-screen bed. See the note above about its master.
   { name: 'terminal-standby', src: 'terminal-standby.ogg', quality: 3 },
+  // The two outcome stingers, generated from `.docs/sfx/outcome-stingers-prompt.md`.
+  // They are calibrated 3 dB *above* the menu bed — nothing plays under them — so
+  // the loudness this prints is measured against −24 LUFS, not −27/−30.
+  //
+  // **Shipped whole, at 1:15 and 1:48, against a brief that asked for 12–18 s.**
+  // That length is deliberate and it is not what a trim would improve:
+  //
+  // - Both open the way a stinger has to. Victory puts a transient at −2.7 dBFS in
+  //   its first 100 ms and a second hit at 0.7 s; defeat is at full level from
+  //   sample 0. The modal appears on that frame, which is the requirement the
+  //   brief's length figure was a proxy for.
+  // - Both end in a composed decay to true silence — victory over its last 4 s,
+  //   defeat over its last 8 — which is the half no fade-out can fake.
+  // - Everything past ~20 s is tail. `music.playOnce` is cut short by a 600 ms fade
+  //   the moment the player presses Play Again or Main menu, so the tail costs
+  //   nothing but bytes, and cutting it would cost the ending above.
+  //
+  // Hence `quality: 2` rather than the beds' 3: ~1.9 MB for the pair instead of
+  // 2.3, on dark pads mixed 24 dB down, where the difference is not audible. If a
+  // regeneration ever comes back at the briefed length, put them back on 3.
+  { name: 'victory-sting', src: 'victory-sting.mp3', quality: 2 },
+  { name: 'defeat-sting', src: 'defeat-sting.mp3', quality: 2 },
 ];
 
 const filters = process.argv.slice(2);

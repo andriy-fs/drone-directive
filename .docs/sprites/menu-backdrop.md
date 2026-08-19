@@ -21,6 +21,10 @@ from [drone.md](drone.md), the cannon module from [weapons.md](weapons.md), the
 enemy war factory from [bases.md](bases.md) — so the splash and the battlefield
 behind it agree. Re-sync those phrases if a unit's art is redesigned.
 
+Its sibling set is [game-over.md](game-over.md) — the three end-of-match
+splashes, same camera and same rules. Everything below about the walker, the
+safe zone and the value range holds there too; keep the four images in sync.
+
 **The walker is a six-legged siege platform, not a biped.** This is the mistake
 the first accepted backdrop made: it showed a tall two-legged mech, a silhouette
 that exists nowhere in the game. `legs` is the heaviest chassis — a broad armored

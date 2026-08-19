@@ -18,7 +18,7 @@ import type { RadioKey, RadioParams } from '../radio/types';
 import type { Command } from '@drone-directive/types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
 import type { ChassisType, FormationType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import type { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus } from './enums';
+import type { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus, OutcomePhase } from './enums';
 
 /** HUD-facing observer-drone status (projected from the ECS world). */
 export interface DroneStatus {
@@ -166,6 +166,8 @@ export interface SideSnapshot {
  */
 export interface GameStateFields {
   status: GameStatus;
+  /** How far the end-of-match reveal has got. Bridge-only; see `OutcomePhase`. */
+  outcomePhase: OutcomePhase;
   bases: BaseSnapshot[];
   robots: RobotSnapshot[];
   /** Who's playing, in seating order — drives the per-side HUD rows. */
@@ -265,6 +267,7 @@ export interface RadioLine {
  */
 export interface GameActions {
   setStatus: (status: GameStatus) => void;
+  setOutcomePhase: (phase: OutcomePhase) => void;
   setBases: (bases: BaseSnapshot[]) => void;
   setRobots: (robots: RobotSnapshot[]) => void;
   setSides: (sides: SideSnapshot[]) => void;

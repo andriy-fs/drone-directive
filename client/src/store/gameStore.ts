@@ -22,6 +22,7 @@ let requestedLocale: Locale = initialState.locale;
 export const useGameStore = create<GameState>((set, get) => ({
   ...initialState,
   setStatus: (status) => set({ status }),
+  setOutcomePhase: (outcomePhase) => set({ outcomePhase }),
   setBases: (bases) => set({ bases }),
   setRobots: (robots) => set({ robots }),
   setSides: (sides) => set({ sides }),

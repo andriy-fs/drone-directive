@@ -19,11 +19,12 @@ import { createDefaultSettings } from '../config/gameSettings';
 import { resolveInitialLocale } from '../i18n/locale';
 import type { ResourcePool } from '@drone-directive/types/entities';
 import { Owner } from '@drone-directive/types/enums';
-import { DroneMode, GameStatus, OnlineStatus } from './enums';
+import { DroneMode, GameStatus, OnlineStatus, OutcomePhase } from './enums';
 import type { GameStateFields } from './types';
 
 export const initialState: GameStateFields = {
   status: GameStatus.Menu,
+  outcomePhase: OutcomePhase.None,
   bases: [],
   robots: [],
   sides: [],

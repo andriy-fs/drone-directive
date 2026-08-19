@@ -75,8 +75,19 @@ export class GameScene implements Scene {
   }
 
   update(dt: number): void {
-    if (this.over) return;
     const ctx = this.ctx;
+
+    // The match is decided: the simulation stops dead, but the *effects* do not.
+    // Every system below would change the outcome; `explosionSystem` only ages
+    // what is already in the air. Without it the losing base's death blast froze
+    // one tick in — alpha 0.93, radius 6 px — and sat there under the game-over
+    // screen, so the explosion the whole match ends on was never actually seen.
+    // That is what the outcome transition holds the camera on; see
+    // `.docs/tasks/outcome-transition.md`.
+    if (this.over) {
+      explosionSystem(ctx, dt);
+      return;
+    }
 
     commandsSystem(ctx);
     economySystem(ctx, dt);
