@@ -9,7 +9,7 @@ import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
 import { canActivateShield, isShielded } from '../engine/systems/shield';
 import { useGameStore } from '../store/gameStore';
-import { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus } from '../store/enums';
+import { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus, OutcomePhase } from '../store/enums';
 import type {
   BaseShieldSnapshot,
   BaseSnapshot,
@@ -51,6 +51,18 @@ import { graphicsQuality } from './quality';
 import { WorldRenderer } from './render/WorldRenderer';
 
 /**
+ * The end-of-match reveal, in milliseconds — the retro three-beat every RTS of
+ * the era used: hold on the killing blow, fade the world out, then the card.
+ *
+ * `hold` is long enough for a base's 1.6 s death blast to be most of the way
+ * through (`gameConfig.fx.baseExplosionDuration`), which is the whole reason the
+ * beat exists; the two are worth keeping in step. The reveal itself has no timer
+ * here — the art and the panel animate themselves in CSS once the phase lands.
+ */
+const OUTCOME_HOLD_MS = 1400;
+const OUTCOME_VEIL_MS = 900;
+
+/**
  * The single boundary object React touches (via useGameApp). Owns the Pixi
  * Application, the GameEngine, and the renderer; bridges engine ↔ store:
  * commands/flags flow in, throttled snapshots + bus events flow out.
@@ -79,6 +91,8 @@ export class GameApp {
   private selectionAudioUnsub: (() => void) | null = null;
   private radio: RadioDirector | null = null;
   private readonly busUnsubs: (() => void)[] = [];
+  /** Pending steps of the end-of-match reveal, so a restart can cancel them. */
+  private readonly outcomeTimers: number[] = [];
   private destroyed = false;
   private snapshotTick = 0;
   /** Networked-match state (null when solo). */
@@ -576,6 +590,11 @@ export class GameApp {
           // The menu bed is `MainMenu`'s to start; this only lets go of the
           // match one. The two fades overlap into a crossfade either way round.
           music.stop('match');
+          // Whichever outcome was playing goes with it — leaving to the menu is
+          // one of the two ways out of the game-over screen.
+          music.stop('victory');
+          music.stop('defeat');
+          this.clearOutcome();
           this.clearObstacles();
           this.clearGround();
           // Flush the emptied world to the canvas here rather than waiting for the
@@ -593,9 +612,21 @@ export class GameApp {
           void loadSoundAssets('match');
           // The match bed, on the same signal and for the same reason: this is
           // the one point both routes into a match pass through. It keeps
-          // playing through pause and through the game-over screens — the scene
-          // is still the match, only the status changed.
+          // playing through pause, and stops only when an outcome stinger fades
+          // it out from under itself — see `music.playOnce`.
           music.play('match');
+          // The other way out of the game-over screen: Play Again re-enters here,
+          // and neither the track nor the veil that was on screen may follow the
+          // player into the next match.
+          music.stop('victory');
+          music.stop('defeat');
+          this.clearOutcome();
+          // Warm both stingers now so the one that fires at game over is already
+          // decoded. Same reasoning as `loadSoundAssets` above, and free after
+          // the first match — the fetch is memoized, and skipped entirely when
+          // music is off.
+          music.prefetch('victory');
+          music.prefetch('defeat');
           // Map size can change between matches — rebuild everything sized off
           // the grid so it reflects the size `applyMapSize` just set.
           this.rebuildGround();
@@ -612,6 +643,8 @@ export class GameApp {
         if (owner !== store().localSide) return;
         store().setStatus(GameStatus.Lost);
         store().setBuildDialogOpen(false);
+        music.playOnce('defeat');
+        this.beginOutcome();
         this.pushSnapshot();
       }),
     );
@@ -622,9 +655,56 @@ export class GameApp {
         if (winner === store().localSide) store().setStatus(GameStatus.Won);
         else if (store().status !== GameStatus.Lost) store().setStatus(GameStatus.Lost);
         store().setBuildDialogOpen(false); // don't leave it stranded behind the game-over modal
+        // Matches the status above, including the case it defers to: a defeat
+        // already announced by `sideEliminated` is already playing, and
+        // `playOnce` is a no-op the second time.
+        music.playOnce(winner === store().localSide ? 'victory' : 'defeat');
+        this.beginOutcome();
         this.pushSnapshot();
       }),
     );
+  }
+
+  /**
+   * Start the end-of-match reveal: hold on the burning wreck, fade the world to
+   * black, then bring the outcome card up out of it.
+   *
+   * **Wall-clock timers, not simulation ticks, and that is the point.** The
+   * engine has already decided the match and both peers agree; nothing here
+   * touches the world, so a lockstep session must not be made to wait on one
+   * player's rendering. Deferring the `gameOver` emit itself would have put this
+   * delay inside the deterministic pipeline for no gain.
+   *
+   * See `.docs/tasks/outcome-transition.md`.
+   */
+  private beginOutcome(): void {
+    // A free-for-all knock-out raises the defeat twice — `sideEliminated` and
+    // then `gameOver` — and must be revealed once.
+    if (useGameStore.getState().outcomePhase !== OutcomePhase.None) return;
+    // Whoever asked for less motion gets the result, not the show. The CSS has
+    // its own guard for the fades; this one is for the delay, which is the part
+    // no media query can cancel.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      useGameStore.getState().setOutcomePhase(OutcomePhase.Reveal);
+      return;
+    }
+    useGameStore.getState().setOutcomePhase(OutcomePhase.Hold);
+    this.outcomeTimers.push(
+      window.setTimeout(() => useGameStore.getState().setOutcomePhase(OutcomePhase.Veil), OUTCOME_HOLD_MS),
+      window.setTimeout(
+        () => useGameStore.getState().setOutcomePhase(OutcomePhase.Reveal),
+        OUTCOME_HOLD_MS + OUTCOME_VEIL_MS,
+      ),
+    );
+  }
+
+  /** Drop the reveal and any step of it still pending (restart, menu, teardown). */
+  private clearOutcome(): void {
+    for (const timer of this.outcomeTimers) window.clearTimeout(timer);
+    this.outcomeTimers.length = 0;
+    if (useGameStore.getState().outcomePhase !== OutcomePhase.None) {
+      useGameStore.getState().setOutcomePhase(OutcomePhase.None);
+    }
   }
 
   /**
@@ -1146,6 +1226,9 @@ export class GameApp {
     this.perfHud = null;
     this.qualityUnsub?.();
     this.qualityUnsub = null;
+    // Before the bus goes: a pending reveal step would otherwise fire into a
+    // store whose app no longer exists.
+    this.clearOutcome();
     for (const unsub of this.busUnsubs) unsub();
     this.storeUnsub?.();
     this.storeUnsub = null;

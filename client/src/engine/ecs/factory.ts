@@ -172,13 +172,24 @@ export function spawnProjectile(
   });
 }
 
-/** Adds an explosion effect centred on `pos`; `maxRadius` overrides the default peak size. */
-export function spawnExplosion(world: EcsWorld, pos: Vec2, maxRadius?: number): ExplosionEntity {
+/**
+ * Adds an explosion effect centred on `pos`. `maxRadius` overrides the default
+ * peak size and `duration` how long it takes to get there — a base's death blast
+ * is both bigger and slower than the poof a robot leaves (see `reapSystem`).
+ */
+export function spawnExplosion(
+  world: EcsWorld,
+  pos: Vec2,
+  maxRadius?: number,
+  // Annotated, not inferred: `gameConfig` is `as const`, so the default alone
+  // would narrow this parameter to the literal 0.5 and reject every other value.
+  duration: number = gameConfig.fx.explosionDuration,
+): ExplosionEntity {
   return world.add({
     id: nextId('boom'),
     explosion: true,
     position: { x: pos.x, y: pos.y },
-    effect: { age: 0, duration: gameConfig.fx.explosionDuration, maxRadius, kind: EffectKind.Blast },
+    effect: { age: 0, duration, maxRadius, kind: EffectKind.Blast },
   });
 }
 

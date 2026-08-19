@@ -477,6 +477,16 @@ export const gameConfig = {
     /** Explosion peak radius, px. */
     explosionMaxRadius: 30,
     /**
+     * A base's death blast, which is not the same event as a robot's. The match
+     * ends on this explosion and the outcome transition holds the live field on
+     * it for 1.4 s before anything else happens (`.docs/tasks/outcome-transition.md`),
+     * so it cannot be the 30 px puff a single robot leaves. Slower as well as
+     * wider: the size is what makes it read as a base, the duration is what gives
+     * the player time to see it.
+     */
+    baseExplosionDuration: 1.6,
+    baseExplosionMaxRadius: 110,
+    /**
      * Directed-energy hit: the discharge ring that snaps out over the target.
      * Shorter and wider than an explosion — it is the only moment the weapon is
      * *visible* doing its job, and it has to read against a busy firefight.

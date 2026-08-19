@@ -367,6 +367,22 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
  */
 export const menuBackdropSrc = `${PUBLIC_BASE}menu-backdrop.webp`;
 
+/**
+ * End-of-match splash art, one image per outcome, shown behind `GameOverModal`
+ * (see `.docs/sprites/game-over.md`). Same treatment and the same caveats as
+ * `menuBackdropSrc`: a DOM background, never a Pixi texture, absent from
+ * `spriteSources()`, and a missing file degrades to the plain dark backdrop.
+ *
+ * `abandoned` is generated but shown by nothing yet — a disconnect currently
+ * drops back to the title screen with a line of text in `OnlinePanel`. It is here
+ * for the Technical Loss feature to pick up.
+ */
+export const gameOverBackdropSrc = {
+  victory: `${PUBLIC_BASE}game-over-victory.webp`,
+  defeat: `${PUBLIC_BASE}game-over-defeat.webp`,
+  abandoned: `${PUBLIC_BASE}game-over-abandoned.webp`,
+} as const;
+
 /** Unique image sources to preload (robots + bases + weapon modules + terrain + decals). */
 export function spriteSources(): string[] {
   const srcs: string[] = [];

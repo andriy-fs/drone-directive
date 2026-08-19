@@ -80,22 +80,46 @@ chaotic option in the packs if length stops mattering.
 
 ## The music
 
-Two tracks, one per screen. Neither is in `public/sounds/` and neither is a
-`SoundName` — that directory is the Kenney packs as downloaded, and everything in
-the table above is a one-shot the player never gets a handle on.
+Four tracks: a looping bed per screen, and a one-shot stinger per match outcome.
+None of them is in `public/sounds/` and none is a `SoundName` — that directory is
+the Kenney packs as downloaded, and everything in the table above is a pip the
+player never gets a handle on.
 
 | Track | File | Length | What it is |
 | --- | --- | --- | --- |
 | `menu` | `music/terminal-standby.ogg` | 2:53, 1.9 MB | The title screen. A hangar before deployment: patient, unresolved, no arc. |
-| `match` | `music/standing-orders.ogg` | 2:58, 2.2 MB | The match, from the first frame to the game-over screen. Machines executing orders while something goes wrong off-screen — a flat bed with a slow mechanical pulse and no climax, because the track has no idea whether the match is two minutes or twenty. |
+| `match` | `music/standing-orders.ogg` | 2:58, 2.2 MB | The match, from the first frame until an outcome ends it. Machines executing orders while something goes wrong off-screen — a flat bed with a slow mechanical pulse and no climax, because the track has no idea whether the match is two minutes or twenty. |
+| `victory` | `music/victory-sting.ogg` | 1:15, 0.75 MB | The player won. A cold system confirming the task is complete — a strike on sample 0, the menu theme's motif resolving, then a long decay to silence. Not a fanfare: nothing in this game celebrates. |
+| `defeat` | `music/defeat-sting.ogg` | 1:48, 1.1 MB | The player lost. The same motif failing — a collapsing impact at full level from the first frame, pads sagging in pitch, then eight seconds of power-down. A system losing power rather than a tragedy. |
+
+Both came back from the generator far longer than the 12–18 s their brief asks
+for, and both **ship whole** anyway: the requirement the length was standing in
+for is *a transient at the top and a real decay at the end*, and each has both.
+Everything after ~20 s is tail that the player usually never reaches, because
+pressing *Play Again* or *Main menu* fades the track out in 600 ms. They are
+encoded at `-q:a 2` rather than the beds' 3 to pay for that tail in bytes.
+
+Both fire **at the explosion, not at the game-over card** — the outcome
+transition holds the live field for 1.4 s and fades it to black over another 0.9
+before the picture appears (`.docs/tasks/outcome-transition.md`), so the music
+leads by about two and a half seconds. That is the retro convention and it is
+also why the stingers open on a transient: it lands with the blast.
+
+The bottom two are **one-shots**, and that is the one structural difference in
+this module. They do not loop, they start at full level with no fade-in (a 1.2 s
+ramp across the downbeat would be the whole cue), they fade the match bed out from
+under themselves as they start (`music.playOnce`), and they release their own slot
+when they end. They are also the reason the match bed is warmed differently:
+`sceneChanged` calls `music.prefetch` on both at match start so the file is decoded
+long before the modal appears — still skipped entirely when music is off.
 
 | | Cue | Music |
 | --- | --- | --- |
 | Table | `soundDefs` in `config/sounds.ts` | `musicDefs` in the same file |
 | Player | `pixi/audio/sfx.ts` | `pixi/audio/music.ts` |
 | Fetch | by `SoundTier`, with the rest of its wave | its own lazy `Assets.load`, at idle, **and only if music is on** |
-| Lifetime | fire and forget | one looping instance per track, held and faded |
-| Driven by | the EventBus, `selectionAudio`, `ui/common/` | `MainMenu`'s mount/unmount (menu), `GameApp`'s `sceneChanged` (match) |
+| Lifetime | fire and forget | one instance per track, held and faded — the beds until their screen leaves, a stinger until it ends |
+| Driven by | the EventBus, `selectionAudio`, `ui/common/` | `MainMenu`'s mount/unmount (menu), `GameApp`'s `sceneChanged` (match), `GameApp`'s `gameOver` / `sideEliminated` (stingers) |
 
 Four things about it are load-bearing:
 
@@ -122,13 +146,16 @@ Four things about it are load-bearing:
   transients peaking at −1 — at 1.0 either buries all of them. The numbers
   (menu 0.42, match 0.24) are set so that at the slider's default 0.6 the menu
   bed lands near −27 LUFS and the match bed near −30: the match track plays under
-  every cue in the game, so it sits a further 3 dB down. Swap a file →
-  re-encode and re-measure, then reset the number.
+  every cue in the game, so it sits a further 3 dB down. The stingers go the other
+  way, to −24 — nothing plays under *them*, and they are an event rather than a
+  bed. Swap a file → re-encode and re-measure, then reset the number.
 
 The briefs they were generated from — prompts, negative prompts, why each
 constraint is there, and what to re-measure after regenerating — are
-[`music-prompt.md`](music-prompt.md) (menu) and
-[`main-soundtrack-prompt.md`](main-soundtrack-prompt.md) (match). Same role as
+[`music-prompt.md`](music-prompt.md) (menu),
+[`main-soundtrack-prompt.md`](main-soundtrack-prompt.md) (match) and
+[`outcome-stingers-prompt.md`](outcome-stingers-prompt.md) (both stingers, plus
+why a stinger inverts the beds' rule about the attack on sample 0). Same role as
 the cue descriptions above: they are what the tracks are *supposed* to be, and
 they outlive the files.
 

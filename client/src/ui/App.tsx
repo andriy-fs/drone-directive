@@ -16,10 +16,11 @@ import { useControlGroupHotkeys } from './hooks/useControlGroupHotkeys';
 import { usePauseHotkey } from './hooks/usePauseHotkey';
 import { useSelectAllHotkey } from './hooks/useSelectAllHotkey';
 import { restoreChat } from '../chat/chatBridge';
+import { gameOverBackdropSrc } from '../config/sprites';
 import { useT } from '../i18n';
 import { useGameStore } from '../store/gameStore';
-import { GameStatus, OnlineLink } from '../store/enums';
-import { selectOnlineLink, selectStatus } from '../store/selectors';
+import { GameStatus, OnlineLink, OutcomePhase } from '../store/enums';
+import { selectOnlineLink, selectOutcomePhase, selectStatus } from '../store/selectors';
 
 import './App.css';
 
@@ -38,12 +39,21 @@ function App() {
   const status = useGameStore(selectStatus);
   const paused = useGameStore((s) => s.paused);
   const link = useGameStore(selectOnlineLink);
+  const outcomePhase = useGameStore(selectOutcomePhase);
   usePauseHotkey();
   useSelectAllHotkey();
   useControlGroupHotkeys();
   // Re-attach to the last conversation this browser knows about. The server keeps
   // it for a week, so a reload — or a visit two days later — finds it still there.
   useEffect(restoreChat, []);
+  // Fetch the outcome key art while the match runs, so the game-over modal does
+  // not open onto an empty backdrop half an hour later. Deliberately not an
+  // index.html preload: it is nowhere near the first paint and would only
+  // compete with the bundle and the menu splash there.
+  useEffect(() => {
+    if (status !== GameStatus.Playing) return;
+    for (const src of [gameOverBackdropSrc.victory, gameOverBackdropSrc.defeat]) new Image().src = src;
+  }, [status]);
 
   // `won`/`lost` still count as in-match: the world (and the HUD) stay on screen
   // behind the game-over modal.
@@ -52,6 +62,10 @@ function App() {
   // socket comes back. Not a pause, and not a crash either. Only a running match
   // has a link at all, so anything but `ok` already means there is one.
   const stalled = link !== OnlineLink.Ok;
+  // The match is decided: the field is a picture from here on, so it stops taking
+  // clicks. Without this the player can still drag a selection box and set off
+  // cues under a veil that is already fading them out.
+  const settling = outcomePhase !== OutcomePhase.None;
 
   return (
     <div className={`app-shell ${inMatch ? '' : 'app-shell--menu'}`.trim()}>
@@ -80,7 +94,7 @@ function App() {
           </HudCard>
         </aside>
       )}
-      <main className="viewport">
+      <main className={`viewport ${settling ? 'viewport--settling' : ''}`.trim()}>
         <GameCanvas />
         {/* Over the world rather than in the sidebar: it announces something the
             player is *not* being shown, so it has to reach eyes that are on the
@@ -109,6 +123,13 @@ function App() {
           </div>
         )}
       </main>
+      {/* The fade to black between the last explosion and the outcome card. Fixed
+          rather than inside the viewport: it has to take the HUD with it, since a
+          live sidebar behind a result screen is half of what made the old cut
+          feel abrupt. It never fades back out — the art comes up on top of it. */}
+      {(outcomePhase === OutcomePhase.Veil || outcomePhase === OutcomePhase.Reveal) && (
+        <div className="outcome-veil" />
+      )}
       {/* Mounted only on the title screen, so its dialog state (Base Setup, the
           online lobby, …) starts fresh every time — rendering it always and
           returning null inside would keep that state alive across a whole match. */}

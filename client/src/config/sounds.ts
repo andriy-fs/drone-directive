@@ -69,8 +69,12 @@ export interface SoundDef {
 /** Where in `public/sounds/` a cue's file lives. */
 const src = (file: string) => `${PUBLIC_BASE}sounds/${file}.ogg`;
 
-/** The two music beds. One plays at a time, except during a menu↔match crossfade. */
-export type MusicName = 'menu' | 'match';
+/**
+ * The music tracks: two looping beds, one per screen, plus one non-looping
+ * stinger per match outcome. At most one is audible at a time, except during a
+ * crossfade — menu↔match, or match↦outcome.
+ */
+export type MusicName = 'menu' | 'match' | 'victory' | 'defeat';
 
 export interface MusicDef {
   src: string;
@@ -79,15 +83,25 @@ export interface MusicDef {
    * this track sits at when that slider is at its default 60%. See below.
    */
   volume: number;
+  /**
+   * `false` marks a **one-shot**: it starts at full level with no fade-in (a
+   * 1.2 s ramp would swallow the downbeat, which is the whole point of a
+   * stinger), plays once, and lets go of its slot when it ends. The two beds
+   * loop; the two outcome stingers do not.
+   * See `.docs/sfx/outcome-stingers-prompt.md`.
+   */
+  loop: boolean;
 }
 
 /**
- * The music beds — deliberately *not* `SoundName`s.
+ * The music tracks — deliberately *not* `SoundName`s.
  *
- * Every cue above is a one-shot fired and forgotten; these loop, need a handle to
- * fade and stop, and are two orders of magnitude larger than any cue, so they get
- * their own player (`pixi/audio/music.ts`) and their own lazy fetch instead of a
- * tier. They live in `public/music/`, not `public/sounds/` — that directory is
+ * Every cue above is fired and forgotten; these need a handle to fade and stop,
+ * and are two orders of magnitude larger than any cue, so they get their own
+ * player (`pixi/audio/music.ts`) and their own lazy fetch instead of a tier. That
+ * holds for the stingers as much as for the beds: a stinger is a one-shot too,
+ * but it is fifteen seconds of music that has to duck the bed out from under
+ * itself, not a 0.3 s pip. They live in `public/music/`, not `public/sounds/` — that directory is
  * the Kenney packs as downloaded, and these are not.
  *
  * `volume` is the one number to turn per track, and it is an *absolute*
@@ -96,12 +110,19 @@ export interface MusicDef {
  * The player's music slider multiplies these, and the numbers below are set so
  * that at its **default 0.6** the menu bed lands near −27 LUFS and the match bed
  * near −30 — the match track plays under every cue in the game, so it sits a
- * further 3 dB down. Swap a file → re-measure (`node scripts/encode-music.mjs`
- * prints the integrated loudness) and reset.
+ * further 3 dB down. The stingers go the other way, to −24: nothing plays under
+ * them (they fade the match bed out as they start) and they are an event rather
+ * than a bed. Swap a file → re-measure (`node scripts/encode-music.mjs` prints
+ * the integrated loudness) and reset.
  */
 export const musicDefs: Record<MusicName, MusicDef> = {
-  menu: { src: `${PUBLIC_BASE}music/terminal-standby.ogg`, volume: 0.42 },
-  match: { src: `${PUBLIC_BASE}music/standing-orders.ogg`, volume: 0.24 },
+  menu: { src: `${PUBLIC_BASE}music/terminal-standby.ogg`, volume: 0.42, loop: true },
+  match: { src: `${PUBLIC_BASE}music/standing-orders.ogg`, volume: 0.24, loop: true },
+  // Both masters measure −13.7 LUFS, so both take the same number: at the slider's
+  // default 0.6 that is −24 LUFS. Long files (1:15 and 1:48) that are almost never
+  // heard to the end — see the note on their rows in `scripts/encode-music.mjs`.
+  victory: { src: `${PUBLIC_BASE}music/victory-sting.ogg`, volume: 0.51, loop: false },
+  defeat: { src: `${PUBLIC_BASE}music/defeat-sting.ogg`, volume: 0.51, loop: false },
 };
 
 export const soundDefs: Record<SoundName, SoundDef> = {

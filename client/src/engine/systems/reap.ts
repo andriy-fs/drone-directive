@@ -1,3 +1,4 @@
+import { gameConfig } from '../../config/gameConfig';
 import type { Positioned } from '../ecs/archetypes';
 import { spawnExplosion } from '../ecs/factory';
 import type { EntityKind } from '../ecs/entity';
@@ -25,7 +26,15 @@ export function reapSystem(ctx: GameContext): boolean {
 
   for (const e of dead) {
     const kind: EntityKind = e.base ? 'base' : e.drone ? 'drone' : 'robot';
-    spawnExplosion(world, e.position);
+    // A base is the end of the match, not one more casualty — it dies wide and
+    // slow so the outcome transition has something to hold on.
+    const isBase = kind === 'base';
+    spawnExplosion(
+      world,
+      e.position,
+      isBase ? gameConfig.fx.baseExplosionMaxRadius : undefined,
+      isBase ? gameConfig.fx.baseExplosionDuration : undefined,
+    );
     ctx.bus.emit('entityDestroyed', {
       id: e.id,
       kind,

@@ -7,6 +7,7 @@ import type { GameState } from './types';
  * these over inline `(s) => s.x` for shared slices.
  */
 export const selectStatus = (s: GameState) => s.status;
+export const selectOutcomePhase = (s: GameState) => s.outcomePhase;
 export const selectBases = (s: GameState) => s.bases;
 export const selectRobots = (s: GameState) => s.robots;
 export const selectResources = (s: GameState) => s.resources;
