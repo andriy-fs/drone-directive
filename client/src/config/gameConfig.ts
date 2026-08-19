@@ -436,9 +436,36 @@ export const gameConfig = {
      * whose whole purpose is to arrive alone.
      */
     formation: {
-      spacing: { column: 44, line: 44, wedge: 48, box: 36, spread: 140 },
+      /**
+       * Interval between neighbouring slots, per shape. `column` is set so that
+       * two abreast plus their hulls (2 * radius) still clear a two-tile gap —
+       * that is the whole job of the column, and it is what the group falls back
+       * to when the ground will not take anything wider.
+       */
+      spacing: { column: 40, line: 44, wedge: 48, box: 36, spread: 140 },
       lead: 64,
-      slack: 12,
+      /**
+       * Ceiling on how far from its slot a robot may sit and still count as
+       * dressed. A ceiling and not the number itself: the usable tolerance is a
+       * function of `spacing`, because a formation shares the field with
+       * `systems/separation.ts`, which shoves apart anything closer than
+       * `robots.radius * 2`. Two neighbours each allowed to drift `slack` toward
+       * each other close the gap by `2 * slack`, so a tolerance wider than half
+       * the clearance between `spacing` and that push distance makes the two
+       * systems fight: separation opens the gap, the slot pulls it shut, and the
+       * pair judders forever. See `slackFor` in `systems/task/formation.ts` —
+       * this value only caps a shape (like `spread`) whose spacing is so wide the
+       * derived tolerance would otherwise be useless.
+       */
+      slackCap: 12,
+      /**
+       * Hysteresis on holding: a robot settles inside `slack` but does not set
+       * off again until it is this many times further out. With one threshold
+       * for both, a robot on the boundary flips between holding and driving every
+       * tick — and every flip is a `setGoal`/`clearGoal` pair with a fresh A* in
+       * it. The band is what makes a stopped formation actually stop.
+       */
+      holdReleaseFactor: 2,
       bombReleaseRange: 260,
     },
   },
