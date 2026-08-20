@@ -1,6 +1,6 @@
 import { gameConfig } from '../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
-import { inBounds, isBlockedGrid, tileCentre, tileOf, type ObstacleGrid } from './obstacles';
+import { hasClearance, inBounds, isBlockedGrid, tileCentre, tileOf, type ObstacleGrid } from './obstacles';
 
 const SQRT2 = Math.SQRT2;
 
@@ -153,4 +153,48 @@ export function nearestFreeTile(grid: ObstacleGrid, tx: number, ty: number): Til
     }
   }
   return { tx, ty };
+}
+
+/**
+ * Pulls the slack out of an A* result: a waypoint is dropped whenever a hull of
+ * `radius` can drive straight from the last kept point to the one after it.
+ *
+ * `findPath` walks tile centres, so on a diagonal its output is a staircase that
+ * swings half a tile either side of the line the thing driving it actually
+ * travels. For a formation frame that is fatal — the frame's origin positions
+ * every slot, so a wobbling polyline wobbles the whole lattice, and a nine-strong
+ * march across open ground cost 5060 hold/drive flips against 280 once smoothed.
+ * For a single robot it is merely constant: every zag is another tile edge to
+ * drive into and another chance for the anti-jam retreat to fire.
+ *
+ * Greedy and one-pass: O(n²) clearance probes on a path of a few dozen points,
+ * paid once per search, never per tick. The last point is always kept, so an
+ * exact goal stays exact.
+ *
+ * **Returns the kept waypoints only — no head.** The two callers disagree about
+ * that on purpose: `setGoal` feeds the list straight into `movement.path`, whose
+ * first entry is the next destination (a head would be the robot's own feet, and
+ * a tick spent arriving at them), while `routeFor` prepends its anchor because a
+ * *route* is a line to project onto rather than a list to walk.
+ */
+export function smoothPath(grid: ObstacleGrid, from: Vec2, points: readonly Vec2[], radius: number): Vec2[] {
+  if (points.length === 0) return []; // nowhere to go: the caller reads that as "no route"
+  const kept: Vec2[] = [];
+  let anchor = from;
+  let i = 0;
+  while (i < points.length) {
+    // The furthest point still reachable in a straight line from where we are;
+    // never fewer than one step, so this always terminates.
+    let furthest = i;
+    for (let j = points.length - 1; j > i; j--) {
+      if (hasClearance(grid, anchor, points[j], radius)) {
+        furthest = j;
+        break;
+      }
+    }
+    kept.push(points[furthest]);
+    anchor = points[furthest];
+    i = furthest + 1;
+  }
+  return kept;
 }
