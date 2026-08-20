@@ -36,12 +36,20 @@ function randomSearchPoint(ctx: GameContext): Vec2 {
   const { width, height } = gameConfig.grid;
   const tx = Math.floor(ctx.rng.next() * width);
   const ty = Math.floor(ctx.rng.next() * height);
-  const free = nearestFreeTile(ctx.obstacles, tx, ty);
+  const free = nearestFreeTile(ctx.navObstacles, tx, ty);
   return tileCentre(free.tx, free.ty);
 }
 
 /**
  * A random free tile reachable from `centre` **without ever leaving** `radius`.
+ *
+ * Read off `navObstacles`, not `obstacles`: the terrain grid does not know about
+ * base footprints, so drawing from it hands a guard a post inside its own
+ * factory. Nothing can drive there — `findPath` snaps such a goal back out, often
+ * onto the tile the robot already stands on — and `roamOutcome` only picks a new
+ * target once the robot is within `arrivalThreshold` of this one, which it never
+ * will be. The robot then holds an unreachable order for the rest of the match.
+ * Every destination handed to a robot must come off the grid it drives on.
  * Drawing from the ring's own connected region — rather than any free tile that
  * merely sits inside it — is what actually keeps a guard on station: a spot just
  * across a rock is "within 240 px" yet only reachable by a long detour outside
@@ -49,7 +57,7 @@ function randomSearchPoint(ctx: GameContext): Vec2 {
  */
 export function randomPointNear(ctx: GameContext, centre: Vec2, radius: number): Vec2 {
   const home = tileOf(centre);
-  const start = nearestFreeTile(ctx.obstacles, home.tx, home.ty);
+  const start = nearestFreeTile(ctx.navObstacles, home.tx, home.ty);
   const inRing = (t: Tile) => {
     const c = tileCentre(t.tx, t.ty);
     return distance(centre.x, centre.y, c.x, c.y) <= radius;
@@ -67,7 +75,7 @@ export function randomPointNear(ctx: GameContext, centre: Vec2, radius: number):
     for (const [dx, dy] of NEIGHBOURS) {
       const next = { tx: cur.tx + dx, ty: cur.ty + dy };
       const k = `${next.tx},${next.ty}`;
-      if (seen.has(k) || isBlockedGrid(ctx.obstacles, next.tx, next.ty) || !inRing(next)) continue;
+      if (seen.has(k) || isBlockedGrid(ctx.navObstacles, next.tx, next.ty) || !inRing(next)) continue;
       seen.add(k);
       queue.push(next);
     }

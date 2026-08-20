@@ -7,22 +7,49 @@ import { isAlive } from '../ecs/guards';
 import { bases, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { tileOf } from '../obstacles';
-import { findPath } from '../pathfinding';
+import { findPath, smoothPath } from '../pathfinding';
+import { steerAround } from './avoidance';
 import { isDisabled } from './status';
 import { baseFootprintContains } from './targeting';
 
 /**
  * Sets a robot's navigation goal, pathfinding around obstacles. Skips the A*
  * recompute when the goal is still in the same tile (tasks re-issue every tick).
+ *
+ * The route is string-pulled before it is stored: `findPath` walks tile centres,
+ * so an unsmoothed diagonal is a staircase that swings half a tile either side of
+ * the line the robot wants, and every zag is another obstacle edge to drive into.
+ * The formation frame has had this since `9e47bbc`; this is the same pass for a
+ * robot's own path (`.docs/tasks/local-avoidance.md`, stage 1).
+ *
+ * The corridor it demands is exactly hull width, and that was measured rather
+ * than assumed: a smoothed leg is only valid from where it was computed — unlike
+ * the staircase it replaces it does not run through free tile *centres* — so a
+ * wider margin to absorb sideways shove looks like the safer choice. A sweep over
+ * eight seeded maps (hull width, 1.5x, 2x, 2.5x, and no smoothing at all) found
+ * plain hull width the best of them and the rest non-monotonic, i.e. noise rather
+ * than a curve. Widen it only with a measurement that says which population it
+ * helps.
+ *
+ * A robot shoved inside a base footprint needs no special case here: `findPath`
+ * prefixes its route with a hop out to the nearest free tile, and `hasClearance`
+ * samples the anchor itself first — from inside rock that fails for every
+ * candidate, so the hop is always kept and only the tail is straightened.
  */
 export function setGoal(ctx: GameContext, entity: Navigable, x: number, y: number): void {
   const m = entity.movement;
   const goalTile = tileOf({ x, y });
-  if (m.goal) {
+  // The cache needs a *route*, not just a goal. A robot whose `findPath` came
+  // back empty keeps its goal with no destination, and matching on the goal tile
+  // alone made that permanent: the task layer re-issues the same goal every tick,
+  // this returns early every tick, and the robot retreats forever without ever
+  // asking again — even after the retreat has moved it somewhere a route exists.
+  if (m.goal && m.destination) {
     const prev = tileOf(m.goal);
     if (prev.tx === goalTile.tx && prev.ty === goalTile.ty) return;
   }
-  const path = findPath(ctx.navObstacles, entity.position, { x, y });
+  const raw = findPath(ctx.navObstacles, entity.position, { x, y });
+  const path = smoothPath(ctx.navObstacles, entity.position, raw, gameConfig.robots.radius);
   m.goal = { x, y };
   m.path = path;
   m.destination = path.length > 0 ? path[0] : undefined;
@@ -39,6 +66,8 @@ export function clearGoal(entity: Navigable): void {
 
 /** Advances every robot along its path for one simulation step. */
 export function movementSystem(ctx: GameContext, dt: number): void {
+  const list = robots(ctx.world).entities;
+
   for (const e of robots(ctx.world)) {
     const m = e.movement;
 
@@ -65,7 +94,7 @@ export function movementSystem(ctx: GameContext, dt: number): void {
 
     if ((m.retreatTime ?? 0) <= 0) maybeStartRetreat(ctx, e, dt);
     if ((m.retreatTime ?? 0) > 0) retreatStep(e, dt);
-    else moveEntity(e, dt);
+    else moveEntity(e, list, dt);
 
     m.prevX = startX;
     m.prevY = startY;
@@ -102,8 +131,19 @@ function maybeStartRetreat(ctx: GameContext, e: RobotEntity, dt: number): void {
   // retreat would drive it out of the line it just spent the march reaching. A
   // real jam is a robot with somewhere far to be and no way to get there, which
   // this leaves untouched.
+  //
+  // Measured against the end of the *route*, not the goal that was asked for.
+  // `findPath` snaps a goal inside rock or a base footprint out to the nearest
+  // free tile, and that tile is often the one the robot is already standing on:
+  // the route is then a single waypoint at its own feet, it "arrives" without
+  // moving, and the unreachable remainder — a whole tile of it — was being
+  // charged to it as stagnation. That was every retreat left after unit
+  // avoidance landed: 406 of 406 fired at a robot that had held its goal for
+  // exactly zero consecutive ticks, because it reached the end of its route
+  // every single tick. See `.docs/tasks/local-avoidance.md`.
   const settling = gameConfig.robots.radius * 2;
-  if (m.goal && distance(pos.x, pos.y, m.goal.x, m.goal.y) <= settling) {
+  const route = m.path && m.path.length > 0 ? m.path[m.path.length - 1] : m.goal;
+  if (route && distance(pos.x, pos.y, route.x, route.y) <= settling) {
     m.stuckTime = 0;
     return;
   }
@@ -141,7 +181,7 @@ function baseContaining(ctx: GameContext, p: Vec2): BaseEntity | undefined {
   return bases(ctx.world).entities.find((b) => isAlive(b) && baseFootprintContains(b, p));
 }
 
-function moveEntity(e: RobotEntity, dt: number): void {
+function moveEntity(e: RobotEntity, neighbours: readonly RobotEntity[], dt: number): void {
   const m = e.movement;
   const pos = e.position;
   const dest = m.destination;
@@ -154,8 +194,14 @@ function moveEntity(e: RobotEntity, dt: number): void {
 
   const step = m.speed * dt;
   if (dist > gameConfig.robots.arrivalThreshold && step < dist) {
-    pos.x += (dx / dist) * step;
-    pos.y += (dy / dist) * step;
+    // Step around a neighbour rather than into one. Only on a full step: the
+    // arrival branch below has to be allowed to land exactly on its waypoint, or
+    // the "he's arrived" tolerances the formation layer is built on start
+    // disagreeing with where robots actually stop.
+    const steered = steerAround(e, neighbours, e.heading, step);
+    if (steered !== undefined) e.heading = steered;
+    pos.x += Math.cos(e.heading) * step;
+    pos.y += Math.sin(e.heading) * step;
     m.state = RobotState.Moving;
     return;
   }

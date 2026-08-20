@@ -7,7 +7,8 @@ import { isBlockedGrid, tileOf } from '../obstacles';
 import { findPath } from '../pathfinding';
 import { makeAttackBase } from '../tasks/taskDefinitions';
 import { makeCtx } from './testkit';
-import { movementSystem } from './movement';
+import { movementSystem, setGoal } from './movement';
+
 
 describe('base as a movement obstacle', () => {
   it('blocks its footprint in the nav grid but not in the terrain/LOS grid', () => {
@@ -80,6 +81,30 @@ describe('movementSystem — anti-jam retreat', () => {
     const start = { x: robot.position!.x, y: robot.position!.y };
     for (let i = 0; i < 60; i++) movementSystem(ctx, gameConfig.fixedDt);
     expect(robot.position).toEqual(start); // untouched
+  });
+
+  it('does not retreat a robot whose goal was snapped onto the tile it stands on', () => {
+    // `findPath` snaps a goal inside rock or a base footprint out to the nearest
+    // free tile, and that is often the robot's own. The route then ends at its
+    // feet: it has arrived as far as anyone can, and the unreachable remainder is
+    // not its fault. Charging it as stagnation made this the single largest
+    // source of anti-jam retreats in a measured match — 406 of 406 that survived
+    // unit avoidance. See `.docs/tasks/local-avoidance.md`.
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    refreshNavObstacles(ctx);
+
+    // Parked just outside the footprint, ordered to a spot inside it.
+    const outside = { x: base.position!.x, y: base.position!.y - gameConfig.bases.footprintTiles * gameConfig.grid.tilePx };
+    const robot = spawnRobot(ctx.world, Owner.AI, outside, ChassisType.Tracks, WeaponType.Cannon);
+    robot.script!.programId = TaskType.Guard;
+
+    const ticks = Math.ceil(gameConfig.behavior.stuckAfter / gameConfig.fixedDt) * 4;
+    for (let i = 0; i < ticks; i++) {
+      setGoal(ctx, robot as never, base.position!.x, base.position!.y);
+      movementSystem(ctx, gameConfig.fixedDt);
+    }
+    expect(robot.movement!.retreatTime ?? 0).toBe(0);
   });
 
   it('retreats an idle robot that has been *sent* somewhere and makes no progress', () => {

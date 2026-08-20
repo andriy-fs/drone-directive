@@ -6,8 +6,8 @@ import type { RobotEntity } from '../../ecs/archetypes';
 import { isAlive, isPositioned } from '../../ecs/guards';
 import { robots } from '../../ecs/queries';
 import type { GameContext } from '../../game/context';
-import { hasClearance, isBlockedGrid, tileOf } from '../../obstacles';
-import { findPath } from '../../pathfinding';
+import { isBlockedGrid, tileOf } from '../../obstacles';
+import { findPath, smoothPath } from '../../pathfinding';
 import { isDisabled } from '../status';
 import { findById, knownEnemyBases, knownEnemyRobots } from '../targeting';
 import { centroidOf } from './roam';
@@ -680,57 +680,20 @@ function routeFor(ctx: GameContext, guide: RobotEntity, anchor: Vec2, goal: Vec2
   }
 
   if (!points) {
-    const built = smoothRoute(ctx, anchor, findPath(ctx.navObstacles, anchor, goal));
+    // Headed by where it was built from, and that head is load-bearing: the route
+    // is a *line* the group walks along, and everything downstream works by
+    // projecting the group's anchor onto it and stepping forward. Without the
+    // head, a smoothed straight run collapses to the single point it ends at, the
+    // projection has nowhere to advance along, and every look-ahead returns the
+    // objective itself — which puts the whole frame on top of the enemy base and
+    // dissolves the formation into six units racing there on their own. An empty
+    // result stays empty: that is how an unreachable goal is cached.
+    const smoothed = smoothPath(ctx.navObstacles, anchor, findPath(ctx.navObstacles, anchor, goal), gameConfig.robots.radius);
+    const built = smoothed.length > 0 ? [{ x: anchor.x, y: anchor.y }, ...smoothed] : [];
     bb.formationRoute = { goalTx: tile.tx, goalTy: tile.ty, points: built };
     points = built;
   }
   return points.length > 0 ? points : undefined;
-}
-
-/**
- * Pulls the slack out of an A* result: a waypoint is dropped whenever a hull can
- * drive straight from the last kept point to the one after it.
- *
- * The frame *has* to have this. `findPath` walks tile centres, so on a diagonal
- * its output is a staircase that swings half a tile either side of the line the
- * group actually travels — and the frame's origin positions every slot, so a
- * wobbling polyline wobbles the whole lattice. Measured on a nine-strong march
- * across open ground, the raw staircase cost 5060 hold/drive flips against 280
- * once smoothed, and put a group into anti-jam retreats it had no business in.
- *
- * Greedy and one-pass: O(n²) probes worst case on a path of a few dozen points,
- * paid once per group per objective, not per unit and not per tick. Only the
- * *group's* route is smoothed here; every unit still drives the staircase its own
- * `setGoal` built, which is stage B1's job to fix and a much wider change.
- */
-function smoothRoute(ctx: GameContext, from: Vec2, points: readonly Vec2[]): Vec2[] {
-  if (points.length === 0) return []; // nowhere to go: the caller reads that as "no route"
-  const radius: number = gameConfig.robots.radius;
-  const kept: Vec2[] = [];
-  let anchor = from;
-  let i = 0;
-  while (i < points.length) {
-    // The furthest point still reachable in a straight line from where we are;
-    // never fewer than one step, so this always terminates.
-    let furthest = i;
-    for (let j = points.length - 1; j > i; j--) {
-      if (hasClearance(ctx.navObstacles, anchor, points[j], radius)) {
-        furthest = j;
-        break;
-      }
-    }
-    kept.push(points[furthest]);
-    anchor = points[furthest];
-    i = furthest + 1;
-  }
-  // Headed by where it was built from, and that head is load-bearing: the route
-  // is a *line* the group walks along, and everything downstream works by
-  // projecting the group's anchor onto it and stepping forward. Without the
-  // head, a smoothed straight run collapses to the single point it ends at, the
-  // projection has nowhere to advance along, and every look-ahead returns the
-  // objective itself — which puts the whole frame on top of the enemy base and
-  // dissolves the formation into six units racing there on their own.
-  return [{ x: from.x, y: from.y }, ...kept];
 }
 
 /**
