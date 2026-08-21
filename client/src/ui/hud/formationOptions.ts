@@ -2,12 +2,10 @@ import type { T } from '../../i18n';
 import { FormationType } from '@drone-directive/types/enums';
 import {
   BoxFormationIcon,
-  ColumnFormationIcon,
   LineFormationIcon,
   type LucideIcon,
   NoFormationIcon,
   SpreadFormationIcon,
-  WedgeFormationIcon,
 } from '../common/icons';
 
 /**
@@ -15,16 +13,20 @@ import {
  *
  * `null` is a real choice here rather than an absence — "fall out" is something
  * the player asks for, and a group that has been broken up on purpose looks
- * exactly like one that never had a shape. Ordered narrow → wide, so the row
- * reads as a single axis: how much frontage the group is willing to present.
+ * exactly like one that never had a shape. Ordered tight → wide, so the row reads
+ * as a single axis: how far the group spreads, and therefore whether a jammer's
+ * bubble covers it or a kamikaze's blast does.
+ *
+ * Three shapes and the null. The column and the wedge used to sit here: the
+ * column is now something the terrain hands out rather than something the player
+ * picks (see `Layout` in `engine/systems/task/formation.ts`), and the wedge was a
+ * fifth point on a three-point axis.
  */
 export type FormationChoice = FormationType | null;
 
 export const FORMATION_CHOICES: FormationChoice[] = [
-  FormationType.Column,
-  FormationType.Line,
-  FormationType.Wedge,
   FormationType.Box,
+  FormationType.Line,
   FormationType.Spread,
   null,
 ];
@@ -32,10 +34,8 @@ export const FORMATION_CHOICES: FormationChoice[] = [
 /** Human-readable label for every choice, in the active language. */
 export function formationLabels(t: T): Record<string, string> {
   return {
-    [FormationType.Column]: t('formations', 'column'),
-    [FormationType.Line]: t('formations', 'line'),
-    [FormationType.Wedge]: t('formations', 'wedge'),
     [FormationType.Box]: t('formations', 'box'),
+    [FormationType.Line]: t('formations', 'line'),
     [FormationType.Spread]: t('formations', 'spread'),
     none: t('formations', 'none'),
   };
@@ -43,10 +43,8 @@ export function formationLabels(t: T): Record<string, string> {
 
 /** Glyph for every choice. Total by construction, so a new shape can't ship without one. */
 export const FORMATION_ICONS: Record<string, LucideIcon> = {
-  [FormationType.Column]: ColumnFormationIcon,
-  [FormationType.Line]: LineFormationIcon,
-  [FormationType.Wedge]: WedgeFormationIcon,
   [FormationType.Box]: BoxFormationIcon,
+  [FormationType.Line]: LineFormationIcon,
   [FormationType.Spread]: SpreadFormationIcon,
   none: NoFormationIcon,
 };

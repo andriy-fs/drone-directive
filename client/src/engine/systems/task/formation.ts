@@ -104,10 +104,10 @@ const FILE = 'file';
 /** A shape to lay out: one the player chose, or the file the ground forced. */
 export type Layout = FormationType | typeof FILE;
 
-/** Spacing for a layout; the file marches at the column's interval. */
+/** Spacing for a layout; the file marches at its own nose-to-tail interval. */
 function spacingFor(layout: Layout): number {
   const spacing = gameConfig.behavior.formation.spacing;
-  return layout === FILE ? spacing[FormationType.Column] : spacing[layout];
+  return layout === FILE ? spacing.file : spacing[layout];
 }
 
 /**
@@ -141,9 +141,17 @@ function abreast(n: number, spacing: number): number[] {
  * The slot each member holds, keyed by robot id. A pure function of the members
  * and the shape — no world, no randomness, no time — which is what makes the
  * whole feature testable without a running match.
+ *
+ * `order` overrides the marching order the slots are handed out in. Only the file
+ * uses it, and only because a file is the one layout the *ground* imposes: see
+ * `queueOrder`.
  */
-export function formationSlots(members: readonly RobotEntity[], layout: Layout): Map<string, Slot> {
-  const ordered = marchingOrder(members);
+export function formationSlots(
+  members: readonly RobotEntity[],
+  layout: Layout,
+  order?: readonly RobotEntity[],
+): Map<string, Slot> {
+  const ordered = order ?? marchingOrder(members);
   const spacing = spacingFor(layout);
   const slots = new Map<string, Slot>();
 
@@ -152,13 +160,6 @@ export function formationSlots(members: readonly RobotEntity[], layout: Layout):
       // Single file, nose to tail: what a one-tile gap leaves room for. Never
       // offered as a choice — terrain hands it out, see `layoutFor`.
       ordered.forEach((e, i) => slots.set(e.id, { ax: -i * spacing, ay: 0 }));
-      break;
-    }
-    case FormationType.Column: {
-      // Two abreast, deepening: the shape that still fits down a two-tile gorge.
-      ordered.forEach((e, i) => {
-        slots.set(e.id, { ax: -Math.floor(i / 2) * spacing, ay: (i % 2 === 0 ? -0.5 : 0.5) * spacing });
-      });
       break;
     }
     case FormationType.Line:
@@ -170,22 +171,6 @@ export function formationSlots(members: readonly RobotEntity[], layout: Layout):
         const lateral = abreast(rankMembers.length, spacing);
         rankMembers.forEach((e, i) => slots.set(e.id, { ax: -depth * spacing, ay: lateral[i] }));
       });
-      break;
-    }
-    case FormationType.Wedge: {
-      // Rows of 1, 2, 3 … in marching order: the point is a front rank hull, and
-      // the support that sorts to the back ends up in the widest, deepest row.
-      let index = 0;
-      let row = 0;
-      while (index < ordered.length) {
-        const width = Math.min(row + 1, ordered.length - index);
-        const lateral = abreast(width, spacing);
-        for (let i = 0; i < width; i++) {
-          slots.set(ordered[index + i].id, { ax: -row * spacing * 0.8, ay: lateral[i] });
-        }
-        index += width;
-        row++;
-      }
       break;
     }
     case FormationType.Box: {
@@ -311,8 +296,12 @@ function layoutFor(
   facing: Vec2,
   route: readonly Vec2[] | undefined,
 ): Layout {
-  const ladder: Layout[] =
-    type === FormationType.Column ? [FormationType.Column, FILE] : [type, FormationType.Column, FILE];
+  // Ordered shape → box → file. The box is the rung rather than a shape of its
+  // own choosing: it is the tightest thing a player can order (36 px between
+  // cells, ~47 px of half-width against a line's 55), which is exactly what fits
+  // the 3-tile corridor a generated map guarantees and a line does not. A group
+  // already ordered into a box has nowhere to narrow to but the file.
+  const ladder: Layout[] = type === FormationType.Box ? [FormationType.Box, FILE] : [type, FormationType.Box, FILE];
   // The span, not the distance to the nearer wall: the frame gets recentred in
   // whatever gap it is in (see `centringShift`), so what limits the shape is how
   // wide the gap is, not how badly the group happens to be hugging one side.
@@ -478,7 +467,7 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
   const mobile = members.filter((e) => !isDisabled(e));
   if (mobile.length === 0) return; // the whole group is knocked out — nothing to steer
 
-  const anchor = centroidOf(mobile);
+  const anchor = anchorOf(ctx, mobile);
   const cfg = gameConfig.behavior.formation;
 
   // Somebody still wants to go somewhere: the frame is projected `lead` ahead and
@@ -498,20 +487,35 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
   const groupGoal = groupGoalOf(guide, goals, resolved);
   const route = groupGoal ? routeFor(ctx, guide, anchor, groupGoal) : undefined;
 
-  const facing = facingOf(ctx, mobile, goals, anchor, resolved, route);
+  const heading = facingOf(ctx, mobile, goals, anchor, resolved, route);
   const lead = advancing ? cfg.lead : 0;
 
   const contact = inContact(ctx, mobile, anchor, resolved);
   // What fits here, which is not always what was ordered — see `layoutFor`. A
   // point a `lead` up the road is good enough to probe the ground with; the final
   // origin needs the slots, and the slots need the layout.
-  const probe = lead > 0 ? lookAhead(route, anchor, facing, lead) : anchor;
-  const layout = layoutFor(ctx, mobile, type, probe, facing, route);
-  const slots = formationSlots(mobile, layout);
+  const probe = lead > 0 ? lookAhead(route, anchor, heading, lead) : anchor;
+  const layout = layoutFor(ctx, mobile, type, probe, heading, route);
+  const slots = formationSlots(mobile, layout, layout === FILE && route ? queueOrder(mobile, route) : undefined);
   // `lead` is measured to where the shape's *centre of mass* should sit, not to
   // its nose — see `depthOf`.
-  const marching = lead > 0 ? lookAhead(route, anchor, facing, lead - depthOf(slots)) : anchor;
+  const marching = lead > 0 ? lookAhead(route, anchor, heading, lead - depthOf(slots)) : anchor;
+  // **Dress along the way the frame is actually going**, which is not always the
+  // way `facingOf` points. That function samples the route half a `lead` out; the
+  // frame is projected `lead - depthOf(slots)` out — up to 200 px for a file — and
+  // where the road doubles back round a rock the two readings point *opposite
+  // ways*. The shape is then laid out facing away from its own slots, `slotIntent`
+  // reads every member as having "run out in front of its place" and holds it, the
+  // held goals clear the centroid the frame is anchored to, and the frozen centroid
+  // re-derives the identical frame next tick. Measured on seeded maps: a squad
+  // standing 684 px short of its objective for the remaining 110 s of the match,
+  // on 4 of 12 maps. Taking the axis from the projection itself makes the two
+  // agree by construction. See `.docs/issues/formation-deadlock-at-a-hairpin.md`.
+  const facing = (lead > 0 ? unitFrom(anchor, marching) : undefined) ?? heading;
   const origin = originFor(ctx, mobile, slots, marching, facing, advancing, route);
+
+  // Deadlocked on its own shape: the formation lets go and lets the units drive.
+  if (releaseValve(guide, anchor, route, advancing)) return;
 
   for (const e of mobile) {
     const out = resolved.get(e.id);
@@ -557,6 +561,116 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
     const intent = slotIntent(ctx, e, origin, facing, slot, layout);
     if (intent) out.move = intent;
   }
+}
+
+/**
+ * Where the frame is anchored: the group's own centroid, **unless nobody could
+ * stand there**, in which case the guide.
+ *
+ * A mean is not a place. Split a group around a corner — three hulls up one arm
+ * of a pass, three still in the other — and the average of the six sits in the
+ * rock between them. Everything downstream is measured from that point: the
+ * route is projected from it, the shape is laid out around it, and
+ * `firstFreePlacement` then hands out slots nobody can reach. Measured on a
+ * one-tile hairpin, a wedge parked either side of the bend for 1600 ticks with
+ * every member holding a live goal it could not drive to — which is why this is
+ * invisible to any "the whole group is holding" test.
+ *
+ * The guide is the right fallback rather than, say, the nearest free tile: it is
+ * a real hull standing on ground it actually drove to, it is already the member
+ * the frame dresses on when the group is stopped (`originFor`), and it is picked
+ * by `marchingOrder`, so both peers choose the same one without a word.
+ */
+function anchorOf(ctx: GameContext, mobile: readonly RobotEntity[]): Vec2 {
+  const centroid = centroidOf(mobile);
+  const tile = tileOf(centroid);
+  if (!isBlockedGrid(ctx.navObstacles, tile.tx, tile.ty)) return centroid;
+  const guide = marchingOrder(mobile)[0];
+  return { x: guide.position.x, y: guide.position.y };
+}
+
+/**
+ * The order a *file* is queued in: whoever is furthest along the road takes the
+ * front, regardless of what it carries.
+ *
+ * Every other layout hands out slots by `marchingOrder`, which is the point of
+ * the feature — the guns go in front and the eyes at the back. A file is the one
+ * layout nobody chose: `layoutFor` falls back to it when the ground will not take
+ * anything wider, and its job, in its own words, is to queue the group up behind
+ * whoever can move. Ranking it by weapon does the opposite. Measured on a
+ * one-tile pass: the hull holding the front slot sat *third* in the corridor, the
+ * two ahead of it were dressed in their own slots and had no reason to yield, and
+ * a single file cannot permute inside one tile of width — the group stood there
+ * for the remaining 1600 ticks, every member either holding or driving at a place
+ * it could not reach.
+ *
+ * Deterministic: distance along a shared polyline, with the id breaking ties, so
+ * both peers queue the same hull first without exchanging anything.
+ */
+function queueOrder(mobile: readonly RobotEntity[], route: readonly Vec2[]): RobotEntity[] {
+  const along = new Map(mobile.map((e) => [e.id, projectOnRoute(route, e.position).along]));
+  return [...mobile].sort((a, b) => {
+    const delta = (along.get(b.id) ?? 0) - (along.get(a.id) ?? 0);
+    return delta !== 0 ? delta : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+}
+
+/**
+ * The escape hatch for a shape that has stopped working, and the reason no
+ * geometry bug in this file can cost a player the match.
+ *
+ * **A formation may never take a group's movement away.** `slotIntent` already
+ * honours that one robot at a time — it declines rather than holds when its slot
+ * is in rock. What it cannot see is the group-scale deadlock, where every member
+ * is behaving correctly and the body still does not move: a file whose order the
+ * corridor will not let it permute, a frame anchored on a point between two arms
+ * of a pass, six hulls each dressed in a slot that adds up to standing still.
+ * Individually legal, collectively parked — and the ones found so far were all
+ * found the same way, by watching a squad stand somewhere for the rest of a match.
+ *
+ * So the last word goes to a measurement rather than to a rule: if the group has
+ * not moved *along its own road* for `stallSeconds`, the shape stops being in
+ * charge for `releaseSeconds`. Every robot keeps whatever its program asked for,
+ * which is the pre-formation behaviour — scruffy, and it arrives. The cached
+ * route goes too, so the group re-paths from where it actually stands.
+ *
+ * Only while advancing. A group holding its ground in contact is not stalled, it
+ * is doing the one thing the formation exists for.
+ *
+ * Determinism: distance along a polyline both peers built from the same grid,
+ * counted in fixed ticks. No wall clock, no rng.
+ */
+function releaseValve(
+  guide: RobotEntity,
+  anchor: Vec2,
+  route: readonly Vec2[] | undefined,
+  advancing: boolean,
+): boolean {
+  const bb = guide.script.blackboard;
+  const cfg = gameConfig.behavior.formation;
+  const progress = bb.formationProgress;
+
+  if (progress && progress.released > 0) {
+    bb.formationProgress = { ...progress, released: progress.released - 1 };
+    return true;
+  }
+  if (!advancing || !route) {
+    bb.formationProgress = undefined;
+    return false;
+  }
+
+  const along = projectOnRoute(route, anchor).along;
+  // A tenth of the slowest chassis' step: anything less is jitter, not marching.
+  const moved = progress !== undefined && along - progress.along > 0.5;
+  const stalled = moved || progress === undefined ? 0 : progress.stalled + 1;
+
+  if (stalled < cfg.stallTicks) {
+    bb.formationProgress = { along, stalled, released: 0 };
+    return false;
+  }
+  bb.formationProgress = { along, stalled: 0, released: cfg.releaseTicks };
+  bb.formationRoute = undefined; // re-path from where the group actually is
+  return true;
 }
 
 /**

@@ -164,6 +164,37 @@ already stood on, and `roamOutcome` only picks a new target once the robot arriv
 at this one — which it never would. Measured: robots sat in their own base for up
 to 41 seconds.
 
+## The ground is guaranteed to be drivable
+
+`generateObstacles` does not hand the movement layer whatever the random walk
+produced. Before returning, `makeDrivable` enforces two things:
+
+- **No drivable ground narrower than `obstacles.minCorridorTiles` (3 tiles, 96
+  px).** Stated as "every free tile is covered by some fully-free 3×3 block" —
+  the morphological opening of the free space, which rules out one- and two-tile
+  corridors, one-tile alcoves and the diagonal squeeze `hasClearance` refuses in
+  a single sentence. Narrow ground is **filled with rock**, not widened, so the
+  mountains stay massive; `blobCount` was recalibrated (34 → 26) to keep cover at
+  the ~21% of the map it was tuned for.
+- **A route from every base to every other**, the guarantee that was already
+  there — except the corridor it carves when the map came out sealed is now 3
+  tiles wide too, since a one-tile slot would violate the rule above and the next
+  sealing pass would fill it straight back in.
+
+The number is 3 because of what walks down it: a `Box` — the shape
+`systems/task/formation.ts` falls back to when the ordered one will not fit, and
+the tightest thing a player can order — is ~94 px across, which is what 96 px of
+corridor exists to clear. Below it there is only single file. Every formation
+deadlock found so far needed a one- or two-tile pass to bite
+(`.docs/issues/formation-deadlock-at-a-hairpin.md`), and this is what stops
+generated maps containing that geometry at all.
+
+It is **not** a licence for the formation layer to assume wide ground. Base
+footprints are 7×7 obstacles that terrain never sees, they appear and vanish
+mid-match, and robots are obstacles to each other — so the fixes in the formation
+layer stay, and the release valve there is the standing alarm: it fires when a
+group cannot advance, and on sealed terrain it should never fire at all.
+
 ## Summary
 
 | Concern         | Representation                                             |

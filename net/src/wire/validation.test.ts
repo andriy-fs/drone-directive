@@ -34,7 +34,7 @@ const valid: Record<Command['kind'], Command> = {
   AttackTarget: { kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_2' },
   SetRallyPoint: { kind: 'SetRallyPoint', baseId: 'base_1', point: inBounds },
   ActivateShield: { kind: 'ActivateShield', baseId: 'base_1' },
-  SetFormation: { kind: 'SetFormation', robotIds: ['robot_1', 'robot_2'], formation: FormationType.Wedge },
+  SetFormation: { kind: 'SetFormation', robotIds: ['robot_1', 'robot_2'], formation: FormationType.Box },
 };
 
 const parse = (raw: unknown, over: Partial<CommandLimits> = {}) => parseCommands(raw, 'peer', { ...limits, ...over });

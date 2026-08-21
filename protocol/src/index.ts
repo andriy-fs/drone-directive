@@ -12,7 +12,7 @@
  */
 
 /** Bumped on any breaking wire change; clients send it, the relay rejects mismatches. */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 /** Room codes: fixed length, drawn from an unambiguous alphabet (no 0/O/1/I). */
 export const ROOM_CODE_LENGTH = 4;

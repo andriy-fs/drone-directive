@@ -137,15 +137,11 @@ export interface Dict {
    * the player makes, not a missing value — so it carries a note of its own.
    */
   formations: {
-    column: string;
     line: string;
-    wedge: string;
     box: string;
     spread: string;
     none: string;
-    columnNote: string;
     lineNote: string;
-    wedgeNote: string;
     boxNote: string;
     spreadNote: string;
     noneNote: string;

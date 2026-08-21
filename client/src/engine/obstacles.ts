@@ -60,8 +60,9 @@ function key(tx: number, ty: number): string {
 
 /**
  * Generates random obstacle clusters, keeping a margin around both bases clear,
- * then GUARANTEES a route by verifying base-to-base connectivity and carving an
- * L-shaped corridor if the map came out sealed.
+ * then hands the result to `makeDrivable`, which owes the units two guarantees:
+ * no drivable ground narrower than `minCorridorTiles`, and a route from every
+ * base to every other.
  *
  * The kind is rolled **per cluster**, not per tile, so a blob is all mountain or
  * all crater — mixing them inside one blob reads as noise rather than terrain.
@@ -92,8 +93,125 @@ export function generateObstacles(rng: Rng): TerrainGrid {
     placed++;
   }
 
-  ensureConnectivity(grid);
+  makeDrivable(grid, protectedCells);
   return grid;
+}
+
+/**
+ * Enforces the two things a generated map owes the units driving on it: **no
+ * drivable ground narrower than `minCorridorTiles`**, and a route from every base
+ * to every other.
+ *
+ * The order matters and so does the loop. Sealing can cut a route (that is the
+ * price of filling a neck rather than widening it), and carving one can leave a
+ * fresh pinch where the new corridor meets old rock — so the two run alternately
+ * until sealing has nothing left to do and every base is still connected. Both
+ * steps are monotone in opposite directions, but each pass either fills at least
+ * one tile or carves at least one corridor, and the carve makes the map strictly
+ * more connected, so the bound is a formality rather than a guard against a real
+ * loop.
+ */
+function makeDrivable(terrain: TerrainGrid, protectedCells: Set<string>): void {
+  for (let pass = 0; pass < 4; pass++) {
+    sealNarrowGround(terrain, protectedCells);
+    if (basesConnected(terrain)) return;
+    ensureConnectivity(terrain);
+  }
+  sealNarrowGround(terrain, protectedCells);
+}
+
+/**
+ * Fills in every scrap of drivable ground too narrow to march a group through,
+ * until none is left.
+ *
+ * **The rule:** a free tile has to be covered by some fully-free 3×3 block. That
+ * one sentence rules out a one- or two-tile corridor, a one-tile alcove, and the
+ * diagonal squeeze that is a clean line of sight and an impassable route (see
+ * hasClearance`) — it is the morphological opening of the free space, and 3 tiles
+ * is 96 px against the ~94 px a six-strong `Box` needs, so the terrain ladder in
+ * `systems/task/formation.ts` is never forced into single file by generated
+ * ground.
+ *
+ * **Filled, not widened.** Both settle the same question; filling keeps the
+ * mountains massive and the cover density where it was tuned, where widening
+ * would sand every blob down and open the map out. The price is that a neck can
+ * be the only way through, which is what `makeDrivable` alternates with.
+ *
+ * Iterated to a fixpoint because filling a neck merges the two blobs either side
+ * of it, which can pinch a new one against a third. Monotone — only ever adds
+ * rock to a finite grid — so it terminates.
+ *
+ * No RNG, deliberately: this runs inside `generateObstacles`, and a networked
+ * match has both peers build the map from the same seed. A pass that drew from
+ * the stream would have to draw identically; one that never touches it cannot get
+ * that wrong.
+ */
+function sealNarrowGround(terrain: TerrainGrid, protectedCells: Set<string>): void {
+  const { width, height } = gameConfig.grid;
+  for (;;) {
+    const grid = movementGrid(terrain);
+    const narrow: { tx: number; ty: number }[] = [];
+    for (let ty = 0; ty < height; ty++) {
+      for (let tx = 0; tx < width; tx++) {
+        if (grid[ty][tx] || protectedCells.has(key(tx, ty))) continue;
+        if (!inWideGround(grid, tx, ty)) narrow.push({ tx, ty });
+      }
+    }
+    if (narrow.length === 0) return;
+    // Every tile of this pass is judged against the *same* grid, so the result
+    // does not depend on the order they are visited in.
+    for (const { tx, ty } of narrow) terrain[ty][tx] = fillKindAt(terrain, tx, ty);
+  }
+}
+
+/** Is `tx,ty` inside some fully-free `minCorridorTiles` square? */
+function inWideGround(grid: ObstacleGrid, tx: number, ty: number): boolean {
+  const span = gameConfig.obstacles.minCorridorTiles;
+  for (let oy = -(span - 1); oy <= 0; oy++) {
+    for (let ox = -(span - 1); ox <= 0; ox++) {
+      let clear = true;
+      for (let dy = 0; dy < span && clear; dy++) {
+        for (let dx = 0; dx < span && clear; dx++) {
+          if (isBlockedGrid(grid, tx + ox + dx, ty + oy + dy)) clear = false;
+        }
+      }
+      if (clear) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * What a sealed tile becomes: whichever kind most of the rock around it already
+ * is, mountain on a tie or with nothing but map edge for company.
+ *
+ * A neck belongs to the blob it closes, and `stampBlob` rolls the kind per
+ * cluster precisely so a blob reads as one piece of terrain — dropping a crater
+ * tile into the throat of a mountain would put back the noise that rule exists to
+ * keep out. The tie-break is fixed rather than random for the same reason
+ * `sealNarrowGround` takes no RNG.
+ */
+function fillKindAt(terrain: TerrainGrid, tx: number, ty: number): TerrainKind {
+  let mountains = 0;
+  let craters = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const kind = inBounds(tx + dx, ty + dy) ? terrain[ty + dy][tx + dx] : TerrainKind.Open;
+      if (kind === TerrainKind.Mountain) mountains++;
+      else if (kind === TerrainKind.Crater) craters++;
+    }
+  }
+  return craters > mountains ? TerrainKind.Crater : TerrainKind.Mountain;
+}
+
+/** Can every base still drive to the first one? */
+function basesConnected(terrain: TerrainGrid): boolean {
+  const centres = gameConfig.bases.placements.map(baseCentre);
+  const hub = centres[0];
+  if (!hub) return true;
+  const grid = movementGrid(terrain);
+  return centres.slice(1).every((centre) => isReachable(grid, hub, centre));
 }
 
 /** Tiles within `baseClearMargin` of any base footprint stay passable. */
@@ -203,12 +321,24 @@ function isReachable(grid: ObstacleGrid, a: { tx: number; ty: number }, b: { tx:
   return false;
 }
 
-/** Clears an orthogonal L-shaped corridor (x then y) — guarantees a path. */
+/**
+ * Clears an orthogonal L-shaped corridor (x then y) — guarantees a path.
+ *
+ * `minCorridorTiles` wide, not one: a single-tile slot would satisfy
+ * connectivity and violate the rule `sealNarrowGround` exists to enforce, and the
+ * next sealing pass would fill the corridor straight back in.
+ */
 function carveCorridor(grid: TerrainGrid, a: { tx: number; ty: number }, b: { tx: number; ty: number }): void {
+  const span = gameConfig.obstacles.minCorridorTiles;
+  const reach = Math.floor(span / 2);
   let x = a.tx;
   let y = a.ty;
   const clear = () => {
-    if (inBounds(x, y)) grid[y][x] = TerrainKind.Open;
+    for (let dy = -reach; dy <= reach; dy++) {
+      for (let dx = -reach; dx <= reach; dx++) {
+        if (inBounds(x + dx, y + dy)) grid[y + dy][x + dx] = TerrainKind.Open;
+      }
+    }
   };
   clear();
   while (x !== b.tx || y !== b.ty) {

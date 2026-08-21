@@ -179,5 +179,9 @@ should break the build, not the game.
   was ruled out, and the full measurement.
 - `.docs/issues/formation-jitter-and-narrow-passes.md` — the four local-layer
   root causes fixed in `9e47bbc`, and the rule about positioners.
+- `.docs/issues/formation-deadlock-at-a-hairpin.md` — a squad frozen for the rest
+  of the match at a doubling-back route, surfaced while measuring this work.
+  Older than these stages, but stage 1–3 are what made it reproducible: with the
+  retreat retired, `box` stopped tripping it and every other shape kept doing so.
 - `.docs/movement.md` — pathfinding + movement as they stand.
 - `.docs/tasks/movement-refactor.md` — the previous pass over these files.
