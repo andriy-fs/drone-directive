@@ -437,12 +437,12 @@ export const gameConfig = {
      */
     formation: {
       /**
-       * Interval between neighbouring slots, per shape. `column` is set so that
-       * two abreast plus their hulls (2 * radius) still clear a two-tile gap —
-       * that is the whole job of the column, and it is what the group falls back
-       * to when the ground will not take anything wider.
+       * Interval between neighbouring slots, per shape, plus the nose-to-tail
+       * interval of the single file — which is not a shape the player can order
+       * but the one the *terrain* falls back to when nothing wider fits (see
+       * `Layout` in `systems/task/formation.ts`).
        */
-      spacing: { column: 40, line: 44, wedge: 48, box: 36, spread: 140 },
+      spacing: { file: 40, line: 44, box: 36, spread: 140 },
       lead: 64,
       /**
        * Ceiling on how far from its slot a robot may sit and still count as
@@ -467,6 +467,19 @@ export const gameConfig = {
        */
       holdReleaseFactor: 2,
       bombReleaseRange: 260,
+      /**
+       * How long a group may fail to advance along its own route before the
+       * shape stops being in charge of it, and how long it then drives on its
+       * members' own orders. See `releaseValve` in `systems/task/formation.ts`.
+       *
+       * Two seconds is far longer than dressing, threading a one-tile pass or
+       * waiting out a jostle — the worst honest pause measured is under half of
+       * it — and far shorter than the deadlocks it ends, every one of which ran
+       * to the end of the match. Three seconds of release is enough to walk a
+       * group clear of the geometry that trapped it; the shape re-forms after.
+       */
+      stallTicks: 60,
+      releaseTicks: 90,
     },
   },
 
@@ -527,14 +540,39 @@ export const gameConfig = {
      * Clusters to attempt on a **small** (40×40) map; `generateObstacles` scales
      * this by map area, so cover density stays constant instead of thinning out
      * to nothing on the large map. This is the knob for "more/less terrain".
+     *
+     * Recalibrated from 34 when `minCorridorTiles` landed: sealing the narrow
+     * ground fills the gaps between blobs that were too tight to drive through,
+     * which took cover from the 21% of the map this was tuned for to 28%. At 26
+     * it is back to 21% — and reads as *more* terrain rather than less, because
+     * the tiles go into more, smaller lumps (medium map: 19 against 16) instead
+     * of into the necks that merged them into masses.
      */
-    blobCount: 34,
+    blobCount: 26,
     /** Min tiles per cluster — a cluster below this is too small to be worth pathing around. */
     minBlobTiles: 4,
     /** Max tiles per cluster. Actual size is a random count of *distinct* tiles in `[min, max]`. */
     maxBlobTiles: 16,
     /** Tiles kept clear around each base (Chebyshev) — covers the production spawn ring. */
     baseClearMargin: 6,
+    /**
+     * The narrowest drivable ground a generated map may contain, in tiles.
+     * `generateObstacles` fills in anything thinner (see `sealNarrowGround`).
+     *
+     * Three, because of what has to walk down it. A `Box` — the shape the terrain
+     * ladder in `systems/task/formation.ts` falls back to when the ordered one
+     * will not fit, and the tightest a player can order — is ~94 px across a
+     * six-strong group. Three tiles is 96 px, so it fits, and the single file
+     * below the box stops being something the *ground* routinely forces.
+     *
+     * That matters more than it sounds: every formation deadlock found so far
+     * needed a one- or two-tile pass to bite (see
+     * `.docs/issues/formation-deadlock-at-a-hairpin.md`). This is the number that
+     * stops generated maps containing the geometry at all — the fixes in the
+     * formation layer stay, because base footprints are obstacles too and they
+     * appear and vanish mid-match.
+     */
+    minCorridorTiles: 3,
     /**
      * Chance a cluster is a crater rather than a mountain. Both block driving;
      * only a mountain blocks line of fire, so this is the share of cover that

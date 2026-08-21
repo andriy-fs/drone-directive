@@ -84,11 +84,9 @@ type BuildOrder struct {
 # The shape a group of robots holds. Where each robot stands inside the shape is
 # never on the wire: both peers derive it from the units' weapons, identically.
 type Formation enum {
-    COLUMN = 0
-    LINE = 1
-    WEDGE = 2
-    BOX = 3
-    SPREAD = 4
+    LINE = 0
+    BOX = 1
+    SPREAD = 2
 }
 
 type AssignTask struct {

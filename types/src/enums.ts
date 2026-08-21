@@ -91,14 +91,18 @@ export type TaskType = (typeof TaskType)[keyof typeof TaskType];
  * what make it real: a tight shape fits inside an `ew` hull's `jamRadius` (150)
  * — and inside a kamikaze's `explosionRadius` (120) as well. `Spread` buys the
  * second at the cost of the first.
+ *
+ * Three shapes, not five. `column` and `wedge` were offered and withdrawn: the
+ * column is now something the *ground* hands out rather than something the player
+ * picks — it is the rung the terrain ladder in `systems/task/formation.ts` drops
+ * to when the ordered shape will not fit a pass, alongside the single file below
+ * it — and the wedge was a fifth point on a three-point axis, differing from the
+ * line only in how its ranks were staggered. Every shape here has to be a
+ * decision the player can state in a sentence.
  */
 export const FormationType = {
-  /** File two abreast: the shape that fits through a gorge. */
-  Column: 'column',
   /** Ranks abreast, guns forward — the widest frontage. */
   Line: 'line',
-  /** Rows of growing width: a narrow point that opens out behind it. */
-  Wedge: 'wedge',
   /** Compact square with the support hulls in the middle cells — the escort shape. */
   Box: 'box',
   /** A line at more than a blast radius' spacing: survives area damage, outgrows the jammer's bubble. */

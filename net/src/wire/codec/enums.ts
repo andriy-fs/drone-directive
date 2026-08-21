@@ -38,9 +38,7 @@ export const TASK_TO_WIRE: Record<TaskType, wire.TaskType> = {
 };
 
 export const FORMATION_TO_WIRE: Record<FormationType, wire.Formation> = {
-  [FormationType.Column]: wire.Formation.Column,
   [FormationType.Line]: wire.Formation.Line,
-  [FormationType.Wedge]: wire.Formation.Wedge,
   [FormationType.Box]: wire.Formation.Box,
   [FormationType.Spread]: wire.Formation.Spread,
 };

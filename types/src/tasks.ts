@@ -120,7 +120,26 @@ export interface RobotScript {
      * replaces the script) costs one A* on the next tick and nothing else.
      */
     formationRoute?: FormationRoute;
+    /**
+     * The group's progress along that route, cached on the same guide: how far
+     * along the polyline the group stood last tick, and for how many consecutive
+     * ticks it has failed to advance. See `releaseValve` in
+     * `engine/systems/task/formation.ts` — the counter is what lets a group that
+     * has deadlocked on its own shape let go of it and drive.
+     *
+     * A cache like `formationRoute`, and out of `worldHash` for the same reason:
+     * both peers derive it from the same shared facts in the same order.
+     */
+    formationProgress?: FormationProgress;
   };
+}
+
+/** How far along its route a group has got, and how long it has been failing to. */
+export interface FormationProgress {
+  along: number;
+  stalled: number;
+  /** Ticks left of "the shape is not in charge" after a deadlock was broken. */
+  released: number;
 }
 
 /** A group's cached A* route: the goal tile it was built for, plus the waypoints. */

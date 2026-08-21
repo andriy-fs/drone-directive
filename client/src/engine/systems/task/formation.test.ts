@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { ChassisType, FormationType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import { gameConfig } from '../../../config/gameConfig';
-import type { RobotEntity } from '../../ecs/archetypes';
+import { gameConfig, worldPixelSize } from '../../../config/gameConfig';
+import type { BaseEntity, RobotEntity } from '../../ecs/archetypes';
 import { spawnBase, spawnRobot } from '../../ecs/factory';
 import type { GameContext } from '../../game/context';
+import { refreshNavObstacles } from '../../navGrid';
 import { isBlockedGrid, tileOf } from '../../obstacles';
 import { makeCtx } from '../testkit';
+import { commandsSystem } from '../commands';
 import { clearGoal, setGoal } from '../movement';
 import { movementSystem } from '../movement';
 import { separationSystem } from '../separation';
+import { taskSystem } from './index';
 import { applyFormations, FORMATION_RANK, formationSlots, toleranceFor } from './formation';
 import type { Outcome } from './types';
 
@@ -97,8 +100,8 @@ describe('formationSlots — the marching order', () => {
       robot(ctx, 'r_1', WeaponType.Cannon),
       robot(ctx, 'r_2', WeaponType.Missiles),
     ];
-    const forwards = formationSlots(members, FormationType.Wedge);
-    const backwards = formationSlots([...members].reverse(), FormationType.Wedge);
+    const forwards = formationSlots(members, FormationType.Box);
+    const backwards = formationSlots([...members].reverse(), FormationType.Box);
     for (const e of members) expect(backwards.get(e.id)).toEqual(forwards.get(e.id));
   });
 
@@ -493,7 +496,7 @@ describe('layoutFor — the ground overrules the shape', () => {
     return xs.length > 1 ? Math.max(...xs) - Math.min(...xs) : 0;
   };
 
-  it('narrows a line to a column in a two-tile pass, and to a file in a one-tile pass', () => {
+  it('narrows a line to a box in a three-tile pass, and to a file in a one-tile pass', () => {
     const ctx = openCtx();
     const members = Array.from({ length: 6 }, (_, i) => robot(ctx, `r_${i}`, WeaponType.Cannon, 112, 100 + i * 12));
 
@@ -502,20 +505,25 @@ describe('layoutFor — the ground overrules the shape', () => {
     applyFormations(ctx, open);
     const openFrontage = frontage(members, open);
 
-    // Two tiles wide (a column fits, a six-abreast line does not).
+    // Three tiles wide: 96 px, which a box's ~47 px of half-width clears and a
+    // six-abreast line's 55 does not. This is the width `obstacles.minCorridorTiles`
+    // guarantees, so it is the narrowest ground a generated map can present — the
+    // rung exists precisely so the common case is not single file.
     const n = gameConfig.grid.width;
-    ctx.navObstacles = Array.from({ length: n }, () => Array.from({ length: n }, (_, x) => !(x === 3 || x === 4)));
-    const twoWide = goingSouth(members);
-    applyFormations(ctx, twoWide);
-    const columnFrontage = frontage(members, twoWide);
+    ctx.navObstacles = Array.from({ length: n }, () =>
+      Array.from({ length: n }, (_, x) => !(x === 2 || x === 3 || x === 4)),
+    );
+    const threeWide = goingSouth(members);
+    applyFormations(ctx, threeWide);
+    const boxFrontage = frontage(members, threeWide);
 
     corridor(ctx, 3, 0);
     const oneWide = goingSouth(members);
     applyFormations(ctx, oneWide);
     const fileFrontage = frontage(members, oneWide);
 
-    expect(openFrontage).toBeGreaterThan(columnFrontage);
-    expect(columnFrontage).toBeGreaterThan(fileFrontage);
+    expect(openFrontage).toBeGreaterThan(boxFrontage);
+    expect(boxFrontage).toBeGreaterThan(fileFrontage);
     expect(fileFrontage).toBeLessThan(1); // a file has no frontage at all
   });
 });
@@ -615,8 +623,8 @@ describe('applyFormations — a march that has to go round something', () => {
 
 /**
  * Only `Box` (and falling out of formation altogether) actually got a group
- * anywhere; ordering `Column`, `Wedge` or `Spread` left it standing, and `Line`
- * moved at half pace. That is not five bugs, it is one number: the frame is
+ * anywhere; ordering the column, the wedge (both since withdrawn) or `Spread`
+ * left it standing, and `Line` moved at half pace. That is not five bugs, it is one number: the frame is
  * projected `lead` ahead of the group's centroid, slots are laid out with `ax=0`
  * at the *front* rank, so a deep shape's centre of mass hangs far behind the
  * point being projected and cancels the pull — see `depthOf`. A box is the one
@@ -672,4 +680,263 @@ describe('applyFormations — every shape a player can order actually marches', 
       expect(endDist, `${type} stopped ${endDist.toFixed(0)} px short of ${startDist.toFixed(0)}`).toBeLessThan(200);
     });
   }
+});
+
+/**
+ * The march every other test in this file approximates: a squad ordered across a
+ * whole generated map, through whatever narrow ground the seed put in the way.
+ *
+ * It is here because the cheap approximations all missed the same defect. Open
+ * ground (`openCtx`) has no route worth the name; a hand-built `resolved` map
+ * never re-plans; and a single wall with a gap in it bends the route once. What
+ * breaks a formation is a route that *doubles back* — round a rock, into a pass
+ * whose mouth is behind the group — because that is where the axis the shape is
+ * dressed on and the point the frame is projected to stop agreeing. Measured
+ * before the fix in `applyGroup`: four of twelve seeded maps ended with the whole
+ * squad holding, goalless and motionless, for the rest of the match.
+ *
+ * Driven through the command queue and the real resolver, because both are part
+ * of it: a right-click march leaves each robot's own goal alone and always
+ * worked, while a *directive* has every robot producing an intent every tick,
+ * which is what hands the frame the wheel.
+ *
+ * Invariants only, no timings: which seed is slow is a balance question, whereas
+ * "the group is still moving" and "the group got there" survive any tuning.
+ */
+describe('applyFormations — a squad ordered across the map arrives, whatever shape it holds', () => {
+  const TICKS = 2000;
+  // 10 s of a *group* standing still with a live order. The worst honest pause
+  // measured after the fix is 94 ticks (3 s) — a squad threading a one-tile pass
+  // in single file — and the deadlock this guards against never ended at all.
+  const STALL_LIMIT = 300;
+  const ARRIVED = 250;
+
+  /** The map a match really starts on: generated terrain, both bases, footprints stamped in. */
+  function matchCtx(seed: number): { ctx: GameContext; home: BaseEntity; foe: BaseEntity } {
+    const ctx = makeCtx(seed);
+    let home: BaseEntity | undefined;
+    let foe: BaseEntity | undefined;
+    for (const p of gameConfig.bases.placements) {
+      const base = spawnBase(ctx.world, p.owner, p.tx, p.ty);
+      if (p.owner === Owner.Player) home = base;
+      else foe = base;
+    }
+    if (!home || !foe) throw new Error('both placements must spawn a base');
+    refreshNavObstacles(ctx);
+    // The objective has to be *known* before `attackNearestBase` will pick it,
+    // or the program falls through to `search` and this becomes a test of roaming.
+    ctx.intel[Owner.Player].knownBaseIds.add(foe.id);
+    return { ctx, home, foe };
+  }
+
+  /** Six mixed hulls parked where the factory drops them: just outside the footprint, toward the field. */
+  function builtSquad(ctx: GameContext, home: BaseEntity): RobotEntity[] {
+    const weapons = [
+      WeaponType.Cannon,
+      WeaponType.Cannon,
+      WeaponType.Cannon,
+      WeaponType.Missiles,
+      WeaponType.Ew,
+      WeaponType.Radar,
+    ];
+    const { tilePx } = gameConfig.grid;
+    const half = (home.footprint * tilePx) / 2;
+    const toward = home.position.y < worldPixelSize.height / 2 ? 1 : -1;
+    return weapons.map((w, i) =>
+      robot(
+        ctx,
+        `r_${i}`,
+        w,
+        home.position.x + (i - (weapons.length - 1) / 2) * tilePx,
+        home.position.y + (half + tilePx) * toward,
+      ),
+    );
+  }
+
+  // Two seeds whose route to the objective doubles back on itself; between them
+  // they deadlocked three of the shapes on offer at the time before the fix.
+  for (const seed of [1, 6]) {
+    for (const type of Object.values(FormationType)) {
+      it(`walks a ${type} from base to base on seed ${seed}`, () => {
+        const { ctx, home, foe } = matchCtx(seed);
+        const members = builtSquad(ctx, home);
+
+        // Exactly what the player clicks: the formation tile, then the directive.
+        ctx.commands.push({ kind: 'SetFormation', robotIds: members.map((e) => e.id), formation: type });
+        for (const e of members) ctx.commands.push({ kind: 'AssignTask', robotId: e.id, task: TaskType.AttackBase });
+
+        const centre = () => ({
+          x: members.reduce((a, e) => a + e.position.x, 0) / members.length,
+          y: members.reduce((a, e) => a + e.position.y, 0) / members.length,
+        });
+        const reach = () => {
+          const c = centre();
+          return Math.hypot(foe.position.x - c.x, foe.position.y - c.y);
+        };
+
+        let previous = centre();
+        let standing = 0;
+        let worst = 0;
+        let arrived = false;
+        for (let tick = 0; tick < TICKS && !arrived; tick++) {
+          commandsSystem(ctx);
+          taskSystem(ctx, DT);
+          movementSystem(ctx, DT);
+          separationSystem(ctx);
+
+          const now = centre();
+          // Less than a tenth of a chassis step: the group is not moving, whatever
+          // its members are doing to each other.
+          standing = Math.hypot(now.x - previous.x, now.y - previous.y) < 0.3 ? standing + 1 : 0;
+          previous = now;
+          if (standing > worst) worst = standing;
+          expect(worst, `${type} stood still for ${worst} ticks, ending on tick ${tick}`).toBeLessThan(STALL_LIMIT);
+          arrived = reach() < ARRIVED;
+        }
+
+        expect(arrived, `${type} finished ${reach().toFixed(0)} px from the objective`).toBe(true);
+      }, 20_000);
+    }
+  }
+});
+
+/**
+ * The geometry that broke three different things, kept as one test because the
+ * three only ever showed up together: a **hairpin** — a U-shaped channel cut
+ * through solid rock, the squad at the bottom of one arm and the objective at the
+ * bottom of the other, so the route runs up, across and back down.
+ *
+ * What a hairpin does that a wall with a gap in it does not:
+ *
+ * - the route **doubles back**, so the axis the shape is dressed on and the point
+ *   the frame is projected to can point opposite ways (fixed in `applyGroup`);
+ * - the group gets **split around the bend**, and the mean of six hulls in two
+ *   arms of a pass lands in the rock between them (`anchorOf`);
+ * - the pass **files** the group, and a file cannot permute inside one tile of
+ *   width, so the hull holding the front slot has to already be in front
+ *   (`queueOrder`).
+ *
+ * Each of those parked a squad until the end of the match. Widths and arm gaps
+ * are swept because which one bites depends on both.
+ */
+describe('applyFormations — a squad marches round a hairpin', () => {
+  const LEFT_TX = 6;
+  const TOP_TY = 6;
+  const BOTTOM_TY = 26;
+
+  /** Solid rock but for a U-shaped channel `width` tiles across, arms `gap` tiles apart. */
+  function hairpin(ctx: GameContext, width: number, gap: number): void {
+    const n = gameConfig.grid.width;
+    const rightTx = LEFT_TX + gap;
+    const open = (tx: number, ty: number) =>
+      (tx >= LEFT_TX && tx < LEFT_TX + width && ty >= TOP_TY && ty <= BOTTOM_TY) ||
+      (tx >= rightTx && tx < rightTx + width && ty >= TOP_TY && ty <= BOTTOM_TY) ||
+      (ty >= TOP_TY && ty < TOP_TY + width && tx >= LEFT_TX && tx < rightTx + width);
+    const grid = Array.from({ length: n }, (_, ty) => Array.from({ length: n }, (_, tx) => !open(tx, ty)));
+    ctx.navObstacles = grid;
+    ctx.obstacles = grid;
+  }
+
+  function squad(ctx: GameContext): RobotEntity[] {
+    const weapons = [
+      WeaponType.Cannon,
+      WeaponType.Cannon,
+      WeaponType.Cannon,
+      WeaponType.Missiles,
+      WeaponType.Ew,
+      WeaponType.Radar,
+    ];
+    const { tilePx } = gameConfig.grid;
+    // Nose to tail in the bottom of the left arm, the way a pass would leave them.
+    return weapons.map((w, i) =>
+      robot(ctx, `r_${i}`, w, (LEFT_TX + 0.5) * tilePx, (BOTTOM_TY - 2.5) * tilePx - i * 6),
+    );
+  }
+
+  for (const width of [1, 2]) {
+    for (const gap of [3, 8]) {
+      for (const type of Object.values(FormationType)) {
+        it(`gets a ${type} round a ${width}-tile hairpin ${gap} tiles across`, () => {
+          const ctx = openCtx();
+          hairpin(ctx, width, gap);
+          const members = squad(ctx);
+          for (const e of members) e.script.blackboard.formation = { gid: 'g1', type };
+
+          const { tilePx } = gameConfig.grid;
+          const goal = { x: (LEFT_TX + gap + 0.5) * tilePx, y: (BOTTOM_TY + 0.5) * tilePx };
+          const centre = () => ({
+            x: members.reduce((a, e) => a + e.position.x, 0) / members.length,
+            y: members.reduce((a, e) => a + e.position.y, 0) / members.length,
+          });
+
+          let arrived = false;
+          for (let tick = 0; tick < 2400 && !arrived; tick++) {
+            const resolved = new Map<string, Outcome>();
+            for (const e of members) resolved.set(e.id, { move: { kind: 'goal', x: goal.x, y: goal.y } });
+            applyFormations(ctx, resolved);
+            for (const e of members) {
+              const move = resolved.get(e.id)?.move;
+              if (move?.kind === 'goal') setGoal(ctx, e, move.x, move.y);
+              else if (move?.kind === 'hold') clearGoal(e);
+            }
+            movementSystem(ctx, DT);
+            separationSystem(ctx);
+            const c = centre();
+            arrived = Math.hypot(goal.x - c.x, goal.y - c.y) < 120;
+          }
+
+          const c = centre();
+          expect(arrived, `${type} ended ${Math.hypot(goal.x - c.x, goal.y - c.y).toFixed(0)} px from the far arm`).toBe(
+            true,
+          );
+        }, 20_000);
+      }
+    }
+  }
+});
+
+/**
+ * The release valve, tested on its own contract rather than through a deadlock:
+ * nothing here is *wrong*, the group simply is not moving, and after
+ * `stallTicks` the shape has to let go whatever the reason.
+ *
+ * Zero progress is manufactured by never running the movement system — the
+ * robots stay exactly where they are put, so the group's distance along its route
+ * cannot increase. That is what every deadlock this guards against looks like
+ * from `applyGroup`'s side.
+ */
+describe('applyFormations — a group that cannot advance stops being a formation', () => {
+  it('hands every member its own order back after two seconds of no progress', () => {
+    const ctx = openCtx();
+    const members = [
+      robot(ctx, 'a', WeaponType.Cannon, 200, 200),
+      robot(ctx, 'b', WeaponType.Cannon, 240, 200),
+      robot(ctx, 'c', WeaponType.Radar, 200, 240),
+    ];
+    const own = { kind: 'goal', x: 1200, y: 1200 } as const;
+
+    const tick = () => {
+      const resolved = new Map<string, Outcome>();
+      for (const e of members) resolved.set(e.id, { move: { ...own } });
+      applyFormations(ctx, resolved);
+      return resolved;
+    };
+
+    for (const e of members) e.script.blackboard.formation = { gid: 'g1', type: FormationType.Line };
+
+    // While it looks like it might still be dressing, the shape keeps the wheel.
+    let rewritten = tick();
+    expect(rewritten.get('a')?.move).not.toEqual(own);
+
+    // Nobody has moved a pixel since; after `stallTicks` the formation lets go.
+    for (let i = 0; i < gameConfig.behavior.formation.stallTicks; i++) rewritten = tick();
+    for (const e of members) {
+      expect(rewritten.get(e.id)?.move, `${e.id} should have kept its own order`).toEqual(own);
+    }
+
+    // ...and it stays let go long enough to actually drive out of whatever it was
+    // stuck in, rather than re-gripping on the next tick.
+    const later = tick();
+    for (const e of members) expect(later.get(e.id)?.move).toEqual(own);
+  });
 });

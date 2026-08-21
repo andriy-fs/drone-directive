@@ -225,7 +225,7 @@ describe('commandsSystem — SetFormation', () => {
     const ctx = makeCtx();
     const trio = spawnTrio(ctx);
     const ids = trio.map((r) => r.id);
-    ctx.commands.push({ kind: 'SetFormation', robotIds: ids, formation: FormationType.Wedge });
+    ctx.commands.push({ kind: 'SetFormation', robotIds: ids, formation: FormationType.Line });
     commandsSystem(ctx);
     ctx.commands.push({ kind: 'SetFormation', robotIds: ids, formation: null });
     commandsSystem(ctx);
@@ -250,7 +250,7 @@ describe('commandsSystem — a formation survives the orders that replace a scri
       spawnRobot(ctx.world, Owner.Player, { x: 100, y: 100 }, ChassisType.Tracks, WeaponType.Cannon),
       spawnRobot(ctx.world, Owner.Player, { x: 140, y: 100 }, ChassisType.Tracks, WeaponType.Cannon),
     ];
-    ctx.commands.push({ kind: 'SetFormation', robotIds: pair.map((r) => r.id), formation: FormationType.Wedge });
+    ctx.commands.push({ kind: 'SetFormation', robotIds: pair.map((r) => r.id), formation: FormationType.Line });
     commandsSystem(ctx);
     return pair;
   };
@@ -261,7 +261,7 @@ describe('commandsSystem — a formation survives the orders that replace a scri
     ctx.commands.push({ kind: 'AssignTask', robotId: pair[0].id, task: TaskType.AttackBase });
     commandsSystem(ctx);
     expect(pair[0].script!.programId).toBe(TaskType.AttackBase);
-    expect(pair[0].script!.blackboard.formation?.type).toBe(FormationType.Wedge);
+    expect(pair[0].script!.blackboard.formation?.type).toBe(FormationType.Line);
   });
 
   it('survives a right-click move order', () => {
@@ -269,7 +269,7 @@ describe('commandsSystem — a formation survives the orders that replace a scri
     const pair = formUp(ctx);
     ctx.commands.push({ kind: 'MoveRobots', robotIds: pair.map((r) => r.id), point: { x: 400, y: 400 } });
     commandsSystem(ctx);
-    expect(pair.every((r) => r.script!.blackboard.formation?.type === FormationType.Wedge)).toBe(true);
+    expect(pair.every((r) => r.script!.blackboard.formation?.type === FormationType.Line)).toBe(true);
     // ...and the move order still landed: everyone has a destination of their own.
     expect(pair.every((r) => r.movement!.goal !== undefined)).toBe(true);
   });
@@ -281,7 +281,7 @@ describe('commandsSystem — a formation survives the orders that replace a scri
     ctx.commands.push({ kind: 'AttackTarget', robotIds: pair.map((r) => r.id), targetId: foe.id });
     commandsSystem(ctx);
     expect(pair[0].script!.programId).toBe(TaskType.AttackTarget);
-    expect(pair[0].script!.blackboard.formation?.type).toBe(FormationType.Wedge);
+    expect(pair[0].script!.blackboard.formation?.type).toBe(FormationType.Line);
   });
 
   it('sends a formation to its slots, not to one shared point', () => {

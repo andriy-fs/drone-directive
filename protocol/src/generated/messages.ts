@@ -353,9 +353,7 @@ export function writeBuildOrder(bc: bare.ByteCursor, x: BuildOrder): void {
  * never on the wire: both peers derive it from the units' weapons, identically.
  */
 export enum Formation {
-    Column = "Column",
     Line = "Line",
-    Wedge = "Wedge",
     Box = "Box",
     Spread = "Spread",
 }
@@ -365,14 +363,10 @@ export function readFormation(bc: bare.ByteCursor): Formation {
     const tag = bare.readU8(bc)
     switch (tag) {
         case 0:
-            return Formation.Column
-        case 1:
             return Formation.Line
-        case 2:
-            return Formation.Wedge
-        case 3:
+        case 1:
             return Formation.Box
-        case 4:
+        case 2:
             return Formation.Spread
         default: {
             bc.offset = offset
@@ -383,24 +377,16 @@ export function readFormation(bc: bare.ByteCursor): Formation {
 
 export function writeFormation(bc: bare.ByteCursor, x: Formation): void {
     switch (x) {
-        case Formation.Column: {
+        case Formation.Line: {
             bare.writeU8(bc, 0)
             break
         }
-        case Formation.Line: {
+        case Formation.Box: {
             bare.writeU8(bc, 1)
             break
         }
-        case Formation.Wedge: {
-            bare.writeU8(bc, 2)
-            break
-        }
-        case Formation.Box: {
-            bare.writeU8(bc, 3)
-            break
-        }
         case Formation.Spread: {
-            bare.writeU8(bc, 4)
+            bare.writeU8(bc, 2)
             break
         }
     }
