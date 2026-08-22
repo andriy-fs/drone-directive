@@ -3,6 +3,7 @@ import './index.css';
 import { loadDict } from './i18n/dictionaries';
 import { Locale } from './i18n/locale';
 import { useGameStore } from './store/gameStore';
+import { applyDocumentTheme } from './theme/theme';
 import App from './ui/App.tsx';
 
 // Locale dictionaries are code-split and `useT()` reads them synchronously, so the
@@ -26,6 +27,17 @@ const applyDocumentLang = (value: Locale) => {
 applyDocumentLang(locale);
 useGameStore.subscribe((state, previous) => {
   if (state.locale !== previous.locale) applyDocumentLang(state.locale);
+});
+
+/**
+ * The same arrangement for the UI scheme, and for the same reason: `data-theme`
+ * hangs off `<html>`, which no part of the React tree owns. Set before the first
+ * paint so a saved theme never shows a frame of the default one — the tokens are
+ * already in the bundle's CSS, so there is nothing to wait for.
+ */
+applyDocumentTheme(useGameStore.getState().theme);
+useGameStore.subscribe((state, previous) => {
+  if (state.theme !== previous.theme) applyDocumentTheme(state.theme);
 });
 
 loadDict(locale)

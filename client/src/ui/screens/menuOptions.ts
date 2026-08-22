@@ -2,6 +2,7 @@ import type { ChipOption } from '../common/Picker';
 import { maxAiOpponents } from '../../config/gameSettings';
 import type { T } from '../../i18n';
 import { Locale } from '../../i18n/locale';
+import { Theme } from '../../theme/theme';
 import { Difficulty, MapSize } from '@drone-directive/types/enums';
 
 /**
@@ -17,6 +18,20 @@ export const LANGUAGE_OPTIONS: ChipOption<Locale>[] = [
   { value: Locale.Pl, label: 'PL' },
   { value: Locale.Ru, label: 'RU' },
 ];
+
+/**
+ * UI schemes, in the order the menu offers them. Labels are translated — unlike
+ * the language codes above, "Command" and "Field" mean nothing as bare strings.
+ * A new theme adds a line here and a line in `theme/index.css`; see
+ * `theme/README.md`.
+ */
+export function themeOptions(t: T): ChipOption<Theme>[] {
+  return [
+    { value: Theme.Command, label: t('theme', 'command') },
+    { value: Theme.Field, label: t('theme', 'field') },
+    { value: Theme.Crt, label: t('theme', 'crt') },
+  ];
+}
 
 export function difficultyOptions(t: T): ChipOption<Difficulty>[] {
   return [

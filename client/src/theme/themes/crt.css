@@ -1,0 +1,148 @@
+/**
+ * CRT — a monochrome green phosphor terminal: VT100 chrome, P1 glow, scanlines,
+ * ASCII pseudographics.
+ *
+ * Two decisions worth stating, because neither follows from the brief:
+ *
+ * 1. **The green is the radio feed's green.** The unit chatter over the scene has
+ *    been a terminal readout since long before this theme existed, and it carries
+ *    its own colour so it stays legible over sand and explosions. With the whole
+ *    interface now green, a second, different green would read as a mistake — so
+ *    the scheme is built around `#00d45a` rather than the brief's `#00ff41`, and
+ *    the radio tokens below simply restate it.
+ * 2. **`--danger` is not green.** Everything else here is one hue, but health,
+ *    defeat and errors are read at a glance under fire, and brightness alone does
+ *    not carry that: a bar at 10% and a bar at 90% would differ only in length,
+ *    and the defeat card would look like the victory card. So danger keeps an
+ *    amber-red — the alarm lamp beside the tube, not a second colour scheme.
+ *
+ * Type comes from `--mono`, which is the stack the radio feed already uses; no
+ * webfont is loaded for this.
+ */
+[data-theme='crt'] {
+  /* ---- Surfaces -------------------------------------------------------- */
+  /* Translucent, so the battlefield and the splash art show through the panels
+     the way a terminal's phosphor sits on glass rather than on paper. */
+  --bg: #050a06;
+  --panel-bg: rgba(8, 15, 10, 0.85);
+  --surface: rgba(0, 30, 10, 0.3);
+  --surface-raised: rgba(0, 40, 14, 0.35);
+  --surface-hover: rgba(0, 80, 28, 0.45);
+  --surface-active: rgba(0, 110, 38, 0.55);
+  --surface-sunken: rgba(0, 18, 7, 0.6);
+  --surface-inset: rgba(0, 30, 10, 0.3);
+  /* A switched-on tile is an inverted block, as on a real VT100 — which is why
+     `--text-on-accent` and `--icon-on-accent` below are the dark one. */
+  --surface-accent: #33ff66;
+  --surface-glass: rgba(8, 15, 10, 0.85);
+  --surface-toast: rgba(8, 15, 10, 0.94);
+
+  /* ---- Lines ---- */
+  --panel-border: #1c7a32;
+  --border-strong: #00d45a;
+  --border-hover: #33ff66;
+
+  /* ---- Text ---- */
+  --text: #00d45a;
+  --text-h: #33ff66;
+  /* The brief's #1c7a32 lands near 3.4:1 on this background — too dim to be a
+     label you are expected to read. Lifted just past 4.5:1 and left there. */
+  --text-dim: #2f9e4a;
+  --text-on-accent: #051a0a;
+  --icon-on-accent: #051a0a;
+  --on-danger: #051a0a;
+
+  /* ---- Brand ---- */
+  /* Reversed against the default's reading of these two. `--accent-deep` is the
+     resting fill of the primary action and `--accent` is what it brightens to,
+     and inverse video only works if both are bright enough to carry dark text —
+     a "deep" phosphor would be a hole in the screen with an unreadable label in
+     it. `--accent` is also the colour of accented *text* and borders elsewhere,
+     where the brighter of the two is the right answer anyway. */
+  --accent: #33ff66;
+  --accent-deep: #00d45a;
+
+  /* ---- Status ---- */
+  /* The one exception to the monochrome — see the note at the top. */
+  --danger: #ff5f45;
+  --danger-soft: #ff8b78;
+  --danger-text: #ff8b78;
+  --danger-solid: #c43a22;
+  --warn: #b8ff5a;
+  --success: #00d45a;
+  --success-alt: #1c7a32;
+  --ready: #33ff66;
+  --info: #6ee7a8;
+  --neutral-fill: #1c7a32;
+
+  /* ---- Controls ---- */
+  --control-track: rgba(0, 212, 90, 0.25);
+  --control-thumb: #33ff66;
+
+  /* ---- Overlays ---- */
+  --overlay: rgba(5, 10, 6, 0.5);
+  --scrim: rgba(5, 10, 6, 0.8);
+  --scrim-art-top: rgba(5, 10, 6, 0.55);
+  --scrim-art-bottom: rgba(5, 10, 6, 0.85);
+
+  /* ---- Depth ---- */
+  /* Phosphor bleeds; it does not cast. Every shadow here is the tube's own glow
+     rather than a drop shadow. */
+  --shadow-card: 0 0 16px rgba(0, 212, 90, 0.2);
+  --shadow-modal: 0 0 28px rgba(0, 212, 90, 0.25);
+  --shadow-text: 0 0 8px rgba(0, 212, 90, 0.6);
+  --glow-accent: 0 0 12px rgba(0, 212, 90, 0.45);
+
+  /* ---- The radio feed ---- */
+  /* The same green the rest of the UI now speaks, and an alert that matches
+     `--danger` so the feed and the HUD agree about what is going wrong. */
+  --radio-green: #00d45a;
+  --radio-alert: #ff5f45;
+  --radio-dim: #5cbf7a;
+  --radio-halo: 0 0 3px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 212, 90, 0.4);
+  --radio-halo-alert: 0 0 3px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(255, 95, 69, 0.4);
+
+  /* ---- Type / shape ---- */
+  --sans: var(--mono);
+  --display: var(--mono);
+  --case-ui: uppercase;
+  --case-chip: uppercase;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+
+  /* ---- The tube ---- */
+  --glow-text: 0 0 3px rgba(0, 212, 90, 0.4);
+  --glow-title: 0 0 10px rgba(0, 212, 90, 0.7);
+  --glow-border: 0 0 10px rgba(0, 212, 90, 0.35);
+  --scanlines-content: '';
+  --scanlines-image: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.22) 0 1px,
+    transparent 1px 3px
+  );
+
+  /* The tube's wobble — title screen only, by where `App.css` hangs it. The
+     match deliberately gets the glass without the movement: a flicker over a
+     field being read under fire is a different proposition from one over a
+     menu, and the fight is long where the menu is a moment. */
+  --scanlines-flicker: crt-flicker 6s ease-in-out infinite;
+  --crt-roll-content: '';
+  --crt-roll-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 212, 90, 0.05) 44%,
+    rgba(0, 212, 90, 0.09) 50%,
+    rgba(0, 212, 90, 0.05) 56%,
+    transparent 100%
+  );
+  --crt-roll: crt-roll 7s linear infinite;
+
+  /* ---- Pseudographics ---- */
+  --bracket-open: '[[';
+  --bracket-close: ']]';
+  --nav-marker: '>';
+  --chip-mark-off: '[ ]';
+  --chip-mark-on: '[*]';
+  --corner-mark: '+';
+}
