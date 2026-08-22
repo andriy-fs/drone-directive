@@ -13,4 +13,5 @@ export function refreshNavObstacles(ctx: GameContext): void {
     .entities.filter(isAlive)
     .map((b) => ({ position: b.position, footprint: b.footprint }));
   ctx.navObstacles = withBaseFootprints(ctx.obstacles, living);
+  ctx.navVersion++;
 }

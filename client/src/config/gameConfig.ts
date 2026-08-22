@@ -413,6 +413,100 @@ export const gameConfig = {
     stuckAfter: 0.4,
     retreatSeconds: 0.5,
     /**
+     * ORCA local manoeuvring — see `engine/systems/orca/`. Every unit hands the
+     * solver the velocity it *wants* (straight at its next A* waypoint) and gets
+     * back the nearest one that no neighbour and no wall forbids, with each pair
+     * of movers splitting the correction 50/50. A* is untouched: this bends a
+     * tick's velocity, never the route.
+     *
+     * `timeHorizon` 0.1 s is the anticipation window, against the one *step*
+     * (1.4-4.5 px, ~0.033 s) the fan-based `steerAround` it replaces could see.
+     *
+     * It was **measured twice, and the arithmetic that first set it was wrong
+     * both times.** The original reasoning said 1.0 s: two `tracks` hulls close
+     * at 120 px/s, so the split begins 120 px out, and a 96 px corridor leaves
+     * 36 px of lateral room per side which a hull covers in 0.6 s — comfortable.
+     * What that misses is that a horizon longer than the corridor is wide makes
+     * every agent yield to neighbours it will never reach, and in a queue they
+     * all yield at once. The corridor stand then said 0.3 s. That stand runs
+     * twelve loose hulls through one hand-built pass; the game runs fifty in five
+     * Box formations over generated ground, and swept there the answer moved
+     * again — 245/250 arrivals at 0.1 s against 239/250 at 0.3 s.
+     *
+     * The lesson is the tuning regime, not the number: **tune on the density and
+     * the formations the game actually has.** Sweeping on the stand that is easy
+     * to reason about produced a value 3x too large, twice.
+     * `timeHorizonMin` exists because a large horizon caps the approach speed
+     * toward a stationary neighbour at roughly `(d − 23) / tau`: at 1.0 s a hull
+     * 36 px from its slot could close at only 13 px/s, and `spacing.box` **is**
+     * 36 — a box would never dress. The effective horizon is therefore
+     * `clamp(distanceToWaypoint / speed, timeHorizonMin, timeHorizon)`: look no
+     * further ahead than the time you have left to drive.
+     *
+     * `timeHorizonObst` is separate and shorter because wall constraints are hard
+     * — they are not split with anyone, so they pinch twice as fast. It bounds
+     * only the component *into* the wall; speed along the wall is untouched,
+     * which is what makes a corridor a stream rather than a pinch.
+     *
+     * `neighborDist` is deliberately not a tuning knob: a pair can only constrain
+     * each other within `23 + timeHorizon * (vA + vB)`, worst case 293 px for two
+     * `wheels`. At 300 the prune can never change the answer, only the cost.
+     *
+     * `radiusPadding` puts ORCA's hold distance (23.0 px) just outside the
+     * distance `separationSystem` fires at (22.0), so ORCA does the work and
+     * separation stays a backstop. Every formation spacing (min 36) is greater,
+     * so no shape asks units to stand inside their own ORCA radius.
+     */
+    orca: {
+      /**
+       * While false, `movementSystem` runs the original sequential `steerAround`
+       * loop verbatim — see the note there on why the two paths are kept separate
+       * rather than merged. Flipping this is the whole A/B.
+       *
+       * **On, and measured rather than assumed.** Over 10 seeds x 2700 ticks of
+       * generated terrain at 12/24/50 units, against `steerAround`:
+       *
+       * - overlapping pairs per tick fall 6-40x — 24.216 to 4.046 at fifty units;
+       * - anti-jam retreats fall 5-13x — 617 to 127;
+       * - robot-ticks spent standing on the enemy base footprint 58738 -> 22389,
+       *   and 110 -> 23 per arrived unit, which is the `at-objective` crowding the
+       *   flow-field investigation isolated as the live defect;
+       * - on the corridor harness a one-way crowd through a 96 px pass goes
+       *   9.25/12 to 11.25/12 (mean of eight packings), and a crowd wedged into a
+       *   dead end spends 2 robot-ticks inside rock against 4683.
+       *
+       * The costs are real and not yet paid down: arrivals at fifty units
+       * 496/500 -> 474/500, mean arrival +23/60/66% at 12/24/50, en-route stalls
+       * 2.32% -> 3.53%, and robot-ticks in terrain at fifty units 3296 -> 11276.
+       * The horizons below were tuned on the corridor harness at twelve units, not
+       * on generated terrain at fifty, which is the first thing to revisit.
+       */
+      enabled: true,
+      timeHorizon: 0.1,
+      timeHorizonMin: 0.05,
+      timeHorizonObst: 0.2,
+      neighborDist: 300,
+      radiusPadding: 0.5,
+      /**
+       * How much longer the anti-jam waits before firing at a unit the solver is
+       * deliberately holding back, as a multiple of `stuckAfter`. Giving way is
+       * normal and must not be punished; standing still for nine seconds is not.
+       */
+      yieldPatience: 4,
+      /**
+       * How much of last tick's velocity is blended into the preferred one, 0..1.
+       *
+       * Against oscillation, which is the layer's real cost here rather than any
+       * loss of speed: hulls drive at 57 px/s of a possible 60, yet arrive 48%
+       * later, because they cover 2.18x the crow-flight distance against the old
+       * layer's 1.37x. Re-aiming at the waypoint from scratch every tick lets the
+       * solver pick one side of a neighbour's velocity cone and then the other,
+       * and the hull weaves. Carrying some of the previous choice forward damps
+       * that; too much and it stops tracking its waypoint at all.
+       */
+      prefInertia: 0.5,
+    },
+    /**
      * Formation keeping — see `engine/systems/task/formation.ts`.
      *
      * `spacing` is per shape because the shape *is* the trade-off: at 36 px a

@@ -5,6 +5,7 @@ import type { DroneControl, ResourcePool, Vec2 } from '@drone-directive/types/en
 import { Controller, Difficulty, Owner, PLAYABLE_OWNERS } from '@drone-directive/types/enums';
 import { generateObstacles, movementGrid, sightGrid, type ObstacleGrid, type TerrainGrid } from '../obstacles';
 import type { EcsWorld } from '../ecs/world';
+import { createOrcaSteering, type OrcaSteering } from '../systems/orca';
 import type { GameBus } from './eventBus';
 import { createRng, type Rng } from '../../utils/rng';
 
@@ -194,6 +195,12 @@ export interface GameContext {
   sightBlockers: ObstacleGrid;
   /** Pathfinding grid: `obstacles` + living base footprints (see `navGrid.ts`). */
   navObstacles: ObstacleGrid;
+  /**
+   * Bumped every time `navObstacles` is rebuilt. Lets a cached pathfinding result
+   * — including a cached *failure* — know whether the ground it was computed over
+   * still exists.
+   */
+  navVersion: number;
   rng: Rng;
   /** The difficulty actually in force — already clamped to Normal online, see `createGameContext`. */
   difficulty: Difficulty;
@@ -219,6 +226,19 @@ export interface GameContext {
   localSide: Owner;
   /** Player fog-of-war tile mask (recomputed by `fogSystem`). */
   fog: FogState;
+  /**
+   * Local-manoeuvring solver, with the persistent buffers that keep it from
+   * allocating every tick.
+   *
+   * On the context rather than a module singleton because the buffers are
+   * per-match state and should die with the match. A singleton would in fact work
+   * today — `GameEngine.tick` is synchronous, so the two engines
+   * `game/determinism.test.ts` runs side by side never interleave a solve — but
+   * it would be correct by accident, and the accident is one `await` away from
+   * ending. Owning it here also means no `reset()` anybody can forget, which is
+   * exactly the hazard the global `nextId` counter needs `resetIds()` for.
+   */
+  orca: OrcaSteering;
 }
 
 /** Builds a fresh per-match context (new rng, obstacles, resources, AI timers). */
@@ -257,6 +277,7 @@ export function createGameContext(
     sightBlockers: sightGrid(terrain),
     // Seeded with terrain only; GameScene.enter stamps base footprints once bases exist.
     navObstacles: obstacles,
+    navVersion: 0,
     rng,
     difficulty,
     settings,
@@ -271,5 +292,6 @@ export function createGameContext(
     droneRespawn: byOwner(() => 0),
     localSide: Owner.Player,
     fog: { explored: emptyGrid(), visible: emptyGrid(), version: 0 },
+    orca: createOrcaSteering(),
   };
 }

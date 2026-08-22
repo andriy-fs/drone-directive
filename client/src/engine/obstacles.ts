@@ -1,6 +1,7 @@
 import { gameConfig, type BasePlacement } from '../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { TerrainKind } from '@drone-directive/types/enums';
+import { vecLength } from '../utils/math';
 import type { Rng } from '../utils/rng';
 
 /** Blocked-tile grid: `grid[ty][tx]` is true where terrain blocks the queried thing. */
@@ -420,7 +421,7 @@ export function hasLineOfSight(grid: ObstacleGrid, from: Vec2, to: Vec2): boolea
 export function hasClearance(grid: ObstacleGrid, a: Vec2, b: Vec2, radius: number): boolean {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy);
+  const len = vecLength(dx, dy);
   const steps = Math.max(1, Math.ceil(len / (gameConfig.grid.tilePx / 2)));
   const nx = len > 1e-6 ? -dy / len : 0;
   const ny = len > 1e-6 ? dx / len : 0;
