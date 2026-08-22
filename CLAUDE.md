@@ -34,6 +34,10 @@ Run from the repo root:
 
 **Before considering any change done, run `npm run build`, `npm test`, and `npm run lint` (all clean); add `npm run type-check` when `server/`, `protocol/`, `net/`, `chat/` or `types/` changed.** For gameplay changes, also boot the dev server (on-screen behaviour can't be confirmed headless). For online changes, `npm run dev:relay` + `npm run e2e -w server`.
 
+## Internal documentation
+
+Documentation in `.docs/internal/` is a **separate git repository** (https://bitbucket.org/dd-rts/dd-internal-docs) — investigations, task notes, rejected ideas, and sprites/sfx briefs. It's **not** part of this monorepo. Push changes to `.docs/internal` separately: `cd .docs/internal && git push`.
+
 ## Architecture (Scene-based + ECS core, three layers, strict boundaries)
 
 - **Engine** (`client/src/engine/**`) — pure game core. **ECS via miniplex** (`ecs/` entities+components), **systems** (`systems/*` pure functions over the world), **scenes** (`game/scenes/*` Menu/Game with lifecycle), a `GameEngine` facade (`game/engine.ts`: `tick`/`startMatch`/`toMenu`/`setPaused`/`enqueueCommand`), and a typed **EventBus** (`game/eventBus.ts`) for discrete events. No React, no Pixi, **no store** imports. `Entity` stays a flat bag of optional components (miniplex needs that, and it is what lets a dome be bolted on mid-match), with a **named archetype layer** over it — `ecs/archetypes.ts` + `ecs/queries.ts` + `ecs/guards.ts`, so a system reads `e.position.x` rather than asserting it. `@typescript-eslint/no-non-null-assertion` is enforced in `engine/**` and `pixi/**`; see `.docs/engine-ecs.md` § "The archetype layer".
