@@ -197,7 +197,13 @@ export const uk: Dict = {
     soundSettings: 'Налаштування звуку',
     directivesHelp: 'Про директиви',
     language: 'Мова',
+    theme: 'Тема інтерфейсу',
     close: 'Закрити',
+  },
+  theme: {
+    command: 'Командна',
+    field: 'Польова',
+    crt: 'CRT-термінал',
   },
   sound: {
     title: 'Звук',

@@ -1,0 +1,191 @@
+/**
+ * The design tokens every UI rule is written against — the *default* theme, and
+ * at the same time the contract a theme has to fill.
+ *
+ * `ui/App.css` names no colour, font or radius of its own: it reads roles from
+ * here, so a theme is a file that redefines these same custom properties under
+ * `[data-theme='…']` and nothing else. That is what lets a second theme be built
+ * beside this one without either side editing the stylesheet the game actually
+ * renders through — see `theme/README.md`.
+ *
+ * Rules of the road:
+ * - Tokens are named for the **role**, never the colour (`--danger`, not `--red`).
+ * - Every token gets its value here. A theme that omits one simply inherits this
+ *   one, so a partial theme is valid — but a token defined *only* in a theme is
+ *   a hole in the default look.
+ * - `:root` and `[data-theme]` have equal specificity, so the theme files must be
+ *   imported after this one (`theme/index.css` does that).
+ */
+:root {
+  /* ---- Surfaces ------------------------------------------------------- */
+  /** The page behind everything, and the colour the fade-to-black lands on. */
+  --bg: #0d1117;
+  /** The HUD sidebar and modal frames — one step up from the page. */
+  --panel-bg: #12161f;
+  /** A card raised above the sidebar (see HudCard). */
+  --surface: #141924;
+  /** Resting fill of a button-like control. */
+  --surface-raised: #1a2130;
+  /** A control under the cursor. */
+  --surface-hover: #232c40;
+  /** A control being pressed. */
+  --surface-active: #2b3650;
+  /** Recessed: bar tracks, code fields, keycaps — below the panel, not above. */
+  --surface-sunken: #0b0e13;
+  /** Tiles and cards inside a panel: quieter than `--surface-raised`. */
+  --surface-inset: #161b26;
+  /** A tile/chip that is switched on — the accent read as a fill. */
+  --surface-accent: #16233a;
+  /** Translucent panel over the splash art (the menu shell blurs what's behind). */
+  --surface-glass: rgba(12, 17, 26, 0.4);
+  /** The drone toast's plate: near-opaque, because it sits over the battlefield. */
+  --surface-toast: rgba(18, 22, 31, 0.94);
+
+  /* ---- Lines ---------------------------------------------------------- */
+  --panel-border: #232a36;
+  /** A border that has to be seen — hovered control, or one holding a state. */
+  --border-strong: #3a4a63;
+  /** The lighter lift a focused input's border takes. */
+  --border-hover: #3c4a5e;
+
+  /* ---- Text ----------------------------------------------------------- */
+  --text: #b6c0cf;
+  /** Headings and anything the eye should land on first. */
+  --text-h: #eef2f7;
+  /** Labels, units, timestamps — present but not competing. */
+  --text-dim: #6b7686;
+  /** Text laid on a solid `--danger-solid` fill. */
+  --on-danger: #fff;
+
+  /* ---- Brand ---------------------------------------------------------- */
+  /* The one brand colour, in two weights: `--accent` marks whatever is currently
+     active or hovered, `--accent-deep` is the resting fill of a primary action —
+     which brightens to `--accent` under the cursor. */
+  --accent: #3b82f6;
+  --accent-deep: #1e3a8a;
+
+  /* ---- Status --------------------------------------------------------- */
+  /** Loss, destruction, a stop button. */
+  --danger: #ef4444;
+  /** The same meaning at low emphasis — a figure that has gone bad. */
+  --danger-soft: #f87171;
+  /** Error prose, which has to stay readable rather than shout. */
+  --danger-text: #e5807c;
+  /** Danger as a *fill* (the chat's unread badge), not as text. */
+  --danger-solid: #d9534f;
+  --warn: #fbbf24;
+  /** Health, victory. */
+  --success: #22c55e;
+  /** A quieter confirmation: the presence dot, a checked box. */
+  --success-alt: #4caf7d;
+  /** Something is ready and wants the eye — the rebuilt drone's toast and pulse. */
+  --ready: #4ade80;
+  /** Neutral information; the local speaker's name in chat. */
+  --info: #6fa8dc;
+  /** A bar with no subject: "no selection", not "your units are dead". */
+  --neutral-fill: #39414f;
+
+  /* ---- Controls ------------------------------------------------------- */
+  --control-track: rgba(148, 163, 184, 0.35);
+  --control-thumb: #cbd5e1;
+
+  /* ---- Overlays ------------------------------------------------------- */
+  /** The pause watermark's wash over the live field. */
+  --overlay: rgba(5, 8, 13, 0.35);
+  /** A modal backdrop — dark enough to retire what is behind it. */
+  --scrim: rgba(5, 8, 13, 0.68);
+  /** The outcome art's own gradient scrim, top and bottom. */
+  --scrim-art-top: rgba(5, 8, 13, 0.5);
+  --scrim-art-bottom: rgba(5, 8, 13, 0.78);
+
+  /* ---- Depth ---------------------------------------------------------- */
+  --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-text: 0 2px 12px rgba(0, 0, 0, 0.6);
+  /** The halo an accented tile wears when switched on. */
+  --glow-accent: 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
+
+  /* ---- The radio feed -------------------------------------------------- */
+  /* Unit chatter is painted straight onto the scene with no background plate,
+     which makes contrast the whole problem: the map underneath is sand, water and
+     explosions, and a terminal green dark enough to look like a CRT (#006400)
+     disappears on the light half of it. The fix is a brighter green carried by a
+     *dark* halo rather than a glow of its own colour — two black passes for
+     legibility plus one faint green for the tube look. A theme that rebuilds the
+     HUD still has to solve this, so the halos are tokens too. */
+  --radio-green: #00d45a;
+  --radio-alert: #ff5252;
+  --radio-dim: #6ee7a8;
+  --radio-halo: 0 0 3px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 212, 90, 0.3);
+  --radio-halo-alert: 0 0 3px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(255, 82, 82, 0.35);
+
+  /* ---- Type ----------------------------------------------------------- */
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+  /** Titles and headings. Its own token so a theme can give them a face of their
+      own without touching body copy — by default it is simply the sans. */
+  --display: var(--sans);
+
+  /** What the browser paints its own widgets (scrollbars, form controls) against.
+      A light theme has to flip this or its scrollbars stay black. */
+  --color-scheme: dark;
+
+  /* ---- Shape ---------------------------------------------------------- */
+  /* Three steps, by the size of the thing being rounded. Pills (`50%`, `999px`)
+     stay literal in the stylesheet: they are shapes, not a style choice. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* ---- Hooks -----------------------------------------------------------
+     Roles the default look does not use at all. Each one's default is the
+     *absence* of the effect, so `command` and `field` render exactly as they did
+     before these existed — and a theme that wants glowing monospaced text under
+     scanlines can have it without a single component selector of its own.
+
+     For the pseudographic ones the default is `none`, not an empty string:
+     `content: none` generates no pseudo-element at all, so an unthemed button is
+     not carrying two invisible flex items. */
+
+  /** Text glow. Inherited (declared once in `index.css`), so it reaches the
+      whole UI; anything with a text-shadow of its own overrides it as before. */
+  --glow-text: none;
+  /** The same for headings, which can afford a stronger bloom than body copy. */
+  --glow-title: var(--glow-text);
+  /** A halo on a hovered control's border — the CRT counterpart of a hover fill. */
+  --glow-border: none;
+  /** Text laid over an *accent fill* (a primary button, a switched-on tile).
+      Default matches the fill this look already uses; a theme whose accent is a
+      bright phosphor has to flip it dark or the label vanishes. */
+  --text-on-accent: var(--text-h);
+  /** The icon beside such a label. Its own token because the default look keeps
+      the icon accent-coloured on a *deep* accent fill, while a theme that fills
+      with bright phosphor has to flip the icon dark along with the text. */
+  --icon-on-accent: var(--accent);
+  /** `text-transform` for buttons and tiles. `--case-chip` is separate because a
+      chip's default is `capitalize`, not `none`. */
+  --case-ui: none;
+  --case-chip: capitalize;
+
+  /** The CRT glass over everything, `.app-shell::after`. `--scanlines-content`
+      is the switch (`none` = no overlay element), `--scanlines-image` the lines. */
+  --scanlines-content: none;
+  --scanlines-image: none;
+  /** Movement in the glass, and **title screen only** — `App.css` hangs both on
+      `.app-shell--menu`, so a match never runs them. `--scanlines-flicker` is an
+      `animation` shorthand for the lines; the roll is a second full-screen band
+      with its own switch, image and animation. */
+  --scanlines-flicker: none;
+  --crt-roll-content: none;
+  --crt-roll-image: none;
+  --crt-roll: none;
+
+  /** ASCII chrome. `[[ START ]]` on the primary action, `>` before a nav entry,
+      `[ ]`/`[*]` before a chip, `+` at a panel's corners. */
+  --bracket-open: none;
+  --bracket-close: none;
+  --nav-marker: none;
+  --chip-mark-off: none;
+  --chip-mark-on: none;
+  --corner-mark: none;
+}

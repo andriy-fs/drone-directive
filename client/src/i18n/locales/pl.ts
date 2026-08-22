@@ -197,7 +197,13 @@ export const pl: Dict = {
     soundSettings: 'Ustawienia dźwięku',
     directivesHelp: 'O dyrektywach',
     language: 'Język',
+    theme: 'Motyw interfejsu',
     close: 'Zamknij',
+  },
+  theme: {
+    command: 'Dowodzenie',
+    field: 'Polowy',
+    crt: 'Terminal CRT',
   },
   sound: {
     title: 'Dźwięk',

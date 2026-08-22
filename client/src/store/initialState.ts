@@ -2,9 +2,9 @@
  * What the store holds before anything has happened: a fresh title screen, no
  * match, no session, an empty log.
  *
- * Two of these fields are not constants at all — `settings` and `locale` are read
- * back from the player's browser, and `chat.soundOn` with them — which is why
- * this is a module-level object built once at import rather than a literal
+ * Four of these fields are not constants at all — `settings`, `locale` and
+ * `theme` are read back from the player's browser, and `chat.soundOn` with them —
+ * which is why this is a module-level object built once at import rather than a literal
  * inlined into `create()`: the reads happen when the store is first pulled in,
  * before React has rendered anything that depends on them.
  *
@@ -17,6 +17,7 @@ import { loadChatSound } from '../chat/chatStorage';
 import { gameConfig } from '../config/gameConfig';
 import { createDefaultSettings } from '../config/gameSettings';
 import { resolveInitialLocale } from '../i18n/locale';
+import { resolveInitialTheme } from '../theme/theme';
 import type { ResourcePool } from '@drone-directive/types/entities';
 import { Owner } from '@drone-directive/types/enums';
 import { DroneMode, GameStatus, OnlineStatus, OutcomePhase } from './enums';
@@ -55,6 +56,7 @@ export const initialState: GameStateFields = {
   buildDialogOpen: false,
   settings: createDefaultSettings(),
   locale: resolveInitialLocale(),
+  theme: resolveInitialTheme(),
   localSide: Owner.Player,
   online: { status: OnlineStatus.Offline },
   pendingOnline: null,

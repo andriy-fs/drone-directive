@@ -6,6 +6,90 @@
   overflow: hidden;
 }
 
+/* The CRT glass, when a theme asks for one: one fixed overlay over everything,
+   battlefield included — a scanline pattern that stopped at the sidebar's edge
+   would read as a texture on the panel rather than as the screen you are looking
+   through. `content: none` by default, so no element exists at all in the themes
+   that don't want it, and `pointer-events: none` because a box-select drag over
+   the field must reach the canvas underneath. Above the chat (40) and the
+   dialogs (11); static in a match, so it costs one composited layer and no
+   repaints. */
+.app-shell::after {
+  content: var(--scanlines-content);
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background-image: var(--scanlines-image);
+}
+
+/* The tube's instability — and the title screen is the one place it is
+   affordable. In a match the same animation would be running over a field the
+   player is reading under fire; `.app-shell--menu` is the class that disappears
+   the instant a match starts, so the effect ends itself rather than needing a
+   flag of its own. Both animations below are compositor-only — `opacity` on the
+   lines, `transform` on the roll — so neither repaints anything, whatever else
+   is on screen. */
+.app-shell--menu::after {
+  animation: var(--scanlines-flicker);
+}
+
+/* The roll: one soft band drifting down the screen, the way a CRT does when its
+   vertical hold is off. Its own element rather than a second layer on the lines
+   above, so it can be moved with a transform while they stay put. */
+.app-shell--menu::before {
+  content: var(--crt-roll-content);
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background-image: var(--crt-roll-image);
+  animation: var(--crt-roll);
+}
+
+/* Named here rather than in a theme file, like every other keyframe set in this
+   stylesheet: a theme chooses whether to run them (`--scanlines-flicker`,
+   `--crt-roll`), it does not get to define behaviour. */
+@keyframes crt-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.86;
+  }
+  10% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 1;
+  }
+  64% {
+    opacity: 0.9;
+  }
+  66% {
+    opacity: 1;
+  }
+}
+
+@keyframes crt-roll {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* A player who asked for less motion keeps the glass and loses the movement —
+   the same trade the drone toast and the ready-tile pulse already make. */
+@media (prefers-reduced-motion: reduce) {
+  .app-shell--menu::after,
+  .app-shell--menu::before {
+    animation: none;
+  }
+}
+
 /* No HUD before a match: the title screen is splash art + menu, nothing else. */
 .app-shell--menu {
   grid-template-columns: 1fr;
@@ -39,6 +123,8 @@
 }
 
 .hud__title {
+  font-family: var(--display);
+  text-shadow: var(--glow-title);
   font-size: 22px;
   letter-spacing: 0.5px;
   margin: 0;
@@ -65,7 +151,7 @@
   height: 4px;
   appearance: none;
   border-radius: 2px;
-  background: rgba(148, 163, 184, 0.35);
+  background: var(--control-track);
   cursor: pointer;
 }
 
@@ -74,7 +160,7 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: #cbd5e1;
+  background: var(--control-thumb);
 }
 
 .slider::-moz-range-thumb {
@@ -82,7 +168,7 @@
   height: 11px;
   border: none;
   border-radius: 50%;
-  background: #cbd5e1;
+  background: var(--control-thumb);
 }
 
 .slider:disabled {
@@ -112,7 +198,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(5, 8, 13, 0.35);
+  background: var(--overlay);
   pointer-events: none;
 }
 
@@ -121,7 +207,7 @@
   font-weight: 600;
   letter-spacing: 2px;
   color: var(--text-h);
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  text-shadow: var(--shadow-text);
 }
 
 /* A stalled or reconnecting link, not a pause: a whole sentence rather than one
@@ -135,6 +221,8 @@
 
 .menu__title {
   margin: 0;
+  font-family: var(--display);
+  text-shadow: var(--glow-title);
   font-size: 34px;
   letter-spacing: 1px;
   color: var(--text-h);
@@ -184,8 +272,8 @@
    It sits a shade above the sidebar so the panel reads as a raised surface. */
 .hud-card {
   border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  background: #141924;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .hud-card__header {
@@ -260,11 +348,11 @@
 /* The unit tally against its cap. Amber one slot out, red once production has
    actually stopped — the same red/green pair the drone panel already uses. */
 .hud__row-value--near-cap {
-  color: #fbbf24;
+  color: var(--warn);
 }
 
 .hud__row-value--cap {
-  color: #f87171;
+  color: var(--danger-soft);
 }
 
 .hud__muted {
@@ -347,25 +435,27 @@
   justify-content: center;
   gap: 8px;
   border: 1px solid var(--panel-border);
-  background: #1a2130;
+  background: var(--surface-raised);
   color: var(--text-h);
   font: inherit;
   font-size: 14px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   text-align: center;
+  text-transform: var(--case-ui);
   transition:
     background 0.15s,
     border-color 0.15s;
 }
 
 .btn:hover {
-  background: #232c40;
-  border-color: #3a4a63;
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  box-shadow: var(--glow-border);
 }
 
 .btn:active {
-  background: #2b3650;
+  background: var(--surface-active);
 }
 
 .btn:disabled {
@@ -380,11 +470,22 @@
   padding: 14px;
   background: var(--accent-deep);
   border-color: var(--accent-deep);
-  color: var(--text-h);
+  color: var(--text-on-accent);
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
+}
+
+/* `[[ START ]]`, for a theme that asks for it. `content: none` — the default —
+   generates no pseudo-element at all, so this costs the other themes nothing,
+   not even two empty flex items inside the button. */
+.btn--primary::before {
+  content: var(--bracket-open);
+}
+
+.btn--primary::after {
+  content: var(--bracket-close);
 }
 
 /* Must follow `.btn--primary` *and* out-rank `.btn:hover`, which ties it on
@@ -393,6 +494,44 @@
 .btn--primary:hover {
   background: var(--accent);
   border-color: var(--accent);
+}
+
+/* Pseudographic corners on the panels, off by default. Two marks rather than
+   four: `::before` and `::after` are all an element has, and a third corner
+   would mean a wrapper in the JSX purely to hold it — the diagonal pair is
+   enough to read as a drawn frame. Inert unless `--corner-mark` is set, so the
+   `position: relative` below is the only trace in the other themes. */
+.hud-card,
+.modal,
+.menu-shell {
+  position: relative;
+}
+
+.hud-card::before,
+.modal::before,
+.menu-shell::before,
+.hud-card::after,
+.modal::after,
+.menu-shell::after {
+  content: var(--corner-mark);
+  position: absolute;
+  color: var(--accent);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.hud-card::before,
+.modal::before,
+.menu-shell::before {
+  top: 2px;
+  left: 4px;
+}
+
+.hud-card::after,
+.modal::after,
+.menu-shell::after {
+  right: 4px;
+  bottom: 2px;
 }
 
 /* Status / command panel */
@@ -427,10 +566,10 @@
   gap: 12px;
   max-width: min(520px, calc(100% - 32px));
   padding: 10px 12px;
-  border: 1px solid #4ade80;
-  border-radius: 8px;
-  background: rgba(18, 22, 31, 0.94);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--ready);
+  border-radius: var(--radius-lg);
+  background: var(--surface-toast);
+  box-shadow: var(--shadow-card);
   animation: drone-toast-in 0.2s ease-out;
 }
 
@@ -443,7 +582,7 @@
   flex-shrink: 0;
   padding: 6px 10px;
   font-size: 13px;
-  border-color: #4ade80;
+  border-color: var(--ready);
 }
 
 @keyframes drone-toast-in {
@@ -466,18 +605,11 @@
 /* The radio feed: unit chatter straight onto the scene, top-right. The one free
    corner — sidebar left, drone toast top-centre, chat bottom-right.
 
-   No background plate by design, which makes contrast the whole problem: the map
-   underneath is sand, water and explosions, and a terminal green dark enough to
-   look like a CRT (#006400) disappears on the light half of it. The fix is a
-   brighter green carried by a *dark* halo rather than a glow of its own colour —
-   the text-shadow below is two black passes for legibility plus one faint green
-   for the tube look. Tokens rather than literals so a tuning pass is four lines. */
+   No background plate by design, so contrast is the whole problem here; the
+   `--radio-*` tokens in `theme/tokens.css` carry the answer (a bright hue plus a
+   dark halo) and explain it. They live there rather than on this rule because a
+   declaration made on the element itself is out of a theme's reach. */
 .radio-log {
-  --radio-green: #00d45a;
-  --radio-alert: #ff5252;
-  --radio-dim: #6ee7a8;
-  --radio-halo: 0 0 3px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 212, 90, 0.3);
-
   position: absolute;
   top: 16px;
   right: 16px;
@@ -507,10 +639,7 @@
 
 .radio-log__line--alert {
   color: var(--radio-alert);
-  text-shadow:
-    0 0 3px rgba(0, 0, 0, 0.98),
-    0 1px 3px rgba(0, 0, 0, 0.9),
-    0 0 12px rgba(255, 82, 82, 0.35);
+  text-shadow: var(--radio-halo-alert);
 }
 
 /* Older lines recede instead of being cut off — the feed reads as something
@@ -592,7 +721,7 @@
 
 .auto-build__stop {
   margin-left: auto;
-  color: #ef4444;
+  color: var(--danger);
   font: inherit;
   font-size: 12px;
   padding: 3px 8px;
@@ -614,14 +743,14 @@
 .bar {
   position: relative;
   height: 6px;
-  background: #0b0e13;
+  background: var(--surface-sunken);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .bar__fill {
   height: 100%;
-  background: #22c55e;
+  background: var(--success);
   transition: width 0.1s linear;
 }
 
@@ -629,13 +758,13 @@
    into pips by an overlay, so the fill underneath needs no extra markup. */
 .bar--segments {
   height: 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 /* No selection to report on. Drawn full rather than empty, in a grey that reads as
    "this control has no subject" instead of "your units are dead". */
 .bar--idle .bar__fill {
-  background: #39414f;
+  background: var(--neutral-fill);
 }
 
 .bar--segments::after {
@@ -673,7 +802,7 @@
   font: inherit;
   font-size: 13px;
   padding: 7px 6px;
-  text-transform: capitalize;
+  text-transform: var(--case-chip);
   transition:
     background 0.15s,
     border-color 0.15s,
@@ -681,13 +810,28 @@
 }
 
 .chip:hover {
-  background: #232c40;
+  background: var(--surface-hover);
 }
 
+/* Not `--text-on-accent`, unlike the tiles: `.chip:hover` out-ranks a lone
+   `.chip--on` and repaints a selected chip with the hover fill under the cursor,
+   so a label flipped dark here would disappear the moment you pointed at it. A
+   theme marks this state with `--chip-mark-on` instead. */
 .chip--on {
-  background: #2b3650;
+  background: var(--surface-active);
   border-color: var(--accent);
   color: var(--text-h);
+}
+
+/* `[ ] OPTION` / `[*] OPTION`, off by default. Only the plain strip of chips: a
+   card chip stacks an icon over its label, and a checkbox above the icon reads
+   as a third thing rather than as the same control. */
+.picker:not(.picker--cards) .chip::before {
+  content: var(--chip-mark-off);
+}
+
+.picker:not(.picker--cards) .chip--on::before {
+  content: var(--chip-mark-on);
 }
 
 /* Card variant of a picker row: icon over label instead of a strip of text, for
@@ -704,15 +848,15 @@
   gap: 6px;
   min-height: 66px;
   padding: 10px 6px;
-  background: #161b26;
+  background: var(--surface-inset);
   font-size: 12px;
   line-height: 1.2;
   text-transform: none;
 }
 
 .picker--cards .chip:hover {
-  background: #232c40;
-  border-color: #3a4a63;
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
 }
 
 /* Doubled with `:hover` so the active card keeps its blue under the cursor —
@@ -720,14 +864,14 @@
    `.tile--on` documents below. */
 .picker--cards .chip--on,
 .picker--cards .chip--on:hover {
-  background: #16233a;
+  background: var(--surface-accent);
   border-color: var(--accent);
-  color: var(--text-h);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text-on-accent);
+  box-shadow: var(--glow-accent);
 }
 
 .picker--cards .chip--on .chip__icon {
-  color: var(--accent);
+  color: var(--icon-on-accent);
 }
 
 /* The sidebar's icon tiles — the directive grid, and the Command section's two
@@ -747,11 +891,12 @@
   gap: 6px;
   min-height: 74px;
   padding: 10px 6px;
-  background: #161b26;
+  background: var(--surface-inset);
   color: var(--text);
   font-size: 12px;
   line-height: 1.2;
   text-align: center;
+  text-transform: var(--case-ui);
 }
 
 /* Odd tile out: it takes the whole row rather than leaving a hole beside it, and
@@ -769,7 +914,7 @@
    Scoped to the view tile — the directive tiles are `aria-pressed` too, and there
    an unpressed tile is just an option nobody picked. */
 .tile--view[aria-pressed='false'] {
-  border-color: #3a4a63;
+  border-color: var(--border-strong);
   color: var(--accent);
 }
 
@@ -782,12 +927,12 @@
 @keyframes tile-pulse {
   0%,
   100% {
-    border-color: #4ade80;
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+    border-color: var(--ready);
+    box-shadow: 0 0 0 0 transparent;
   }
   50% {
-    border-color: #4ade80;
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.22);
+    border-color: var(--ready);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ready) 22%, transparent);
   }
 }
 
@@ -795,7 +940,7 @@
 @media (prefers-reduced-motion: reduce) {
   .tile--ready {
     animation: none;
-    border-color: #4ade80;
+    border-color: var(--ready);
   }
 }
 
@@ -803,14 +948,14 @@
    `.btn:hover` outranks a lone `.tile--on` and would repaint it grey. */
 .tile--on,
 .tile--on:hover {
-  background: #16233a;
+  background: var(--surface-accent);
   border-color: var(--accent);
-  color: var(--text-h);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text-on-accent);
+  box-shadow: var(--glow-accent);
 }
 
 .tile--on .tile__icon {
-  color: var(--accent);
+  color: var(--icon-on-accent);
 }
 
 .modal__buttons {
@@ -887,7 +1032,7 @@
 
 /* Can't afford this model — the one thing that explains the disabled Build Once. */
 .build-cost__value--short {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .viewport {
@@ -911,7 +1056,7 @@
 .dialog-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(5, 8, 13, 0.68);
+  background: var(--scrim);
   z-index: 10;
 }
 
@@ -935,7 +1080,7 @@
    translucent panel here to darken the picture the way the menu shell does. */
 .dialog-backdrop.dialog-backdrop--outcome {
   background-color: var(--bg);
-  background-image: linear-gradient(rgba(5, 8, 13, 0.5), rgba(5, 8, 13, 0.78)),
+  background-image: linear-gradient(var(--scrim-art-top), var(--scrim-art-bottom)),
     var(--splash-image, none);
   background-position: center center;
   background-repeat: no-repeat;
@@ -1025,14 +1170,14 @@
 .modal {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 28px 32px;
   min-width: 260px;
   max-width: min(92vw, 420px);
   max-height: 88vh;
   overflow-y: auto;
   text-align: center;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-modal);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1081,11 +1226,11 @@
   max-height: 88vh;
   overflow-y: auto;
   padding: 28px 32px;
-  background: rgba(12, 17, 26, 0.4);
+  background: var(--surface-glass);
   backdrop-filter: blur(3px);
   border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -1141,8 +1286,8 @@
   min-width: 96px;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
   z-index: 12;
 }
 
@@ -1155,7 +1300,7 @@
 }
 
 .menu-lang__item:hover {
-  background: #232c40;
+  background: var(--surface-hover);
   border-color: var(--accent);
 }
 
@@ -1175,13 +1320,19 @@
   background: transparent;
   border-color: transparent;
   border-left: 2px solid transparent;
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   color: var(--text-dim);
   text-align: left;
 }
 
+/* `> SINGLEPLAYER`. A prompt rather than the primary button's brackets: the rail
+   entries are left-aligned, so a closing `]]` would end up out at the far edge. */
+.menu-nav__item::before {
+  content: var(--nav-marker);
+}
+
 .menu-nav__item:hover {
-  background: #1a2130;
+  background: var(--surface-raised);
   border-color: transparent;
   border-left-color: var(--panel-border);
   color: var(--text);
@@ -1251,9 +1402,9 @@
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
-  background: #0b0e13;
+  background: var(--surface-sunken);
   border: 1px solid var(--panel-border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--text-h);
   font: inherit;
   font-size: 14px;
@@ -1280,11 +1431,11 @@
 
 .picker--segmented .chip:first-child {
   margin-left: 0;
-  border-radius: 6px 0 0 6px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
 
 .picker--segmented .chip:last-child {
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 /* Lift the selected chip so its accent border isn't clipped by the neighbour
@@ -1320,7 +1471,7 @@
   width: 40px;
   height: 22px;
   padding: 0;
-  background: #1a2130;
+  background: var(--surface-raised);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
   transition:
@@ -1381,16 +1532,18 @@
 
 .modal__title {
   margin: 0;
+  font-family: var(--display);
+  text-shadow: var(--glow-title);
   font-size: 28px;
   letter-spacing: 0.5px;
 }
 
 .modal__title--win {
-  color: #22c55e;
+  color: var(--success);
 }
 
 .modal__title--lose {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .modal__body {
@@ -1458,9 +1611,9 @@
 }
 
 .control-item kbd {
-  background: #0b0e13;
+  background: var(--surface-sunken);
   border: 1px solid var(--panel-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 4px 8px;
   font-family: var(--mono);
   font-size: 12px;
@@ -1585,8 +1738,8 @@
   min-width: 18px;
   padding: 1px 5px;
   border-radius: 9px;
-  background: #d9534f;
-  color: #fff;
+  background: var(--danger-solid);
+  color: var(--on-danger);
   font-size: 11px;
   font-weight: 700;
   line-height: 16px;
@@ -1603,8 +1756,8 @@
   max-height: min(420px, calc(100vh - 40px));
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
@@ -1643,7 +1796,7 @@
   margin: 0;
   padding: 6px 10px;
   font-size: 12px;
-  color: #e5807c;
+  color: var(--danger-text);
   border-top: 1px solid var(--panel-border);
 }
 
@@ -1657,8 +1810,8 @@
 }
 
 .chat-dot--on {
-  background: #4caf7d;
-  border-color: #4caf7d;
+  background: var(--success-alt);
+  border-color: var(--success-alt);
 }
 
 .chat-log {
@@ -1695,7 +1848,7 @@
 }
 
 .chat-line--mine .chat-line__who {
-  color: #6fa8dc;
+  color: var(--info);
 }
 
 .chat-line__time {
@@ -1721,7 +1874,7 @@
   min-width: 0;
   padding: 6px 8px;
   border: 1px solid var(--panel-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text-h);
   font: inherit;
@@ -1730,7 +1883,7 @@
 
 .chat-compose__input:focus {
   outline: none;
-  border-color: #3c4a5e;
+  border-color: var(--border-hover);
 }
 
 .chat-compose__send {

@@ -1,0 +1,82 @@
+/**
+ * Field — an amber field terminal: warm, monospaced, no blue anywhere.
+ *
+ * The template for every other theme, too. It redefines tokens and nothing else:
+ * no selectors from `ui/App.css` appear here, and none should. If a theme needs
+ * a rule the stylesheet does not have, the fix is a new *token* in `tokens.css`
+ * that the default fills with its current literal — never a component override
+ * parked in a theme file.
+ *
+ * Tokens left out below fall through to `tokens.css`, so a theme is free to be
+ * partial (this one keeps the default's shadows and scrims).
+ */
+[data-theme='field'] {
+  /* ---- Surfaces ---- */
+  --bg: #120f09;
+  --panel-bg: #191408;
+  --surface: #1e180b;
+  --surface-raised: #241d0e;
+  --surface-hover: #33290f;
+  --surface-active: #453714;
+  --surface-sunken: #0d0a05;
+  --surface-inset: #1b1509;
+  --surface-accent: #3a2c0c;
+  --surface-glass: rgba(25, 20, 8, 0.45);
+  --surface-toast: rgba(30, 24, 11, 0.95);
+
+  /* ---- Lines ---- */
+  --panel-border: #3b3116;
+  --border-strong: #6b5722;
+  --border-hover: #7d6629;
+
+  /* ---- Text ---- */
+  --text: #d6c49a;
+  --text-h: #fdf3dd;
+  --text-dim: #8a7852;
+  --on-danger: #1a1206;
+
+  /* ---- Brand ---- */
+  --accent: #f0a92c;
+  --accent-deep: #7a5209;
+
+  /* ---- Status ---- */
+  /* Warm-shifted so nothing reads as a stray sample from the blue scheme; the
+     meanings are unchanged. */
+  --danger: #e5533d;
+  --danger-soft: #f08268;
+  --danger-text: #e0997f;
+  --danger-solid: #c4472f;
+  --warn: #f5c542;
+  --success: #a7c23a;
+  --success-alt: #8aa63a;
+  --ready: #d4e05a;
+  --info: #e0b464;
+  --neutral-fill: #4a4028;
+
+  /* ---- Controls ---- */
+  --control-track: rgba(214, 196, 154, 0.28);
+  --control-thumb: #e8d7ab;
+
+  /* ---- Overlays ---- */
+  --overlay: rgba(12, 9, 4, 0.4);
+  --scrim: rgba(12, 9, 4, 0.72);
+  --scrim-art-top: rgba(12, 9, 4, 0.5);
+  --scrim-art-bottom: rgba(12, 9, 4, 0.8);
+
+  /* ---- The radio feed ---- */
+  /* Same problem as the default's green — the chatter has no plate under it — so
+     the same answer: a bright hue carried by black halos. */
+  --radio-green: #ffc247;
+  --radio-alert: #ff7a4d;
+  --radio-dim: #d7ab63;
+  --radio-halo: 0 0 3px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(255, 194, 71, 0.3);
+  --radio-halo-alert: 0 0 3px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(255, 122, 77, 0.35);
+
+  /* ---- Type / shape ---- */
+  /* A theme is not only colour: headings take the terminal face, and the corners
+     come off, which is most of what separates this from a recoloured default. */
+  --display: var(--mono);
+  --radius-sm: 0;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+}

@@ -1,0 +1,11 @@
+/**
+ * The theme layer, in load order — the default tokens first, then every theme
+ * that overrides them. `:root` and `[data-theme='…']` carry equal specificity,
+ * so this order is what makes a theme win; adding a file above `tokens.css`
+ * would silently do nothing.
+ *
+ * One line per theme, matching one entry in `theme.ts`.
+ */
+@import './tokens.css';
+@import './themes/field.css';
+@import './themes/crt.css';

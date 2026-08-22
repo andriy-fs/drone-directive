@@ -1,24 +1,19 @@
+/**
+ * Document-level base rules. Everything visual reads from the theme layer —
+ * `theme/tokens.css` holds the tokens, `theme/themes/*` override them per
+ * `data-theme` (see `theme/README.md`).
+ */
+@import './theme/index.css';
+
 :root {
-  --bg: #0d1117;
-  --panel-bg: #12161f;
-  --panel-border: #232a36;
-  --text: #b6c0cf;
-  --text-h: #eef2f7;
-  --text-dim: #6b7686;
-
-  /* The one brand colour, in two weights: `--accent` marks whatever is currently
-     active or hovered, `--accent-deep` is the resting fill of a primary action —
-     which brightens to `--accent` under the cursor. */
-  --accent: #3b82f6;
-  --accent-deep: #1e3a8a;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
   font: 16px/1.4 var(--sans);
   color: var(--text);
   background: var(--bg);
-  color-scheme: dark;
+  /* Declared once, here, because `text-shadow` inherits: one token reaches every
+     label in the app. Rules with a shadow of their own (the radio feed, the pause
+     watermark) still override it. Default is `none`. */
+  text-shadow: var(--glow-text);
+  color-scheme: var(--color-scheme);
   -webkit-font-smoothing: antialiased;
 }
 

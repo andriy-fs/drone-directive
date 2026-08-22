@@ -15,6 +15,7 @@ import type { ChatMessage, ChatSeat } from '@drone-directive/chat';
 import type { GameSettings, SettingsPatch } from '../config/gameSettings';
 import type { Locale } from '../i18n/locale';
 import type { RadioKey, RadioParams } from '../radio/types';
+import type { Theme } from '../theme/theme';
 import type { Command } from '@drone-directive/types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
 import type { ChassisType, FormationType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
@@ -221,6 +222,8 @@ export interface GameStateFields {
   settings: GameSettings;
   /** Active UI language. */
   locale: Locale;
+  /** Active UI colour/type scheme — written onto `<html data-theme>` (see theme/). */
+  theme: Theme;
   /** Which side this client plays/views (host = Player, guest = AI). Presentation only. */
   localSide: Owner;
   /** Online lobby/connection status (see OnlineState). */
@@ -312,6 +315,8 @@ export interface GameActions {
   noteDroneReady: () => void;
   setBuildDialogOpen: (open: boolean) => void;
   setLocale: (locale: Locale) => void;
+  /** Switch the UI scheme. Unlike the language there is nothing to load first. */
+  setTheme: (theme: Theme) => void;
   /**
    * Host a room (bridge generates the code, echoes it back). The host picks the
    * map and how many bots join both humans — the guest is told at match start.
