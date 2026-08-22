@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { radioConfig } from '../config/radio';
 import { loadDict } from '../i18n/dictionaries';
 import { saveLocale, type Locale } from '../i18n/locale';
+import { saveTheme, type Theme } from '../theme/theme';
 import { Owner } from '@drone-directive/types/enums';
 import { OnlineLink, OnlineRequest, OnlineStatus } from './enums';
 import { initialState } from './initialState';
@@ -99,6 +100,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ locale });
       })
       .catch((error: unknown) => console.error('[i18n] failed to load locale', locale, error));
+  },
+  // No async half, unlike `setLocale`: every theme's tokens are in the bundle's
+  // CSS from the first paint, so the switch is a repaint. `main.tsx` mirrors the
+  // value onto `<html data-theme>` — nothing in React owns that element.
+  setTheme: (theme: Theme) => {
+    saveTheme(theme);
+    set({ theme });
   },
   hostMatch: (mapSize, aiOpponents) =>
     set({

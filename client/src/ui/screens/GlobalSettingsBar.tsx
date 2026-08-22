@@ -3,13 +3,21 @@ import { sfx } from '../../pixi/audio/sfx';
 import { music } from '../../pixi/audio/music';
 import { useGameStore } from '../../store/gameStore';
 import { Button } from '../common/Button';
-import { CheckIcon, GlobeIcon, GraphicsIcon, HelpCircleIcon, Volume2Icon, VolumeXIcon } from '../common/icons';
+import {
+  CheckIcon,
+  GlobeIcon,
+  GraphicsIcon,
+  HelpCircleIcon,
+  PaletteIcon,
+  Volume2Icon,
+  VolumeXIcon,
+} from '../common/icons';
 import { Menu, MenuButton, MenuItem, MenuItems } from '../common/Menu';
-import { LANGUAGE_OPTIONS } from './menuOptions';
+import { LANGUAGE_OPTIONS, themeOptions } from './menuOptions';
 
 /**
- * The title screen's global settings — language, sound, controls — as one compact
- * row of icon buttons in the header.
+ * The title screen's global settings — language, theme, sound, controls — as one
+ * compact row of icon buttons in the header.
  *
  * These are app-wide preferences that outlive any match, so grouping them apart
  * from the match rules is the point: previously they sat in the same vertical
@@ -30,6 +38,9 @@ export function GlobalSettingsBar({
   const t = useT();
   const locale = useGameStore((s) => s.locale);
   const setLocale = useGameStore((s) => s.setLocale);
+  const theme = useGameStore((s) => s.theme);
+  const setTheme = useGameStore((s) => s.setTheme);
+  const themes = themeOptions(t);
 
   return (
     <div className="menu-bar">
@@ -54,6 +65,32 @@ export function GlobalSettingsBar({
               <Button className="menu-lang__item" onClick={() => setLocale(option.value)}>
                 {option.label}
                 {option.value === locale && <CheckIcon size={14} aria-hidden />}
+              </Button>
+            </MenuItem>
+          ))}
+        </MenuItems>
+      </Menu>
+
+      {/* The UI scheme, in the same dropdown shape as the language beside it —
+          both are app-wide preferences with a handful of named values, and the
+          list is short enough that a dialog would be ceremony. Every theme's
+          tokens ship in the bundle's CSS, so picking one repaints on the spot;
+          `main.tsx` is what puts it on <html>. */}
+      <Menu>
+        <MenuButton
+          className="btn menu-bar__btn"
+          onClick={() => sfx.buttonClick()}
+          aria-label={t('aria', 'theme')}
+          title={t('aria', 'theme')}
+        >
+          <PaletteIcon size={16} aria-hidden />
+        </MenuButton>
+        <MenuItems anchor="bottom end" className="menu-lang__items">
+          {themes.map((option) => (
+            <MenuItem key={option.value}>
+              <Button className="menu-lang__item" onClick={() => setTheme(option.value)}>
+                {option.label}
+                {option.value === theme && <CheckIcon size={14} aria-hidden />}
               </Button>
             </MenuItem>
           ))}
