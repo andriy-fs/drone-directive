@@ -80,7 +80,7 @@ export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: Ch
     maxHp: stats.hp,
     chassis,
     weaponType: weapon,
-    movement: { speed: stats.speed, state: RobotState.Idle },
+    movement: { speed: stats.speed, state: RobotState.Idle, velX: 0, velY: 0 },
     weapon: weaponComp(weapon),
     // Radar (and any future spotter) scales the chassis sight radius; others = 1.
     sightRange: stats.sight * w.sightMultiplier,

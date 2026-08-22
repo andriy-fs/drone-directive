@@ -853,7 +853,18 @@ describe('applyFormations — a squad marches round a hairpin', () => {
     );
   }
 
-  for (const width of [1, 2]) {
+  // Widths are taken from the game's own guarantee, not chosen. `generateObstacles`
+  // seals anything narrower than `obstacles.minCorridorTiles` (see
+  // `sealNarrowGround`), so a pass below it is geometry no generated map can
+  // produce — testing it pins behaviour the game never asks for, and holds the
+  // movement layer to a standard the map is explicitly designed to avoid needing.
+  //
+  // This swept 1 and 2 tiles when it was written, before that guarantee existed.
+  // The three root causes above are what the file is really for, and they bite at
+  // any width that files the group; the minimum and one tile above it still cover
+  // that. Raise `minCorridorTiles` and these widths follow on their own.
+  const narrowest = gameConfig.obstacles.minCorridorTiles;
+  for (const width of [narrowest, narrowest + 1]) {
     for (const gap of [3, 8]) {
       for (const type of Object.values(FormationType)) {
         it(`gets a ${type} round a ${width}-tile hairpin ${gap} tiles across`, () => {

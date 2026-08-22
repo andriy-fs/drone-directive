@@ -1,5 +1,6 @@
 import { gameConfig } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
+import { vecLength } from '../../utils/math';
 import type { RobotEntity } from '../ecs/archetypes';
 import { isAlive } from '../ecs/guards';
 
@@ -82,11 +83,11 @@ function firstBlocker(
     if (other === self || !isAlive(other)) continue;
     const dx = other.position.x - x;
     const dy = other.position.y - y;
-    const d = Math.hypot(dx, dy);
+    const d = vecLength(dx, dy);
     if (d >= minDist || d >= bestDist) continue;
     // Already overlapping before the step: separation owns that, and treating it
     // as a blocker would stop a robot escaping the very overlap being resolved.
-    if (Math.hypot(other.position.x - pos.x, other.position.y - pos.y) < minDist) continue;
+    if (vecLength(other.position.x - pos.x, other.position.y - pos.y) < minDist) continue;
     best = other;
     bestDist = d;
   }

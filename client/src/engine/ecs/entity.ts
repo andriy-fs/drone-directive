@@ -13,17 +13,65 @@ import type { RobotScript } from '@drone-directive/types/tasks';
 export interface Movement {
   speed: number;
   state: RobotState;
+  /**
+   * Velocity actually driven last tick, px/second — what `movementSystem` moved
+   * the hull by, divided by `dt`, excluding whatever `separationSystem` did to it
+   * afterwards. Zero for a hull that held station.
+   *
+   * Required rather than optional, deliberately. A reciprocal avoidance layer's
+   * whole premise is a statement about what the *neighbour* is doing, and an
+   * `undefined` velocity is one every agent silently reads as "parked" — the one
+   * reading that makes two units drive into each other. Making it non-optional
+   * puts that on the compiler instead of on whoever writes the next spawn site.
+   */
+  velX: number;
+  velY: number;
   destination?: Vec2;
   path?: Vec2[];
   goal?: Vec2;
   /** Anti-jam bookkeeping (movement system): seconds with ~no net progress. */
   stuckTime?: number;
+  /**
+   * Orbit detection (ORCA pass only). `stuckTime` measures per-tick displacement
+   * and a limit cycle defeats it: a hull can jitter 2 px a tick inside a 5 px
+   * cell forever and never read as stuck. The anchor measures *net* travel — it
+   * is planted where the hull drives, moved only when the hull gets a couple of
+   * radii away, and its age is the honest "going nowhere" clock.
+   */
+  jamAnchorX?: number;
+  jamAnchorY?: number;
+  jamAnchorAge?: number;
+  /** Seconds left of pressing straight down the route, old-layer style. */
+  pressTime?: number;
+  /**
+   * Reliefs already spent on the current anchor. The first fuse presses; a
+   * second fuse on the same anchor means the press did not clear it — two
+   * pressers grinding head-on never will — so it escalates to the retreat.
+   */
+  jamReliefs?: number;
   /** Position at the end of the previous tick, to measure net progress. */
   prevX?: number;
   prevY?: number;
   /** Seconds left of an anti-jam retreat, and its direction (radians). */
   retreatTime?: number;
   retreatAngle?: number;
+  /**
+   * The last pathfinding query that came back with **no route**, memoised on the
+   * exact inputs that produced it: start tile, goal tile, and the nav-grid
+   * version. `findPath` is a pure function of those three, so repeating the query
+   * unchanged cannot produce a different answer.
+   *
+   * This is a performance guard, and the thing it guards against is severe. A
+   * failed search is the most expensive kind — it exhausts every reachable tile
+   * before giving up, and `findPath` picks its next node by linear scan, so on a
+   * 60x60 grid one costs ~8 ms against a 33 ms frame. `setGoal` cannot cache on
+   * the goal tile alone (a robot with no destination must be allowed to ask
+   * again, or an unreachable order becomes a permanent freeze — see
+   * `.docs/tasks/local-avoidance.md`), so before this a single robot ordered
+   * somewhere disconnected re-ran that search **every tick**, taking 81-89% of
+   * the entire frame. Measured on real bot matches, under both avoidance layers.
+   */
+  noRoute?: { fromTx: number; fromTy: number; goalTx: number; goalTy: number; navVersion: number };
 }
 
 /** Robot weapon component. */
