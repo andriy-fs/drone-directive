@@ -83,7 +83,7 @@ Nothing else. No React, no store change.
 
 The battlefield. Everything Pixi draws — units, terrain, projectiles, fog —
 takes its colours from `config/palette.ts`, which is a separate table keyed by
-game role and shared with the sprite briefs (`.docs/sprites/`). A theme restyles
+game role and shared with the sprite briefs (`.docs/internal/sprites/`). A theme restyles
 the interface around the world, not the world. Wiring the two together would
 mean the canvas re-reading the palette on every switch, and the sprite art
 disagreeing with it; if that is ever wanted, it is its own task.
