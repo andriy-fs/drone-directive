@@ -128,7 +128,7 @@ find out *what* is slow instead of guessing:
 
 Turn one off, pan the observer drone for ten seconds, compare the p95. Whatever
 moves the number is the answer — see
-[.docs/tasks/terrain-render-cost.md](.docs/tasks/terrain-render-cost.md) for a
+[.docs/internal/tasks/terrain-render-cost.md](.docs/internal/tasks/terrain-render-cost.md) for a
 worked example where every intuition about the cause was wrong.
 
 For a persistent setting rather than a one-off measurement, the title screen's
