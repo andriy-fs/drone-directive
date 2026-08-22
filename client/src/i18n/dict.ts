@@ -219,8 +219,19 @@ export interface Dict {
     directivesHelp: string;
     /** The title screen's globe button, which opens the language menu. */
     language: string;
+    /** The title screen's palette button, which opens the UI-scheme menu. */
+    theme: string;
     /** A modal's corner [X] — the label the button's icon can't provide. */
     close: string;
+  };
+  /**
+   * The UI schemes (`theme/`). Names, not descriptions — they sit in a dropdown
+   * beside the language codes.
+   */
+  theme: {
+    command: string;
+    field: string;
+    crt: string;
   };
   /**
    * Sound settings — one dialog, reachable from the HUD and from the title

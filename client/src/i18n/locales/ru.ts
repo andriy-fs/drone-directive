@@ -201,7 +201,13 @@ export const ru: Dict = {
     soundSettings: 'Настройки звука',
     directivesHelp: 'О директивах',
     language: 'Язык',
+    theme: 'Тема интерфейса',
     close: 'Закрыть',
+  },
+  theme: {
+    command: 'Командная',
+    field: 'Полевая',
+    crt: 'CRT-терминал',
   },
   sound: {
     title: 'Звук',

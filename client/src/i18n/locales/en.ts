@@ -201,7 +201,13 @@ export const en: Dict = {
     soundSettings: 'Sound settings',
     directivesHelp: 'About directives',
     language: 'Language',
+    theme: 'Interface theme',
     close: 'Close',
+  },
+  theme: {
+    command: 'Command',
+    field: 'Field',
+    crt: 'CRT Terminal',
   },
   sound: {
     title: 'Sound',
