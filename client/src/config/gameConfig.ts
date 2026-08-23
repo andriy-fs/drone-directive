@@ -642,11 +642,41 @@ export const gameConfig = {
      * the tiles go into more, smaller lumps (medium map: 19 against 16) instead
      * of into the necks that merged them into masses.
      */
-    blobCount: 26,
+    blobCount: 18,
     /** Min tiles per cluster — a cluster below this is too small to be worth pathing around. */
-    minBlobTiles: 4,
+    minBlobTiles: 6,
     /** Max tiles per cluster. Actual size is a random count of *distinct* tiles in `[min, max]`. */
-    maxBlobTiles: 16,
+    maxBlobTiles: 24,
+    /**
+     * How strongly a cluster's random walk favours its own axis, 0.5–1.
+     *
+     * At 0.5 the walk is isotropic and a blob comes out round — a lump with no
+     * direction, which is what made a generated map read as a tray of samples rather
+     * than as terrain. Higher values stretch it into a ridge with a grain; too high
+     * and it degenerates into a one-tile line with no width to take cover behind.
+     * The tile budget is untouched either way, so cover density does not move.
+     */
+    ridgeBias: 0.56,
+    /**
+     * Chance that a step also paints the cell beside it, across the ridge's grain.
+     *
+     * A walk one cell wide is a snake, and a snake is all edge: over half of all
+     * mountain clusters came out a single tile thick, which left the depth shading
+     * nothing to shade and let one cliff face cover an entire mountain. This is what
+     * gives a ridge a body, out of the same tile budget.
+     */
+    ridgeWidth: 0.45,
+    /**
+     * Chance that the next cluster is seeded next to the previous one instead of
+     * somewhere random, and how many tiles away it may land.
+     *
+     * This is what assembles clusters into massifs: neighbours touch and merge, and
+     * `sealNarrowGround` fills the necks between the ones that only nearly touch. At
+     * 0 the map is a scatter of separate blobs; at 1 it is one wandering wall with no
+     * open ground left to fight over.
+     */
+    chainChance: 0.62,
+    chainSpread: 2,
     /** Tiles kept clear around each base (Chebyshev) — covers the production spawn ring. */
     baseClearMargin: 6,
     /**

@@ -17,6 +17,13 @@ import { Geometry } from 'pixi.js';
  * corner, which is exactly what the boundary rim and the shadow skirt need.
  */
 export class QuadBuilder {
+  /**
+   * Where a grid corner actually sits, if the caller draws on the warped grid — see
+   * `warp.ts`. Tile quads ask it for their four corners instead of assuming the grid;
+   * everything built with `add()` passes warped coordinates itself.
+   */
+  constructor(private readonly corner?: (cx: number, cy: number) => { x: number; y: number }) {}
+
   private readonly positions: number[] = [];
   private readonly values: number[] = [];
   private readonly indices: number[] = [];
@@ -42,21 +49,41 @@ export class QuadBuilder {
     this.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 
-  /** An axis-aligned tile-sized quad whose four corner values come from a lookup. */
-  addTile(x: number, y: number, size: number, corner: (cx: number, cy: number) => number, cx: number, cy: number): void {
+  /**
+   * A tile-sized quad whose four corner values come from a lookup.
+   *
+   * Axis-aligned unless the builder was given a corner function, in which case the
+   * quad follows the warped grid and stops having right angles — which is the whole
+   * point of `warp.ts`. `dx`/`dy` shift the quad off its tile (the cast shadow draws
+   * the same silhouette offset toward the light), and the warp is applied on top.
+   */
+  addTile(
+    size: number,
+    value: (cx: number, cy: number) => number,
+    cx: number,
+    cy: number,
+    dx = 0,
+    dy = 0,
+  ): void {
+    const at = (gx: number, gy: number): { x: number; y: number } =>
+      this.corner ? this.corner(gx, gy) : { x: gx * size, y: gy * size };
+    const a = at(cx, cy);
+    const b = at(cx + 1, cy);
+    const c = at(cx + 1, cy + 1);
+    const d = at(cx, cy + 1);
     this.add(
-      x,
-      y,
-      corner(cx, cy),
-      x + size,
-      y,
-      corner(cx + 1, cy),
-      x + size,
-      y + size,
-      corner(cx + 1, cy + 1),
-      x,
-      y + size,
-      corner(cx, cy + 1),
+      a.x + dx,
+      a.y + dy,
+      value(cx, cy),
+      b.x + dx,
+      b.y + dy,
+      value(cx + 1, cy),
+      c.x + dx,
+      c.y + dy,
+      value(cx + 1, cy + 1),
+      d.x + dx,
+      d.y + dy,
+      value(cx, cy + 1),
     );
   }
 

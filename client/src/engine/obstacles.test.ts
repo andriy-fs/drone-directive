@@ -41,8 +41,8 @@ describe('terrain kinds — movement vs line of fire', () => {
 });
 
 describe('generateObstacles', () => {
-  it('keeps every cluster a single kind and sizes it within the configured range', () => {
-    const { minBlobTiles, maxBlobTiles } = gameConfig.obstacles;
+  it('keeps every cluster a single kind, and builds massifs without swallowing the map', () => {
+    const { minBlobTiles } = gameConfig.obstacles;
     const terrain = generateObstacles(createRng(11));
     const seen = new Set<string>();
     const sizes: number[] = [];
@@ -71,20 +71,23 @@ describe('generateObstacles', () => {
             }
           }
         }
-        // A region can merge two stamped blobs that landed adjacent, and can fall
-        // short of the floor when hemmed in by the map edge or a base's clear
-        // margin — so per-region bounds aren't assertable; the mean is. Sealing
-        // the narrow ground merges more of them still (a filled neck joins the two
-        // blobs it lay between), which is why the ceiling below is the configured
-        // maximum rather than anything tighter.
         if (kinds.size === 1) sizes.push(size);
       }
     }
 
+    // A region bigger than `maxBlobTiles` is the **point**, not a defect: clusters are
+    // seeded next to one another (`chainChance`) so ridges merge into massifs, and
+    // `sealNarrowGround` fills the necks between the ones that only nearly touch. What
+    // is worth pinning down is the other end — that the merging stops somewhere.
     expect(sizes.length).toBeGreaterThan(0);
     const mean = sizes.reduce((a, b) => a + b, 0) / sizes.length;
     expect(mean).toBeGreaterThanOrEqual(minBlobTiles);
-    expect(mean).toBeLessThanOrEqual(maxBlobTiles);
+
+    // Several masses, and no single one that has eaten the battlefield: at `chainChance`
+    // 1 the map degenerates into one wandering wall, which is the failure this guards.
+    const blocked = sizes.reduce((a, b) => a + b, 0);
+    expect(sizes.length).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...sizes) / blocked).toBeLessThan(0.65);
   });
 
   it('produces both terrain kinds across a map', () => {

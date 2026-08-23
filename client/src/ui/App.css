@@ -6,16 +6,19 @@
   overflow: hidden;
 }
 
-/* The CRT glass, when a theme asks for one: one fixed overlay over everything,
-   battlefield included — a scanline pattern that stopped at the sidebar's edge
-   would read as a texture on the panel rather than as the screen you are looking
-   through. `content: none` by default, so no element exists at all in the themes
-   that don't want it, and `pointer-events: none` because a box-select drag over
-   the field must reach the canvas underneath. Above the chat (40) and the
-   dialogs (11); static in a match, so it costs one composited layer and no
-   repaints. */
+/* The CRT glass, when a theme asks for one: one fixed overlay over everything on
+   the title screen — a scanline pattern that stopped at the sidebar's edge would
+   read as a texture on the panel rather than as the screen you are looking
+   through. `pointer-events: none` because a box-select drag over the field must
+   reach the canvas underneath. Above the chat (40) and the dialogs (11).
+
+   **The match does not get it**, which is why `content` hangs off
+   `.app-shell--menu` below rather than off `.app-shell` here. Over a menu the
+   lines are the screen you are looking through; over the battlefield they are a
+   1-in-3-pixel grid laid across terrain the player is reading for cover, and they
+   were being mistaken for a tiling artefact in the ground itself. `content: none`
+   by default, so in the themes without glass no element exists at all. */
 .app-shell::after {
-  content: var(--scanlines-content);
   position: fixed;
   inset: 0;
   z-index: 100;
@@ -24,13 +27,13 @@
 }
 
 /* The tube's instability — and the title screen is the one place it is
-   affordable. In a match the same animation would be running over a field the
-   player is reading under fire; `.app-shell--menu` is the class that disappears
-   the instant a match starts, so the effect ends itself rather than needing a
-   flag of its own. Both animations below are compositor-only — `opacity` on the
+   affordable. `.app-shell--menu` is the class that disappears the instant a match
+   starts, so both the lines above and this flicker end themselves rather than
+   needing a flag of their own. Both animations below are compositor-only — `opacity` on the
    lines, `transform` on the roll — so neither repaints anything, whatever else
    is on screen. */
 .app-shell--menu::after {
+  content: var(--scanlines-content);
   animation: var(--scanlines-flicker);
 }
 

@@ -32,6 +32,7 @@
  * &depth=0             depth shading off
  * &rim=0               boundary rim off
  * &peaks=0             ridge decals off
+ * &cliffs=0            mountain rock faces off (south edges fall back to the rim)
  * &seed=7               pin the solo match's battlefield instead of seeding from the clock
  * ```
  *
@@ -52,6 +53,7 @@ export interface PerfFlags {
   depth: boolean;
   rim: boolean;
   peaks: boolean;
+  cliffs: boolean;
   /** Fixed battlefield seed for solo play, or null to seed from the clock as usual. */
   seed: number | null;
   /** Human-readable list of everything set away from its default, for the readout. */
@@ -90,6 +92,7 @@ function read(): PerfFlags {
     depth: flag('depth', true),
     rim: flag('rim', true),
     peaks: flag('peaks', true),
+    cliffs: flag('cliffs', true),
     seed: number('seed'),
     overrides,
   };

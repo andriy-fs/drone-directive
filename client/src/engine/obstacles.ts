@@ -4,6 +4,12 @@ import { TerrainKind } from '@drone-directive/types/enums';
 import { vecLength } from '../utils/math';
 import type { Rng } from '../utils/rng';
 
+/** A grid cell, in tiles. Local to generation — the renderer has its own in `pixi/render/terrain/clusters.ts`. */
+interface Tile {
+  tx: number;
+  ty: number;
+}
+
 /** Blocked-tile grid: `grid[ty][tx]` is true where terrain blocks the queried thing. */
 export type ObstacleGrid = boolean[][];
 
@@ -84,13 +90,33 @@ export function generateObstacles(rng: Rng): TerrainGrid {
   let placed = 0;
   let attempts = 0;
   const maxAttempts = wanted * 20;
+  // Where the previous ridge petered out, so the next one can be laid against it —
+  // see `chainChance`.
+  let previous: Tile | null = null;
+  let previousKind: TerrainKind | null = null;
   while (placed < wanted && attempts < maxAttempts) {
     attempts++;
-    const tx = rng.int(width);
-    const ty = rng.int(height);
-    if (protectedCells.has(key(tx, ty)) || grid[ty][tx] !== TerrainKind.Open) continue;
-    const kind = rng.next() < gameConfig.obstacles.craterChance ? TerrainKind.Crater : TerrainKind.Mountain;
-    stampBlob(grid, protectedCells, tx, ty, kind, rng);
+    // A chained seed usually lands *on* the ridge it was measured from, which is
+    // already painted — so an unusable one falls back to a free placement in the same
+    // attempt rather than burning it. Resetting the link instead (the first version of
+    // this) meant chaining almost never fired at all.
+    const usable = (t: Tile): boolean =>
+      inBounds(t.tx, t.ty) && !protectedCells.has(key(t.tx, t.ty)) && grid[t.ty][t.tx] === TerrainKind.Open;
+    const chained = chainedSeed(previous, rng);
+    const linked = chained !== null && usable(chained);
+    const seed = linked && chained ? chained : { tx: rng.int(width), ty: rng.int(height) };
+    if (!usable(seed)) continue;
+    const { tx, ty } = seed;
+    // **A chained ridge inherits its neighbour's kind.** Rolling afresh would fuse a
+    // mountain onto a crater, and the rule that a blob is all one kind exists because
+    // the alternative reads as noise rather than as terrain — a massif that is half
+    // rock and half pit is exactly that, at massif scale. So the roll happens only
+    // where a new range starts.
+    // Annotated because it is not inferrable: narrowing `previousKind` here would need
+    // the type of the assignment below, which is this very expression.
+    const kind: TerrainKind = linked && previousKind !== null ? previousKind : roll(rng);
+    previous = stampBlob(grid, protectedCells, tx, ty, kind, rng);
+    previousKind = kind;
     placed++;
   }
 
@@ -230,12 +256,47 @@ function computeProtected(): Set<string> {
   return set;
 }
 
+/** Mountain or crater, per `craterChance` — the roll that opens a new range. */
+function roll(rng: Rng): TerrainKind {
+  return rng.next() < gameConfig.obstacles.craterChance ? TerrainKind.Crater : TerrainKind.Mountain;
+}
+
+/**
+ * Where the next ridge starts when it is being laid against the previous one, or
+ * `null` when it should be placed freely.
+ *
+ * **This is what turns scattered lumps into a range.** Seeding every blob uniformly
+ * gives a field of separate blobs of four to sixteen tiles, which is exactly what it
+ * looks like: a collection of samples on a floor. Landing roughly half of them within
+ * a few tiles of the last one lets neighbours touch and merge — and `sealNarrowGround`
+ * then fills the necks between the near misses, so what the player walks around is a
+ * handful of massifs with bays and spurs rather than a scatter of pebbles.
+ *
+ * The offset is deliberately loose: close enough to join or nearly join, far enough
+ * that the result is a ridge rather than one fat blob.
+ */
+function chainedSeed(previous: Tile | null, rng: Rng): Tile | null {
+  if (!previous || rng.next() >= gameConfig.obstacles.chainChance) return null;
+  const spread = gameConfig.obstacles.chainSpread;
+  const span = spread * 2 + 1;
+  return { tx: previous.tx + rng.int(span) - spread, ty: previous.ty + rng.int(span) - spread };
+}
+
 /**
  * Random-walks a cluster of one terrain kind from a seed cell, painting a random
- * number of **distinct** tiles in `[minBlobTiles, maxBlobTiles]`. The walk
- * revisits cells, so steps are budgeted rather than looping until the target is
- * met: a blob wedged against the map edge or a base's clear margin can never
- * reach its target, and generation must always terminate.
+ * number of **distinct** tiles in `[minBlobTiles, maxBlobTiles]`, and returns where
+ * the walk ended so the next blob can be chained onto it.
+ *
+ * The walk revisits cells, so steps are budgeted rather than looping until the target
+ * is met: a blob wedged against the map edge or a base's clear margin can never reach
+ * its target, and generation must always terminate.
+ *
+ * **The walk is biased along one axis** (`ridgeBias`), which is what makes a blob a
+ * ridge instead of a lump. An unbiased four-way walk is isotropic — it has no reason
+ * to go anywhere — so it piles up around its seed and comes out round. Committing to
+ * an axis, and mostly to one direction along it, draws something with a length and a
+ * grain, which is what a mountain range is made of. The tile budget does not change,
+ * so cover density does not either.
  */
 function stampBlob(
   grid: TerrainGrid,
@@ -244,23 +305,44 @@ function stampBlob(
   ty: number,
   kind: TerrainKind,
   rng: Rng,
-): void {
-  const { minBlobTiles, maxBlobTiles } = gameConfig.obstacles;
+): Tile {
+  const { minBlobTiles, maxBlobTiles, ridgeBias, ridgeWidth } = gameConfig.obstacles;
   const target = minBlobTiles + rng.int(maxBlobTiles - minBlobTiles + 1);
+  // The grain of this ridge: an axis, and a direction along it that the walk favours.
+  const vertical = rng.int(2) === 0;
+  const forward = rng.int(2) === 0 ? 1 : -1;
   let cx = tx;
   let cy = ty;
   let painted = 0;
+  // Only paint open ground: stepping onto another cluster must not repaint it, or
+  // blobs would end up with mixed kinds.
+  const paint = (x: number, y: number): void => {
+    if (!inBounds(x, y) || protectedCells.has(key(x, y)) || grid[y][x] !== TerrainKind.Open) return;
+    grid[y][x] = kind;
+    painted++;
+  };
+
   for (let step = 0; step < target * 8 && painted < target; step++) {
-    // Only paint open ground: stepping onto another cluster must not repaint it,
-    // or blobs would end up with mixed kinds.
-    if (inBounds(cx, cy) && !protectedCells.has(key(cx, cy)) && grid[cy][cx] === TerrainKind.Open) {
-      grid[cy][cx] = kind;
-      painted++;
+    paint(cx, cy);
+    // A one-cell-wide walk draws a snake, and a snake has no inside: measured over 20
+    // maps, more than half of all mountain clusters came out a single tile thick, so
+    // the depth shading had nothing to shade and a cliff face swallowed the whole
+    // mass. Widening the trail across the grain is what gives a ridge a body — the
+    // budget is unchanged, so this trades length for mass rather than adding cover.
+    if (painted < target && rng.next() < ridgeWidth) {
+      const side = rng.int(2) === 0 ? 1 : -1;
+      if (vertical) paint(cx + side, cy);
+      else paint(cx, cy + side);
     }
-    const dir = rng.int(4);
-    cx += dir === 0 ? 1 : dir === 1 ? -1 : 0;
-    cy += dir === 2 ? 1 : dir === 3 ? -1 : 0;
+    const roll = rng.next();
+    // Along the grain most of the time, and mostly forward; across it otherwise, which
+    // is what gives the ridge width and keeps it from being a one-tile line.
+    const along = roll < ridgeBias;
+    const delta = along ? (roll < ridgeBias * 0.75 ? forward : -forward) : rng.int(2) === 0 ? 1 : -1;
+    if (along === vertical) cy += delta;
+    else cx += delta;
   }
+  return { tx: cx, ty: cy };
 }
 
 function baseCentre(p: BasePlacement): { tx: number; ty: number } {

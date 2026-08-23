@@ -22,7 +22,7 @@
  * Requires `ffmpeg` (scaling) and `cwebp` (encoding) on PATH. ffmpeg could encode
  * WebP on its own, but cwebp is where the alpha-quality and effort knobs live.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,6 +39,11 @@ const OUT_DIR = fileURLToPath(new URL('../public/', import.meta.url));
  *
  * `alpha: false` marks the opaque terrain art, which skips the premultiply dance;
  * `seamless: true` marks the tiles whose edges have to keep matching.
+ *
+ * `size` is normally one number — every other output here is square. A **strip**
+ * (`size: [w, h]`) is the exception: it is scaled to that rectangle without being
+ * squared off first, and its transparent margins are trimmed away beforehand. See
+ * `terrain-cliff` below for why both halves of that matter.
  */
 const SPRITES = [
   // Robots — on-field 46 px (ROBOT_TARGET).
@@ -85,11 +90,55 @@ const SPRITES = [
   // background decor sitting under the fog.
   { name: 'terrain-ejecta', size: 512, quality: 86 },
   { name: 'ground-decals', size: 512, quality: 90 },
+  // The mountains' rock face — the one **strip** in the set, and the only asset
+  // whose two axes mean different things: it repeats along the wall and does not
+  // repeat down it. Three consequences, all of them here rather than in the shader:
+  //
+  // 1. **Trimmed, not padded.** The master arrives with transparent bands above the
+  //    rim and below the rubble. `v` maps the image's full height onto the wall's
+  //    height, so shipping that padding would draw the wall as a short bar floating
+  //    in a gap. The trim finds the alpha bounding box and cuts to it.
+  // 2. **Not squared.** 384×64 against a trimmed master of ~2172×510 is a
+  //    deliberate vertical squash: the face is drawn 128 px long and 22 px tall
+  //    (`CLIFF` in `TerrainView`), so the art is baked at the proportion it is used
+  //    at instead of being minified into it every frame.
+  // 3. **Not `seamless`.** That mode wrap-pads 3×3, which would blend the opaque top
+  //    edge into the transparent base. The wall tiles by being sampled with
+  //    `mirror-repeat` (see `TerrainView`), so its edges match by construction and
+  //    the master does not have to wrap — this one measurably does not.
+  // One entry per variant in `cliffSprites` (config/sprites.ts): the sheets differ in
+  // rock, never in how they are encoded.
+  ...['terrain-cliff', 'terrain-cliff-2'].map((name) => ({ name, size: [384, 64], quality: 88, strip: true })),
 ];
 
+/**
+ * The alpha bounding box of a master, as `[w, h, x, y]`.
+ *
+ * `cropdetect` reads luma, so the alpha is lifted into luma first; `skip=0` because
+ * it otherwise ignores the first two frames and a PNG only has one.
+ */
+function alphaBounds(src) {
+  // ffmpeg reports the detection on **stderr**, so this is `spawnSync` rather than
+  // the `execFileSync` everything else here uses.
+  const probe = spawnSync(
+    'ffmpeg',
+    ['-v', 'verbose', '-i', src, '-vf', 'alphaextract,cropdetect=limit=0:round=2:skip=0', '-frames:v', '1', '-f', 'null', '-'],
+    { encoding: 'utf8' },
+  );
+  const match = /crop=(\d+):(\d+):(\d+):(\d+)/.exec(probe.stderr ?? '');
+  if (!match) throw new Error(`could not find the alpha bounds of ${src}`);
+  return match.slice(1).map(Number);
+}
+
+
 /** The ffmpeg filter chain that turns a master into a correctly scaled RGBA/RGB frame. */
-function filterChain({ size, alpha = true, seamless = false }) {
+function filterChain({ size, alpha = true, seamless = false, strip = false }, src) {
   const steps = [];
+  if (strip) {
+    const [w, h, x, y] = alphaBounds(src);
+    const [outW, outH] = size;
+    return [`crop=${w}:${h}:${x}:${y}`, 'format=rgba', 'premultiply=inplace=1', `scale=${outW}:${outH}:flags=lanczos`, 'unpremultiply=inplace=1'].join(',');
+  }
   // 3×3 first, so the scaler reads across the wrap instead of clamping at the edge.
   if (seamless) steps.push('loop=loop=8:size=1:start=0', 'tile=3x3');
   if (alpha) steps.push('format=rgba');
@@ -115,7 +164,7 @@ function encode(sprite, work) {
   const scaled = join(work, `${sprite.name}.png`);
   const out = join(OUT_DIR, `${sprite.name}.webp`);
 
-  execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', src, '-vf', filterChain(sprite), '-frames:v', '1', scaled]);
+  execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', src, '-vf', filterChain(sprite, src), '-frames:v', '1', scaled]);
   // `-alpha_q 100`: the alpha channel costs almost nothing at this resolution and
   // a soft-edged cutout is the one artefact that reads as "broken sprite".
   execFileSync('cwebp', ['-quiet', '-q', String(sprite.quality), '-m', '6', '-alpha_q', '100', scaled, '-o', out]);
@@ -184,7 +233,9 @@ try {
     before += size.before;
     after += size.after;
     const pad = sprite.name.padEnd(22);
-    console.log(`${pad} ${String(sprite.size).padStart(4)}px  ${kb(size.before)} → ${kb(size.after)}`);
+    // A strip carries `[w, h]`; everything else is one number meaning a square.
+    const dims = Array.isArray(sprite.size) ? sprite.size.join('×') : `${sprite.size}²`;
+    console.log(`${pad} ${dims.padStart(7)}px  ${kb(size.before)} → ${kb(size.after)}`);
   }
 } finally {
   rmSync(work, { recursive: true, force: true });

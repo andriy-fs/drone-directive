@@ -1,13 +1,23 @@
-import { Container, Graphics, Mesh, Sprite } from 'pixi.js';
+import { Container, Graphics, Mesh, Sprite, type Texture } from 'pixi.js';
 import { gameConfig } from '../../../config/gameConfig';
 import { palette } from '../../../config/palette';
 import { TerrainKind } from '@drone-directive/types/enums';
 import type { TerrainGrid } from '../../../engine/obstacles';
-import { getEjectaTexture, getPeakTexture, getTerrainTexture, peakVariantCount } from '../../assets';
+import {
+  cliffVariantCount,
+  getCliffTexture,
+  getEjectaTexture,
+  getPeakTexture,
+  getTerrainTexture,
+  peakVariantCount,
+} from '../../assets';
 import { hashInt, hashRange } from './hash';
 import { perfFlags } from '../../perf/perfFlags';
 import { QuadBuilder } from './quads';
-import { createFillShader, createShadowShader } from './terrainShaders';
+import { createCliffShader, createFillShader, createFlatShader } from './terrainShaders';
+import { cliffGeometry } from './cliffs';
+import { clusterContours, offsetPoint, smoothstep, type Contour, type ContourPoint } from './contours';
+import { warpedCorner } from './warp';
 import {
   boundaryEdges,
   depthField,
@@ -52,15 +62,21 @@ import {
  */
 
 /**
- * Global light direction, as the offset a cast shadow takes. Light comes from the
- * **north-west**, so shadows fall south-east and the `n`/`w` faces of a mountain
- * are the lit ones.
+ * Global light direction, as a unit vector pointing **toward** the sun. Light comes
+ * from the **north-west**, so shadows fall south-east and the `n`/`w` faces of a
+ * mountain are the lit ones.
+ *
+ * A vector rather than the per-side flags this used to be, because the boundary is no
+ * longer made of sides: the bevel reads a contour's own normal and shades it by
+ * `dot(n, LIGHT_DIR)`. The flags could only ever say lit or dark, so an outline
+ * turning from north to east flipped between the two in one step at a tile corner —
+ * which is a good part of what made the edge read as a flat cut.
  *
  * `terrain-peaks` art is authored against this exact direction (see
  * `.docs/sprites/terrain-peaks.md`) — changing it here means regenerating that
  * sheet, and it is the only art in the game with a baked light direction.
  */
-const LIGHT_FROM: { readonly [K in Side]: boolean } = { n: true, w: true, s: false, e: false };
+const LIGHT_DIR = [-Math.SQRT1_2, -Math.SQRT1_2] as const;
 
 /** How far the cast shadow is offset from the mass, in px. */
 const SHADOW_REACH = 9;
@@ -83,8 +99,128 @@ const ROCK_REPEAT_TILES = 6;
 const DEPTH_TINT = { mountain: [0.525, 0.592, 0.722], crater: [0, 0, 0] } as const;
 const DEPTH_STRENGTH = { mountain: 0.24, crater: 0.55 } as const;
 
-/** Thickness of the boundary rim, in px. */
-const RIM_WIDTH = 3;
+/**
+ * The bevel along a boundary — three bands, where the rim was one.
+ *
+ * A single band ramping inward can only say "there is an edge here", and softly. What
+ * it cannot say is that the edge has a *thickness*: rock stops on a lip that catches
+ * the light, and the ground right up against it is occluded. Without those two the
+ * outline reads as paper cut with a soft eraser, however good the texture on it.
+ *
+ * - `OCC` reaches **outward**, onto the ground, and is the half nothing here used to
+ *   draw at all — the micro-shadow that puts the mass *in* the surface.
+ * - `LIP` is a narrow band of constant alpha right at the boundary: the crisp step.
+ *   It is deliberately not a ramp; the highlight on a bevel is a line, and a ramp
+ *   from the boundary is the thing this replaces.
+ * - `WIDTH` is where the soft inner ramp finally reaches zero, as before.
+ *
+ * `TERMINATOR` is how far past head-on the shading takes to fall off, in `dot(n,
+ * light)` — small enough that most of an outline is decidedly lit or decidedly dark,
+ * wide enough that the two meet through a gradient instead of at a step.
+ */
+const BEVEL = {
+  WIDTH: 6,
+  LIP: 1.5,
+  OCC: 6,
+  /** The lip itself: a bright line, and the fraction of it the ramp behind it starts at. */
+  LIT_ALPHA: 0.62,
+  DARK_ALPHA: 0.62,
+  FALLOFF: 0.42,
+  OCC_ALPHA: 0.5,
+  TERMINATOR: 0.35,
+} as const;
+/** The lit band's colour, linear 0..1 — the old `0x7d8ea8`. The dark bands share `SHADOW_COLOR`. */
+const BEVEL_LIT_COLOR = [0.49, 0.557, 0.659];
+
+/**
+ * The rock face on a mountain's south edge — the wall, as opposed to the rim, which
+ * is only its lit top edge.
+ *
+ * `HEIGHT` must stay **≤ `tilePx`**: the face grows inward from the edge, and about
+ * half of all generated mountain clusters are one tile thick, so anything taller
+ * would spill out of the footprint and draw rock on ground a robot can drive over.
+ * `REPEAT_TILES` is how much wall one pass of the art covers, and it is what sets a
+ * lobe's width on screen — the art's own proportions do not survive here, because
+ * the wall is 22 px tall and the master is not. It was picked by looking: at 6 the
+ * lobes flatten into a row of pots, at 3 they crowd into stripes, at 4 they read as
+ * columns. 4 tiles × 22 px is also the proportion the art is baked at
+ * (`terrain-cliff.webp` ships 384×64 for 128×22 px of wall), so the strip is drawn
+ * close to the shape it was encoded for.
+ *
+ * `APRON` is the only part of this layer drawn **outside** the blocked cells: the
+ * art's own rubble band, redrawn below the footprint and faded out, so the stone
+ * spills onto the ground instead of ending on the straight line where the tiles do.
+ * `APRON_V0` is where in the art that band starts. Decoration only — nothing about
+ * the collision grid moves, exactly as `ejectaLayer` has always worked.
+ *
+ * `FACING` is where the wall begins and where it reaches full height, measured on the
+ * contour normal's southward component. It replaces the old "south edges only" test,
+ * and it is what lets a wall follow a diagonal: the stretch turning east loses height
+ * gradually and hands the boundary back to the bevel, instead of stopping dead.
+ *
+ * `LIP` is the highlight the shader adds where the wall meets the top of the rock —
+ * the bevel's counterpart on the face itself. `STRENGTH: 0` turns it off.
+ *
+ * `COLUMN_PX` belongs to the **procedural fallback** alone.
+ */
+const CLIFF = {
+  HEIGHT: 22,
+  REPEAT_TILES: 4,
+  COLUMN_PX: 14,
+  APRON: 7,
+  APRON_V0: 0.78,
+  FACING: { LO: 0.15, HI: 0.7 },
+  LIP: { STRENGTH: 0.12, POW: 6 },
+} as const;
+
+/** How far apart a contour's samples are, in px — the resolution every outline is drawn at. */
+const CONTOUR = { SPACING: 8 } as const;
+
+/** The colour the wall's lip is brightened toward, linear 0..1. */
+const CLIFF_LIP_COLOR = [0.49, 0.557, 0.659];
+
+/**
+ * Loose stones on the ground below a wall.
+ *
+ * Two per tile's worth (`perPx` is per px of contour, since there are no tiles down
+ * here any more) is enough because they are not meant to be counted — they are meant
+ * to interrupt the straight line the footprint draws. A gradient can soften that line;
+ * only something with its own silhouette can break it.
+ */
+const SCREE = { perPx: 2 / 32, minSize: 5, maxSize: 11, spread: 14 } as const;
+
+/**
+ * The dirty ground under a mass: wider than the contact shadow and much fainter.
+ *
+ * This is the "haze" half of making rock sit *in* a surface rather than on it. The
+ * contact shadow says where the stone touches; this says the ground near it is not
+ * clean. Cheap — one more quad per run in a mesh that already exists.
+ */
+const HAZE = { REACH: 30, ALPHA: 0.14 } as const;
+
+/**
+ * Darkness laid **under** the face, ramping from nothing at its top to this at its
+ * base — the fix for a hairline the art cannot fix itself.
+ *
+ * The fill covers the whole tile, face included, and the art's alpha near the base is
+ * loose rubble with gaps between the stones. Bright rock therefore shone through those
+ * gaps and then stopped dead on the footprint line, which read as a drawn border under
+ * every wall. Backing the strip with shadow means what shows through the gaps is the
+ * dark under the overhang, and the footprint edge becomes dark meeting dark.
+ */
+const CLIFF_BACKING_ALPHA = 0.82;
+/** The face's rock colour, linear 0..1 — the fill lightened, since a wall turned to the camera catches more light than the top does. Fallback only. */
+const CLIFF_BASE = [0.44, 0.47, 0.53];
+
+/**
+ * The dark line of contact where a face meets the ground.
+ *
+ * `KNEE` splits the falloff in two: the first band runs from full alpha down to
+ * `KNEE_ALPHA` of it over `KNEE` of the reach, the second from there to nothing. One
+ * band would ramp linearly, and a linear ramp reads as a slab of shadow with a hard
+ * start — this bends it, dark and tight against the stone, then a long tail.
+ */
+const CONTACT = { REACH: 14, ALPHA: 0.6, KNEE: 0.38, KNEE_ALPHA: 0.42 } as const;
 
 /** Chebyshev tiles two ridge decals must be apart. Also what keeps a small blob to one. */
 const PEAK_SEPARATION = 3;
@@ -92,6 +228,23 @@ const PEAK_SEPARATION = 3;
 const EJECTA_SPREAD = 1.55;
 
 const { tilePx } = gameConfig.grid;
+
+/** Where a grid corner is drawn — every pass that touches the silhouette goes through this. */
+const warped = (cx: number, cy: number): { x: number; y: number } => warpedCorner(cx, cy, tilePx);
+
+/** The two warped endpoints of one tile edge, in the order the side runs. */
+function edgeEnds(tx: number, ty: number, side: Side): [{ x: number; y: number }, { x: number; y: number }] {
+  if (side === 'n') return [warped(tx, ty), warped(tx + 1, ty)];
+  if (side === 's') return [warped(tx, ty + 1), warped(tx + 1, ty + 1)];
+  if (side === 'w') return [warped(tx, ty), warped(tx, ty + 1)];
+  return [warped(tx + 1, ty), warped(tx + 1, ty + 1)];
+}
+
+/** A cluster with its traced outlines — what the bevel and the wall are both drawn from. */
+interface Outline {
+  cluster: Cluster;
+  contours: Contour[];
+}
 
 /** Builds the whole terrain field. Caller owns the container and destroys it. */
 export function createTerrainView(terrain: TerrainGrid): Container {
@@ -102,14 +255,28 @@ export function createTerrainView(terrain: TerrainGrid): Container {
   const depths = new Map<Cluster, DepthField>();
   for (const c of clusters) depths.set(c, depthField(c));
 
+  // Traced once, for every layer that draws the silhouette. Three of them used to
+  // rebuild it from tile edges apiece, which is why the wall and the top of the rock
+  // could disagree about what shape the mountain was.
+  const outlines: Outline[] = clusters.map((cluster) => ({
+    cluster,
+    contours: clusterContours(cluster, { corner: warped, spacing: CONTOUR.SPACING }),
+  }));
+
   // Bottom to top. Ejecta first because it is the one thing that lies *outside*
   // the blocked footprint: on passable ground, under the fill, so the fill always
   // wins where the two meet and the footprint stays exactly what it is.
   container.addChild(ejectaLayer(clusters), shadowLayer(terrain), fillLayer(terrain, normalisedDepth(clusters, depths)));
-  if (perfFlags.rim) container.addChild(rimLayer(terrain));
+  if (perfFlags.rim) container.addChild(bevelLayer(outlines));
+  if (perfFlags.cliffs) container.addChild(cliffLayer(outlines));
   if (perfFlags.peaks) container.addChild(peakLayer(clusters, depths));
 
   return container;
+}
+
+/** How much wall a contour sample carries: 0 where the outline turns away from due south. */
+function wallFacing(p: ContourPoint): number {
+  return smoothstep(CLIFF.FACING.LO, CLIFF.FACING.HI, p.ny);
 }
 
 /** Depth of one tile, normalised to its own cluster's maximum. 0 outside any cluster. */
@@ -192,7 +359,7 @@ function shadowLayer(terrain: TerrainGrid): Container {
   layer.label = 'terrain-shadow';
   if (!perfFlags.shadow) return layer;
 
-  const quads = new QuadBuilder();
+  const quads = new QuadBuilder(warped);
   const solid = () => SHADOW_ALPHA;
   const off = SHADOW_REACH;
 
@@ -200,25 +367,29 @@ function shadowLayer(terrain: TerrainGrid): Container {
     const row = terrain[ty];
     for (let tx = 0; tx < row.length; tx++) {
       if (row[tx] !== TerrainKind.Mountain) continue;
-      quads.addTile(tx * tilePx + off, ty * tilePx + off, tilePx, solid, tx, ty);
+      quads.addTile(tilePx, solid, tx, ty, off, off);
     }
   }
 
   const f = SHADOW_FEATHER;
   const a = SHADOW_ALPHA;
   for (const { tx, ty, side } of boundaryEdges(terrain, TerrainKind.Mountain)) {
-    const x = tx * tilePx + off;
-    const y = ty * tilePx + off;
-    const x2 = x + tilePx;
-    const y2 = y + tilePx;
-    if (side === 'n') quads.add(x, y, a, x2, y, a, x2, y - f, 0, x, y - f, 0);
-    else if (side === 's') quads.add(x, y2, a, x2, y2, a, x2, y2 + f, 0, x, y2 + f, 0);
-    else if (side === 'w') quads.add(x, y, a, x, y2, a, x - f, y2, 0, x - f, y, 0);
-    else quads.add(x2, y, a, x2, y2, a, x2 + f, y2, 0, x2 + f, y, 0);
+    // Both ends on the warped grid, offset toward the light with the body: a skirt
+    // hanging off the straight grid line would show the silhouette this layer exists
+    // to hide, drawn in shadow.
+    const [p, q] = edgeEnds(tx, ty, side);
+    const x = p.x + off;
+    const y = p.y + off;
+    const x2 = q.x + off;
+    const y2 = q.y + off;
+    if (side === 'n') quads.add(x, y, a, x2, y2, a, x2, y2 - f, 0, x, y - f, 0);
+    else if (side === 's') quads.add(x, y, a, x2, y2, a, x2, y2 + f, 0, x, y + f, 0);
+    else if (side === 'w') quads.add(x, y, a, x2, y2, a, x2 - f, y2, 0, x - f, y, 0);
+    else quads.add(x, y, a, x2, y2, a, x2 + f, y2, 0, x + f, y, 0);
   }
 
   if (quads.empty) return layer;
-  const mesh = new Mesh({ geometry: quads.build('aAlpha'), shader: createShadowShader(SHADOW_COLOR) });
+  const mesh = new Mesh({ geometry: quads.build('aAlpha'), shader: createFlatShader(SHADOW_COLOR) });
   mesh.label = 'shadow';
   layer.addChild(mesh);
   return layer;
@@ -266,9 +437,9 @@ function fillLayer(terrain: TerrainGrid, depthOf: TileValue): Container {
     art.texture.source.addressMode = 'repeat';
 
     const corner = cornerSampler(depthOf);
-    const quads = new QuadBuilder();
+    const quads = new QuadBuilder(warped);
     for (const { tx, ty } of cells) {
-      quads.addTile(tx * tilePx, ty * tilePx, tilePx, corner, tx, ty);
+      quads.addTile(tilePx, corner, tx, ty);
     }
 
     const crater = kind === TerrainKind.Crater;
@@ -289,49 +460,258 @@ function fillLayer(terrain: TerrainGrid, depthOf: TileValue): Container {
 }
 
 /**
- * The lit/shadowed edge along every cluster boundary — and **the thing that tells
- * the two terrain kinds apart at a glance**, which matters because they behave
- * differently: shots cross a crater and are stopped by a mountain
- * (`sightGrid` in `engine/obstacles.ts`).
+ * The mountains' rock faces, plus the line of contact where each one meets the
+ * ground — the layer that answers "what does the *edge* of a mountain look like",
+ * which the bevel alone never could.
  *
- * A mountain is a wall rising toward the light, so its north and west edges are
- * bright. A crater's north and west edges are inner walls turned away from the
- * light, so they are dark and the far side is the lit one. The inversion is the
- * whole trick, and it is gameplay information rather than decoration.
+ * Three decisions worth keeping, all of them measured off the generated maps rather
+ * than guessed (20 seeds, 40×40): ~10 mountain clusters per map, median 16 tiles,
+ * and a depth histogram of 47% one tile thick, 48% two, 5% deeper.
  *
- * Edges are drawn as rects inset into the footprint rather than as strokes on a
- * traced path: strokes would also run along the internal edges shared between two
- * cells of the same kind, painting the grid back on.
+ * 1. **Drawn on the contour, not on tile edges.** The wall follows the cluster's own
+ *    outline and carries an arc length along it, so a staircase is one wall stepping
+ *    down rather than a row of unrelated horizontal walls each restarting the art.
+ *    This is the whole reason the layer was rewritten: with a warped silhouette above
+ *    and a grid-aligned wall below, the two halves of a mountain looked like they came
+ *    from different games.
+ * 2. **South-facing only, but continuously.** Light comes from the north-west, so the
+ *    parts of the outline turned toward it are the lit top of the rock and belong to
+ *    the bevel. `wallFacing` weights the wall by how far south a stretch of contour
+ *    actually points, so it thins out around a bend instead of ending on a cut.
+ * 3. **Inward, never outward.** Since half the mountains are one tile thick, a face
+ *    that hangs onto open ground would put rock over drivable tiles on most of the
+ *    map. The strip extrudes up-screen from a south-facing boundary, which is into the
+ *    rock by definition. Only the contact shadow and the debris cross the footprint
+ *    line, and one of them is a shadow.
+ *
+ * The layer is a handful of static meshes for the entire map — one for all the soft
+ * darkness, one per art variant for the rock — built once per match.
  */
-function rimLayer(terrain: TerrainGrid): Graphics {
-  const g = new Graphics();
-  g.label = 'terrain-rim';
+function cliffLayer(outlines: readonly Outline[]): Container {
+  const layer = new Container();
+  layer.label = 'terrain-cliffs';
 
-  for (const kind of [TerrainKind.Crater, TerrainKind.Mountain]) {
-    const edges = boundaryEdges(terrain, kind);
-    if (!edges.length) continue;
-    const crater = kind === TerrainKind.Crater;
+  const contours = outlines
+    .filter((o) => o.cluster.kind === TerrainKind.Mountain)
+    .flatMap((o) => o.contours);
+  if (!contours.length) return layer;
 
-    for (const lit of [false, true]) {
-      let any = false;
-      for (const { tx, ty, side } of edges) {
-        // A crater's rim reads inverted: the edge facing the light is the inner
-        // wall turned away from it.
-        if ((LIGHT_FROM[side] !== crater) !== lit) continue;
-        const x = tx * tilePx;
-        const y = ty * tilePx;
-        if (side === 'n') g.rect(x, y, tilePx, RIM_WIDTH);
-        else if (side === 's') g.rect(x, y + tilePx - RIM_WIDTH, tilePx, RIM_WIDTH);
-        else if (side === 'w') g.rect(x, y, RIM_WIDTH, tilePx);
-        else g.rect(x + tilePx - RIM_WIDTH, y, RIM_WIDTH, tilePx);
-        any = true;
+  const height = Math.min(CLIFF.HEIGHT, tilePx);
+
+  // Everything soft under the rock, in one mesh: haze, contact, backing. All three are
+  // the same flat colour with a per-vertex ramp, so they cost one draw call between
+  // them however many walls the map has. Each band is offset along the contour's own
+  // normal, so it hugs a diagonal stretch of wall as closely as a horizontal one.
+  const quads = new QuadBuilder();
+  const knee = CONTACT.REACH * CONTACT.KNEE;
+  const kneeAlpha = CONTACT.ALPHA * CONTACT.KNEE_ALPHA;
+  for (const contour of contours) {
+    const pts = contour.points;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const q = pts[(i + 1) % pts.length];
+      const fp = wallFacing(p);
+      const fq = wallFacing(q);
+      if (fp <= 0 && fq <= 0) continue;
+
+      const band = (from: number, to: number, aFrom: number, aTo: number): void => {
+        const p0 = offsetPoint(p, from);
+        const q0 = offsetPoint(q, from);
+        const q1 = offsetPoint(q, to);
+        const p1 = offsetPoint(p, to);
+        quads.add(p0.x, p0.y, aFrom * fp, q0.x, q0.y, aFrom * fq, q1.x, q1.y, aTo * fq, p1.x, p1.y, aTo * fp);
+      };
+
+      // Haze first and widest: the ground itself dirtying up toward the rock. Without
+      // it the mass stands on a clean floor, which is most of what "pasted on" means.
+      band(0, HAZE.REACH, HAZE.ALPHA, 0);
+
+      // Contact, in two bands rather than one. A single quad ramps linearly, and a
+      // straight ramp is a wall of shadow with a hard start — light does not fall off
+      // like that. Two bands bend the falloff: dark and tight against the stone, then a
+      // long tail.
+      band(0, knee, CONTACT.ALPHA, kneeAlpha);
+      band(knee, CONTACT.REACH, kneeAlpha, 0);
+
+      // Backing: inside the footprint, under the face and extruded exactly as the face
+      // is, so the gaps between the art's rubble show darkness rather than the bright
+      // fill the tile is painted with.
+      const a = CLIFF_BACKING_ALPHA;
+      quads.add(p.x, p.y - height * fp, 0, q.x, q.y - height * fq, 0, q.x, q.y, a * fq, p.x, p.y, a * fp);
+    }
+  }
+  if (!quads.empty) {
+    const shadow = new Mesh({ geometry: quads.build('aAlpha'), shader: createFlatShader(SHADOW_COLOR) });
+    shadow.label = 'cliff-contact';
+    layer.addChild(shadow);
+  }
+
+  // One mesh per art variant. Which variant a contour gets is a pure hash of its own
+  // key corner, so every peer draws the same wall, and a cluster keeps its variant when
+  // the camera moves — the alternative, picking per frame or per draw, would shimmer.
+  const variants = cliffVariants();
+  const byVariant = new Map<number, Contour[]>();
+  for (const contour of contours) {
+    const v = variants.length > 1 ? hashInt(contour.key.cx, contour.key.cy, 0x6d, variants.length) : 0;
+    const list = byVariant.get(v);
+    if (list) list.push(contour);
+    else byVariant.set(v, [contour]);
+  }
+
+  const repeatPx = tilePx * CLIFF.REPEAT_TILES;
+  for (const [v, group] of byVariant) {
+    const art = variants[v] ?? null;
+    const geometry = cliffGeometry(group, {
+      height,
+      repeatPx,
+      facingLo: CLIFF.FACING.LO,
+      facingHi: CLIFF.FACING.HI,
+      // The apron and the scree are the art's own rubble drawn again; the procedural
+      // wall has no rubble to spill, so it gets neither.
+      apron: art ? CLIFF.APRON : 0,
+      apronV0: CLIFF.APRON_V0,
+      scree: art ? SCREE : { ...SCREE, perPx: 0 },
+    });
+    if (!geometry) continue;
+    const shader = createCliffShader(CLIFF_BASE, CLIFF.COLUMN_PX, art, repeatPx, {
+      color: CLIFF_LIP_COLOR,
+      strength: CLIFF.LIP.STRENGTH,
+      pow: CLIFF.LIP.POW,
+    });
+    const faces = new Mesh({ geometry, shader });
+    faces.label = `cliff-faces-${v}`;
+    layer.addChild(faces);
+  }
+
+  return layer;
+}
+
+/**
+ * The rock-face sheets that are actually loaded, in variant order.
+ *
+ * Sampling is `mirror-repeat` because the wall tiles along `u` and the masters do not
+ * wrap — mirroring makes their ends meet by construction. Safe to set on the source
+ * because these are whole-image assets; a `frame`-cropped sheet shares its source with
+ * its neighbours and would bleed. See `.docs/sprites/terrain-cliff.md`.
+ *
+ * An empty list is a working state, not a failure: `createCliffShader` then builds its
+ * procedural wall and the mountains still have an edge.
+ */
+function cliffVariants(): Texture[] {
+  const textures: Texture[] = [];
+  for (let i = 0; i < cliffVariantCount; i++) {
+    const art = getCliffTexture(i);
+    if (!art) continue;
+    art.texture.source.addressMode = 'mirror-repeat';
+    textures.push(art.texture);
+  }
+  return textures;
+}
+
+/**
+ * The bevel along every cluster boundary — and **the thing that tells the two terrain
+ * kinds apart at a glance**, which matters because they behave differently: shots
+ * cross a crater and are stopped by a mountain (`sightGrid` in `engine/obstacles.ts`).
+ *
+ * A mountain is a wall rising toward the light, so its north-west side is bright. A
+ * crater's north-west side is an inner wall turned away from the light, so it is dark
+ * and the far side is the lit one. The inversion is the whole trick, and it is
+ * gameplay information rather than decoration.
+ *
+ * **Three bands, not one, and one of them is outside.** This was a single 6 px ramp
+ * fading inward from each tile edge, and before that a 3 px stroke. Both said only
+ * "an edge is here": nothing about the edge having a thickness, and nothing at all on
+ * the ground side. That is what reads as a shape cut out of paper and laid on the
+ * field. What a real break in rock has, and what is drawn here, is an occluded strip
+ * of ground just outside it, a crisp lit lip on the stone itself, and only then the
+ * soft fall of light away from that lip.
+ *
+ * **Shading is continuous.** Every sample is weighted by `dot(normal, LIGHT_DIR)`
+ * instead of by which side of a tile it sat on, so an outline curving from north to
+ * east passes through a terminator rather than switching in one step at a corner.
+ *
+ * **The wall takes over where it stands.** Both the lit lip and the outer occlusion
+ * fade out as `wallFacing` rises, because on those stretches the rock face draws its
+ * own lip (in the shader) and its own contact shadow. Without that hand-off the base
+ * of every wall would carry two shadows and a highlight buried under stone — which is
+ * what the old hard "skip mountain `s` edges" test existed to avoid.
+ */
+function bevelLayer(outlines: readonly Outline[]): Container {
+  const layer = new Container();
+  layer.label = 'terrain-bevel';
+
+  // One builder per colour, not per kind: a mountain's lit edge and a crater's lit
+  // edge are the same band and belong in the same mesh, so the whole layer is two
+  // draw calls whatever the map looks like. The dark bands share the cast shadow's
+  // colour, which is what they always were.
+  const builders = { lit: new QuadBuilder(), dark: new QuadBuilder() };
+
+  for (const { cluster, contours } of outlines) {
+    const crater = cluster.kind === TerrainKind.Crater;
+    const occDir = crater ? -1 : 1; // a pit's occlusion is inside it
+
+    for (const contour of contours) {
+      const pts = contour.points;
+      const weights = pts.map((p) => {
+        const lam = (p.nx * LIGHT_DIR[0] + p.ny * LIGHT_DIR[1]) * (crater ? -1 : 1);
+        const wall = crater ? 0 : wallFacing(p);
+        return {
+          lit: BEVEL.LIT_ALPHA * smoothstep(0, BEVEL.TERMINATOR, lam) * (1 - wall),
+          dark: BEVEL.DARK_ALPHA * smoothstep(0, BEVEL.TERMINATOR, -lam),
+          occ: BEVEL.OCC_ALPHA * (0.6 + 0.4 * smoothstep(0, BEVEL.TERMINATOR, -lam)) * (1 - wall),
+        };
+      });
+
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        const j = (i + 1) % pts.length;
+        const q = pts[j];
+        const wp = weights[i];
+        const wq = weights[j];
+
+        const band = (
+          quads: QuadBuilder,
+          from: number,
+          to: number,
+          aFrom: readonly [number, number],
+          aTo: readonly [number, number],
+        ): void => {
+          if (aFrom[0] <= 0 && aFrom[1] <= 0 && aTo[0] <= 0 && aTo[1] <= 0) return;
+          const p0 = offsetPoint(p, from);
+          const q0 = offsetPoint(q, from);
+          const q1 = offsetPoint(q, to);
+          const p1 = offsetPoint(p, to);
+          quads.add(p0.x, p0.y, aFrom[0], q0.x, q0.y, aFrom[1], q1.x, q1.y, aTo[1], p1.x, p1.y, aTo[0]);
+        };
+
+        // Outward: the micro-shadow on the ground, ramping to nothing.
+        band(builders.dark, 0, BEVEL.OCC * occDir, [wp.occ, wq.occ], [0, 0]);
+        // The lip: constant alpha over a narrow band. A highlight on a bevel is a
+        // line, so this one deliberately does not ramp.
+        band(builders.lit, 0, -BEVEL.LIP, [wp.lit, wq.lit], [wp.lit, wq.lit]);
+        band(builders.dark, 0, -BEVEL.LIP, [wp.dark, wq.dark], [wp.dark, wq.dark]);
+        // Then the soft fall away from it, inward, as the rim always did — but
+        // starting well below the lip, so the lip stays a line on top of a gradient
+        // rather than the bright end of one. A ramp all the way from the boundary is
+        // what read as a stroke with blurry edges.
+        const f = BEVEL.FALLOFF;
+        band(builders.lit, -BEVEL.LIP, -BEVEL.WIDTH, [wp.lit * f, wq.lit * f], [0, 0]);
+        band(builders.dark, -BEVEL.LIP, -BEVEL.WIDTH, [wp.dark * f, wq.dark * f], [0, 0]);
       }
-      if (!any) continue;
-      g.fill(lit ? { color: 0x7d8ea8, alpha: 0.8 } : { color: 0x04060b, alpha: 0.75 });
     }
   }
 
-  return g;
+  for (const [name, quads] of Object.entries(builders)) {
+    if (quads.empty) continue;
+    const mesh = new Mesh({
+      geometry: quads.build('aAlpha'),
+      shader: createFlatShader(name === 'lit' ? BEVEL_LIT_COLOR : SHADOW_COLOR),
+    });
+    mesh.label = `bevel-${name}`;
+    layer.addChild(mesh);
+  }
+
+  return layer;
 }
 
 /**
