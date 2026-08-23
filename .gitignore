@@ -26,5 +26,8 @@ tmp
 *.sln
 *.sw?
 
+# screenshots from `npm run shot`
+client/screenshots
+
 # docs
 .docs/internal

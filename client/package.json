@@ -10,7 +10,8 @@
     "deploy": "wrangler deploy",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "shot": "node scripts/screenshot.mjs"
   },
   "dependencies": {
     "@drone-directive/chat": "*",
@@ -31,6 +32,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "playwright-core": "^1.62.1",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
     "vitest": "^4.1.10",

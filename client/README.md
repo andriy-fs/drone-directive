@@ -194,3 +194,32 @@ object or an ECS entity.
 ## Commands
 
 Inside `client/`: `npm run test:watch` to iterate on engine tests.
+
+## Screenshots
+
+`npm run shot` boots the game in a real browser, clicks through the menu into a
+match, and writes a PNG. It starts and stops its own dev server, so there is no
+setup step:
+
+```
+npm run shot                                          # → client/screenshots/shot.png
+npm run shot -- --seed 7 --query 'fog=0' --out a.png  # a fixed map, no fog
+npm run shot -- --menu --out menu.png                 # stop at the main menu
+npm run shot -- --url http://localhost:5173           # reuse a dev server already up
+```
+
+Two things make it worth reaching for rather than writing a one-off script:
+
+- **`--seed` pins the battlefield.** Maps are generated from the clock, so two
+  runs without it photograph two different maps — and a render change judged
+  against that pair is being judged against noise. It is `?seed=` on the URL
+  (`pixi/perf/perfFlags.ts`), so it works when clicking around by hand too.
+- **`--query` reaches the render switches**, the same ones the perf work uses:
+  `?fog=0`, `?peaks=0`, `?cliffs=0`, `?terrain=0`. A before/after of one layer is
+  `--query 'cliffs=0'` against nothing.
+
+It drives the browser through `playwright-core` and a Chromium **already on the
+machine** — no 300 MB postinstall download. `scripts/lib/chromium.mjs` explains
+the search order and `DD_CHROMIUM` if it picks the wrong one; `scripts/lib/game.mjs`
+holds the dev-server + enter-a-match part, which is what a visual test would reuse.
+Output goes to `client/screenshots/`, which is git-ignored.

@@ -750,7 +750,9 @@ export class GameApp {
         // Clear any lingering online flag so a solo restart runs with the bot AI.
         store.updateSettings({ match: { online: false } });
         this.resetView(store);
-        this.engine.startMatch(useGameStore.getState().settings);
+        // `?seed=` pins the battlefield so two runs are comparable; without it the
+        // context seeds from the clock, which is what solo play normally wants.
+        this.engine.startMatch(useGameStore.getState().settings, perfFlags.seed ?? undefined);
         this.engine.setLocalSide(Owner.Player);
       }
       return true;

@@ -30,6 +30,7 @@ Run from the repo root:
 - `npm run build` — production build (`tsc -b && vite build`, emits `client/dist`). Type-checks `types`/`net`/`chat` transitively, since the client imports their sources.
 - `npm run lint` — one root ESLint pass over **every** workspace.
 - `npm run type-check` — `tsc --noEmit` for `types`, `net`, `chat`, `server`. The server is **not** reached by `npm run build`, so this is the only thing that checks it.
+- `npm run shot` — screenshot the running game (starts its own dev server; `-- --seed 7 --query 'fog=0'` for a comparable shot). See `client/README.md` § Screenshots.
 - `npm run codegen -w protocol` — after editing `protocol/schema/messages.bare`; commit the regenerated output.
 
 **Before considering any change done, run `npm run build`, `npm test`, and `npm run lint` (all clean); add `npm run type-check` when `server/`, `protocol/`, `net/`, `chat/` or `types/` changed.** For gameplay changes, also boot the dev server (on-screen behaviour can't be confirmed headless). For online changes, `npm run dev:relay` + `npm run e2e -w server`.

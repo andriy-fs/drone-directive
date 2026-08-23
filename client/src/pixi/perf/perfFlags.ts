@@ -32,7 +32,14 @@
  * &depth=0             depth shading off
  * &rim=0               boundary rim off
  * &peaks=0             ridge decals off
+ * &seed=7               pin the solo match's battlefield instead of seeding from the clock
  * ```
+ *
+ * `seed` is the odd one out — it changes the *match*, not the drawing. It lives here
+ * anyway because this is the module that owns the URL-parameter surface, and because
+ * what it is for is the same thing: comparing two runs of the renderer. Without it a
+ * before/after pair of screenshots shows two different maps, and any judgement made
+ * from them is a judgement about noise (see `scripts/screenshot.mjs`).
  */
 export interface PerfFlags {
   hud: boolean;
@@ -45,6 +52,8 @@ export interface PerfFlags {
   depth: boolean;
   rim: boolean;
   peaks: boolean;
+  /** Fixed battlefield seed for solo play, or null to seed from the clock as usual. */
+  seed: number | null;
   /** Human-readable list of everything set away from its default, for the readout. */
   overrides: string[];
 }
@@ -61,6 +70,15 @@ function read(): PerfFlags {
     return on;
   };
 
+  const number = (name: string): number | null => {
+    const raw = params.get(name);
+    if (raw === null) return null;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return null;
+    overrides.push(`${name}=${value}`);
+    return value;
+  };
+
   return {
     hud: flag('perf', false),
     antialias: flag('aa', true),
@@ -72,6 +90,7 @@ function read(): PerfFlags {
     depth: flag('depth', true),
     rim: flag('rim', true),
     peaks: flag('peaks', true),
+    seed: number('seed'),
     overrides,
   };
 }
