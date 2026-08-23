@@ -4,17 +4,55 @@ import { palette } from '../../config/palette';
 import type { RobotEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
 import { ChassisType, WeaponType } from '@drone-directive/types/enums';
-import { LEGS_GAIT_STRIDE_PX, WEAPON_TARGET } from '../../config/sprites';
+import { GAIT_STRIDE_PX, WEAPON_TARGET } from '../../config/sprites';
 import { getRobotGaitTextures, getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
+import { DustTrail, puffAlpha, puffRadius, type DustSpec } from './dust';
 import { gaitPhase } from './gait';
 import { HealthBar } from './HealthBar';
 import { ownerColor, teamTint } from './ownerColor';
 
-/** Body roll at the peak of a stride, in radians (~2.6°). */
-const GAIT_SWAY_RAD = 0.045;
-/** Sideways waddle at the peak of a stride, in px, perpendicular to the heading. */
-const GAIT_BOB_PX = 0.9;
+/**
+ * How a chassis moves *as a body* — roll (radians), sideways waddle (px, across the
+ * heading) and high-frequency `jitter` (px, a third-harmonic tremble on top of the
+ * waddle), all at the peak of a cycle.
+ *
+ * **This is the half of the animation that survives the on-field size.** A unit is
+ * 46 px with no zoom, so a tread or a wheel turning inside the silhouette is a couple
+ * of pixels of change and reads as nothing; the whole hull leaning does read. So the
+ * numbers are chosen for legibility at 46 px, not for physical modesty — the earlier
+ * 0.02 rad / 0.4 px on `wheels` was invisible in game, which is what prompted this.
+ *
+ * They still differ by drive, or the vehicles look drunk: a walker (0.045 rad, ~0.9 px)
+ * is a body thrown from one tripod to the other; a tank grinds, so it gets roll and
+ * almost no waddle; a light buggy on soft suspension gets the least roll, the most
+ * bounce, and the only `jitter` — that tremble *is* a buggy at speed.
+ */
+const GAIT_BODY: Record<ChassisType, { sway: number; bob: number; jitter: number }> = {
+  legs: { sway: 0.045, bob: 0.9, jitter: 0 },
+  tracks: { sway: 0.02, bob: 0.5, jitter: 0 },
+  wheels: { sway: 0.03, bob: 1.6, jitter: 0.6 },
+};
+
+/**
+ * How each chassis kicks up dust (see `dust.ts` for what the fields mean and why the
+ * trail exists). Read against the chassis speeds in `gameConfig`, `spacing` is a rate:
+ *
+ * - `wheels` (135 px/s): a puff every 10 px, ~13/s — a light buggy roostering along.
+ * - `tracks` (60 px/s): every 12 px, ~5/s, thrown wide — two grinding bands, so the
+ *   emission points sit far apart and the clouds are the biggest here.
+ * - `legs` (42 px/s): every 14 px, ~3/s. One thump per stride-ish, small and short,
+ *   because a walker plants its feet rather than dragging anything.
+ *
+ * `offset` puts the source behind the hull's centre; a puff born under the sprite is
+ * hidden by it, which is the whole difference between a trail that reads and one that
+ * does not.
+ */
+const DUST: Record<ChassisType, DustSpec> = {
+  legs: { spacing: 14, radius: 2.4, life: 0.5, spread: 7, offset: 8, alpha: 0.3 },
+  tracks: { spacing: 12, radius: 3.4, life: 0.75, spread: 8, offset: 13, alpha: 0.34 },
+  wheels: { spacing: 10, radius: 2.8, life: 0.6, spread: 9, offset: 12, alpha: 0.38 },
+};
 /** Seconds for the gait to spin up from a standstill, or to settle back into one. */
 const GAIT_EASE_S = 0.15;
 /** Below this amplitude the walker is treated as stopped and snapped back to its stance. */
@@ -28,9 +66,13 @@ const GAIT_MAX_DT = 0.1;
  * chassis, marker by weapon). `body` rotates with heading; the HP bar and
  * selection ring stay upright.
  *
- * A chassis with a **walk-cycle sheet** (only `legs` — see `robotGaitSprites`) also
- * animates: `update` swaps the sprite's texture between the sheet's cells and rolls
- * the body, both clocked off distance travelled rather than off the wall clock.
+ * **Movement is animated on two channels, both clocked off distance travelled rather
+ * than off the wall clock.** A chassis with a movement-cycle sheet (see
+ * `robotGaitSprites`) has `update` swap the sprite's texture between the sheet's
+ * cells; every chassis, sheet or not, gets the renderer's own half — the body rolling
+ * and trembling (`GAIT_BODY`) and a dust trail on the ground behind it (`DUST`). The
+ * second channel is the one that survives the 46 px on-field size, which is why a
+ * chassis still waiting for its sheet is not a chassis that slides.
  */
 export class RobotView {
   readonly container: Container;
@@ -45,10 +87,15 @@ export class RobotView {
 
   /** The chassis sprite, kept so the gait can retexture it; null on a Graphics placeholder. */
   private readonly img: Sprite | null;
-  /** The walk-cycle cells in cycle order, or null for a chassis that doesn't walk. */
+  /** The movement-cycle cells in cycle order, or null for a chassis with no sheet. */
   private readonly gait: ResolvedSprite[] | null;
   private frame = 0;
-  /** Ground covered (px) since the cycle last reset; the gait's only clock. */
+  /** The dust on the ground behind this unit, and the Graphics it is drawn into. */
+  private readonly trail = new DustTrail();
+  private readonly dust: Graphics;
+  /** Whether `dust` currently has anything painted in it — see `drawDust`. */
+  private dusty = false;
+  /** Ground covered (px) since the cycle last reset; the clock for every channel. */
   private travelled = 0;
   private lastX: number;
   private lastY: number;
@@ -140,7 +187,18 @@ export class RobotView {
     this.healthBar = new HealthBar(2 * outerRadius + 6, 4);
     this.healthBar.container.position.set(0, -(outerRadius + 10));
 
-    this.container.addChild(this.ring, this.spotted, this.body, this.stunned, this.healthBar.container);
+    // The trail goes in first, so it is drawn under everything this unit owns, and
+    // into `container` rather than `body`: `body` carries the heading (and the sway
+    // added on top of it), while a puff, once laid down, belongs to the ground.
+    this.dust = new Graphics();
+    this.container.addChild(
+      this.dust,
+      this.ring,
+      this.spotted,
+      this.body,
+      this.stunned,
+      this.healthBar.container,
+    );
 
     if (!this.isEnemy) {
       // Pin the clickable area to the robot's own body — without this, the
@@ -190,31 +248,25 @@ export class RobotView {
     if (off) this.drawStunned();
 
     // After `body.rotation`, which the sway adds to rather than replaces.
-    if (this.gait) this.walk(robot, visible && !off, now);
+    this.move(robot, visible && !off, now);
   }
 
   /**
-   * Advances the walk cycle: which cell of the sheet is showing, and how far the
-   * body is rolled and waddled off its heading.
+   * Advances everything this unit does *because it is moving*: which cell of its
+   * sheet is showing, how far the body is rolled and waddled off its heading, and the
+   * dust it leaves behind.
    *
-   * The cycle is clocked by **ground covered**, so it needs no separate rules for
-   * stopping, for a chassis speed, or for a walker inching along because something
-   * is in its way — all three fall out of "no travel, no step".
-   *
-   * The sway goes on `body` rather than on the chassis sprite because the weapon
-   * module is bolted to the hardpoint *inside* `body`: rolling the hull out from
-   * under its own gun would visibly unstick the two. The selection ring, the spotted
-   * marker and the HP bar sit outside `body` and stay level, which is right — they
-   * are interface, not hull.
+   * All of it is clocked by **ground covered**, so none of it needs separate rules
+   * for stopping, for a chassis speed, or for a unit inching along because something
+   * is in its way — all three fall out of "no travel, no step". A chassis with no
+   * sheet still gets the body and the dust: those two are what make movement legible
+   * at 46 px, and they must not wait on art.
    */
-  private walk(robot: RobotEntity, stepping: boolean, now: number): void {
-    const frames = this.gait;
-    const img = this.img;
-    if (!frames || !img) return;
-
-    // Measured even on frames where the walker is fogged or knocked out, and only
-    // *spent* when it is stepping. Otherwise a march made out of sight is repaid in
-    // one lump the moment it is seen again, and the gait jumps to a random phase.
+  private move(robot: RobotEntity, moving: boolean, now: number): void {
+    // Measured even on frames where the unit is fogged or knocked out, and only
+    // *spent* when it is moving. Otherwise a march made out of sight is repaid in
+    // one lump the moment it is seen again — the cycle would jump to a random phase
+    // and the trail would appear as a burst of clouds in one spot.
     const dx = robot.position.x - this.lastX;
     const dy = robot.position.y - this.lastY;
     this.lastX = robot.position.x;
@@ -223,10 +275,10 @@ export class RobotView {
     const dt = Math.min((now - this.lastNow) / 1000, GAIT_MAX_DT);
     this.lastNow = now;
 
-    const step = stepping ? Math.hypot(dx, dy) : 0;
+    const step = moving ? Math.hypot(dx, dy) : 0;
     this.travelled += step;
 
-    // Eased, not switched: a walker that stops mid-stride would otherwise freeze at
+    // Eased, not switched: a unit that stops mid-stride would otherwise freeze at
     // whatever angle the sway had reached and stand there leaning.
     this.amp += ((step > 0 ? 1 : 0) - this.amp) * Math.min(1, dt / GAIT_EASE_S);
     if (this.amp < GAIT_REST) {
@@ -234,19 +286,60 @@ export class RobotView {
       this.travelled = 0; // rest on cell 0, the stance the sheet is drawn around
     }
 
-    const { frame, sway } = gaitPhase(this.travelled, LEGS_GAIT_STRIDE_PX, frames.length);
-    if (frame !== this.frame) {
+    const frames = this.gait;
+    const stride = GAIT_STRIDE_PX[robot.chassis];
+    // `frames.length` when there is a sheet; four otherwise, so a chassis still
+    // waiting for its art rolls through the same phase its sheet would have given it.
+    const { frame, sway } = gaitPhase(this.travelled, stride, frames?.length ?? 4);
+
+    if (frames && this.img && frame !== this.frame) {
       this.frame = frame;
-      img.texture = frames[frame].texture;
+      this.img.texture = frames[frame].texture;
     }
 
+    // The sway goes on `body` rather than on the chassis sprite because the weapon
+    // module is bolted to the hardpoint *inside* `body`: rolling the hull out from
+    // under its own gun would visibly unstick the two. The selection ring, the
+    // spotted marker and the HP bar sit outside `body` and stay level, which is
+    // right — they are interface, not hull.
+    const spec = GAIT_BODY[robot.chassis];
     const roll = sway * this.amp;
-    this.body.rotation += roll * GAIT_SWAY_RAD;
+    this.body.rotation += roll * spec.sway;
     // `body.position` lives in the container's (unrotated) space, so the sideways
     // direction has to be derived from the heading rather than borrowed from the
     // rotation just applied.
-    const bob = roll * GAIT_BOB_PX;
+    const tremble = spec.jitter ? Math.sin((this.travelled / stride) * Math.PI * 6) * spec.jitter * this.amp : 0;
+    const bob = roll * spec.bob + tremble;
     this.body.position.set(-Math.sin(robot.heading) * bob, Math.cos(robot.heading) * bob);
+
+    this.trail.advance(dt, step, robot.position.x, robot.position.y, robot.heading, DUST[robot.chassis]);
+    this.drawDust(robot);
+  }
+
+  /**
+   * Repaints the trail. Puffs are stored in world space and this Graphics lives in
+   * the unit's container, so each one is drawn at its offset *back* to where it was
+   * laid down — that subtraction is the whole reason the trail stays on the ground
+   * instead of being towed along.
+   */
+  private drawDust(robot: RobotEntity): void {
+    const g = this.dust;
+    // A parked unit has an empty trail, and most units on the field are parked most
+    // of the time; without this it would still pay a clear() every frame each.
+    if (!this.trail.puffs.length) {
+      if (this.dusty) g.clear();
+      this.dusty = false;
+      return;
+    }
+    this.dusty = true;
+    g.clear();
+    const spec = DUST[robot.chassis];
+    for (const puff of this.trail.puffs) {
+      g.circle(puff.x - robot.position.x, puff.y - robot.position.y, puffRadius(puff)).fill({
+        color: palette.dust.plume,
+        alpha: puffAlpha(puff, spec),
+      });
+    }
   }
 
   /** The crackling cage over a knocked-out hull; re-rolled every frame. */

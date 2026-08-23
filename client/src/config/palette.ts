@@ -131,6 +131,16 @@ export const palette = {
     body: 0x22d3ee,
     edge: 0x0e7490,
   },
+  /**
+   * The dust a moving unit kicks up behind its drive (`pixi/render/dust.ts`).
+   *
+   * A warm gray, deliberately nothing like `fog.color` (which is `background`): the
+   * trail is drawn over lit ground and must read as something *added* to it, where
+   * anything near the background colour would read as a hole punched in the field.
+   */
+  dust: {
+    plume: 0xb3a894,
+  },
   /** The launcher of a base's built-in missile battery, drawn over the body. */
   turret: {
     body: 0x9aa4b2,

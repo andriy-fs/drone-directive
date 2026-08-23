@@ -162,16 +162,16 @@ function sheet2x2(src: string, quadrant: number, targetSize: number, rotationOff
 }
 
 /**
- * Walk-cycle sheets keyed by **owner → chassis**, drawn instead of the still
- * `robotSprites` entry when present. Only `legs` has one, and deliberately so: at
- * this camera angle a wheel or a track barely reaches the silhouette, but six legs
- * are half of one — a walker with rigid legs visibly *slides*, and it is also the
- * slowest chassis in the game, so it is the unit the player watches march for
- * longest. See `.docs/sprites/robots.md` § Legs.
+ * Movement-cycle sheets keyed by **owner → chassis**, drawn instead of the still
+ * `robotSprites` entry when present. Four cells in cycle order, and cell 0 is always
+ * the pose the unit rests in; `RobotView` advances them by **distance travelled**, so
+ * a cycle starts, keeps pace and stops with the unit itself.
  *
- * Four cells in cycle order: neutral stance (also the idle pose), tripod A, the
- * mirrored passing stance, tripod B. `RobotView` advances them by **distance
- * travelled**, so the gait starts, keeps pace and stops with the unit itself.
+ * What cycles differs per chassis (see `.docs/internal/sprites/robots.md`): `legs`
+ * re-poses six legs into two tripods, `tracks` scrolls its link ladders, `wheels`
+ * turns a marked tire and works its suspension in diagonal pairs. A chassis with no
+ * entry here simply doesn't animate — every one has a sheet now, but the fallback is
+ * still what a half-loaded sheet lands on (`getRobotGaitTextures` is all-or-nothing).
  *
  * A missing or half-loaded sheet falls back to the still sprite — see
  * `getRobotGaitTextures`, which is all-or-nothing on purpose: a cycle with a hole in
@@ -180,21 +180,40 @@ function sheet2x2(src: string, quadrant: number, targetSize: number, rotationOff
 export const robotGaitSprites: Partial<Record<Owner, Partial<Record<ChassisType, SpriteDef[]>>>> = {
   [Owner.Player]: {
     legs: sheet2x2(`${PUBLIC_BASE}robot-legs-player-gait.webp`, 128, LEGS_TARGET, Math.PI / 2),
+    tracks: sheet2x2(`${PUBLIC_BASE}robot-tracks-player-gait.webp`, 128, ROBOT_TARGET, Math.PI / 2),
+    wheels: sheet2x2(`${PUBLIC_BASE}robot-wheels-player-gait.webp`, 128, ROBOT_TARGET, Math.PI / 2),
   },
   [Owner.AI]: {
     legs: sheet2x2(`${PUBLIC_BASE}robot-legs-ai-gait.webp`, 128, LEGS_TARGET, Math.PI / 2),
+    tracks: sheet2x2(`${PUBLIC_BASE}robot-tracks-ai-gait.webp`, 128, ROBOT_TARGET, Math.PI / 2),
+    wheels: sheet2x2(`${PUBLIC_BASE}robot-wheels-ai-gait.webp`, 128, ROBOT_TARGET, Math.PI / 2),
   },
 };
 
 /**
- * How far a walker travels (px) in one full four-cell gait cycle.
+ * How far a unit travels (px) in one full four-cell cycle of its sheet, per chassis.
  *
- * A property of the **art**, not of the balance — it says how long the stride the
- * artist drew is — which is why it lives here next to the sheet rather than in
- * `gameConfig`. At the `legs` speed of 42 px/s it works out to ~1.75 cycles/s, i.e.
- * about 7 texture swaps a second: the plod of something heavy, not a scurry.
+ * A property of the **art**, not of the balance — it says how long the stride, or how
+ * coarse the tread pattern, the artist drew is — which is why it lives here next to
+ * the sheets rather than in `gameConfig`. Read against `gameConfig.robots.chassis[…]
+ * .speed`, each number is a cycle rate:
+ *
+ * - `legs` (42 px/s): ~1.75 cycles/s, about 7 texture swaps a second — the plod of
+ *   something heavy, not a scurry.
+ * - `tracks` (60 px/s): ~3.75 cycles/s. One cycle advances the tread by one link
+ *   pitch, so this number *is* the pitch the art has to be drawn at.
+ * - `wheels` (135 px/s): ~4.2 cycles/s, so the tires pulse dark-light about 8 times a
+ *   second. Not the tire's true geometry — a ~12 px wheel rolls its own circumference
+ *   every ~38 px and no one can read that phase from directly above anyway. It was 20
+ *   px while the art was a soft tread pattern, which turned out to animate nothing at
+ *   this size; the sheet is now drawn as a hard-contrast flicker, and a flicker needs
+ *   *fewer* cycles per second than a blur did or its two states average into one tone.
  */
-export const LEGS_GAIT_STRIDE_PX = 24;
+export const GAIT_STRIDE_PX: Record<ChassisType, number> = {
+  legs: 24,
+  tracks: 16,
+  wheels: 44,
+};
 
 /** On-field size (px) for a ridge decal — ~3 tiles, big enough to be a summit, small enough that a blob fits several. */
 const PEAK_TARGET = 90;
@@ -244,11 +263,7 @@ export const groundAltSprite: SpriteDef | undefined = {
  * would prove the repeat — so they are placed individually instead. See
  * `.docs/sprites/ground-decals.md`.
  */
-export const groundDecalSprites: SpriteDef[] = sheet2x2(
-  `${PUBLIC_BASE}ground-decals.webp`,
-  256,
-  GROUND_DECAL_TARGET,
-);
+export const groundDecalSprites: SpriteDef[] = sheet2x2(`${PUBLIC_BASE}ground-decals.webp`, 256, GROUND_DECAL_TARGET);
 
 /**
  * The observer drone — **one** art set for every side, unlike the robot and base

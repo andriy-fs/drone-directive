@@ -45,11 +45,15 @@ const SPRITES = [
   ...['tracks', 'wheels', 'legs'].flatMap((chassis) =>
     ['player', 'ai'].map((side) => ({ name: `robot-${chassis}-${side}`, size: 128, quality: 90 })),
   ),
-  // The `legs` walk cycle: a 2×2 sheet of gait phases, cropped by `frame` in
+  // The movement cycles: a 2×2 sheet of phases per chassis, cropped by `frame` in
   // config/sprites.ts. 256 ships four 128² cells — the same per-frame resolution as
   // the still robots above, since a cell is drawn at the same 46 px they are. Alpha,
   // and NOT seamless: it is a sheet, so wrap-padding would bleed one cell into the next.
-  ...['player', 'ai'].map((side) => ({ name: `robot-legs-${side}-gait`, size: 256, quality: 90 })),
+  // Entries for sheets not drawn yet are skipped with a note, which is why all six
+  // can be declared here.
+  ...['tracks', 'wheels', 'legs'].flatMap((chassis) =>
+    ['player', 'ai'].map((side) => ({ name: `robot-${chassis}-${side}-gait`, size: 256, quality: 90 })),
+  ),
   // Bases — on-field 96 px (BASE_TARGET), already the smallest sensible master.
   ...['player', 'ai'].map((side) => ({ name: `base-${side}`, size: 256, quality: 90 })),
   // Weapon modules — on-field 30 px (WEAPON_TARGET).

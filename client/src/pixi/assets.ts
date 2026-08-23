@@ -176,8 +176,8 @@ export function getRobotTexture(chassis: ChassisType, owner: Owner): ResolvedSpr
 }
 
 /**
- * The walk-cycle frames for a chassis in cycle order, or null if that owner/chassis
- * has no sheet — which is every chassis but `legs` (see `robotGaitSprites`).
+ * The movement-cycle frames for a chassis in cycle order, or null if that
+ * owner/chassis has no sheet drawn yet (see `robotGaitSprites`).
  *
  * **All or nothing.** One unresolved cell returns null for the whole cycle rather
  * than a shorter one: a gait that skips a phase reads as a stutter, which is a worse
