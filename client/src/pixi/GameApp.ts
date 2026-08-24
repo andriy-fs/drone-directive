@@ -39,6 +39,7 @@ import { GameLoop } from './GameLoop';
 import { createGround } from './Grid';
 import { createLayers, type Layers } from './layers';
 import { attachPointerControls } from './input/pointer';
+import { attachZoomControls } from './input/zoom';
 import { enemyAt, selectionCanAttack } from './input/hitTest';
 import { FogView } from './render/FogView';
 import { HoverTargetView, type HoverTarget } from './render/HoverTargetView';
@@ -87,6 +88,7 @@ export class GameApp {
   private cursorStyle = '';
   private loop!: GameLoop;
   private detachPointer: (() => void) | null = null;
+  private detachZoom: (() => void) | null = null;
   private storeUnsub: (() => void) | null = null;
   private selectionAudioUnsub: (() => void) | null = null;
   private radio: RadioDirector | null = null;
@@ -221,13 +223,20 @@ export class GameApp {
       this.hearsBase(owner, baseId),
     );
 
-    this.detachPointer = attachPointerControls(this.app, this.camera, this.engine, {
+    const pointer = attachPointerControls(this.app, this.camera, this.engine, {
       // No `wake()` needed on either: an order can only be issued inside a match,
       // and the loop is never parked while one exists.
       onOrder: (point, kind) => this.orderMarkerView?.add(point, kind),
       onPointerMove: (screen) => {
         this.pointerScreen = screen;
       },
+    });
+    this.detachPointer = pointer.detach;
+    // Zoom is camera-only state the simulation never hears about, so it needs
+    // nothing from the engine — just the pointer's marquee, to call off the one
+    // it opened when the pinch's first finger landed.
+    this.detachZoom = attachZoomControls(this.app, this.camera, {
+      onPinchStart: pointer.cancelSelection,
     });
     this.app.renderer.on('resize', this.onResize);
 
@@ -491,9 +500,12 @@ export class GameApp {
    * Put the viewport back on the drone for a new match. The sync flag survives
    * the end of a match (it is plain store state), so without this a player whose
    * drone was down when the last one finished would open the next one looking at
-   * an empty corner of a world they have not seen yet.
+   * an empty corner of a world they have not seen yet. The zoom goes back with
+   * it, for the same reason: it is a view setting, not a preference, and a match
+   * should not open at whatever scale the last fight happened to end on.
    */
   private resetView(store: GameState): void {
+    this.camera.resetZoom();
     store.setViewSync(true);
     store.clearDroneReadyNotice();
   }
@@ -1240,6 +1252,8 @@ export class GameApp {
     this.radio = null;
     this.detachPointer?.();
     this.detachPointer = null;
+    this.detachZoom?.();
+    this.detachZoom = null;
     this.clearObstacles();
     this.hostResizeObserver?.disconnect();
     this.hostResizeObserver = null;

@@ -58,6 +58,33 @@ export class Camera {
     this.apply();
   }
 
+  /**
+   * Multiply the zoom by `factor`, keeping the world point under the anchor (a
+   * screen-space position, e.g. the cursor or the midpoint of a pinch) pinned
+   * where it is. Clamped to the configured range; a no-op once there.
+   */
+  zoomAt(factor: number, anchorScreenX: number, anchorScreenY: number): void {
+    const { minZoom, maxZoom } = gameConfig.camera;
+    const next = clamp(this.zoom * factor, minZoom, maxZoom);
+    // Already against the stop: skip the transform rather than re-applying the
+    // same one every notch the player keeps scrolling.
+    if (next === this.zoom) return;
+
+    this.x += anchorShift(anchorScreenX, this.zoom, next);
+    this.y += anchorShift(anchorScreenY, this.zoom, next);
+    this.zoom = next;
+    this.clampPosition();
+    this.apply();
+  }
+
+  /** Back to 1:1 — the scale a new match starts at. */
+  resetZoom(): void {
+    if (this.zoom === 1) return;
+    this.zoom = 1;
+    this.clampPosition();
+    this.apply();
+  }
+
   /** Convert a screen-space (global) point to world coordinates. */
   screenToWorld(globalX: number, globalY: number): Vec2 {
     const p = this.view.toLocal(new Point(globalX, globalY));
@@ -65,14 +92,36 @@ export class Camera {
   }
 
   private clampPosition(): void {
-    const maxX = Math.max(0, worldPixelSize.width - this.viewportW / this.zoom);
-    const maxY = Math.max(0, worldPixelSize.height - this.viewportH / this.zoom);
-    this.x = clamp(this.x, 0, maxX);
-    this.y = clamp(this.y, 0, maxY);
+    this.x = clampAxis(this.x, this.viewportW / this.zoom, worldPixelSize.width);
+    this.y = clampAxis(this.y, this.viewportH / this.zoom, worldPixelSize.height);
   }
 
   private apply(): void {
     this.view.scale.set(this.zoom);
     this.view.position.set(-this.x * this.zoom, -this.y * this.zoom);
   }
+}
+
+/**
+ * How far the viewport origin has to move so the world point currently under
+ * `anchor` (screen pixels) stays under it across a zoom change.
+ *
+ * `apply` puts screen at `(world - origin) * zoom`, so `world = origin + screen / zoom`.
+ * Holding that world point fixed across the change and solving for the new
+ * origin leaves exactly the difference below.
+ */
+export function anchorShift(anchor: number, from: number, to: number): number {
+  return anchor / from - anchor / to;
+}
+
+/**
+ * Keep one axis inside the map. Zoomed far enough out the visible span can be
+ * *wider* than the world — on the small map that happens well before `minZoom` —
+ * and clamping to 0 there would shove the whole field into the top-left corner
+ * with every empty pixel piled on the other two sides. Centre the span instead;
+ * a negative origin is what centring means here.
+ */
+export function clampAxis(origin: number, visible: number, worldSpan: number): number {
+  if (visible >= worldSpan) return (worldSpan - visible) / 2;
+  return clamp(origin, 0, worldSpan - visible);
 }

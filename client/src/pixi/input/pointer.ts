@@ -55,6 +55,17 @@ export interface PointerHooks {
 }
 
 /**
+ * The handle `attachPointerControls` hands back. `cancelSelection` exists for one
+ * caller: a pinch (see `input/zoom.ts`) begins as an ordinary one-finger press,
+ * so by the time the second finger lands a marquee is already open and has to be
+ * dropped without selecting anything.
+ */
+export interface PointerControls {
+  detach: () => void;
+  cancelSelection: () => void;
+}
+
+/**
  * Playfield input:
  * - Left drag = selection marquee (Shift adds); left click on your own base
  *   selects it, left click on empty ground clears the selection.
@@ -71,7 +82,7 @@ export function attachPointerControls(
   camera: Camera,
   engine: GameEngine,
   hooks: PointerHooks,
-): () => void {
+): PointerControls {
   const stage = app.stage;
   stage.eventMode = 'static';
   stage.hitArea = app.screen;
@@ -176,6 +187,14 @@ export function attachPointerControls(
     useGameStore.getState().setDroneInput({ x: 0, y: 0 });
   };
 
+  const cancelSelection = () => {
+    if (!selecting) return;
+    selecting = false;
+    moved = false;
+    marqueeGfx.visible = false;
+    marqueeGfx.clear();
+  };
+
   stage.on('pointerdown', onDown);
   stage.on('globalpointermove', onMove);
   stage.on('pointerup', onUp);
@@ -186,7 +205,7 @@ export function attachPointerControls(
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
 
-  return () => {
+  const detach = () => {
     stage.off('pointerdown', onDown);
     stage.off('globalpointermove', onMove);
     stage.off('pointerup', onUp);
@@ -198,6 +217,8 @@ export function attachPointerControls(
     window.removeEventListener('blur', onBlur);
     marqueeGfx.destroy();
   };
+
+  return { detach, cancelSelection };
 }
 
 function drawMarquee(g: Graphics, x0: number, y0: number, x1: number, y1: number): void {

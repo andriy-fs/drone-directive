@@ -36,6 +36,14 @@ export const gameConfig = {
     dragSpeed: 1,
     minZoom: 0.5,
     maxZoom: 2,
+    /** Zoom multiplier per notch of the wheel (compounded, so 1.1 takes ~15 notches across the full range). */
+    wheelZoomStep: 1.1,
+    /**
+     * A trackpad pinch arrives as a `wheel` event with `ctrlKey` set, and its
+     * delta is continuous rather than a notch — so it needs a per-pixel factor
+     * instead of the fixed step above, or a single gesture would slam into a stop.
+     */
+    pinchZoomSensitivity: 0.01,
   },
 
   /** Bases: production points, one per side. */
