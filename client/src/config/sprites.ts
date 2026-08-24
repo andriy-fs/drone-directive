@@ -240,29 +240,6 @@ export const ejectaSprite: SpriteDef | undefined = {
 };
 
 /**
- * The rock walls drawn along a mountain cluster's south edges — **strips**, not
- * tiles: each repeats along the wall and does not repeat down it, and is sampled with
- * `mirror-repeat` so its ends match without the master having to wrap (see
- * `.docs/sprites/terrain-cliff.md`).
- *
- * **Several, because one is a pattern.** A single sheet covers four tiles and a long
- * southern edge runs much further than that, so the same stones came round again in
- * plain sight. `TerrainView` picks a variant per boundary run from a hash of where it
- * starts; a variant whose file is missing is simply skipped, so the list can be
- * extended (or run short) without touching code.
- *
- * Whole-image, deliberately **no `frame`**: `TerrainView` sets an address mode on
- * the texture's source, and a cropped sheet shares its source with its neighbours.
- * The second terrain asset with baked lighting — the light runs across the wall,
- * from the left, not from the north-west like `peakSprites`. Missing/unloaded →
- * the face falls back to its procedural shading.
- */
-export const cliffSprites: SpriteDef[] = [
-  { src: `${PUBLIC_BASE}terrain-cliff.webp` },
-  { src: `${PUBLIC_BASE}terrain-cliff-2.webp` },
-];
-
-/**
  * Seamless walkable-ground tile tiled across the whole field (see `createGround`).
  * Undefined → the flat `palette.background` fill.
  */
@@ -442,7 +419,6 @@ export function spriteSources(): string[] {
   for (const def of peakSprites) srcs.push(def.src);
   for (const def of groundDecalSprites) srcs.push(def.src);
   if (ejectaSprite) srcs.push(ejectaSprite.src);
-  for (const def of cliffSprites) srcs.push(def.src);
   if (groundSprite) srcs.push(groundSprite.src);
   if (groundAltSprite) srcs.push(groundAltSprite.src);
   if (droneSprite) srcs.push(droneSprite.src);

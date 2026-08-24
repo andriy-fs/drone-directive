@@ -22,7 +22,7 @@ import type { Cluster, Tile } from './clusters';
  *   north to east loses its highlight gradually — the bevel, not the flat cut.
  *
  * Pure: no Pixi, no config, and the warp is **injected** as `corner`, exactly as
- * `cliffs.ts` injects it — so a test can trace on the bare grid.
+ * `debris.ts` injects it — so a test can trace on the bare grid.
  */
 
 /** One sample on a traced outline: where it is, which way is out, how far along it sits. */

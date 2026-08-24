@@ -42,8 +42,9 @@ const OUT_DIR = fileURLToPath(new URL('../public/', import.meta.url));
  *
  * `size` is normally one number — every other output here is square. A **strip**
  * (`size: [w, h]`) is the exception: it is scaled to that rectangle without being
- * squared off first, and its transparent margins are trimmed away beforehand. See
- * `terrain-cliff` below for why both halves of that matter.
+ * squared off first, and its transparent margins are trimmed away beforehand —
+ * for art whose two axes mean different things. Nothing in the set needs it right
+ * now; the mountains' rock-face strips did, and the support is kept for the next one.
  */
 const SPRITES = [
   // Robots — on-field 46 px (ROBOT_TARGET).
@@ -90,25 +91,6 @@ const SPRITES = [
   // background decor sitting under the fog.
   { name: 'terrain-ejecta', size: 512, quality: 86 },
   { name: 'ground-decals', size: 512, quality: 90 },
-  // The mountains' rock face — the one **strip** in the set, and the only asset
-  // whose two axes mean different things: it repeats along the wall and does not
-  // repeat down it. Three consequences, all of them here rather than in the shader:
-  //
-  // 1. **Trimmed, not padded.** The master arrives with transparent bands above the
-  //    rim and below the rubble. `v` maps the image's full height onto the wall's
-  //    height, so shipping that padding would draw the wall as a short bar floating
-  //    in a gap. The trim finds the alpha bounding box and cuts to it.
-  // 2. **Not squared.** 384×64 against a trimmed master of ~2172×510 is a
-  //    deliberate vertical squash: the face is drawn 128 px long and 22 px tall
-  //    (`CLIFF` in `TerrainView`), so the art is baked at the proportion it is used
-  //    at instead of being minified into it every frame.
-  // 3. **Not `seamless`.** That mode wrap-pads 3×3, which would blend the opaque top
-  //    edge into the transparent base. The wall tiles by being sampled with
-  //    `mirror-repeat` (see `TerrainView`), so its edges match by construction and
-  //    the master does not have to wrap — this one measurably does not.
-  // One entry per variant in `cliffSprites` (config/sprites.ts): the sheets differ in
-  // rock, never in how they are encoded.
-  ...['terrain-cliff', 'terrain-cliff-2'].map((name) => ({ name, size: [384, 64], quality: 88, strip: true })),
 ];
 
 /**

@@ -4,7 +4,6 @@ import { soundSources, type SoundTier } from '../config/sounds';
 import { markSoundReady } from './audio/sfx';
 import {
   baseSprites,
-  cliffSprites,
   droneSprite,
   ejectaSprite,
   groundAltSprite,
@@ -231,20 +230,6 @@ export function getPeakTexture(variant: number): ResolvedSprite | null {
 /** The crater debris halo, or null (→ crater draws without one) if missing/unloaded. */
 export function getEjectaTexture(): ResolvedSprite | null {
   return cached('ejecta', ejectaSprite);
-}
-
-/** How many rock-face variants are declared. Not all of them need exist — see `getCliffTexture`. */
-export const cliffVariantCount = cliffSprites.length;
-
-/**
- * One rock-face strip, or null if that variant is missing/unloaded.
- *
- * Null is a working state at every level here: a variant with no file is dropped from
- * the rotation, and if none of them load the face falls back to procedural shading
- * rather than leaving the mountains with no edge.
- */
-export function getCliffTexture(variant: number): ResolvedSprite | null {
-  return cached(`cliff:${variant}`, cliffSprites[variant]);
 }
 
 /** Walkable-ground tile, or null (→ flat background fill) if missing/unloaded. */

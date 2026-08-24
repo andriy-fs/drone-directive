@@ -1,21 +1,14 @@
-import { Container, Graphics, Mesh, Sprite, type Texture } from 'pixi.js';
+import { Container, Graphics, Mesh, Sprite } from 'pixi.js';
 import { gameConfig } from '../../../config/gameConfig';
 import { palette } from '../../../config/palette';
 import { TerrainKind } from '@drone-directive/types/enums';
 import type { TerrainGrid } from '../../../engine/obstacles';
-import {
-  cliffVariantCount,
-  getCliffTexture,
-  getEjectaTexture,
-  getPeakTexture,
-  getTerrainTexture,
-  peakVariantCount,
-} from '../../assets';
+import { getEjectaTexture, getPeakTexture, getTerrainTexture, peakVariantCount } from '../../assets';
 import { hashInt, hashRange } from './hash';
 import { perfFlags } from '../../perf/perfFlags';
 import { QuadBuilder } from './quads';
-import { createCliffShader, createFillShader, createFlatShader } from './terrainShaders';
-import { cliffGeometry } from './cliffs';
+import { createDebrisShader, createFillShader, createFlatShader } from './terrainShaders';
+import { debrisGeometry } from './debris';
 import { clusterContours, offsetPoint, smoothstep, type Contour, type ContourPoint } from './contours';
 import { warpedCorner } from './warp';
 import {
@@ -133,59 +126,33 @@ const BEVEL = {
 const BEVEL_LIT_COLOR = [0.49, 0.557, 0.659];
 
 /**
- * The rock face on a mountain's south edge — the wall, as opposed to the rim, which
- * is only its lit top edge.
+ * Where the loose stone at the foot of a mountain goes, and how far out.
  *
- * `HEIGHT` must stay **≤ `tilePx`**: the face grows inward from the edge, and about
- * half of all generated mountain clusters are one tile thick, so anything taller
- * would spill out of the footprint and draw rock on ground a robot can drive over.
- * `REPEAT_TILES` is how much wall one pass of the art covers, and it is what sets a
- * lobe's width on screen — the art's own proportions do not survive here, because
- * the wall is 22 px tall and the master is not. It was picked by looking: at 6 the
- * lobes flatten into a row of pots, at 3 they crowd into stripes, at 4 they read as
- * columns. 4 tiles × 22 px is also the proportion the art is baked at
- * (`terrain-cliff.webp` ships 384×64 for 128×22 px of wall), so the strip is drawn
- * close to the shape it was encoded for.
+ * There was a **wall** here — a strip of baked cliff art standing on the south-facing
+ * arcs of the contour, with this rubble spilling from its base. It is gone: from
+ * straight overhead it read as a differently lit piece of art laid along the
+ * silhouette, and it fought the peaks, which are the assets that actually carry the
+ * mass's light. Height now has to come from the fill's own micro-relief, the peak
+ * decals and the bevel.
  *
- * `APRON` is the only part of this layer drawn **outside** the blocked cells: the
- * art's own rubble band, redrawn below the footprint and faded out, so the stone
- * spills onto the ground instead of ending on the straight line where the tiles do.
- * `APRON_V0` is where in the art that band starts. Decoration only — nothing about
- * the collision grid moves, exactly as `ejectaLayer` has always worked.
- *
- * `FACING` is where the wall begins and where it reaches full height, measured on the
- * contour normal's southward component. It replaces the old "south edges only" test,
- * and it is what lets a wall follow a diagonal: the stretch turning east loses height
- * gradually and hands the boundary back to the bevel, instead of stopping dead.
- *
- * `LIP` is the highlight the shader adds where the wall meets the top of the rock —
- * the bevel's counterpart on the face itself. `STRENGTH: 0` turns it off.
- *
- * `COLUMN_PX` belongs to the **procedural fallback** alone.
+ * `FACING` is measured on the contour normal's southward component: due south gets
+ * the full scatter and the full contact shadow, a stretch turning east or west gets
+ * neither. `REACH` is where the scatter starts, just outside the footprint —
+ * decoration only, exactly as `ejectaLayer` has always been. Nothing about the
+ * collision grid moves.
  */
-const CLIFF = {
-  HEIGHT: 22,
-  REPEAT_TILES: 4,
-  COLUMN_PX: 14,
-  APRON: 7,
-  APRON_V0: 0.78,
-  FACING: { LO: 0.15, HI: 0.7 },
-  LIP: { STRENGTH: 0.12, POW: 6 },
-} as const;
+const DEBRIS = { FACING: { LO: 0.15, HI: 0.7 }, REACH: 3, SHADE: 0.78 } as const;
 
 /** How far apart a contour's samples are, in px — the resolution every outline is drawn at. */
 const CONTOUR = { SPACING: 8 } as const;
 
-/** The colour the wall's lip is brightened toward, linear 0..1. */
-const CLIFF_LIP_COLOR = [0.49, 0.557, 0.659];
-
 /**
- * Loose stones on the ground below a wall.
+ * Loose stones on the ground below a mountain's shaded side.
  *
- * Two per tile's worth (`perPx` is per px of contour, since there are no tiles down
- * here any more) is enough because they are not meant to be counted — they are meant
- * to interrupt the straight line the footprint draws. A gradient can soften that line;
- * only something with its own silhouette can break it.
+ * Two per tile's worth (`perPx` is per px of contour, since there are no tile edges
+ * down here any more) is enough because they are not meant to be counted — they are
+ * meant to interrupt the straight line the footprint draws. A gradient can soften
+ * that line; only something with its own silhouette can break it.
  */
 const SCREE = { perPx: 2 / 32, minSize: 5, maxSize: 11, spread: 14 } as const;
 
@@ -199,21 +166,7 @@ const SCREE = { perPx: 2 / 32, minSize: 5, maxSize: 11, spread: 14 } as const;
 const HAZE = { REACH: 30, ALPHA: 0.14 } as const;
 
 /**
- * Darkness laid **under** the face, ramping from nothing at its top to this at its
- * base — the fix for a hairline the art cannot fix itself.
- *
- * The fill covers the whole tile, face included, and the art's alpha near the base is
- * loose rubble with gaps between the stones. Bright rock therefore shone through those
- * gaps and then stopped dead on the footprint line, which read as a drawn border under
- * every wall. Backing the strip with shadow means what shows through the gaps is the
- * dark under the overhang, and the footprint edge becomes dark meeting dark.
- */
-const CLIFF_BACKING_ALPHA = 0.82;
-/** The face's rock colour, linear 0..1 — the fill lightened, since a wall turned to the camera catches more light than the top does. Fallback only. */
-const CLIFF_BASE = [0.44, 0.47, 0.53];
-
-/**
- * The dark line of contact where a face meets the ground.
+ * The dark line of contact where a mountain meets the ground.
  *
  * `KNEE` splits the falloff in two: the first band runs from full alpha down to
  * `KNEE_ALPHA` of it over `KNEE` of the reach, the second from there to nothing. One
@@ -268,15 +221,19 @@ export function createTerrainView(terrain: TerrainGrid): Container {
   // wins where the two meet and the footprint stays exactly what it is.
   container.addChild(ejectaLayer(clusters), shadowLayer(terrain), fillLayer(terrain, normalisedDepth(clusters, depths)));
   if (perfFlags.rim) container.addChild(bevelLayer(outlines));
-  if (perfFlags.cliffs) container.addChild(cliffLayer(outlines));
+  if (perfFlags.debris) container.addChild(debrisLayer(outlines));
   if (perfFlags.peaks) container.addChild(peakLayer(clusters, depths));
 
   return container;
 }
 
-/** How much wall a contour sample carries: 0 where the outline turns away from due south. */
-function wallFacing(p: ContourPoint): number {
-  return smoothstep(CLIFF.FACING.LO, CLIFF.FACING.HI, p.ny);
+/**
+ * How much of the shaded side a contour sample is on: 1 where the outline faces due
+ * south, 0 where it has turned east or west. Both the contact shadow and the debris
+ * are weighted by it.
+ */
+function southFacing(p: ContourPoint): number {
+  return smoothstep(DEBRIS.FACING.LO, DEBRIS.FACING.HI, p.ny);
 }
 
 /** Depth of one tile, normalised to its own cluster's maximum. 0 outside any cluster. */
@@ -460,48 +417,43 @@ function fillLayer(terrain: TerrainGrid, depthOf: TileValue): Container {
 }
 
 /**
- * The mountains' rock faces, plus the line of contact where each one meets the
- * ground — the layer that answers "what does the *edge* of a mountain look like",
- * which the bevel alone never could.
+ * What a mountain does to the ground it stands on: the haze and the line of contact
+ * under its shaded side, and the loose stone that has come off it.
  *
- * Three decisions worth keeping, all of them measured off the generated maps rather
- * than guessed (20 seeds, 40×40): ~10 mountain clusters per map, median 16 tiles,
- * and a depth histogram of 47% one tile thick, 48% two, 5% deeper.
+ * **This is what is left of the wall.** A strip of baked cliff art used to stand on
+ * these same arcs of the contour, and it was the layer that answered "how tall is
+ * this". It came off deliberately: seen from directly overhead it read as a second
+ * piece of art with its own light direction pasted along the silhouette, and it
+ * competed with `terrain-peaks`, which is the asset that carries the mass's form.
+ * Height is now the fill's own relief, the peaks, and the bevel. What could not go is
+ * the debris — a mass whose stone ends exactly on its footprint line reads as a
+ * decal, and only something with a silhouette of its own breaks that line.
  *
- * 1. **Drawn on the contour, not on tile edges.** The wall follows the cluster's own
- *    outline and carries an arc length along it, so a staircase is one wall stepping
- *    down rather than a row of unrelated horizontal walls each restarting the art.
- *    This is the whole reason the layer was rewritten: with a warped silhouette above
- *    and a grid-aligned wall below, the two halves of a mountain looked like they came
- *    from different games.
- * 2. **South-facing only, but continuously.** Light comes from the north-west, so the
- *    parts of the outline turned toward it are the lit top of the rock and belong to
- *    the bevel. `wallFacing` weights the wall by how far south a stretch of contour
- *    actually points, so it thins out around a bend instead of ending on a cut.
- * 3. **Inward, never outward.** Since half the mountains are one tile thick, a face
- *    that hangs onto open ground would put rock over drivable tiles on most of the
- *    map. The strip extrudes up-screen from a south-facing boundary, which is into the
- *    rock by definition. Only the contact shadow and the debris cross the footprint
- *    line, and one of them is a shadow.
+ * Two decisions kept from the wall, both measured off the generated maps (20 seeds,
+ * 40×40: ~10 mountain clusters per map, median 16 tiles, 47% of them one tile thick):
  *
- * The layer is a handful of static meshes for the entire map — one for all the soft
- * darkness, one per art variant for the rock — built once per match.
+ * 1. **Drawn on the contour, weighted by facing.** The shadow hugs a diagonal stretch
+ *    as closely as a horizontal one, and it thins out where the outline turns toward
+ *    the light instead of stopping on a tile boundary.
+ * 2. **Only the debris crosses the footprint line**, and it is decoration — the
+ *    precedent is `ejectaLayer`, which has drawn a crater's halo on passable ground
+ *    all along.
+ *
+ * Two static meshes for the whole map: one for all the soft darkness, one for the
+ * stone.
  */
-function cliffLayer(outlines: readonly Outline[]): Container {
+function debrisLayer(outlines: readonly Outline[]): Container {
   const layer = new Container();
-  layer.label = 'terrain-cliffs';
+  layer.label = 'terrain-debris';
 
   const contours = outlines
     .filter((o) => o.cluster.kind === TerrainKind.Mountain)
     .flatMap((o) => o.contours);
   if (!contours.length) return layer;
 
-  const height = Math.min(CLIFF.HEIGHT, tilePx);
-
-  // Everything soft under the rock, in one mesh: haze, contact, backing. All three are
-  // the same flat colour with a per-vertex ramp, so they cost one draw call between
-  // them however many walls the map has. Each band is offset along the contour's own
-  // normal, so it hugs a diagonal stretch of wall as closely as a horizontal one.
+  // Haze and contact in one mesh: the same flat colour with a per-vertex ramp, so
+  // they cost one draw call between them however many mountains the map has. Each
+  // band is offset along the contour's own normal.
   const quads = new QuadBuilder();
   const knee = CONTACT.REACH * CONTACT.KNEE;
   const kneeAlpha = CONTACT.ALPHA * CONTACT.KNEE_ALPHA;
@@ -510,8 +462,8 @@ function cliffLayer(outlines: readonly Outline[]): Container {
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i];
       const q = pts[(i + 1) % pts.length];
-      const fp = wallFacing(p);
-      const fq = wallFacing(q);
+      const fp = southFacing(p);
+      const fq = southFacing(q);
       if (fp <= 0 && fq <= 0) continue;
 
       const band = (from: number, to: number, aFrom: number, aTo: number): void => {
@@ -532,80 +484,33 @@ function cliffLayer(outlines: readonly Outline[]): Container {
       // long tail.
       band(0, knee, CONTACT.ALPHA, kneeAlpha);
       band(knee, CONTACT.REACH, kneeAlpha, 0);
-
-      // Backing: inside the footprint, under the face and extruded exactly as the face
-      // is, so the gaps between the art's rubble show darkness rather than the bright
-      // fill the tile is painted with.
-      const a = CLIFF_BACKING_ALPHA;
-      quads.add(p.x, p.y - height * fp, 0, q.x, q.y - height * fq, 0, q.x, q.y, a * fq, p.x, p.y, a * fp);
     }
   }
   if (!quads.empty) {
     const shadow = new Mesh({ geometry: quads.build('aAlpha'), shader: createFlatShader(SHADOW_COLOR) });
-    shadow.label = 'cliff-contact';
+    shadow.label = 'debris-contact';
     layer.addChild(shadow);
   }
 
-  // One mesh per art variant. Which variant a contour gets is a pure hash of its own
-  // key corner, so every peer draws the same wall, and a cluster keeps its variant when
-  // the camera moves — the alternative, picking per frame or per draw, would shimmer.
-  const variants = cliffVariants();
-  const byVariant = new Map<number, Contour[]>();
-  for (const contour of contours) {
-    const v = variants.length > 1 ? hashInt(contour.key.cx, contour.key.cy, 0x6d, variants.length) : 0;
-    const list = byVariant.get(v);
-    if (list) list.push(contour);
-    else byVariant.set(v, [contour]);
-  }
-
-  const repeatPx = tilePx * CLIFF.REPEAT_TILES;
-  for (const [v, group] of byVariant) {
-    const art = variants[v] ?? null;
-    const geometry = cliffGeometry(group, {
-      height,
-      repeatPx,
-      facingLo: CLIFF.FACING.LO,
-      facingHi: CLIFF.FACING.HI,
-      // The apron and the scree are the art's own rubble drawn again; the procedural
-      // wall has no rubble to spill, so it gets neither.
-      apron: art ? CLIFF.APRON : 0,
-      apronV0: CLIFF.APRON_V0,
-      scree: art ? SCREE : { ...SCREE, perPx: 0 },
-    });
-    if (!geometry) continue;
-    const shader = createCliffShader(CLIFF_BASE, CLIFF.COLUMN_PX, art, repeatPx, {
-      color: CLIFF_LIP_COLOR,
-      strength: CLIFF.LIP.STRENGTH,
-      pow: CLIFF.LIP.POW,
-    });
-    const faces = new Mesh({ geometry, shader });
-    faces.label = `cliff-faces-${v}`;
-    layer.addChild(faces);
+  // The stone itself, cut out of the mountain fill — no sheet of its own, so a map
+  // whose fill is missing simply has no debris rather than debris made of something
+  // else.
+  const art = getTerrainTexture(TerrainKind.Mountain);
+  if (!art) return layer;
+  const geometry = debrisGeometry(contours, {
+    repeatPx: tilePx * ROCK_REPEAT_TILES,
+    facingLo: DEBRIS.FACING.LO,
+    facingHi: DEBRIS.FACING.HI,
+    scree: SCREE,
+    reach: DEBRIS.REACH,
+  });
+  if (geometry) {
+    const stones = new Mesh({ geometry, shader: createDebrisShader(art.texture, DEBRIS.SHADE) });
+    stones.label = 'debris-scree';
+    layer.addChild(stones);
   }
 
   return layer;
-}
-
-/**
- * The rock-face sheets that are actually loaded, in variant order.
- *
- * Sampling is `mirror-repeat` because the wall tiles along `u` and the masters do not
- * wrap — mirroring makes their ends meet by construction. Safe to set on the source
- * because these are whole-image assets; a `frame`-cropped sheet shares its source with
- * its neighbours and would bleed. See `.docs/sprites/terrain-cliff.md`.
- *
- * An empty list is a working state, not a failure: `createCliffShader` then builds its
- * procedural wall and the mountains still have an edge.
- */
-function cliffVariants(): Texture[] {
-  const textures: Texture[] = [];
-  for (let i = 0; i < cliffVariantCount; i++) {
-    const art = getCliffTexture(i);
-    if (!art) continue;
-    art.texture.source.addressMode = 'mirror-repeat';
-    textures.push(art.texture);
-  }
-  return textures;
 }
 
 /**
@@ -630,11 +535,12 @@ function cliffVariants(): Texture[] {
  * instead of by which side of a tile it sat on, so an outline curving from north to
  * east passes through a terminator rather than switching in one step at a corner.
  *
- * **The wall takes over where it stands.** Both the lit lip and the outer occlusion
- * fade out as `wallFacing` rises, because on those stretches the rock face draws its
- * own lip (in the shader) and its own contact shadow. Without that hand-off the base
- * of every wall would carry two shadows and a highlight buried under stone — which is
- * what the old hard "skip mountain `s` edges" test existed to avoid.
+ * **It runs the whole way round.** It used to stand aside on the south-facing arcs,
+ * where a rock face drew its own lip and its own contact shadow; with the face gone
+ * the bevel is the only thing describing those stretches, and they are the ones the
+ * light does not reach. The contact shadow under them is drawn by `debrisLayer` and
+ * sits *outside* the footprint, so the two stack the way a lip and the ground below
+ * it should rather than doubling up.
  */
 function bevelLayer(outlines: readonly Outline[]): Container {
   const layer = new Container();
@@ -654,11 +560,11 @@ function bevelLayer(outlines: readonly Outline[]): Container {
       const pts = contour.points;
       const weights = pts.map((p) => {
         const lam = (p.nx * LIGHT_DIR[0] + p.ny * LIGHT_DIR[1]) * (crater ? -1 : 1);
-        const wall = crater ? 0 : wallFacing(p);
+        const dark = smoothstep(0, BEVEL.TERMINATOR, -lam);
         return {
-          lit: BEVEL.LIT_ALPHA * smoothstep(0, BEVEL.TERMINATOR, lam) * (1 - wall),
-          dark: BEVEL.DARK_ALPHA * smoothstep(0, BEVEL.TERMINATOR, -lam),
-          occ: BEVEL.OCC_ALPHA * (0.6 + 0.4 * smoothstep(0, BEVEL.TERMINATOR, -lam)) * (1 - wall),
+          lit: BEVEL.LIT_ALPHA * smoothstep(0, BEVEL.TERMINATOR, lam),
+          dark: BEVEL.DARK_ALPHA * dark,
+          occ: BEVEL.OCC_ALPHA * (0.6 + 0.4 * dark),
         };
       });
 

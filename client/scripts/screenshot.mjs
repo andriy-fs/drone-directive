@@ -3,7 +3,7 @@
  *
  * ```
  * npm run shot                          # a match, to screenshots/shot.png
- * npm run shot -- --out before.png --query 'cliffs=0&peaks=0'
+ * npm run shot -- --out before.png --query 'debris=0&peaks=0'
  * npm run shot -- --seed 7 --out a.png  # same battlefield every time
  * npm run shot -- --menu --out menu.png
  * npm run shot -- --url http://localhost:5173   # use a dev server already running

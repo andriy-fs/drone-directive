@@ -215,8 +215,8 @@ Two things make it worth reaching for rather than writing a one-off script:
   against that pair is being judged against noise. It is `?seed=` on the URL
   (`pixi/perf/perfFlags.ts`), so it works when clicking around by hand too.
 - **`--query` reaches the render switches**, the same ones the perf work uses:
-  `?fog=0`, `?peaks=0`, `?cliffs=0`, `?terrain=0`. A before/after of one layer is
-  `--query 'cliffs=0'` against nothing.
+  `?fog=0`, `?peaks=0`, `?debris=0`, `?terrain=0`. A before/after of one layer is
+  `--query 'debris=0'` against nothing.
 
 It drives the browser through `playwright-core` and a Chromium **already on the
 machine** — no 300 MB postinstall download. `scripts/lib/chromium.mjs` explains

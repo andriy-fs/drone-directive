@@ -71,7 +71,7 @@ export async function startDevServer({ timeoutMs = 30000 } = {}) {
  * settle.
  *
  * `query` is appended to the URL, which is how the render layers are switched
- * (`?cliffs=0`, `?peaks=0&fog=0` — see `pixi/perf/perfFlags.ts`) and how a match is
+ * (`?debris=0`, `?peaks=0&fog=0` — see `pixi/perf/perfFlags.ts`) and how a match is
  * pinned to a seed (`?seed=7`) so two runs are comparable. Page errors and console
  * errors are reported through `onError`, because a canvas that failed to draw looks
  * exactly like a canvas with nothing on it.
