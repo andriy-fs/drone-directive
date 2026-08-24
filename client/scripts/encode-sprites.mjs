@@ -22,7 +22,7 @@
  * Requires `ffmpeg` (scaling) and `cwebp` (encoding) on PATH. ffmpeg could encode
  * WebP on its own, but cwebp is where the alpha-quality and effort knobs live.
  */
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -40,11 +40,10 @@ const OUT_DIR = fileURLToPath(new URL('../public/', import.meta.url));
  * `alpha: false` marks the opaque terrain art, which skips the premultiply dance;
  * `seamless: true` marks the tiles whose edges have to keep matching.
  *
- * `size` is normally one number — every other output here is square. A **strip**
- * (`size: [w, h]`) is the exception: it is scaled to that rectangle without being
- * squared off first, and its transparent margins are trimmed away beforehand —
- * for art whose two axes mean different things. Nothing in the set needs it right
- * now; the mountains' rock-face strips did, and the support is kept for the next one.
+ * `size` is one number: every output here is square, and the pipeline squares a
+ * master that is not before it scales. The one asset that needed a rectangle — the
+ * mountains' rock-face strip, trimmed to its alpha bounds and squashed to 384×64 —
+ * has been dropped from the game, and the code that did it went with it.
  */
 const SPRITES = [
   // Robots — on-field 46 px (ROBOT_TARGET).
@@ -93,34 +92,9 @@ const SPRITES = [
   { name: 'ground-decals', size: 512, quality: 90 },
 ];
 
-/**
- * The alpha bounding box of a master, as `[w, h, x, y]`.
- *
- * `cropdetect` reads luma, so the alpha is lifted into luma first; `skip=0` because
- * it otherwise ignores the first two frames and a PNG only has one.
- */
-function alphaBounds(src) {
-  // ffmpeg reports the detection on **stderr**, so this is `spawnSync` rather than
-  // the `execFileSync` everything else here uses.
-  const probe = spawnSync(
-    'ffmpeg',
-    ['-v', 'verbose', '-i', src, '-vf', 'alphaextract,cropdetect=limit=0:round=2:skip=0', '-frames:v', '1', '-f', 'null', '-'],
-    { encoding: 'utf8' },
-  );
-  const match = /crop=(\d+):(\d+):(\d+):(\d+)/.exec(probe.stderr ?? '');
-  if (!match) throw new Error(`could not find the alpha bounds of ${src}`);
-  return match.slice(1).map(Number);
-}
-
-
 /** The ffmpeg filter chain that turns a master into a correctly scaled RGBA/RGB frame. */
-function filterChain({ size, alpha = true, seamless = false, strip = false }, src) {
+function filterChain({ size, alpha = true, seamless = false }) {
   const steps = [];
-  if (strip) {
-    const [w, h, x, y] = alphaBounds(src);
-    const [outW, outH] = size;
-    return [`crop=${w}:${h}:${x}:${y}`, 'format=rgba', 'premultiply=inplace=1', `scale=${outW}:${outH}:flags=lanczos`, 'unpremultiply=inplace=1'].join(',');
-  }
   // 3×3 first, so the scaler reads across the wrap instead of clamping at the edge.
   if (seamless) steps.push('loop=loop=8:size=1:start=0', 'tile=3x3');
   if (alpha) steps.push('format=rgba');
@@ -215,9 +189,7 @@ try {
     before += size.before;
     after += size.after;
     const pad = sprite.name.padEnd(22);
-    // A strip carries `[w, h]`; everything else is one number meaning a square.
-    const dims = Array.isArray(sprite.size) ? sprite.size.join('×') : `${sprite.size}²`;
-    console.log(`${pad} ${dims.padStart(7)}px  ${kb(size.before)} → ${kb(size.after)}`);
+    console.log(`${pad} ${`${sprite.size}²`.padStart(7)}px  ${kb(size.before)} → ${kb(size.after)}`);
   }
 } finally {
   rmSync(work, { recursive: true, force: true });
