@@ -202,7 +202,7 @@ export const robotGaitSprites: Partial<Record<Owner, Partial<Record<ChassisType,
  *   something heavy, not a scurry.
  * - `tracks` (60 px/s): ~3.75 cycles/s. One cycle advances the tread by one link
  *   pitch, so this number *is* the pitch the art has to be drawn at.
- * - `wheels` (135 px/s): ~4.2 cycles/s, so the tires pulse dark-light about 8 times a
+ * - `wheels` (135 px/s): ~3.1 cycles/s, so the tires pulse dark-light about 6 times a
  *   second. Not the tire's true geometry — a ~12 px wheel rolls its own circumference
  *   every ~38 px and no one can read that phase from directly above anyway. It was 20
  *   px while the art was a soft tread pattern, which turned out to animate nothing at
@@ -214,6 +214,50 @@ export const GAIT_STRIDE_PX: Record<ChassisType, number> = {
   tracks: 16,
   wheels: 44,
 };
+
+/**
+ * Idle-cycle sheets for the bases, keyed by owner, drawn instead of the still
+ * `baseSprites` entry when present. Four cells in cycle order, cell 0 is the rest
+ * pose, and the quadrant is 256 because a base sheet ships at 512². **No
+ * `rotationOffset`** — a base does not rotate, so its cells are orientation-free.
+ *
+ * What cycles is four cues at once (see `.docs/internal/sprites/bases.md`): landing
+ * lights chasing around the central pad, a radar dish turning a quarter turn per
+ * cell, chevrons marching out of the production bay, and the vents breathing. A base
+ * is drawn at 96 px and stands still while the player looks at it, so it carries far
+ * more simultaneous detail than a 46 px robot could.
+ *
+ * A missing or half-loaded sheet falls back to the still sprite — `getBaseGaitTextures`
+ * is all-or-nothing for the same reason `getRobotGaitTextures` is.
+ *
+ * The quadrant is 256 because the sheet ships at 512² (`scripts/encode-sprites.mjs`).
+ *
+ * **An entry here is a *preload* entry**, unlike the encoder's table, which declares
+ * a planned asset and skips it with a note. A side listed before its master exists
+ * hands the loader a URL that 404s on every page load — console noise, and
+ * `npm run shot` exits non-zero on a page error, so it would break the screenshot
+ * workflow for everyone. Add a side here only once its `.webp` is committed.
+ */
+export const baseGaitSprites: Partial<Record<Owner, SpriteDef[]>> = {
+  [Owner.Player]: sheet2x2(`${PUBLIC_BASE}base-player-gait.webp`, 256, BASE_TARGET),
+  [Owner.AI]: sheet2x2(`${PUBLIC_BASE}base-ai-gait.webp`, 256, BASE_TARGET),
+};
+
+/**
+ * How long (ms) one full four-cell cycle of a base's idle sheet takes.
+ *
+ * **The one sheet in this file clocked by time rather than by distance.** A robot's
+ * cycle is driven by travel, and `render/gait.ts` explains what that buys: the cycle
+ * stops when the unit stops, scales to the chassis speed and slows down when the unit
+ * is grinding along behind something. None of it applies to a building — a base never
+ * moves, so there is no travel to clock, and a wall-clock period is the whole model.
+ *
+ * 1200 ms is 300 ms a cell: the radar turns once every 1.2 s and the landing lights
+ * chase at ~3.3 lamps a second — awake, not frantic. All four cues on the sheet share
+ * this one period by construction, so this is the only knob; raise it if the base
+ * reads as jittery rather than alive.
+ */
+export const BASE_CYCLE_MS = 1200;
 
 /** On-field size (px) for a ridge decal — ~3 tiles, big enough to be a summit, small enough that a blob fits several. */
 const PEAK_TARGET = 90;
@@ -411,6 +455,8 @@ export function spriteSources(): string[] {
     for (const defs of Object.values(byChassis)) for (const def of defs) srcs.push(def.src);
   }
   for (const def of Object.values(baseSprites)) if (def) srcs.push(def.src);
+  // Four defs per sheet, one file — same as the robot gaits above.
+  for (const defs of Object.values(baseGaitSprites)) for (const def of defs) srcs.push(def.src);
   for (const byWeapon of Object.values(weaponSprites)) {
     if (!byWeapon) continue;
     for (const def of Object.values(byWeapon)) if (def) srcs.push(def.src);

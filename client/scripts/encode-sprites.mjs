@@ -61,6 +61,11 @@ const SPRITES = [
   ),
   // Bases — on-field 96 px (BASE_TARGET), already the smallest sensible master.
   ...['player', 'ai'].map((side) => ({ name: `base-${side}`, size: 256, quality: 90 })),
+  // The bases' idle cycles: a 2×2 sheet of phases per side, cropped by `frame` in
+  // config/sprites.ts. 512 ships four 256² cells — the same per-cell resolution as the
+  // still bases above, since a cell is drawn at the same 96 px they are. Alpha, and NOT
+  // seamless: it is a sheet, so wrap-padding would bleed one cell into the next.
+  ...['player', 'ai'].map((side) => ({ name: `base-${side}-gait`, size: 512, quality: 90 })),
   // Weapon modules — on-field 30 px (WEAPON_TARGET).
   ...['bomb', 'cannon', 'dew', 'ew', 'fpv', 'missiles', 'radar'].flatMap((weapon) =>
     ['player', 'ai'].map((side) => ({ name: `weapon-${weapon}-${side}`, size: 96, quality: 90 })),

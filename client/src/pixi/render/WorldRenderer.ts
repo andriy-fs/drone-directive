@@ -89,10 +89,12 @@ export class WorldRenderer {
    * the order marker and the hover reticle so every animated thing on screen
    * pulses in one phase (and keeps pulsing while the match is paused). A robot
    * uses it only as a frame clock — its walk cycle is driven by distance, not time.
+   * A **base** is the other way round: it never travels, so its idle cycle is
+   * driven by nothing else (`BASE_CYCLE_MS`).
    */
   sync(selectedIds: Set<string>, isVisible: (e: Entity) => boolean, now: number): void {
     for (const e of this.robots) this.robotViews.get(e.id)?.update(e, selectedIds.has(e.id), isVisible(e), now);
-    for (const e of this.bases) this.baseViews.get(e.id)?.update(e, isVisible(e), selectedIds.has(e.id));
+    for (const e of this.bases) this.baseViews.get(e.id)?.update(e, isVisible(e), selectedIds.has(e.id), now);
     for (const e of this.projectiles) this.projectileViews.get(e.id)?.update(e);
     for (const e of this.explosions) this.explosionViews.get(e.id)?.update(e);
     for (const e of this.drones) this.droneViews.get(e.id)?.update(e, isVisible(e));

@@ -3,6 +3,7 @@ import { sound, type Sound } from '@pixi/sound';
 import { soundSources, type SoundTier } from '../config/sounds';
 import { markSoundReady } from './audio/sfx';
 import {
+  baseGaitSprites,
   baseSprites,
   droneSprite,
   ejectaSprite,
@@ -202,6 +203,28 @@ export function getRobotGaitTextures(chassis: ChassisType, owner: Owner): Resolv
 export function getBaseTexture(owner: Owner): ResolvedSprite | null {
   const art = artOwner(owner);
   return cached(`base:${art}`, baseSprites[art]);
+}
+
+/**
+ * The idle-cycle frames for a base in cycle order, or null if that faction has no
+ * sheet drawn yet (see `baseGaitSprites`).
+ *
+ * **All or nothing**, on the same terms as `getRobotGaitTextures`: one unresolved
+ * cell drops the whole base back to the still sprite rather than to a cycle with a
+ * hole in it. A base is the largest thing on the field and it never moves off the
+ * spot, so a stutter here is about as visible as a bug can be.
+ */
+export function getBaseGaitTextures(owner: Owner): ResolvedSprite[] | null {
+  const art = artOwner(owner);
+  const defs = baseGaitSprites[art];
+  if (!defs?.length) return null;
+  const frames: ResolvedSprite[] = [];
+  for (const [i, def] of defs.entries()) {
+    const frame = cached(`base:${art}:gait:${i}`, def);
+    if (!frame) return null;
+    frames.push(frame);
+  }
+  return frames;
 }
 
 /**

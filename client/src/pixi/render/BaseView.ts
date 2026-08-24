@@ -1,12 +1,14 @@
 import { Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
+import { BASE_CYCLE_MS } from '../../config/sprites';
 import type { BaseEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
-import { getBaseTexture } from '../assets';
+import { getBaseGaitTextures, getBaseTexture, type ResolvedSprite } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
 import { ownerColor, teamTint } from './ownerColor';
+import { hashUnit } from './terrain/hash';
 
 /**
  * View for a base entity: its faction sprite (or an owner-tinted square + cross
@@ -15,12 +17,29 @@ import { ownerColor, teamTint } from './ownerColor';
  * centre. Double-clicking your own base opens the build & program dialog (same
  * one as the HUD button); selecting it is handled by the stage handler in
  * `input/pointer.ts`, not here.
+ *
+ * The sprite is a **four-cell idle cycle** where the art exists (`baseGaitSprites`)
+ * — running lights, a turning radar dish, chevrons marching out of the production
+ * bay, breathing vents — clocked off the frame's wall clock rather than off travel,
+ * since a base never moves. Art falls back in two steps: sheet → still sprite →
+ * Graphics placeholder.
  */
 export class BaseView {
   readonly container: Container;
   private readonly healthBar: HealthBar;
   private readonly ring: Graphics;
   private readonly turret: Graphics;
+  /** The idle-cycle cells in cycle order, or null when this base has no sheet. */
+  private readonly frames: ResolvedSprite[] | null;
+  /** The sprite the cycle swaps textures on; null when the art fell back to Graphics. */
+  private readonly img: Sprite | null = null;
+  /**
+   * Where in the cycle this base starts, in `[0, 1)`. Hashed from its own position so
+   * two bases on screen do not blink in lockstep — which would read as one global
+   * pulse rather than as each building running its own machinery.
+   */
+  private readonly phase: number;
+  private frame = 0;
   private lastClickAt = 0;
 
   constructor(base: BaseEntity) {
@@ -38,7 +57,10 @@ export class BaseView {
     this.ring.visible = false;
     this.container.addChild(this.ring);
 
-    const sprite = base.owner ? getBaseTexture(base.owner) : null;
+    this.frames = base.owner ? getBaseGaitTextures(base.owner) : null;
+    // Cell 0 is the rest pose, so it is also the right thing to show on the first
+    // frame — and it is what the still sprite is cut from.
+    const sprite = this.frames?.[0] ?? (base.owner ? getBaseTexture(base.owner) : null);
     if (sprite) {
       const { texture, def } = sprite;
       const target = def.targetSize ?? size;
@@ -49,9 +71,17 @@ export class BaseView {
       const tint = teamTint(base.owner);
       if (tint !== undefined) img.tint = tint;
       this.container.addChild(img);
+      this.img = img;
     } else {
       this.container.addChild(drawBody(base, size, half));
     }
+
+    // Same pure hash the terrain decals are placed by, read off the footprint's
+    // tile so it is stable for the life of the match.
+    const tile = gameConfig.grid.tilePx;
+    this.phase = base.position
+      ? hashUnit(Math.round(base.position.x / tile), Math.round(base.position.y / tile), 0x1d)
+      : 0;
 
     // The launcher, above the body: the only thing on screen that says *where*
     // the base's fire is coming from. A shot with no visible source reads as a
@@ -89,19 +119,41 @@ export class BaseView {
       });
     }
 
-    this.update(base, true, false);
+    this.update(base, true, false, performance.now());
   }
 
-  update(base: BaseEntity, visible: boolean, selected: boolean): void {
+  update(base: BaseEntity, visible: boolean, selected: boolean, now: number): void {
     this.container.visible = visible;
     this.ring.visible = selected;
     this.turret.rotation = base.heading;
     this.healthBar.set(base.hp / base.maxHp);
+
+    // Swap only on a cell change: assigning the same texture every frame would ask
+    // Pixi to rebind it 60 times a second for nothing (the guard `RobotView` uses).
+    if (!this.frames || !this.img) return;
+    const frame = cellAt(now, this.phase, this.frames.length);
+    if (frame !== this.frame) {
+      this.frame = frame;
+      this.img.texture = this.frames[frame].texture;
+    }
   }
 
   destroy(): void {
     this.container.destroy({ children: true });
   }
+}
+
+/**
+ * Which cell of a `cells`-long cycle `now` (ms) falls in, offset by `phase` turns.
+ *
+ * Kept apart from `render/gait.ts` deliberately: that clock is driven by distance
+ * travelled and its docstring is an argument for why, none of which applies to a
+ * building that never moves.
+ */
+function cellAt(now: number, phase: number, cells: number): number {
+  const cycles = now / BASE_CYCLE_MS + phase;
+  const frame = Math.floor(cycles * cells) % cells;
+  return frame < 0 ? frame + cells : frame;
 }
 
 /**
