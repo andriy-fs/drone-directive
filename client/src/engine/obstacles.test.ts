@@ -25,6 +25,15 @@ function stripe(kind: TerrainKind): TerrainKind[][] {
   return grid;
 }
 
+/** Inside the clear margin `generateObstacles` keeps around a base, where terrain may not go. */
+function inBaseMargin(tx: number, ty: number): boolean {
+  const fp = gameConfig.bases.footprintTiles;
+  const margin = gameConfig.obstacles.baseClearMargin;
+  return gameConfig.bases.placements.some(
+    (p) => tx >= p.tx - margin && tx < p.tx + fp + margin && ty >= p.ty - margin && ty < p.ty + fp + margin,
+  );
+}
+
 describe('terrain kinds — movement vs line of fire', () => {
   it('blocks driving through both a mountain and a crater', () => {
     for (const kind of [TerrainKind.Mountain, TerrainKind.Crater]) {
@@ -41,53 +50,120 @@ describe('terrain kinds — movement vs line of fire', () => {
 });
 
 describe('generateObstacles', () => {
-  it('keeps every cluster a single kind, and builds massifs without swallowing the map', () => {
+  it('builds massifs without letting one swallow the battlefield', () => {
     const { minBlobTiles } = gameConfig.obstacles;
-    const terrain = generateObstacles(createRng(11));
-    const seen = new Set<string>();
-    const sizes: number[] = [];
 
-    // Flood-fill each connected blocked region (8-directional, as clusters read visually).
-    for (let ty = 0; ty < terrain.length; ty++) {
-      for (let tx = 0; tx < terrain[ty].length; tx++) {
-        const kind = terrain[ty][tx];
-        if (kind === TerrainKind.Open || seen.has(`${tx},${ty}`)) continue;
-        const queue = [{ tx, ty }];
-        seen.add(`${tx},${ty}`);
-        let size = 0;
-        const kinds = new Set<TerrainKind>();
-        while (queue.length) {
-          const cur = queue.shift()!;
-          size++;
-          kinds.add(terrain[cur.ty][cur.tx]);
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const nx = cur.tx + dx;
-              const ny = cur.ty + dy;
-              const k = `${nx},${ny}`;
-              if (seen.has(k) || terrain[ny]?.[nx] === undefined || terrain[ny][nx] === TerrainKind.Open) continue;
-              seen.add(k);
-              queue.push({ tx: nx, ty: ny });
+    // Flood-fill **within one kind**, 8-directional — the way `pixi/render/terrain/
+    // clusters.ts` reads a landform, and the only way that means anything now: at the
+    // current cover a mountain and a crater touch on most maps, so a fill that crossed
+    // kinds would report the whole field as one region and measure nothing.
+    const masses = (terrain: TerrainKind[][]): number[] => {
+      const seen = new Set<string>();
+      const sizes: number[] = [];
+      for (let ty = 0; ty < terrain.length; ty++) {
+        for (let tx = 0; tx < terrain[ty].length; tx++) {
+          const kind = terrain[ty][tx];
+          if (kind === TerrainKind.Open || seen.has(`${tx},${ty}`)) continue;
+          const queue = [{ tx, ty }];
+          seen.add(`${tx},${ty}`);
+          let size = 0;
+          while (queue.length) {
+            const cur = queue.shift();
+            if (!cur) break;
+            size++;
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const nx = cur.tx + dx;
+                const ny = cur.ty + dy;
+                const k = `${nx},${ny}`;
+                if (seen.has(k) || terrain[ny]?.[nx] !== kind) continue;
+                seen.add(k);
+                queue.push({ tx: nx, ty: ny });
+              }
             }
           }
+          sizes.push(size);
         }
-        if (kinds.size === 1) sizes.push(size);
       }
+      return sizes;
+    };
+
+    // Several seeds, because the shape of one map says little: what is being pinned is
+    // the distribution, and a single clumpy seed is a legitimate map rather than a bug.
+    const shares: number[] = [];
+    for (let seed = 1; seed <= 8; seed++) {
+      const sizes = masses(generateObstacles(createRng(seed)));
+
+      // A mass bigger than `maxBlobTiles` is the **point**, not a defect: clusters are
+      // seeded next to one another (`chainChance`) so ridges merge into massifs, and
+      // `sealNarrowGround` fills the necks between the ones that only nearly touch.
+      // What is worth pinning down is the other end — that the merging stops somewhere.
+      expect(sizes.length).toBeGreaterThanOrEqual(3);
+      const blocked = sizes.reduce((a, b) => a + b, 0);
+      expect(blocked / sizes.length).toBeGreaterThanOrEqual(minBlobTiles);
+      // Not one wandering wall: that failure mode (lift `chainMax`, or take
+      // `chainChance` to 1) puts essentially every blocked tile into a single mass.
+      expect(Math.max(...sizes) / blocked).toBeLessThan(0.85);
+      shares.push(Math.max(...sizes) / blocked);
     }
 
-    // A region bigger than `maxBlobTiles` is the **point**, not a defect: clusters are
-    // seeded next to one another (`chainChance`) so ridges merge into massifs, and
-    // `sealNarrowGround` fills the necks between the ones that only nearly touch. What
-    // is worth pinning down is the other end — that the merging stops somewhere.
-    expect(sizes.length).toBeGreaterThan(0);
-    const mean = sizes.reduce((a, b) => a + b, 0) / sizes.length;
-    expect(mean).toBeGreaterThanOrEqual(minBlobTiles);
+    // And typically much better than that ceiling — measured at 0.37 over 30 seeds.
+    expect(shares.reduce((a, b) => a + b, 0) / shares.length).toBeLessThan(0.6);
+  });
 
-    // Several masses, and no single one that has eaten the battlefield: at `chainChance`
-    // 1 the map degenerates into one wandering wall, which is the failure this guards.
-    const blocked = sizes.reduce((a, b) => a + b, 0);
-    expect(sizes.length).toBeGreaterThanOrEqual(3);
-    expect(Math.max(...sizes) / blocked).toBeLessThan(0.65);
+  it('lays cover in every part of the map, not just one side of it', () => {
+    // Seeds were drawn uniformly before, which is uniform only in the limit: over 30
+    // maps, 14 of the small ones and 27 of the medium ones came out with a whole
+    // seedable region carrying no terrain at all, and what the player saw was every
+    // massif on one side of the battlefield. Free seeds are dealt from a shuffled
+    // tour of regions now (`seedRegionTiles`), which is what this pins.
+    const { width, height } = gameConfig.grid;
+    const n = Math.max(2, Math.round(width / gameConfig.obstacles.seedRegionTiles));
+
+    for (let seed = 1; seed <= 12; seed++) {
+      const terrain = generateObstacles(createRng(seed));
+      const blocked = new Array<number>(n * n).fill(0);
+      const seedable = new Array<number>(n * n).fill(0);
+
+      for (let ty = 0; ty < height; ty++) {
+        for (let tx = 0; tx < width; tx++) {
+          const i = Math.min(n - 1, Math.floor((ty / height) * n)) * n + Math.min(n - 1, Math.floor((tx / width) * n));
+          if (!inBaseMargin(tx, ty)) seedable[i]++;
+          if (terrain[ty][tx] !== TerrainKind.Open) blocked[i]++;
+        }
+      }
+
+      for (let i = 0; i < blocked.length; i++) {
+        // A region that is mostly base margin is *supposed* to be bare — that is the
+        // clear ground around a base, not a hole in the map.
+        if (seedable[i] < ((width / n) * (height / n)) / 3) continue;
+        expect(blocked[i]).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('gives every base something to fight around', () => {
+    // Fairness, not scenery: a side that has to cross open ground while its opponent
+    // has ridges to hide behind is playing a different match. Before `ensureBaseCover`
+    // that was one base in seven on the small map and one in four on the medium.
+    const { baseClearMargin, baseCover } = gameConfig.obstacles;
+
+    for (let seed = 1; seed <= 12; seed++) {
+      const terrain = generateObstacles(createRng(seed));
+      for (const placement of gameConfig.bases.placements) {
+        const cx = placement.tx + Math.floor(gameConfig.bases.footprintTiles / 2);
+        const cy = placement.ty + Math.floor(gameConfig.bases.footprintTiles / 2);
+        let cover = 0;
+        for (let ty = 0; ty < gameConfig.grid.height; ty++) {
+          for (let tx = 0; tx < gameConfig.grid.width; tx++) {
+            const d = Math.max(Math.abs(tx - cx), Math.abs(ty - cy));
+            if (d <= baseClearMargin || d > baseCover.radius) continue;
+            if (terrain[ty][tx] !== TerrainKind.Open) cover++;
+          }
+        }
+        expect(cover).toBeGreaterThanOrEqual(baseCover.tiles);
+      }
+    }
   });
 
   it('produces both terrain kinds across a map', () => {

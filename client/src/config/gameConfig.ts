@@ -635,14 +635,18 @@ export const gameConfig = {
      * this by map area, so cover density stays constant instead of thinning out
      * to nothing on the large map. This is the knob for "more/less terrain".
      *
-     * Recalibrated from 34 when `minCorridorTiles` landed: sealing the narrow
-     * ground fills the gaps between blobs that were too tight to drive through,
-     * which took cover from the 21% of the map this was tuned for to 28%. At 26
-     * it is back to 21% — and reads as *more* terrain rather than less, because
-     * the tiles go into more, smaller lumps (medium map: 19 against 16) instead
-     * of into the necks that merged them into masses.
+     * Walked down 34 → 26 → 18 while the massifs were being made bigger, and 18
+     * turned out to be too few *of them*: measured over 30 seeds, a small map came
+     * out with 4.4 separate clusters averaging 73 tiles, so the cover was there but
+     * it sat in a handful of giants with whole quarters of the map bare between
+     * them. Back up to 22, with `chainMax` capping how many of them can pile into
+     * one massif and `seedRegionTiles` spreading the roots — more masses, not
+     * bigger ones. Measured over 30 seeds that is 20.0% → 24.3% cover on the small
+     * map and 20.7% → 26.0% on the medium; 24 was tried first and pushed the medium
+     * map past 28%, where `sealNarrowGround` starts welding neighbouring massifs
+     * into walls.
      */
-    blobCount: 18,
+    blobCount: 22,
     /** Min tiles per cluster — a cluster below this is too small to be worth pathing around. */
     minBlobTiles: 6,
     /** Max tiles per cluster. Actual size is a random count of *distinct* tiles in `[min, max]`. */
@@ -677,8 +681,49 @@ export const gameConfig = {
      */
     chainChance: 0.62,
     chainSpread: 2,
+    /**
+     * How many clusters may be chained onto one root before the next seed is forced
+     * to start a new massif somewhere else.
+     *
+     * Without a cap, chaining is a random walk over the *whole budget*: 18 blobs at
+     * `chainChance` 0.62 came out as 4.4 masses on a small map, one of them up to
+     * 322 tiles — a fifth of the battlefield in a single lump, with the rest of the
+     * map bare. Three keeps a massif recognisably a massif (three ridges, up to ~70
+     * tiles) while guaranteeing the budget is spent in at least `blobCount / 3`
+     * separate places.
+     */
+    chainMax: 3,
+    /**
+     * Roughly how many tiles across one seeding region is.
+     *
+     * Free (unchained) seeds are dealt round-robin from a shuffled tour of regions
+     * this size instead of being drawn uniformly over the map, which is what stops a
+     * map coming out with every mass on one side. 13 gives 3×3 regions on the small
+     * map, 5×5 on the medium and 6×6 on the large — and since `blobCount` scales by
+     * area, that is a steady ~2.7 clusters per region at every size.
+     *
+     * Only the *seed* is constrained: a cluster's walk and its chain cross region
+     * borders freely, so this does not put the grid back into the silhouette.
+     */
+    seedRegionTiles: 13,
     /** Tiles kept clear around each base (Chebyshev) — covers the production spawn ring. */
     baseClearMargin: 6,
+    /**
+     * The cover every base is guaranteed to have on its approach: at least `tiles`
+     * blocked cells in the Chebyshev ring between `baseClearMargin` and `radius`,
+     * topped up by `generateObstacles` when the random pass left it bare.
+     *
+     * This is a **fairness** rule before it is a scenery one. Random placement left
+     * roughly one base in seven (small map) and one in four (medium) with nothing to
+     * fight around, and a side that has to cross open ground while its opponent has
+     * ridges to hide behind is playing a different match.
+     *
+     * `tiles` is about one cluster's worth, so the guarantee is "there is something
+     * to use", not "the base sits in a walled yard". `attempts` bounds the top-up:
+     * a ring that is mostly map edge may never reach the quota, and generation must
+     * always terminate.
+     */
+    baseCover: { radius: 14, tiles: 20, attempts: 12 },
     /**
      * The narrowest drivable ground a generated map may contain, in tiles.
      * `generateObstacles` fills in anything thinner (see `sealNarrowGround`).

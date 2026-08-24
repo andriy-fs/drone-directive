@@ -94,6 +94,11 @@ export function generateObstacles(rng: Rng): TerrainGrid {
   // see `chainChance`.
   let previous: Tile | null = null;
   let previousKind: TerrainKind | null = null;
+  // How many ridges are already stacked on the current massif, against `chainMax`.
+  let chained = 0;
+  // The tour of coarse regions free seeds are dealt from, and how many have been dealt.
+  const tour = regionTour(rng);
+  let free = 0;
   while (placed < wanted && attempts < maxAttempts) {
     attempts++;
     // A chained seed usually lands *on* the ridge it was measured from, which is
@@ -102,10 +107,16 @@ export function generateObstacles(rng: Rng): TerrainGrid {
     // this) meant chaining almost never fired at all.
     const usable = (t: Tile): boolean =>
       inBounds(t.tx, t.ty) && !protectedCells.has(key(t.tx, t.ty)) && grid[t.ty][t.tx] === TerrainKind.Open;
-    const chained = chainedSeed(previous, rng);
-    const linked = chained !== null && usable(chained);
-    const seed = linked && chained ? chained : { tx: rng.int(width), ty: rng.int(height) };
+    const near = chained < gameConfig.obstacles.chainMax ? chainedSeed(previous, rng) : null;
+    const linked = near !== null && usable(near);
+    // A free seed comes out of the next region on the tour, not out of the whole map:
+    // uniform draws left a quarter of the battlefield bare on most seeds, and a base
+    // could face a wholly open approach. Only the *start* is constrained — the walk
+    // and the chain leave the region freely.
+    const seed = linked && near ? near : regionSeed(tour[free % tour.length], usable, rng);
+    if (!linked) free++;
     if (!usable(seed)) continue;
+    chained = linked ? chained + 1 : 0;
     const { tx, ty } = seed;
     // **A chained ridge inherits its neighbour's kind.** Rolling afresh would fuse a
     // mountain onto a crater, and the rule that a blob is all one kind exists because
@@ -120,8 +131,119 @@ export function generateObstacles(rng: Rng): TerrainGrid {
     placed++;
   }
 
+  ensureBaseCover(grid, protectedCells, rng);
   makeDrivable(grid, protectedCells);
   return grid;
+}
+
+/** One coarse region of the map, in tiles — half-open on the far edge. */
+interface Region {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/**
+ * The map cut into coarse regions, in a shuffled order — the tour free seeds are
+ * dealt from, one region each, round-robin.
+ *
+ * **Why the seeds are dealt rather than drawn.** Uniform placement is uniform only
+ * in the limit, and 22 blobs is not the limit: measured over 30 seeds, 14 small maps
+ * and 27 medium ones left a region that *could* hold terrain — base margins
+ * discounted — holding none at all, which the player reads as every massif being on
+ * one side of the battlefield. A tour makes every region take its turn before any
+ * region takes a second, which is the property "the map has cover everywhere"
+ * actually needs. With it, none of the 30 does.
+ *
+ * Shuffled rather than walked in order, because the tour is also the order the
+ * *kinds* and the chains fall in — a fixed sweep would march a range across the map
+ * left to right on every match.
+ */
+function regionTour(rng: Rng): Region[] {
+  const { width, height } = gameConfig.grid;
+  const n = Math.max(2, Math.round(width / gameConfig.obstacles.seedRegionTiles));
+  const regions: Region[] = [];
+  for (let ry = 0; ry < n; ry++) {
+    for (let rx = 0; rx < n; rx++) {
+      regions.push({
+        x0: Math.floor((rx * width) / n),
+        y0: Math.floor((ry * height) / n),
+        x1: Math.floor(((rx + 1) * width) / n),
+        y1: Math.floor(((ry + 1) * height) / n),
+      });
+    }
+  }
+  // Fisher–Yates on the passed rng: `Rng` has no shuffle, and using anything else
+  // here would desync the two peers of a lockstep match.
+  for (let i = regions.length - 1; i > 0; i--) {
+    const j = rng.int(i + 1);
+    [regions[i], regions[j]] = [regions[j], regions[i]];
+  }
+  return regions;
+}
+
+/** How many tiles a region is probed for a free cell before the whole map is tried. */
+const REGION_TRIES = 8;
+
+/**
+ * A seed inside `region`, or anywhere on the map if the region has no room left.
+ *
+ * The fallback matters more than it looks: a region can be entirely base margin or
+ * entirely painted, and the placement loop is bounded by `maxAttempts` — a region
+ * that can never yield would otherwise eat the budget and thin the whole map out.
+ */
+function regionSeed(region: Region, usable: (t: Tile) => boolean, rng: Rng): Tile {
+  const { width, height } = gameConfig.grid;
+  for (let i = 0; i < REGION_TRIES; i++) {
+    const t = {
+      tx: region.x0 + rng.int(Math.max(1, region.x1 - region.x0)),
+      ty: region.y0 + rng.int(Math.max(1, region.y1 - region.y0)),
+    };
+    if (usable(t)) return t;
+  }
+  return { tx: rng.int(width), ty: rng.int(height) };
+}
+
+/**
+ * Tops up the cover on every base's approach, so no side has to cross open ground
+ * while its opponent has ridges to hide behind.
+ *
+ * **A fairness rule before a scenery one.** The random pass left roughly one base in
+ * seven on the small map, and one in four on the medium, with nothing to fight around
+ * within a fair walk of its own gate. That is not a map that reads badly, it is a map
+ * that plays differently for the two sides.
+ *
+ * The ring starts *outside* `baseClearMargin`, so nothing lands in the spawn ring,
+ * and this runs **before** `makeDrivable` — stone added here has to pass the same
+ * corridor-width and connectivity guarantees as stone that came from the main pass.
+ */
+function ensureBaseCover(grid: TerrainGrid, protectedCells: Set<string>, rng: Rng): void {
+  const { baseClearMargin, baseCover } = gameConfig.obstacles;
+  const usable = (t: Tile): boolean =>
+    inBounds(t.tx, t.ty) && !protectedCells.has(key(t.tx, t.ty)) && grid[t.ty][t.tx] === TerrainKind.Open;
+
+  for (const placement of gameConfig.bases.placements) {
+    const { tx: cx, ty: cy } = baseCentre(placement);
+    // The ring, collected once: it is the same set every attempt, and a base in a
+    // corner has most of it off the map.
+    const ring: Tile[] = [];
+    for (let ty = cy - baseCover.radius; ty <= cy + baseCover.radius; ty++) {
+      for (let tx = cx - baseCover.radius; tx <= cx + baseCover.radius; tx++) {
+        const d = Math.max(Math.abs(tx - cx), Math.abs(ty - cy));
+        if (d <= baseClearMargin || !inBounds(tx, ty)) continue;
+        ring.push({ tx, ty });
+      }
+    }
+    if (!ring.length) continue;
+
+    const covered = (): number => ring.reduce((n, t) => n + (grid[t.ty][t.tx] === TerrainKind.Open ? 0 : 1), 0);
+    for (let attempt = 0; attempt < baseCover.attempts && covered() < baseCover.tiles; attempt++) {
+      const seed = rng.pick(ring);
+      if (!usable(seed)) continue;
+      stampBlob(grid, protectedCells, seed.tx, seed.ty, roll(rng), rng);
+    }
+  }
 }
 
 /**
