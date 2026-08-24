@@ -142,6 +142,21 @@ export const gameConfig = {
     hitRadius: 14,
     /** Seconds a side spends without an eye after losing one, before a fresh drone rolls out. */
     respawnTime: 30,
+    /**
+     * How far (px) from its base's centre a drone is parked at match start and on
+     * respawn, in the direction of the map centre (`droneSpawnPose`).
+     *
+     * **It has to clear the base's diagonal, not its side.** A 3-tile footprint
+     * reaches 48 px to an edge but 48·√2 ≈ 68 px to a corner, and the drone is
+     * another 20 px of radius on top — so anything under ~90 px still lands the
+     * drone on the building however it is pointed. 104 leaves ~16 px of daylight.
+     *
+     * The number exists because the base's roof is **not** free real estate: its
+     * dead centre is the missile battery's launcher pad (see `bases.weapon` and
+     * `BaseView.drawTurret`), and a drone parked there hides the one thing that
+     * says where the base's fire comes from.
+     */
+    spawnOffset: 104,
   },
 
   /**

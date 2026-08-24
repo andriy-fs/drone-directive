@@ -7,6 +7,7 @@ import { useGameStore } from '../../store/gameStore';
 import { getBaseGaitTextures, getBaseTexture, type ResolvedSprite } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
+import { cellAt } from './cycle';
 import { ownerColor, teamTint } from './ownerColor';
 import { hashUnit } from './terrain/hash';
 
@@ -131,7 +132,7 @@ export class BaseView {
     // Swap only on a cell change: assigning the same texture every frame would ask
     // Pixi to rebind it 60 times a second for nothing (the guard `RobotView` uses).
     if (!this.frames || !this.img) return;
-    const frame = cellAt(now, this.phase, this.frames.length);
+    const frame = cellAt(now, BASE_CYCLE_MS, this.phase, this.frames.length);
     if (frame !== this.frame) {
       this.frame = frame;
       this.img.texture = this.frames[frame].texture;
@@ -141,19 +142,6 @@ export class BaseView {
   destroy(): void {
     this.container.destroy({ children: true });
   }
-}
-
-/**
- * Which cell of a `cells`-long cycle `now` (ms) falls in, offset by `phase` turns.
- *
- * Kept apart from `render/gait.ts` deliberately: that clock is driven by distance
- * travelled and its docstring is an argument for why, none of which applies to a
- * building that never moves.
- */
-function cellAt(now: number, phase: number, cells: number): number {
-  const cycles = now / BASE_CYCLE_MS + phase;
-  const frame = Math.floor(cycles * cells) % cells;
-  return frame < 0 ? frame + cells : frame;
 }
 
 /**

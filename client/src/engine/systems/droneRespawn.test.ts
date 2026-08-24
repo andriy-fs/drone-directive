@@ -9,7 +9,9 @@ import { makeCtx } from './testkit';
 const DT = gameConfig.fixedDt;
 
 function droneOf(ctx: GameContext, owner: Owner) {
-  return ctx.world.with('drone').entities.find((d) => d.owner === owner);
+  // `position` in the query, not just `drone`: every drone has one by construction
+  // (`spawnDrone` sets it), and the assertions below read it.
+  return ctx.world.with('drone', 'position').entities.find((d) => d.owner === owner);
 }
 
 /** Run the system for `seconds` of simulated time, one fixed step at a time. */
@@ -39,7 +41,7 @@ describe('droneRespawnSystem', () => {
     expect(droneOf(ctx, Owner.Player)).toBeUndefined();
   });
 
-  it('rebuilds the drone over the base once the clock runs out', () => {
+  it('rebuilds the drone beside the base once the clock runs out', () => {
     const ctx = makeCtx(1);
     const base = spawnBase(ctx.world, Owner.Player, 4, 33);
 
@@ -52,7 +54,14 @@ describe('droneRespawnSystem', () => {
 
     const drone = droneOf(ctx, Owner.Player);
     expect(drone).toBeDefined();
-    expect(drone!.position).toEqual(base.position);
+    // Beside the base, not on it: the roof's centre is the launcher's pad. One
+    // `spawnOffset` out, toward the middle of the map.
+    const dx = drone!.position.x - base.position.x;
+    const dy = drone!.position.y - base.position.y;
+    expect(Math.hypot(dx, dy)).toBeCloseTo(gameConfig.drone.spawnOffset);
+    expect(dx).toBeGreaterThan(0); // base sits bottom-left, so the centre is up and to the right
+    expect(dy).toBeLessThan(0);
+    expect(drone!.heading).toBeCloseTo(Math.atan2(dy, dx));
     expect(drone!.hp).toBe(gameConfig.drone.maxHp);
     expect(ctx.droneRespawn[Owner.Player]).toBe(0);
   });

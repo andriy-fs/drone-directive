@@ -259,6 +259,48 @@ export const baseGaitSprites: Partial<Record<Owner, SpriteDef[]>> = {
  */
 export const BASE_CYCLE_MS = 1200;
 
+/**
+ * The observer drone's hover cycle — four cells in cycle order, cell 0 the rest pose.
+ * **One sheet for every side**, like `droneSprite` it stands in for, since `DroneView`
+ * recolours the art per owner rather than shipping a second set.
+ *
+ * What cycles is the camera eye breathing and a light running around the four arm
+ * tips. What deliberately does *not* is the rotors: they stay soft motion-blur discs,
+ * because a ~12 px disc showing four discrete blade positions reads as a **stopped**
+ * propeller — the inverse of the `wheels` lesson, and the reason this is spelled out
+ * in `.docs/internal/sprites/drone.md` rather than left to taste.
+ *
+ * The sheet is only half of what makes a drone look airborne. The other half is
+ * procedural and needs no art at all — `DroneView` pitches the airframe along its
+ * course, trembles it at speed and drifts it up and down on the spot — so the drone
+ * animates whether or not this is filled in.
+ *
+ * **Fill this in only once the `.webp` is committed.** An entry here is a *preload*
+ * entry (see `spriteSources`), so declaring a sheet nobody has drawn 404s on every
+ * page load and makes `npm run shot` exit non-zero — unlike the encoder's table, which
+ * does declare planned art and skips a missing master with a note.
+ */
+export const droneCycleSprites: SpriteDef[] | undefined = sheet2x2(
+  `${PUBLIC_BASE}drone-player-gait.webp`,
+  128,
+  DRONE_TARGET,
+  Math.PI / 2,
+);
+
+/**
+ * How long (ms) one full four-cell cycle of the drone's hover sheet takes.
+ *
+ * Timed, not travel-driven, and for a reason `gait.ts` does not cover: a drone hovering
+ * dead still is still running — the eye keeps watching, the lights keep blinking. Tying
+ * that to distance would switch the machine off whenever it stopped, which is exactly
+ * backwards for an aircraft holding station.
+ *
+ * 1200 ms matches `BASE_CYCLE_MS` on purpose: both are the same kind of "this thing is
+ * powered" idle, and two different periods on screen at once read as two unrelated
+ * blinkers rather than as one game.
+ */
+export const DRONE_CYCLE_MS = 1200;
+
 /** On-field size (px) for a ridge decal — ~3 tiles, big enough to be a summit, small enough that a blob fits several. */
 const PEAK_TARGET = 90;
 /** On-field size (px) for a ground decal — ~5 tiles. */
@@ -327,15 +369,16 @@ export const droneSprite: SpriteDef | undefined = {
  * cannot tell from your own would be misinformation, not a missing polish pass.
  * Undefined → the Graphics dart in `MunitionView`. See `.docs/sprites/drone.md`.
  *
- * **The odd one out on rotation: `-Math.PI / 2`, not `+`.** Every other whole-image
- * sprite here is authored facing *up*; this master is drawn with its shaped-charge
- * warhead pointing *down* (the antenna and camera stub are at the top). The
- * warhead is the end that reads as "forward", so the art is corrected by −90°
- * instead. Re-generating the master nose-up is the moment to flip this back.
+ * **It used to be the odd one out on rotation** — the first master was drawn with its
+ * shaped-charge warhead pointing *down*, and since the warhead is the end that reads
+ * as "forward", the art was corrected by −90° instead of +90°. The master has since
+ * been regenerated nose-up (cone apex and whip antenna at the top), so it now carries
+ * the same `Math.PI / 2` as every other whole-image sprite here. Anything that flies
+ * backwards after an art change starts here.
  */
 export const munitionSprite: SpriteDef | undefined = {
   src: `${PUBLIC_BASE}fpv-munition.webp`,
-  rotationOffset: -Math.PI / 2,
+  rotationOffset: Math.PI / 2,
   targetSize: MUNITION_TARGET,
 };
 
@@ -468,6 +511,8 @@ export function spriteSources(): string[] {
   if (groundSprite) srcs.push(groundSprite.src);
   if (groundAltSprite) srcs.push(groundAltSprite.src);
   if (droneSprite) srcs.push(droneSprite.src);
+  // Four defs, one file — the de-dupe at the end collapses them.
+  if (droneCycleSprites) for (const def of droneCycleSprites) srcs.push(def.src);
   if (munitionSprite) srcs.push(munitionSprite.src);
   return [...new Set(srcs)];
 }

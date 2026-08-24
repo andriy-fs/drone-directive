@@ -1,6 +1,6 @@
 import { gameConfig } from '../../config/gameConfig';
 import type { Owner } from '@drone-directive/types/enums';
-import { spawnDrone } from '../ecs/factory';
+import { droneSpawnPose, spawnDrone } from '../ecs/factory';
 import { isAlive } from '../ecs/guards';
 import { drones } from '../ecs/queries';
 import type { GameContext } from '../game/context';
@@ -39,7 +39,7 @@ function step(ctx: GameContext, owner: Owner, dt: number): void {
   }
 
   // First tick without a drone: start the clock. Otherwise run it down, and
-  // roll the replacement out over the base once it reaches zero.
+  // roll the replacement out beside the base once it reaches zero.
   if (ctx.droneRespawn[owner] <= 0) {
     ctx.droneRespawn[owner] = gameConfig.drone.respawnTime;
     return;
@@ -49,7 +49,8 @@ function step(ctx: GameContext, owner: Owner, dt: number): void {
   if (ctx.droneRespawn[owner] > 0) return;
 
   ctx.droneRespawn[owner] = 0;
-  const drone = spawnDrone(ctx.world, owner, base.position);
+  const { pos, heading } = droneSpawnPose(base);
+  const drone = spawnDrone(ctx.world, owner, pos, heading);
   ctx.bus.emit('entitySpawned', { id: drone.id, kind: 'drone', owner });
 }
 

@@ -72,6 +72,11 @@ const SPRITES = [
   ),
   // Observer drone — on-field 40 px (DRONE_TARGET).
   { name: 'drone-player', size: 128, quality: 90 },
+  // Its hover cycle: a 2×2 sheet of phases, cropped by `frame` in config/sprites.ts.
+  // 256 ships four 128² cells — the same per-cell resolution as the still drone above.
+  // Alpha, and NOT seamless: it is a sheet, so wrap-padding would bleed one cell into
+  // the next. One sheet for every side; `DroneView` recolours it per owner.
+  { name: 'drone-player-gait', size: 256, quality: 90 },
   // FPV strike drone — on-field 30 px (MUNITION_TARGET); one art set for every
   // side, tinted per owner, so there is no `-player`/`-ai` pair here.
   { name: 'fpv-munition', size: 96, quality: 90 },

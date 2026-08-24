@@ -5,6 +5,7 @@ import { markSoundReady } from './audio/sfx';
 import {
   baseGaitSprites,
   baseSprites,
+  droneCycleSprites,
   droneSprite,
   ejectaSprite,
   groundAltSprite,
@@ -277,6 +278,26 @@ export function getGroundDecalTexture(variant: number): ResolvedSprite | null {
 /** Observer-drone sprite, or null (→ Graphics diamond in DroneView) if missing/unloaded. */
 export function getDroneTexture(): ResolvedSprite | null {
   return cached('drone', droneSprite);
+}
+
+/**
+ * The observer drone's hover-cycle frames in cycle order, or null if the sheet has not
+ * been drawn yet (see `droneCycleSprites`).
+ *
+ * **All or nothing**, like the robot and base cycles: one unresolved cell falls the
+ * drone back to its still sprite rather than to a cycle with a hole in it. The drone
+ * keeps its pitch, tremble and hover drift either way — those are `DroneView`'s own
+ * and owe nothing to this.
+ */
+export function getDroneCycleTextures(): ResolvedSprite[] | null {
+  if (!droneCycleSprites?.length) return null;
+  const frames: ResolvedSprite[] = [];
+  for (const [i, def] of droneCycleSprites.entries()) {
+    const frame = cached(`drone:cycle:${i}`, def);
+    if (!frame) return null;
+    frames.push(frame);
+  }
+  return frames;
 }
 
 /** FPV strike-drone sprite, or null (→ Graphics dart in MunitionView) if missing/unloaded. */

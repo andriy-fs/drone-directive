@@ -1,4 +1,4 @@
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { RobotState, TaskType, type ChassisType, type Owner, type WeaponType } from '@drone-directive/types/enums';
 import { nextId } from '../../utils/id';
@@ -89,14 +89,51 @@ export function spawnRobot(world: EcsWorld, owner: Owner, pos: Vec2, chassis: Ch
   });
 }
 
-/** Adds a side's observer drone at `pos` (the base "roof" at match start, or on respawn). */
-export function spawnDrone(world: EcsWorld, owner: Owner, pos: Vec2): DroneEntity {
+/**
+ * Where a side's drone is parked when it rolls out — at match start and on every
+ * respawn — as a position **beside** its base plus the heading to face there.
+ *
+ * Not on the base. The roof's dead centre belongs to the missile battery's launcher
+ * (`gameConfig.bases.weapon`), and a drone sitting on it hides the only mark that
+ * says where the base's fire comes from.
+ *
+ * The direction is **toward the middle of the map**, which is worth stating as a
+ * rule rather than a taste: bases are seated in corners with a 4-tile margin
+ * (`cornerTile` in `gameConfig`), so this is the one direction that is in bounds
+ * from every seat, that means the same thing for every side, and that points the eye
+ * at the field it is there to watch instead of at the wall behind it.
+ *
+ * Deliberately obstacle-free: a drone free-flies and never pathfinds (`freeFly` in
+ * `systems/drone.ts`), so there is nothing here to block against — do not add a
+ * check. Pure arithmetic, so both peers of a lockstep match land on the same spot.
+ */
+export function droneSpawnPose(base: BaseEntity): { pos: Vec2; heading: number } {
+  const dx = worldPixelSize.width / 2 - base.position.x;
+  const dy = worldPixelSize.height / 2 - base.position.y;
+  const len = vecLength(dx, dy);
+  // A base *at* the centre has no direction to offer; park the drone below it.
+  const ux = len < 1e-6 ? 0 : dx / len;
+  const uy = len < 1e-6 ? 1 : dy / len;
+  const d = gameConfig.drone.spawnOffset;
+  return {
+    pos: { x: base.position.x + ux * d, y: base.position.y + uy * d },
+    heading: Math.atan2(uy, ux),
+  };
+}
+
+/**
+ * Adds a side's observer drone at `pos`, facing `heading`.
+ *
+ * Callers that are rolling one out of a base want `droneSpawnPose` for both; the
+ * explicit arguments are what lets a test drop a drone anywhere it likes.
+ */
+export function spawnDrone(world: EcsWorld, owner: Owner, pos: Vec2, heading = 0): DroneEntity {
   return world.add({
     id: nextId('drone'),
     drone: {},
     owner,
     position: { x: pos.x, y: pos.y },
-    heading: 0,
+    heading,
     hp: gameConfig.drone.maxHp,
     maxHp: gameConfig.drone.maxHp,
     sightRange: gameConfig.drone.sightRange,

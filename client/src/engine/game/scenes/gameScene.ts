@@ -1,6 +1,6 @@
 import { gameConfig } from '../../../config/gameConfig';
 import { Owner } from '@drone-directive/types/enums';
-import { spawnBase, spawnDrone } from '../../ecs/factory';
+import { droneSpawnPose, spawnBase, spawnDrone } from '../../ecs/factory';
 import { isAlive } from '../../ecs/guards';
 import { bases } from '../../ecs/queries';
 import { clearWorld } from '../../ecs/world';
@@ -68,7 +68,10 @@ export class GameScene implements Scene {
     // differs, which is what keeps the eye a symmetric advantage.
     for (const side of this.ctx.roster) {
       const base = bases(world).entities.find((b) => b.owner === side.owner);
-      if (base) spawnDrone(world, side.owner, base.position);
+      if (!base) continue;
+      // Beside the base, not on it — the roof's centre is the launcher's pad.
+      const { pos, heading } = droneSpawnPose(base);
+      spawnDrone(world, side.owner, pos, heading);
     }
 
     this.ctx.bus.emit('sceneChanged', { scene: 'game' });
