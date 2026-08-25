@@ -32,6 +32,7 @@ export const ru: Dict = {
     unitGuide: 'Справочник юнитов',
     singleplayer: 'Одиночная игра',
     matchSetup: 'Настройки матча',
+    desktopApp: 'Версия для ПК',
   },
   difficulty: {
     easy: 'Лёгкий',
@@ -242,6 +243,14 @@ export const ru: Dict = {
     roomCodePlaceholder: 'КОД КОМНАТЫ',
     joinRoom: 'Войти в комнату',
     cancel: 'Отмена',
+    outdatedTitle: 'Версия игры устарела',
+    outdatedBody: 'Для сетевой игры нужна текущая версия.',
+  },
+  update: {
+    available: 'Доступна новая версия',
+    reload: 'Перезагрузить',
+    download: 'Скачать',
+    later: 'Позже',
   },
   chat: {
     title: 'Чат',

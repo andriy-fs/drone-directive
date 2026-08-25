@@ -9,7 +9,15 @@ import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
 import { canActivateShield, isShielded } from '../engine/systems/shield';
 import { useGameStore } from '../store/gameStore';
-import { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus, OutcomePhase } from '../store/enums';
+import {
+  ClientVersion,
+  DroneMode,
+  GameStatus,
+  OnlineLink,
+  OnlineRequest,
+  OnlineStatus,
+  OutcomePhase,
+} from '../store/enums';
 import type {
   BaseShieldSnapshot,
   BaseSnapshot,
@@ -24,7 +32,7 @@ import { Controller, Owner, WeaponType, type MapSize } from '@drone-directive/ty
 import type { DroneControl, GameContext } from '../engine/game/context';
 import { loadGameAssets, loadSoundAssets, warmGameAssets } from './assets';
 import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
-import { LockstepSession, randomRoomCode, setNetDebug, type TickInput } from '@drone-directive/net';
+import { ErrorCode, LockstepSession, randomRoomCode, setNetDebug, type TickInput } from '@drone-directive/net';
 import { ChatSeat } from '@drone-directive/chat';
 import { attachChat } from '../chat/chatBridge';
 import { lockstepConfig } from '../config/multiplayer';
@@ -1011,7 +1019,16 @@ export class GameApp {
           this.wake(); // arrives over the socket, with the loop parked on the lobby
         },
         onOpponentLeft: () => this.endOnline('Opponent left the match'),
-        onError: (_code, message) => this.endOnline(message, true),
+        // The relay is the authority on the protocol, and this is the only place
+        // its verdict reaches us. Latching it here is what makes the block work
+        // for a desktop client, whose bundled `version.json` can only ever agree
+        // with itself (see ui/hooks/useUpdateCheck).
+        onError: (code, message) => {
+          if (code === ErrorCode.VersionMismatch) {
+            useGameStore.getState().reportClientVersion(ClientVersion.OnlineBlocked);
+          }
+          this.endOnline(message, true);
+        },
         onClose: () => this.endOnline('Connection closed'),
         // A dropped socket is not a dropped match: the relay holds the seat, the
         // session goes back for it, and this client's world is frozen at the same

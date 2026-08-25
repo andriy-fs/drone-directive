@@ -80,3 +80,20 @@ export type OnlineStatus = (typeof OnlineStatus)[keyof typeof OnlineStatus];
 /** The kinds of {@link PendingOnline} — what the lobby can ask the bridge to do. */
 export const OnlineRequest = { Host: 'host', Join: 'join', Leave: 'leave' } as const;
 export type OnlineRequest = (typeof OnlineRequest)[keyof typeof OnlineRequest];
+
+/**
+ * How stale this bundle is — one field for two signals that mean the same thing
+ * at different severities (`config/version.ts`, and the relay's own rejection).
+ *
+ * It only ever escalates during a session: staleness is a fact about the running
+ * bundle, not about the lobby, so nothing that resets `online` may walk it back.
+ */
+export const ClientVersion = {
+  /** Nothing says otherwise — the state every client starts in. */
+  Current: 'current',
+  /** A newer build is deployed. Playing is fine; the page just wants reloading. */
+  UpdateAvailable: 'update-available',
+  /** The wire protocol moved on. Online play cannot work until the client does. */
+  OnlineBlocked: 'online-blocked',
+} as const;
+export type ClientVersion = (typeof ClientVersion)[keyof typeof ClientVersion];

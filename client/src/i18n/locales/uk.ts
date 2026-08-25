@@ -32,6 +32,7 @@ export const uk: Dict = {
     unitGuide: 'Довідник юнітів',
     singleplayer: 'Одиночна гра',
     matchSetup: 'Налаштування матчу',
+    desktopApp: 'Версія для ПК',
   },
   difficulty: {
     easy: 'Легкий',
@@ -242,6 +243,14 @@ export const uk: Dict = {
     roomCodePlaceholder: 'КОД КІМНАТИ',
     joinRoom: 'Увійти в кімнату',
     cancel: 'Скасувати',
+    outdatedTitle: 'Версія гри застаріла',
+    outdatedBody: 'Для мережевої гри потрібна поточна версія.',
+  },
+  update: {
+    available: 'Доступна нова версія',
+    reload: 'Перезавантажити',
+    download: 'Завантажити',
+    later: 'Пізніше',
   },
   chat: {
     title: 'Чат',

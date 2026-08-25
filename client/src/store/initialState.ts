@@ -20,7 +20,7 @@ import { resolveInitialLocale } from '../i18n/locale';
 import { resolveInitialTheme } from '../theme/theme';
 import type { ResourcePool } from '@drone-directive/types/entities';
 import { Owner } from '@drone-directive/types/enums';
-import { DroneMode, GameStatus, OnlineStatus, OutcomePhase } from './enums';
+import { ClientVersion, DroneMode, GameStatus, OnlineStatus, OutcomePhase } from './enums';
 import type { GameStateFields } from './types';
 
 export const initialState: GameStateFields = {
@@ -56,6 +56,7 @@ export const initialState: GameStateFields = {
   buildDialogOpen: false,
   settings: createDefaultSettings(),
   locale: resolveInitialLocale(),
+  clientVersion: ClientVersion.Current,
   theme: resolveInitialTheme(),
   localSide: Owner.Player,
   online: { status: OnlineStatus.Offline },

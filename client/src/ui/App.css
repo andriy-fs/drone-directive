@@ -1244,6 +1244,41 @@
   gap: 16px;
 }
 
+/* The stale-client strip, between the title and the panels (see UpdateNotice).
+   Sits in the shell's flow rather than floating like `.drone-toast`: it is not an
+   event that just happened, it is a condition the whole screen is under, and it
+   must not cover a control. */
+.update-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: var(--text-h);
+}
+
+/* Blocking variant: online play is off, not merely behind. Danger rather than
+   warning, because the lobby underneath has already stopped offering itself. */
+.update-notice--blocking {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.update-notice__text {
+  flex: 1;
+  font-size: 14px;
+}
+
+/* `<a>` in the desktop shell, `<button>` in a browser — the two must not look
+   like different controls (see UpdateNotice). */
+.update-notice__action {
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
 /* Fixed nav column rather than `auto`, so the panel keeps its proportions when
    the player switches language and every label changes length — the same
    reasoning as `.modal--wide`'s fixed width.
@@ -1357,6 +1392,21 @@
   padding-top: 16px;
   border-top: 1px solid var(--panel-border);
   border-radius: 0;
+}
+
+/* A second tertiary entry (the desktop download) joins the first one's block
+   instead of starting its own: `margin-top: auto` on both would split the rail's
+   spare height between them, and a second rule would read as another section. */
+.menu-nav__item--tertiary + .menu-nav__item--tertiary {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: none;
+}
+
+/* The rail's one `<a>`. Everything else here is a `<button>`, which has no
+   underline to take off. */
+a.menu-nav__item {
+  text-decoration: none;
 }
 
 .menu-nav__label {

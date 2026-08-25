@@ -4,7 +4,7 @@ import { loadDict } from '../i18n/dictionaries';
 import { saveLocale, type Locale } from '../i18n/locale';
 import { saveTheme, type Theme } from '../theme/theme';
 import { Owner } from '@drone-directive/types/enums';
-import { OnlineLink, OnlineRequest, OnlineStatus } from './enums';
+import { ClientVersion, OnlineLink, OnlineRequest, OnlineStatus } from './enums';
 import { initialState } from './initialState';
 import type { GameState } from './types';
 
@@ -19,6 +19,13 @@ import type { GameState } from './types';
  */
 /** Last language the player asked for — guards `setLocale` against out-of-order loads. */
 let requestedLocale: Locale = initialState.locale;
+
+/** Severity order for `reportClientVersion`; see {@link ClientVersion}. */
+const CLIENT_VERSION_RANK: Record<ClientVersion, number> = {
+  [ClientVersion.Current]: 0,
+  [ClientVersion.UpdateAvailable]: 1,
+  [ClientVersion.OnlineBlocked]: 2,
+};
 
 export const useGameStore = create<GameState>((set, get) => ({
   ...initialState,
@@ -101,6 +108,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       })
       .catch((error: unknown) => console.error('[i18n] failed to load locale', locale, error));
   },
+  // Escalation only, and the order of the three values is the ranking: a client
+  // the relay has refused stays refused even if a later manifest fetch comes back
+  // merely "update available" (or comes back at all).
+  reportClientVersion: (version) =>
+    set((s) => (CLIENT_VERSION_RANK[version] > CLIENT_VERSION_RANK[s.clientVersion] ? { clientVersion: version } : {})),
   // No async half, unlike `setLocale`: every theme's tokens are in the bundle's
   // CSS from the first paint, so the switch is a repaint. `main.tsx` mirrors the
   // value onto `<html data-theme>` — nothing in React owns that element.

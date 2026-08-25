@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
 import { useGameStore } from '../../store/gameStore';
-import { OnlineStatus } from '../../store/enums';
-import { selectOnline } from '../../store/selectors';
+import { ClientVersion, OnlineStatus } from '../../store/enums';
+import { selectClientVersion, selectOnline } from '../../store/selectors';
 import { maxAiOpponents } from '../../config/gameSettings';
 import { copyText } from '../../utils/clipboard';
 import { MapSize } from '@drone-directive/types/enums';
@@ -78,6 +78,7 @@ function RoomCode({ code }: { code: string }) {
 export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }) {
   const t = useT();
   const online = useGameStore(selectOnline);
+  const clientVersion = useGameStore(selectClientVersion);
   const hostMatch = useGameStore((s) => s.hostMatch);
   const joinMatch = useGameStore((s) => s.joinMatch);
   const leaveOnline = useGameStore((s) => s.leaveOnline);
@@ -100,6 +101,9 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
   // in cause, not in what this panel does about it — both have their say and then
   // hand the player back the chooser — so they collapse into one message here.
   const finished = online.status === OnlineStatus.Ended || online.status === OnlineStatus.Error ? online.error : null;
+  // Hosting and joining both need a client the relay will accept, so neither is
+  // offered while the protocol is known to have moved on (see ClientVersion).
+  const blocked = clientVersion === ClientVersion.OnlineBlocked;
 
   const mapSizeOptions: ChipOption<MapSize>[] = MAP_SIZES.map((o) => ({
     value: o.value,
@@ -122,7 +126,14 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
 
       {finished !== null && <p className="modal__body">{finished}</p>}
 
-      {online.status === OnlineStatus.Offline && (
+      {/* A client the relay will refuse gets told so instead of being handed a
+          form that cannot work. `UpdateNotice` above carries the action; this
+          says what it costs, and why the buttons are gone. */}
+      {online.status === OnlineStatus.Offline && blocked && (
+        <p className="modal__body">{t('online', 'outdatedBody')}</p>
+      )}
+
+      {online.status === OnlineStatus.Offline && !blocked && (
         <>
           {/* Same rows in the same order as the solo panel, so switching tabs
               moves as little as possible. Difficulty is the one absent row: the

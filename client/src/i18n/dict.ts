@@ -33,6 +33,12 @@ export interface Dict {
     /** The title screen's navigation rail: the active mode, and the panel it opens. */
     singleplayer: string;
     matchSetup: string;
+    /**
+     * The rail's link out to the desktop build's releases. Short on purpose — it
+     * sits in a fixed-width rail beside `unitGuide`, and a second line there
+     * breaks the alignment of the whole tertiary block.
+     */
+    desktopApp: string;
   };
   difficulty: {
     easy: string;
@@ -278,6 +284,22 @@ export interface Dict {
     roomCodePlaceholder: string;
     joinRoom: string;
     cancel: string;
+    /** Shown in place of the lobby form when the relay has moved past this client. */
+    outdatedTitle: string;
+    outdatedBody: string;
+  };
+  /**
+   * The client has fallen behind the deploy. Two levels, one vocabulary: an update
+   * is merely available, or the wire protocol moved and online play is off until
+   * the player acts (see `store/enums.ts` → `ClientVersion`).
+   */
+  update: {
+    available: string;
+    /** Browser: a reload is the whole update, since `index.html` is never cached long. */
+    reload: string;
+    /** Desktop: reloading the page would change nothing — a new installer is the update. */
+    download: string;
+    later: string;
   };
   /**
    * Chat with the online opponent. Messages are identified by seat — there are no

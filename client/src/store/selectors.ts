@@ -23,6 +23,8 @@ export const selectDroneReadyNotice = (s: GameState) => s.droneReadyNotice;
 /** Which side this client plays (Player offline/host, AI for the online guest). */
 export const selectLocalSide = (s: GameState) => s.localSide;
 export const selectOnline = (s: GameState) => s.online;
+/** How stale this bundle is — drives the update notice and the online block. */
+export const selectClientVersion = (s: GameState) => s.clientVersion;
 /**
  * Transport health, flattened to a value every caller can read without first
  * proving there is a match. Outside one it is `ok` — no session is not the same

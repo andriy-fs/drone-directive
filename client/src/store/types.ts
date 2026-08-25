@@ -19,7 +19,15 @@ import type { Theme } from '../theme/theme';
 import type { Command } from '@drone-directive/types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
 import type { ChassisType, FormationType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import type { DroneMode, GameStatus, OnlineLink, OnlineRequest, OnlineStatus, OutcomePhase } from './enums';
+import type {
+  ClientVersion,
+  DroneMode,
+  GameStatus,
+  OnlineLink,
+  OnlineRequest,
+  OnlineStatus,
+  OutcomePhase,
+} from './enums';
 
 /** HUD-facing observer-drone status (projected from the ECS world). */
 export interface DroneStatus {
@@ -222,6 +230,8 @@ export interface GameStateFields {
   settings: GameSettings;
   /** Active UI language. */
   locale: Locale;
+  /** Whether this bundle has fallen behind the deploy (see ClientVersion). */
+  clientVersion: ClientVersion;
   /** Active UI colour/type scheme — written onto `<html data-theme>` (see theme/). */
   theme: Theme;
   /** Which side this client plays/views (host = Player, guest = AI). Presentation only. */
@@ -315,6 +325,12 @@ export interface GameActions {
   noteDroneReady: () => void;
   setBuildDialogOpen: (open: boolean) => void;
   setLocale: (locale: Locale) => void;
+  /**
+   * Report what the update check (or the relay) found. **Escalates only** — a
+   * later manifest fetch cannot talk a protocol block back down, and leaving the
+   * lobby does not clear one.
+   */
+  reportClientVersion: (version: ClientVersion) => void;
   /** Switch the UI scheme. Unlike the language there is nothing to load first. */
   setTheme: (theme: Theme) => void;
   /**

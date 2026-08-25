@@ -1,6 +1,8 @@
+import { DESKTOP_RELEASES_URL, isDesktopApp } from '../../config/platform';
 import { useT } from '../../i18n';
+import { sfx } from '../../pixi/audio/sfx';
 import { Button } from '../common/Button';
-import { BookOpenIcon, UserIcon, UsersIcon } from '../common/icons';
+import { BookOpenIcon, DownloadIcon, UserIcon, UsersIcon } from '../common/icons';
 
 /** Which kind of game the title screen is setting up — one panel per value. */
 export type MenuMode = 'single' | 'online';
@@ -52,6 +54,22 @@ export function MenuNav({
         <BookOpenIcon size={16} aria-hidden />
         <span className="menu-nav__label">{t('mainMenu', 'unitGuide')}</span>
       </Button>
+
+      {/* An anchor, not a `Button`: this navigates, and it is the only link in the
+          UI that leaves the app. It carries `btn` by hand because that styling
+          comes from the shared component every other rail entry goes through. */}
+      {!isDesktopApp && (
+        <a
+          className="btn menu-nav__item menu-nav__item--tertiary"
+          href={DESKTOP_RELEASES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => sfx.buttonClick()}
+        >
+          <DownloadIcon size={16} aria-hidden />
+          <span className="menu-nav__label">{t('mainMenu', 'desktopApp')}</span>
+        </a>
+      )}
     </nav>
   );
 }

@@ -167,6 +167,22 @@ push, which is what makes that safe — if you ever gate the relay deploy on
 `paths:` (see Optional, below), a schema-only change could ship the client without
 the relay and every connect would fail with `version-mismatch`.
 
+What a player with the _previous_ bundle now sees is no longer a raw relay
+string. The build emits `/version.json` (`{ build, protocol }` — the SHA from
+`GITHUB_SHA`, the number parsed straight out of `protocol/src/index.ts`), served
+`no-store`, and the title screen compares it against what was compiled in:
+
+- a different `build` → a dismissible "new version" strip, with a Reload button;
+- a different `protocol` → a blocking strip, and the lobby stops offering Create
+  and Join at all rather than failing on connect.
+
+The relay stays the authority — `GameApp` latches the same block when the relay
+answers `VersionMismatch`, which is what covers the minute a deploy has shipped
+one half and not the other, and the desktop app, whose bundled manifest can only
+ever agree with itself. See `client/src/config/version.ts`. `version.json` is
+emitted by the build, so there is nothing to commit and nothing to keep in sync
+by hand.
+
 A change that adds a Durable Object class (as chat's `Chat` did) also needs a new
 `[[migrations]]` tag in `server/wrangler.toml`; wrangler applies it on deploy, and
 without it the binding has nothing to bind to. Migration tags are append-only —

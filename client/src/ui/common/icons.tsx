@@ -31,6 +31,7 @@ import {
   User as LucideUser,
   Users as LucideUsers,
   BookOpen as LucideBookOpen,
+  Download as LucideDownload,
   Truck as LucideTruck,
   CircleDashed as LucideCircleDashed,
   Target as LucideTarget,
@@ -91,6 +92,10 @@ export const GraphicsIcon = LucideMonitorCog;
 export const UserIcon = LucideUser;
 export const UsersIcon = LucideUsers;
 export const BookOpenIcon = LucideBookOpen;
+/* The rail's link out to the desktop build. A plain download arrow rather than
+   MonitorDown: `GraphicsIcon` is already a monitor two zones away on the very
+   same screen, and the arrow says "leaves the page" without competing with it. */
+export const DownloadIcon = LucideDownload;
 
 /* The build modal's chassis cards (see CHASSIS_ICONS); legs reuse BotIcon above. */
 export const TruckIcon = LucideTruck;

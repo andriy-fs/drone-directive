@@ -32,6 +32,7 @@ export const pl: Dict = {
     unitGuide: 'Przewodnik po jednostkach',
     singleplayer: 'Gra jednoosobowa',
     matchSetup: 'Ustawienia rozgrywki',
+    desktopApp: 'Wersja na PC',
   },
   difficulty: {
     easy: 'Łatwy',
@@ -242,6 +243,14 @@ export const pl: Dict = {
     roomCodePlaceholder: 'KOD POKOJU',
     joinRoom: 'Dołącz do pokoju',
     cancel: 'Anuluj',
+    outdatedTitle: 'Ta wersja jest nieaktualna',
+    outdatedBody: 'Gra sieciowa wymaga aktualnej wersji.',
+  },
+  update: {
+    available: 'Dostępna jest nowa wersja',
+    reload: 'Przeładuj',
+    download: 'Pobierz',
+    later: 'Później',
   },
   chat: {
     title: 'Czat',

@@ -33,6 +33,7 @@ export const en: Dict = {
     unitGuide: 'Unit Guide',
     singleplayer: 'Singleplayer',
     matchSetup: 'Match setup',
+    desktopApp: 'Desktop app',
   },
   difficulty: {
     easy: 'Easy',
@@ -242,6 +243,14 @@ export const en: Dict = {
     roomCodePlaceholder: 'ROOM CODE',
     joinRoom: 'Join room',
     cancel: 'Cancel',
+    outdatedTitle: 'This version is out of date',
+    outdatedBody: 'Online play needs the current version of the game.',
+  },
+  update: {
+    available: 'A new version is available',
+    reload: 'Reload',
+    download: 'Download',
+    later: 'Later',
   },
   chat: {
     title: 'Chat',

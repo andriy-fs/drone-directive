@@ -15,6 +15,8 @@ import { OnlinePanel } from './OnlinePanel';
 import { GraphicsSettingsModal } from './GraphicsSettingsModal';
 import { SoundSettingsModal } from './SoundSettingsModal';
 import { UnitsGuideModal } from './UnitsGuideModal';
+import { UpdateNotice } from './UpdateNotice';
+import { useUpdateCheck } from '../hooks/useUpdateCheck';
 
 /** Which overlay the title screen is showing, or `null` for the menu itself. */
 type MenuModal = 'setup' | 'controls' | 'units' | 'sound' | 'graphics' | null;
@@ -36,6 +38,9 @@ type MenuModal = 'setup' | 'controls' | 'units' | 'sound' | 'graphics' | null;
  */
 export function MainMenu() {
   const t = useT();
+  // Asks the site whether this bundle is still the deployed one; the answer
+  // lands in the store and is rendered by `UpdateNotice` and the online lobby.
+  useUpdateCheck();
   const requestRestart = useGameStore((s) => s.requestRestart);
   const leaveOnline = useGameStore((s) => s.leaveOnline);
   const online = useGameStore(selectOnline);
@@ -102,6 +107,8 @@ export function MainMenu() {
               onOpenControls={() => setModal('controls')}
             />
           </header>
+
+          <UpdateNotice />
 
           <div className="menu-shell__body">
             <MenuNav mode={mode} onSelectMode={selectMode} onOpenUnits={() => setModal('units')} />

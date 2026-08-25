@@ -52,3 +52,9 @@
 # loading a previous deploy's chunks.
 /
   Cache-Control: public, max-age=0, must-revalidate
+
+# The update check's answer (emitted by the build, see `vite.config.ts`). The one
+# file here that must never be served from a cache: a cached manifest reports the
+# deploy the client already has, which is the same as reporting nothing.
+/version.json
+  Cache-Control: no-store
