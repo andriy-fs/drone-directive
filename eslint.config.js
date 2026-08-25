@@ -13,6 +13,8 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 export default defineConfig([
   globalIgnores([
     '**/dist',
+    // Staging tree for `npm run publish:client`; a copy of client/dist plus a manifest.
+    'client/.pack',
     // Emitted by `npm run codegen -w protocol`; its style is the generator's.
     'protocol/src/generated',
   ]),

@@ -31,3 +31,6 @@ client/screenshots
 
 # docs
 .docs/internal
+
+# staging tree for `npm run publish:client` (scripts/pack-dist.mjs)
+client/.pack

@@ -172,6 +172,77 @@ A change that adds a Durable Object class (as chat's `Chat` did) also needs a ne
 without it the binding has nothing to bind to. Migration tags are append-only —
 never edit a tag that has already been deployed.
 
+## Publishing the client to GitHub Packages
+
+A third, independent shipping channel, for the desktop shell
+(`andriy-fs/drone-directive-desktop`, see `.docs/internal/todo/desktop-electron.md`):
+the built game published as an npm package of **static assets**, so a shell can
+install a pinned version and copy `dist/` into its bundle.
+
+`.github/workflows/publish-client.yml` runs it on a `v*` tag — never on a push to
+`main`. The website moves every commit; a desktop build must be able to sit on a
+version it was tested against.
+
+### What is published, and why not `client/` itself
+
+`client/` is `private` and depends on four workspace siblings by `"*"`, which no
+registry can resolve. It is also unnecessary: `vite build` has already inlined all
+four into the bundle. So `scripts/pack-dist.mjs` stages `client/dist` plus a
+**generated** manifest with zero dependencies into `client/.pack`, and that is what
+`npm publish` uploads (~27 MB, ~340 files). There is no entry point — nothing
+`import`s the package.
+
+```bash
+npm run pack:client       # build + stage into client/.pack, then inspect it
+npm run publish:client    # the same, then `npm publish client/.pack`
+```
+
+The staging step refuses to package a bundle containing `ws://localhost:8787`
+(`--allow-dev-relay` overrides). On the website the dev relay is merely wrong; in a
+desktop build in a user's hands it cannot be fixed without a new release. The
+workflow therefore passes no `VITE_MULTIPLAYER_URL` either, for the reason given in
+"Where the relay hostname comes from".
+
+### The name is forced
+
+The package is **`@andriy-fs/drone-directive-client`**, not `@drone-directive/client`.
+GitHub Packages only accepts a scope matching the owner of the repository it is
+published from. Renaming the workspace to match was the alternative and is worse:
+that name is load-bearing across six workspaces' imports, while only the published
+artifact needs the new one. Publishing under `@drone-directive` would require a
+GitHub _organisation_ of that name owning this repo.
+
+### Auth
+
+Pushing needs nothing new: `permissions: packages: write` lets the built-in
+`GITHUB_TOKEN` publish, and `actions/setup-node` writes the `.npmrc` — which is why
+the repo has none of its own.
+
+**Installing does need a token, even though the package is public.** GitHub Packages
+has no anonymous npm read. A consumer needs, at its repo root:
+
+```
+@andriy-fs:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+with `NODE_AUTH_TOKEN` set to a classic PAT with `read:packages` — locally _and_ in
+its CI, since a repository's own `GITHUB_TOKEN` cannot read another repository's
+packages. That cost is the whole argument against this channel and for a plain
+`github:andriy-fs/drone-directive#v0.3.0` git dependency; it is worth paying when the
+game repo goes private, or to stop every consumer install from cloning and rebuilding
+the entire monorepo.
+
+### Cutting a version
+
+```bash
+# bump package.json and client/package.json to the same number
+git tag v0.3.0 && git push origin v0.3.0
+```
+
+CI refuses the publish if the tag and `client/package.json` disagree — a published
+version is immutable, so the wrong number cannot be taken back.
+
 ## Web Analytics (optional)
 
 Cloudflare dashboard → **Analytics & Logs → Web Analytics** → _Add a site_ with

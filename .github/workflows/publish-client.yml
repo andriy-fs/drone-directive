@@ -1,0 +1,71 @@
+# Publishes the built game to GitHub Packages as `@andriy-fs/drone-directive-client`
+# — static assets for the desktop shell, not a library. See `.docs/deployment.md`
+# § "Publishing the client to GitHub Packages".
+#
+# Independent of `deploy.yml`: the website ships on every push to `main`, the
+# package ships only on a tag, so the desktop build can pin a version the website
+# has long moved past.
+name: Publish client to GitHub Packages
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # What lets the built-in GITHUB_TOKEN publish; no PAT is needed to *push* a
+  # package (installing one from another repository still needs one).
+  packages: write
+
+concurrency:
+  group: publish-client
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          # Writes the registry + auth lines into a temporary .npmrc, which is why
+          # the repo needs none of its own.
+          registry-url: https://npm.pkg.github.com
+          scope: '@andriy-fs'
+
+      - name: Install dependencies
+        run: npm install
+
+      # The package is immutable once published, so a tag that disagrees with the
+      # version in the tree would silently publish the wrong number, or fail late
+      # on a duplicate. Check it before spending minutes on tests and a build.
+      - name: Check the tag matches client/package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./client/package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match client/package.json version $version" >&2
+            exit 1
+          fi
+
+      - name: Run tests
+        run: npm test
+
+      # No VITE_MULTIPLAYER_URL here, deliberately — same reason as in deploy.yml:
+      # an unset repository variable expands to an empty string, which shadows
+      # `client/.env.production` and bakes in the localhost dev relay.
+      # `pack-dist.mjs` fails the job if that happens anyway.
+      - name: Build and stage the package
+        run: npm run pack:client
+
+      - name: Publish
+        run: npm publish client/.pack
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

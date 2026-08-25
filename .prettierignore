@@ -6,3 +6,6 @@ package-lock.json
 # Emitted by `npm run codegen -w protocol` from schema/messages.bare — reformatting
 # it would put every regeneration in conflict with the repo style.
 protocol/src/generated
+
+# staging tree for `npm run publish:client`
+client/.pack
