@@ -32,7 +32,7 @@ around obstacles is computed.
 
 ### String-pulling: the staircase never reaches a robot
 
-Because every intermediate waypoint is a tile *centre*, a raw A* diagonal is a
+Because every intermediate waypoint is a tile _centre_, a raw A* diagonal is a
 staircase that swings half a tile either side of the line the robot actually
 wants, and every zag is another obstacle edge to drive into. `smoothPath`
 (`pathfinding.ts`) drops a waypoint whenever a hull can drive straight from the
@@ -42,7 +42,7 @@ Greedy, one pass, paid once per search.
 Two callers, and they disagree about one thing on purpose. `setGoal` takes the
 kept waypoints as they are — `movement.path[0]` is the next destination, and a
 head at the robot's own feet would waste a tick arriving at them. `routeFor`
-(`systems/task/formation.ts`) prepends its anchor, because a formation *route* is
+(`systems/task/formation.ts`) prepends its anchor, because a formation _route_ is
 a line the group projects onto rather than a list to walk.
 
 A robot inside a blocked tile needs no special case: `hasClearance` samples its
@@ -63,8 +63,8 @@ return every tick, for the rest of the match.
 fixed step for each entity with `robot`, `position`, `movement`:
 
 - Computes the vector to `movement.destination` (the current waypoint).
-- Offers the step to `steerAround` (below), which may deflect it around a robot
-  standing in the way.
+- Offers the desired velocity to the avoidance layer (ORCA, below), which may
+  return a deflected one so the unit and its neighbours pass rather than shove.
 - Steps the robot's float position by `speed * dt` along that vector
   (straight-line interpolation — **no snapping to any grid** during travel).
 - Sets `heading = atan2(dy, dx)` each tick, so orientation is exact, not
@@ -79,31 +79,63 @@ waypoint → straight line to the next → ... → straight line to the exact
 final destination pixel. The grid only decided _which_ tile centres to visit
 and in what order; the robot glides between them continuously.
 
-## Local avoidance: stepping around other robots
+## Local avoidance: ORCA in velocity space
 
-`steerAround` (`client/src/engine/systems/avoidance.ts`) is the one preventive
-step in the pipeline, and it exists because the corrective one is not enough on
-its own. `separationSystem` runs *after* movement and pushes apart whatever
-already overlaps; a robot driving head-on into a neighbour is therefore moved its
-full step forward and then put back **exactly** where it started, every tick,
-until the anti-jam retreat fires — 0.9 s later, into the same collision. That
-deadlock was 47% of all retreats when it was measured.
+`separationSystem` runs _after_ movement and pushes apart whatever already
+overlaps. On its own that deadlocks: a robot driving head-on into a neighbour is
+moved its full step forward and then put back **exactly** where it started, every
+tick, until the anti-jam retreat fires — 0.9 s later, into the same collision.
+That was 47% of all retreats when it was first measured. Avoidance has to be
+preventive.
 
-Before the position is written, the proposed step is tested against every other
-living robot. If it would land inside one, a fixed fan of deflections is tried
-(π/8, π/4, 3π/8, π/2), **turning away from the side the blocker is on**, with a
-per-id hash breaking the tie when it is dead ahead. Two deliberate refusals:
+The shipped layer is **ORCA** — Optimal Reciprocal Collision Avoidance, van den
+Berg et al., transcribed from the RVO2 reference implementation
+(`client/src/engine/systems/orca/`). Every unit hands the solver the velocity it
+_wants_ (straight at its next A\* waypoint) and gets back the nearest velocity
+that no neighbour and no wall forbids, with each pair of movers splitting the
+correction 50/50 over a short anticipation horizon. A\* is untouched: this bends
+a tick's velocity, never the route.
 
-- an **existing** overlap is not a blocker — separation owns those, and treating
-  one as a wall would pin a robot inside the very overlap being resolved;
-- when nothing in the fan clears, the robot drives straight anyway. A preventive
-  step must never become a second way to freeze a unit; the anti-jam ladder owns
-  a genuinely trapped robot.
+**Determinism constrains the implementation.** Inside a lockstep simulation the
+solver may use `+ - * /` and `Math.sqrt` only — never `Math.hypot`, which is an
+algorithm rather than an operation and disagrees in the last bit between JS
+engines (`engine/hygiene.test.ts` enforces this by source scan) — no
+trigonometry, no clock, no `Math.random`. **The order agents are registered in is
+part of the answer**: the linear program walks its constraints in order and stops
+at the first it cannot satisfy, so both peers must register identically. That
+comes free from miniplex query order, which is spawn order, which lockstep pins.
+The solver also allocates nothing: buffers are claimed once per match and `solve`
+creates no object, array or closure, asserted by `solver.test.ts`.
 
-Never more than a right angle, so a deflection can never become a reversal. It is
-not RVO/ORCA and deliberately so: no velocity space, no neighbour prediction, no
-reciprocity assumption. At these unit counts the whole defect is "walked into
-someone", and the cheapest correct answer is to step around them.
+Measured over 10 seeds × 2700 ticks of generated terrain, at fifty units, against
+the fan-deflection layer it replaced: overlapping pairs per tick 24.2 → 6.0,
+anti-jam retreats 617 → 311, and robot-ticks spent crowding the enemy base 110 →
+18 per arrived unit. The cost, stated plainly, is ~2% on mean arrival time.
+
+Three lessons are worth keeping, because none of them was in the algorithm:
+
+- **A parked unit must yield, not act as a wall.** Registering a stationary hull
+  as passive (never solved, owed 100% of every correction) means two parked
+  robots 40 px apart leave a gap A\* routes straight through — units are not
+  obstacles to the planner — that ORCA can never thread. A mover sent down it
+  enters a velocity-space limit cycle and jitters there permanently. Arrived and
+  holding units now yield with zero preference, which is what RVO2 does.
+- **A stall detector must measure net travel, not per-tick displacement.** That
+  limit cycle moves ~2 px a tick inside a 5 px cell, so it never reads as stuck
+  and the retreat ladder never rescues it. The fix is a jam anchor planted where a
+  hull is and re-planted only once it gets clear of it; its age is progress truth
+  the jitter cannot fake.
+- **Break symmetry with geometry, not with a hash.** Two packs meeting exactly
+  head-on livelocked while each unit picked its evade side from a hash of its id:
+  opposite parities on opposite headings are the _same_ world side. A fixed turn
+  sense — always the same rotation, roundabout-style — is _always_ opposite world
+  sides.
+
+The previous layer, `steerAround` (`systems/avoidance.ts`), is still in the tree
+behind a config flag and still passes its tests: it tries a fixed fan of
+deflections (π/8 … π/2) against the proposed step, one-sided and one step ahead.
+Keeping it is what makes the A/B harness (`orca/__ab.test.ts`) possible, and the
+table above is its output.
 
 ## Anti-jam retreat (also continuous)
 
@@ -128,7 +160,7 @@ bought with a defect:
 - **A robot all but arrived is not jammed**, even if its own side is jostling it —
   otherwise the retreat drags a unit back out of the formation slot it just took.
 - **A parked `Idle` robot with no goal never twitches**, but one that has been
-  *sent* somewhere may jam like any other.
+  _sent_ somewhere may jam like any other.
 
 The one case it is genuinely for: a robot with somewhere far to be and no way to
 get there — including one shoved inside a base footprint, which it drives straight
@@ -144,7 +176,7 @@ out of.
   as blocked so nothing paths off the map edge.
 - `hasLineOfSight(grid, from, to)` — Bresenham walk over tiles, used
   elsewhere (vision/targeting), not by movement itself.
-- `hasClearance(grid, a, b, radius)` — whether a *body* of `radius` can drive
+- `hasClearance(grid, a, b, radius)` — whether a _body_ of `radius` can drive
   straight from `a` to `b`: sampled every half tile, three probes per sample
   (centre and both flanks). Not `hasLineOfSight`, and the difference is two
   things at once — that one asks about fire, so it reads `sightBlockers`
@@ -197,24 +229,25 @@ group cannot advance, and on sealed terrain it should never fire at all.
 
 ## Summary
 
-| Concern         | Representation                                             |
-| --------------- | ---------------------------------------------------------- |
-| Entity position | continuous float pixels (`Vec2`)                           |
-| Pathfinding     | discrete tile grid, 8-dir A*                               |
-| Path waypoints  | pixel coordinates (tile centres + exact destination)       |
+| Concern         | Representation                                              |
+| --------------- | ----------------------------------------------------------- |
+| Entity position | continuous float pixels (`Vec2`)                            |
+| Pathfinding     | discrete tile grid, 8-dir A*                                |
+| Path waypoints  | pixel coordinates (tile centres + exact destination)        |
 | Path shape      | string-pulled at hull width (`smoothPath` + `hasClearance`) |
-| Per-tick motion | continuous float interpolation toward the current waypoint |
-| Unit avoidance  | preventive deflection before the step (`steerAround`)      |
-| Overlap repair  | corrective push after the step (`separationSystem`)        |
-| Heading         | exact `atan2`, not quantized                               |
-| Obstacle checks | tile lookup (`tileOf` + `isBlockedGrid`) on `navObstacles` |
+| Per-tick motion | continuous float interpolation toward the current waypoint  |
+| Unit avoidance  | reciprocal velocity-space solve before the step (ORCA)      |
+| Overlap repair  | corrective push after the step (`separationSystem`)         |
+| Heading         | exact `atan2`, not quantized                                |
+| Obstacle checks | tile lookup (`tileOf` + `isBlockedGrid`) on `navObstacles`  |
 
 ## How this is tested
 
 Unit tests cover the pieces — `pathfinding.test.ts` (smoothing never cuts a
-corner, keeps the exact goal, preserves the escape hop), `avoidance.test.ts` (a
-deflection is bounded, deterministic, and never a freeze), `movement.test.ts` (the
-retreat's rules), `obstacles.test.ts` (`hasClearance`).
+corner, keeps the exact goal, preserves the escape hop), `orca/*.test.ts` (the
+solver's linear program, wall constraints, corridors, zero allocation, and the
+A/B table), `movement.test.ts` (the retreat's rules), `obstacles.test.ts`
+(`hasClearance`).
 
 None of them can see the defects that only appear where several correct-looking
 parts meet — the guard-post one above needed four. Those are covered by
