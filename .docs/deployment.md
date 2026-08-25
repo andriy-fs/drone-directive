@@ -194,7 +194,7 @@ four into the bundle. So `scripts/pack-dist.mjs` stages `client/dist` plus a
 
 ```bash
 npm run pack:client       # build + stage into client/.pack, then inspect it
-npm run publish:client    # the same, then `npm publish client/.pack`
+npm run publish:client    # the same, then `npm publish ./client/.pack`
 ```
 
 The staging step refuses to package a bundle containing `ws://localhost:8787`

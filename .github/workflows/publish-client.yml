@@ -65,7 +65,12 @@ jobs:
       - name: Build and stage the package
         run: npm run pack:client
 
+      # From inside the directory, with no path argument at all: `npm publish
+      # client/.pack` reads as npm's GitHub shorthand (`owner/repo`) and goes off
+      # to clone `github.com/client/.pack`. `./client/.pack` also works, and is
+      # what the root `publish:client` script uses.
       - name: Publish
-        run: npm publish client/.pack
+        working-directory: client/.pack
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

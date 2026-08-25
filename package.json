@@ -19,7 +19,7 @@
     "deploy": "./scripts/deploy.sh",
     "lint": "eslint .",
     "pack:client": "npm run build && node scripts/pack-dist.mjs",
-    "publish:client": "npm run pack:client && npm publish client/.pack",
+    "publish:client": "npm run pack:client && npm publish ./client/.pack",
     "preview": "npm run preview -w client",
     "shot": "npm run shot -w client --",
     "test": "npm run test -w net && npm run test -w chat && npm run test -w client",

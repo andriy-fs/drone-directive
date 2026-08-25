@@ -127,4 +127,4 @@ Licensed ${license}. Source, issues and the game itself: ${REPOSITORY}
 const files = await readdir(path.join(staging, 'dist'), { recursive: true });
 console.log(`pack-dist: staged ${PACKAGE_NAME}@${version} → client/.pack (${files.length} entries)`);
 if (localhostIn.length > 0) console.log('pack-dist: WARNING — bundle points at the dev relay (--allow-dev-relay)');
-console.log('pack-dist: publish with `npm publish client/.pack` (needs NODE_AUTH_TOKEN)');
+console.log('pack-dist: publish with `npm publish ./client/.pack` (needs NODE_AUTH_TOKEN)');
