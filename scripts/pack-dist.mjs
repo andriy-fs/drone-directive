@@ -50,7 +50,14 @@ if (!existsSync(path.join(dist, 'index.html'))) {
   fail('no build found at client/dist — run `npm run build` first');
 }
 
-const { version, license } = JSON.parse(await readFile(path.join(root, 'client/package.json'), 'utf8'));
+/**
+ * The published version is the **root** `package.json`'s, not `client/`'s. That
+ * is the number `npm version` bumps and tags, and it is the only one anybody
+ * maintains: every workspace's own version is inert (`0.0.0`, never published).
+ * Reading the workspace's would mean keeping two numbers in sync by hand, which
+ * lasted exactly one release.
+ */
+const { version, license } = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
 /**
  * Guard against the trap documented in `client/.env.production`: a defined-but-

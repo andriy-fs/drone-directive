@@ -236,12 +236,14 @@ the entire monorepo.
 ### Cutting a version
 
 ```bash
-# bump package.json and client/package.json to the same number
-git tag v0.3.0 && git push origin v0.3.0
+npm version 1.0.1              # bumps the root package.json and tags it
+git push origin main --follow-tags
 ```
 
-CI refuses the publish if the tag and `client/package.json` disagree — a published
-version is immutable, so the wrong number cannot be taken back.
+The published version is the **root** `package.json`'s — the number `npm version`
+bumps and tags. Every workspace's own version is inert and stays where it is. CI
+refuses the publish if the tag and the root version disagree: a published version
+is immutable, so the wrong number cannot be taken back.
 
 ## Web Analytics (optional)
 

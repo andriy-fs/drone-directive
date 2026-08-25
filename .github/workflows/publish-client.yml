@@ -45,13 +45,13 @@ jobs:
       # The package is immutable once published, so a tag that disagrees with the
       # version in the tree would silently publish the wrong number, or fail late
       # on a duplicate. Check it before spending minutes on tests and a build.
-      - name: Check the tag matches client/package.json
+      - name: Check the tag matches the version in the tree
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          version="$(node -p "require('./client/package.json').version")"
+          version="$(node -p "require('./package.json').version")"
           if [ "$tag" != "$version" ]; then
-            echo "tag $GITHUB_REF_NAME does not match client/package.json version $version" >&2
+            echo "tag $GITHUB_REF_NAME does not match package.json version $version" >&2
             exit 1
           fi
 
