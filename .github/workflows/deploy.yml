@@ -3,6 +3,15 @@ name: Deploy to Cloudflare
 on:
   push:
     branches: [main]
+    # Documentation-only pushes must not redeploy. Both jobs here are heavy — the
+    # client one runs the full suite before it ships, and the relay one rewrites a
+    # Worker whose live matches take the socket drop — and neither can be affected
+    # by prose. A push that touches any *other* path still runs everything, so a
+    # commit mixing a doc edit with a code change is not skipped.
+    paths-ignore:
+      - '**/README.md'
+      - '.docs/**'
+      - 'LICENSE'
   workflow_dispatch:
 
 permissions:
