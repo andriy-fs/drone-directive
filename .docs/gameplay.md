@@ -25,7 +25,11 @@ see [architecture.md](architecture.md).
   invulnerable**: enemy missiles shoot it down in three hits, and the side that
   loses one flies blind for 30 seconds while a replacement is built (the HUD
   shows the readiness bar). Riding inside a robot makes it untouchable — so
-  scouting is the risk, and possession is the cover. Missile units engage a
+  scouting is the risk, and possession is the cover. **The cover costs you your
+  eyes**: a drone sitting in a hull stops scouting altogether, and the hull it
+  rides sees only the sector in front of it instead of all the way round. Every
+  other machine on the side keeps its full circle. So possession is a genuine
+  trade — a gun you aim yourself, paid for with the view. Missile units engage a
   drone only opportunistically: they never chase one, and never pick it over a
   ground target they can already shoot. The bot pilots its own drone with the
   same entity and the same rules.

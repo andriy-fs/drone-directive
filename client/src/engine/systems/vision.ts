@@ -1,7 +1,7 @@
 import { gameConfig } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import type { Owner } from '@drone-directive/types/enums';
-import { distance } from '../../utils/math';
+import { distance, vecLength } from '../../utils/math';
 import type { With } from 'miniplex';
 import type { BaseEntity, RobotEntity } from '../ecs/archetypes';
 import type { Entity, EntityKind } from '../ecs/entity';
@@ -9,7 +9,7 @@ import { isAlive } from '../ecs/guards';
 import { bases, drones, robots } from '../ecs/queries';
 import type { GameContext, TeamIntel } from '../game/context';
 import { isDisabled } from './status';
-import { distanceToBase, enemyAirTargets, enemyBases, enemyRobots, isEnemy } from './targeting';
+import { distanceToBase, enemyAirTargets, enemyBases, enemyRobots, isEnemy, possessedRobotOf } from './targeting';
 
 /**
  * Anything that can see for a side: a robot, a base or the observer drone. All
@@ -53,18 +53,19 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
     // The observer drone spots enemies too (additive) — it isn't a robot, so it
     // needs its own pass. Every side has one, bots included (a bot's is flown by
     // `systems/aiDrone.ts`), so this is where a drone's reach becomes intel.
-    ...drones(ctx.world).entities.filter(isMine),
+    // A drone riding a hull has stopped being an eye — see `sightlinesFor`.
+    ...drones(ctx.world).entities.filter((d) => isMine(d) && !d.drone.possessedId),
   ];
-  // Enemy `ew` robots jamming this side's scouts. Hoisted out of the loops below,
-  // which ask about this set once per foe per scout.
-  const jammers = jammersAgainst(ctx, owner);
+  // Ranges and sectors resolved once for the whole tick: the loops below ask about
+  // them once per foe per scout.
+  const lines = sightlinesFor(ctx, owner, scouts);
 
   // The `enemySpotted` emits below all read the *previous* tick's set, which is
   // still on `intel` until the assignment that follows each loop — that one
   // comparison is the whole rising edge, and it costs no extra state.
   const visible = new Set<string>();
   for (const foe of enemyRobots(ctx, owner)) {
-    if (!isSpotted(scouts, jammers, foe.position.x, foe.position.y)) continue;
+    if (!isSpotted(lines, foe.position.x, foe.position.y)) continue;
     if (!intel.visibleRobotIds.has(foe.id)) emitSpotted(ctx, owner, foe.id, 'robot', foe.position);
     visible.add(foe.id);
   }
@@ -76,7 +77,7 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   // spotted by exactly the same rule.
   const visibleAir = new Set<string>();
   for (const foe of enemyAirTargets(ctx, owner)) {
-    if (!isSpotted(scouts, jammers, foe.position.x, foe.position.y)) continue;
+    if (!isSpotted(lines, foe.position.x, foe.position.y)) continue;
     if (!intel.visibleAirIds.has(foe.id)) emitSpotted(ctx, owner, foe.id, 'drone', foe.position);
     visibleAir.add(foe.id);
   }
@@ -91,7 +92,7 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
   // most four of them, and the live set has to be able to *shrink*.
   const visibleBases = new Set<string>();
   for (const base of enemyBases(ctx, owner)) {
-    if (!isBaseSpotted(scouts, jammers, base)) continue;
+    if (!isBaseSpotted(lines, base)) continue;
     visibleBases.add(base.id);
     // Discovery, not visibility: a building found once stays found, so this
     // announces at most once per base per match — the `visibleBaseIds` edge would
@@ -110,8 +111,8 @@ function emitSpotted(ctx: GameContext, owner: Owner, targetId: string, targetKin
   ctx.bus.emit('enemySpotted', { owner, targetId, targetKind, pos: { x: pos.x, y: pos.y } });
 }
 
-function isSpotted(scouts: Scout[], jammers: readonly RobotEntity[], x: number, y: number): boolean {
-  return scouts.some((s) => distance(s.position.x, s.position.y, x, y) <= effectiveSight(s, jammers));
+function isSpotted(lines: readonly Sightline[], x: number, y: number): boolean {
+  return lines.some((l) => withinSight(l.scout, x, y, l.range, l.cone));
 }
 
 /**
@@ -125,8 +126,105 @@ function isSpotted(scouts: Scout[], jammers: readonly RobotEntity[], x: number, 
  * building" — a bomb's blast, a projectile's collision, a strike drone's approach
  * — already measures it this way (`distanceToBase`); this makes vision the fourth.
  */
-function isBaseSpotted(scouts: Scout[], jammers: readonly RobotEntity[], base: BaseEntity): boolean {
-  return scouts.some((s) => distanceToBase(s.position, base) <= effectiveSight(s, jammers));
+function isBaseSpotted(lines: readonly Sightline[], base: BaseEntity): boolean {
+  return lines.some(
+    (l) =>
+      distanceToBase(l.scout.position, base) <= l.range &&
+      // The range is measured to the footprint edge and the bearing to the centre.
+      // They differ by up to half a footprint, which at these ranges is a couple of
+      // degrees of a 90° sector — and erring toward "not seen" on a building that is
+      // rediscovered the moment the hull turns is the cheap side of that.
+      (!l.cone || facesPoint(l.scout, base.position.x, base.position.y, l.cone)),
+  );
+}
+
+/**
+ * The forward sector a scout is limited to, precomputed once per scout.
+ *
+ * Stored as a unit vector and a cosine rather than an angle, so the per-cell test is
+ * a dot product and a compare. `atan2` per cell would be the obvious way to write it
+ * and the fog mask alone asks the question ~50 000 times a tick.
+ */
+export interface SightCone {
+  /** Unit forward vector — the scout's heading. */
+  fx: number;
+  fy: number;
+  /** Cosine of the half-angle: the dot product a point has to clear. */
+  cosHalf: number;
+}
+
+/** The sector a hull facing `heading` sees in. Width comes from `gameConfig.drone.fpv`. */
+export function sightCone(heading: number): SightCone {
+  return {
+    fx: Math.cos(heading),
+    fy: Math.sin(heading),
+    cosHalf: Math.cos((gameConfig.drone.fpv.sightHalfAngleDeg * Math.PI) / 180),
+  };
+}
+
+/** One scout resolved for this tick: how far it sees, and the sector it is limited to. */
+export interface Sightline {
+  scout: Scout;
+  range: number;
+  /** Absent for everything that still sees a full circle, which is nearly everything. */
+  cone?: SightCone;
+}
+
+/**
+ * Resolve a side's scouts for this tick: jamming folded into each range, and the
+ * cone put on the one hull its drone is riding.
+ *
+ * **Both `visionSystem` and `fogSystem` call this**, and that is the whole point.
+ * The two used to work out sight independently and had already drifted once (see
+ * `jamPressure`); a cone applied by only one of them would be worse than either
+ * drift, because the fog mask and the detection set would be answering different
+ * questions about the same eye.
+ *
+ * Which scouts are *eligible* stays with each caller — they disagree about a
+ * knocked-out scout, and settling that is not this function's business.
+ */
+export function sightlinesFor(ctx: GameContext, owner: Owner, scouts: readonly Scout[]): Sightline[] {
+  const jammers = jammersAgainst(ctx, owner);
+  // Exactly one hull per side can be ridden, so this is one lookup, not one per scout.
+  const possessed = possessedRobotOf(ctx, owner);
+  const cone = possessed ? sightCone(possessed.heading) : undefined;
+  return scouts.map((scout) => ({
+    scout,
+    range: effectiveSight(scout, jammers),
+    cone: possessed && scout.id === possessed.id ? cone : undefined,
+  }));
+}
+
+/**
+ * Whether a scout sees the point — its range, and its sector if it has one.
+ *
+ * The one predicate detection and the fog mask share. Exported because they are in
+ * different files and there is no version of "the two may each write their own"
+ * that ends well: the fog would reveal ground the side is not allowed to have
+ * spotted from, or hide ground it did.
+ */
+export function withinSight(scout: Scout, x: number, y: number, range: number, cone?: SightCone): boolean {
+  if (distance(scout.position.x, scout.position.y, x, y) > range) return false;
+  return !cone || facesPoint(scout, x, y, cone);
+}
+
+/**
+ * The sector half of `withinSight`, on its own — the base test needs it, because a
+ * base's *range* is measured to its footprint edge rather than to the point this
+ * takes.
+ */
+export function facesPoint(scout: Scout, x: number, y: number, cone: SightCone): boolean {
+  const dx = x - scout.position.x;
+  const dy = y - scout.position.y;
+  // `vecLength`, never `Math.hypot`: the latter is not required to be correctly
+  // rounded, so two engines can disagree on the last bit — and sight feeds
+  // `task.ts`, which makes any disagreement here a desync. `hygiene.test.ts`
+  // enforces this, and caught exactly this line.
+  const len = vecLength(dx, dy);
+  // Standing on it. Nothing to be behind you about, and the normalisation would
+  // divide by zero.
+  if (len <= 0) return true;
+  return dx * cone.fx + dy * cone.fy >= cone.cosHalf * len;
 }
 
 /** Scout's own sightRange, halved if it currently sits inside an enemy `ew` robot's jamRadius. */

@@ -1,10 +1,9 @@
 import { gameConfig } from '../../config/gameConfig';
-import { distance } from '../../utils/math';
 import type { With } from 'miniplex';
 import type { Entity } from '../ecs/entity';
 import { bases, drones, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
-import { jamPressureFrom, jammersAgainst } from './vision';
+import { sightlinesFor, withinSight } from './vision';
 
 /** A robot, base or drone seen only as "something with eyes" — see `vision.ts`. */
 type Scout = With<Entity, 'position' | 'owner' | 'hp' | 'sightRange'>;
@@ -29,22 +28,18 @@ export function fogSystem(ctx: GameContext): void {
     ...robots(ctx.world).entities.filter(alive),
     ...bases(ctx.world).entities.filter(alive),
     // The drone isn't a robot, so it needs its own pass; a shot-down one reveals
-    // nothing (it's reaped the same tick, but `alive` keeps that explicit).
-    ...drones(ctx.world).entities.filter(alive),
+    // nothing (it's reaped the same tick, but `alive` keeps that explicit), and one
+    // riding a hull reveals nothing either — it has stopped being an eye.
+    ...drones(ctx.world).entities.filter((d) => alive(d) && !d.drone.possessedId),
   ].filter((s) => s.sightRange > 0);
 
-  // The jamming rule itself lives in `vision.ts` — this used to be a second copy
-  // of it, and the two had already drifted apart over whether a *disabled* jammer
-  // still jams. Detection said no; this said yes. They agree now, on detection's
-  // answer: a knocked-out jammer emits nothing.
-  const jammers = jammersAgainst(ctx, side);
-
-  // Jammed status only depends on the scout's own position, so resolve it once
-  // per scout instead of re-checking it for every tile below.
-  const effectiveRanges = scouts.map((s) => {
-    const jammed = jamPressureFrom(jammers, s.position.x, s.position.y) > 0;
-    return { scout: s, range: jammed ? s.sightRange * gameConfig.combat.jamMultiplier : s.sightRange };
-  });
+  // Ranges and sectors both come from `vision.ts`. This file used to work out
+  // jamming for itself and had already drifted from detection over whether a
+  // knocked-out jammer still jams; a sight cone applied by only one of the two
+  // would be a worse version of the same mistake, because the mask and the
+  // detection set would then be answering different questions about the same eye.
+  // Resolved once per scout — the loop below asks about it for every tile.
+  const lines = sightlinesFor(ctx, side, scouts);
 
   let changed = false;
   for (let ty = 0; ty < height; ty++) {
@@ -53,9 +48,7 @@ export function fogSystem(ctx: GameContext): void {
     for (let tx = 0; tx < width; tx++) {
       const cx = (tx + 0.5) * tilePx;
       const cy = (ty + 0.5) * tilePx;
-      const seen = effectiveRanges.some(
-        ({ scout, range }) => distance(scout.position.x, scout.position.y, cx, cy) <= range,
-      );
+      const seen = lines.some(({ scout, range, cone }) => withinSight(scout, cx, cy, range, cone));
       if (visRow[tx] !== seen) {
         visRow[tx] = seen;
         changed = true;

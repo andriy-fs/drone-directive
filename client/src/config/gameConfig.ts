@@ -173,10 +173,9 @@ export const gameConfig = {
      * these three are what the "which one is it" argument is settled with, live:
      * `followDistance: 0` is first person.
      *
-     * `fovDeg` is the one number here with a consumer outside the renderer waiting on
-     * it: the sight cone a possessed hull gets (see `.docs/internal/tasks/possession.md`,
-     * stage 4) has to agree with what the monitor actually shows, or the view hands out
-     * contours of machines the simulation says this side never detected.
+     * `sightHalfAngleDeg` is the exception to "renderer only": the simulation reads
+     * it, and it lives here rather than beside the other sight ranges precisely so it
+     * sits next to the `fovDeg` it has to agree with. Split them and they drift.
      */
     fpv: {
       /**
@@ -199,6 +198,28 @@ export const gameConfig = {
        * machine the player is riding gets sliced open by the front of the frustum.
        */
       near: 14,
+      /**
+       * Half the sector a **possessed** hull can see in, in degrees — the one number
+       * in this block the simulation reads (`systems/vision.ts`).
+       *
+       * It exists because the monitor and detection have to agree. Riding a hull
+       * hides the whole battlefield behind one forward view, and leaving that side's
+       * sight at a full circle would mean the simulation quietly kept spotting
+       * things the pilot has turned their back on.
+       *
+       * Set a little wider than the monitor's *horizontal* field, which `fovDeg`
+       * (vertical) reaches through the window's aspect and therefore cannot be
+       * derived from — the simulation must not depend on the size of anyone's
+       * window, or two peers stop agreeing. Wider is the safe side of that mismatch:
+       * a contour is only ever drawn for something this side has detected, so a cone
+       * narrower than the frustum would leave a machine plainly in front of the
+       * pilot missing from their screen.
+       *
+       * Only the hull the drone is *riding* gets it. Bases, turrets and a
+       * free-flying drone keep their circle: a sector is what you accept for looking
+       * through one machine's eyes.
+       */
+      sightHalfAngleDeg: 45,
     },
   },
 

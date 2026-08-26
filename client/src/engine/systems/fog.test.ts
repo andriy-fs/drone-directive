@@ -97,3 +97,61 @@ describe('fogSystem — ew jamming', () => {
     expect(visibleAt(ctx, 400 + 170, 400)).toBe(true);
   });
 });
+
+describe('fogSystem — a possessed hull', () => {
+  /** Puts `owner`'s drone inside `robot`, the way `droneSystem` does on an `F` press. */
+  const possess = (drone: { drone: { possessedId?: string } }, robot: { id: string }) => {
+    drone.drone.possessedId = robot.id;
+  };
+
+  it('reveals the sector the hull is facing and nothing behind it', () => {
+    const ctx = makeCtx(1);
+    // Facing east. Tracks sight is 190 px, so 150 px out is inside the range either
+    // way — the only thing under test is which side of the hull it is on.
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.heading = 0;
+    possess(spawnDrone(ctx.world, Owner.Player, { x: 600, y: 600 }), hull);
+
+    fogSystem(ctx);
+
+    expect(visibleAt(ctx, 600 + 150, 600)).toBe(true);
+    expect(visibleAt(ctx, 600 - 150, 600)).toBe(false);
+  });
+
+  it('turns the sector with the hull', () => {
+    const ctx = makeCtx(1);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.heading = Math.PI; // west
+    possess(spawnDrone(ctx.world, Owner.Player, { x: 600, y: 600 }), hull);
+
+    fogSystem(ctx);
+
+    expect(visibleAt(ctx, 600 - 150, 600)).toBe(true);
+    expect(visibleAt(ctx, 600 + 150, 600)).toBe(false);
+  });
+
+  it('leaves an unpossessed hull seeing all the way round', () => {
+    const ctx = makeCtx(1);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.heading = 0;
+
+    fogSystem(ctx);
+
+    expect(visibleAt(ctx, 600 + 150, 600)).toBe(true);
+    expect(visibleAt(ctx, 600 - 150, 600)).toBe(true);
+  });
+
+  it('stops the ridden drone revealing anything of its own', () => {
+    const ctx = makeCtx(1);
+    // The hull is deliberately blind, so anything revealed here came from the drone
+    // sitting on it — which is the free scouting this is meant to end.
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.sightRange = 0;
+    hull.heading = 0;
+    possess(spawnDrone(ctx.world, Owner.Player, { x: 600, y: 600 }), hull);
+
+    fogSystem(ctx);
+
+    expect(visibleAt(ctx, 600, 600)).toBe(false);
+  });
+});

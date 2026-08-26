@@ -346,3 +346,79 @@ describe('visionSystem — a base is spotted by its wall, not by its middle', ()
     expect(ctx.intel.player.visibleBaseIds.has(base.id)).toBe(false);
   });
 });
+
+describe('visionSystem — a possessed hull', () => {
+  const possess = (drone: { drone: { possessedId?: string } }, robot: { id: string }) => {
+    drone.drone.possessedId = robot.id;
+  };
+  const foeAt = (ctx: ReturnType<typeof makeCtx>, x: number, y: number) =>
+    spawnRobot(ctx.world, Owner.AI, { x, y }, ChassisType.Tracks, WeaponType.Cannon);
+
+  it('spots what is in front of it and not what is behind', () => {
+    const ctx = makeCtx(1);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.heading = 0; // east
+    possess(spawnDrone(ctx.world, Owner.Player, { x: 600, y: 600 }), hull);
+    const ahead = foeAt(ctx, 750, 600);
+    const behind = foeAt(ctx, 450, 600);
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.visibleRobotIds.has(ahead.id)).toBe(true);
+    expect(ctx.intel.player.visibleRobotIds.has(behind.id)).toBe(false);
+  });
+
+  it('leaves an unpossessed hull spotting all the way round', () => {
+    const ctx = makeCtx(1);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.heading = 0;
+    const behind = foeAt(ctx, 450, 600);
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.visibleRobotIds.has(behind.id)).toBe(true);
+  });
+
+  it('narrows only the hull being ridden, not the rest of the side', () => {
+    const ctx = makeCtx(1);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.heading = 0;
+    possess(spawnDrone(ctx.world, Owner.Player, { x: 600, y: 600 }), hull);
+    // A second hull of the same side, parked on the same spot and not ridden.
+    spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    const behind = foeAt(ctx, 450, 600);
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.visibleRobotIds.has(behind.id)).toBe(true);
+  });
+
+  it('stops the ridden drone spotting anything of its own', () => {
+    const ctx = makeCtx(1);
+    // A blind hull, so whatever is spotted was spotted by the drone riding it.
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.sightRange = 0;
+    possess(spawnDrone(ctx.world, Owner.Player, { x: 600, y: 600 }), hull);
+    const foe = foeAt(ctx, 650, 600);
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(false);
+  });
+
+  it('gives a base found through the sector, and one behind the hull nothing', () => {
+    const ctx = makeCtx(1);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.None);
+    hull.heading = 0;
+    possess(spawnDrone(ctx.world, Owner.Player, { x: 600, y: 600 }), hull);
+    // Footprint top-left in tiles; a 3-tile base centres 1.5 tiles in from there, so
+    // these sit ~184 px east and ~200 px west of the hull.
+    const ahead = spawnBase(ctx.world, Owner.AI, 23, 17);
+    const behind = spawnBase(ctx.world, Owner.AI, 11, 17);
+
+    visionSystem(ctx);
+
+    expect(ctx.intel.player.knownBaseIds.has(ahead.id)).toBe(true);
+    expect(ctx.intel.player.knownBaseIds.has(behind.id)).toBe(false);
+  });
+});
