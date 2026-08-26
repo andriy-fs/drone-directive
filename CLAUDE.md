@@ -35,6 +35,8 @@ Run from the repo root:
 
 **Before considering any change done, run `npm run build`, `npm test`, and `npm run lint` (all clean); add `npm run type-check` when `server/`, `protocol/`, `net/`, `chat/` or `types/` changed.** For gameplay changes, also boot the dev server (on-screen behaviour can't be confirmed headless). For online changes, `npm run dev:relay` + `npm run e2e -w server`.
 
+**One at a time.** `npm test` is a few hundred seconds of saturated CPU, and a browser-driven check (`npm run shot`, anything Playwright, `npm run e2e -w server`) is a dev server plus a Chromium plus a GPU context. Overlapping them — or starting one in the background and kicking off the other "meanwhile" — can wedge the developer's machine, and it also makes both sets of numbers untrustworthy. Finish one, read it, then start the next.
+
 ## Internal documentation
 
 Documentation in `.docs/internal/` is a **separate git repository** (https://bitbucket.org/dd-rts/dd-internal-docs) — investigations, task notes, rejected ideas, and sprites/sfx briefs. It's **not** part of this monorepo. Push changes to `.docs/internal` separately: `cd .docs/internal && git push`.
