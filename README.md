@@ -134,9 +134,9 @@ seeds × 2700 ticks of generated terrain, at fifty units, against that predecess
 
 |                                                       | previous layer | ORCA    |
 | ----------------------------------------------------- | -------------- | ------- |
-| overlapping pairs per tick                            | 24.2           | **6.0** |
-| anti-jam retreats                                     | 617            | 311     |
-| robot-ticks crowding the enemy base, per arrived unit | 110            | **18**  |
+| overlapping pairs per tick                            | 24.5           | **6.6** |
+| anti-jam retreats                                     | 619            | 328     |
+| robot-ticks crowding the enemy base, per arrived unit | 111            | **19**  |
 
 Three conclusions worth keeping:
 
@@ -155,9 +155,10 @@ Three conclusions worth keeping:
   opposite world sides. That one is a lockstep-friendly answer as well as a
   correct one.
 - **It is not free, and the honest number is the arrival time.** Reciprocity
-  buys a fivefold drop in shoving at roughly +2% on mean arrival, and units near
-  walls got slightly worse, not better. The trade was accepted with the metric
-  on record rather than declared a win.
+  buys a ~3.7× drop in shoving, and the bill lands on the march: mean arrival
+  622 → 796 ticks, +28%, with six of the fifty units still en route when the
+  harness stops. The trade was accepted with the metric on record rather than
+  declared a win.
 
 Design and measurements: [`.docs/movement.md`](.docs/movement.md).
 

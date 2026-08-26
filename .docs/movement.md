@@ -108,9 +108,11 @@ The solver also allocates nothing: buffers are claimed once per match and `solve
 creates no object, array or closure, asserted by `solver.test.ts`.
 
 Measured over 10 seeds × 2700 ticks of generated terrain, at fifty units, against
-the fan-deflection layer it replaced: overlapping pairs per tick 24.2 → 6.0,
-anti-jam retreats 617 → 311, and robot-ticks spent crowding the enemy base 110 →
-18 per arrived unit. The cost, stated plainly, is ~2% on mean arrival time.
+the fan-deflection layer it replaced: overlapping pairs per tick 24.5 → 6.6,
+anti-jam retreats 619 → 328, and robot-ticks spent crowding the enemy base 111 →
+19 per arrived unit. The cost, stated plainly, is the march itself: mean arrival
+622 → 796 ticks (+28%), and six of the fifty units are still en route when the
+harness stops.
 
 Three lessons are worth keeping, because none of them was in the algorithm:
 
