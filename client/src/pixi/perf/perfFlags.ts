@@ -56,7 +56,7 @@ export interface PerfFlags {
   peaks: boolean;
   debris: boolean;
   /**
-   * The hull view's CRT pass (`render/fpv/FeedFilter.ts`). Off, the wireframe draws
+   * The hull view's CRT pass (`render/fpv/feed/FeedFilter.ts`). Off, the wireframe draws
    * bare — which is the *only* way to price that pass, since it is one full offscreen
    * render and everything else in that view is a single line-list draw call.
    */

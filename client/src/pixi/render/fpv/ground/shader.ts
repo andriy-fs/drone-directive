@@ -1,4 +1,5 @@
 import { GlProgram, Shader, type Texture } from 'pixi.js';
+import { glsl } from '../glsl';
 
 /**
  * The one shader the wireframe ground is drawn with.
@@ -61,7 +62,7 @@ export function createFpvTerrainShader(
 ): Shader {
   const glProgram = GlProgram.from({
     name: 'fpv-terrain',
-    vertex: `in vec2 aPosition;
+    vertex: glsl`in vec2 aPosition;
 in float aHeight;
 
 out vec2 vWorld;
@@ -101,7 +102,7 @@ void main() {
     // `ensurePrecision` only honours an existing declaration that way and otherwise
     // prepends **mediump**, which matters here because `vWorld` reaches 2560 on the
     // large map and fp16 would quantise the fog lookup into visible steps.
-    fragment: `precision highp float;
+    fragment: glsl`precision highp float;
 in vec2 vWorld;
 in float vFade;
 

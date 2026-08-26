@@ -13,10 +13,9 @@ import { perfFlags } from '../../perf/perfFlags';
 import type { FogState, GameContext } from '../../../engine/game/context';
 import type { TerrainGrid } from '../../../engine/obstacles';
 import { FpvCameraRig, type FpvProjection } from './camera';
-import { FeedFilter } from './FeedFilter';
+import { FeedFilter } from './feed';
 import { FpvFogMask } from './fogMask';
-import { createFpvTerrainShader } from './shaders';
-import { heightField, terrainGeometry, type HeightField } from './terrain';
+import { createFpvTerrainShader, heightField, terrainGeometry, type HeightField } from './ground';
 import {
   BASE_BODY,
   BASE_LAUNCHER,

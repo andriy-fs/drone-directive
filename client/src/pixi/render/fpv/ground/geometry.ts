@@ -1,9 +1,9 @@
 import { Geometry } from 'pixi.js';
 import { TerrainKind } from '@drone-directive/types/enums';
-import { gameConfig } from '../../../config/gameConfig';
-import type { TerrainGrid } from '../../../engine/obstacles';
-import { clusterContours } from '../terrain/contours';
-import { depthField, findClusters } from '../terrain/clusters';
+import { gameConfig } from '../../../../config/gameConfig';
+import type { TerrainGrid } from '../../../../engine/obstacles';
+import { clusterContours } from '../../terrain/contours';
+import { depthField, findClusters } from '../../terrain/clusters';
 
 /**
  * The ground the wireframe view draws: a height for every grid corner, and one

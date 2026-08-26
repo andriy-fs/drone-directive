@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { TerrainKind } from '@drone-directive/types/enums';
-import { gameConfig } from '../../../config/gameConfig';
-import type { TerrainGrid } from '../../../engine/obstacles';
-import { heightField } from './terrain';
+import { gameConfig } from '../../../../config/gameConfig';
+import type { TerrainGrid } from '../../../../engine/obstacles';
+import { heightField } from './geometry';
 
 /**
  * The relief, on grids small enough to reason about. What is checked here is the
