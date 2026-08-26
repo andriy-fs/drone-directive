@@ -1,0 +1,174 @@
+import { describe, expect, it } from 'vitest';
+import { gameConfig } from '../../../config/gameConfig';
+import { FpvCameraRig, fpvEye, project, viewProjection } from './camera';
+
+/**
+ * The half of this view that is genuinely easy to get backwards: which way is
+ * right, and what happens behind the camera. Everything else about the wireframe
+ * has to be judged on screen, but a mirrored world and a hull drawn through the
+ * near plane both look plausible in a screenshot and are unambiguous here.
+ */
+
+const W = 800;
+const H = 600;
+
+/** A pose facing east — heading 0 — on flat ground at the origin-ish. */
+const facingEast = { x: 1000, y: 1000, heading: 0, ground: 0 };
+
+describe('fpvEye', () => {
+  it('sits behind the hull along its heading, and above it', () => {
+    const { followDistance, height } = gameConfig.drone.fpv;
+    const eye = fpvEye(facingEast);
+    expect(eye.x).toBeCloseTo(1000 - followDistance);
+    expect(eye.y).toBeCloseTo(1000);
+    expect(eye.z).toBeCloseTo(height);
+  });
+
+  it('rides the ground it is standing on, so a hull on a slope keeps its camera above it', () => {
+    const raised = fpvEye({ ...facingEast, ground: 40 });
+    expect(raised.z).toBeCloseTo(gameConfig.drone.fpv.height + 40);
+  });
+});
+
+describe('project', () => {
+  it('puts the hull the camera is following near the centre of the screen', () => {
+    const view = viewProjection(facingEast, W, H);
+    const p = project(view, facingEast.x, facingEast.y, 0);
+    expect(p).not.toBeNull();
+    expect(p?.x).toBeCloseTo(W / 2, 0);
+    // Below centre: the camera rides above the ground and tilts down, so the patch
+    // of ground the hull stands on is in the lower half of the picture.
+    expect(p?.y).toBeGreaterThan(H / 2);
+  });
+
+  it("maps the driver's right to the right of the screen", () => {
+    const view = viewProjection(facingEast, W, H);
+    // Facing east, the driver's right is south — which is +y, since the map's y
+    // runs down. This is the assertion that catches a mirrored world.
+    const right = project(view, facingEast.x, facingEast.y + 200, 0);
+    const left = project(view, facingEast.x, facingEast.y - 200, 0);
+    expect(right?.x).toBeGreaterThan(W / 2);
+    expect(left?.x).toBeLessThan(W / 2);
+  });
+
+  it('holds that under an arbitrary heading', () => {
+    const heading = Math.PI / 3;
+    const pose = { x: 500, y: 700, heading, ground: 0 };
+    const view = viewProjection(pose, W, H);
+    // 90° clockwise of the heading, one hundred px out.
+    const right = project(view, pose.x - Math.sin(heading) * 100, pose.y + Math.cos(heading) * 100, 0);
+    expect(right?.x).toBeGreaterThan(W / 2);
+  });
+
+  it('puts what is ahead above what is underfoot', () => {
+    const view = viewProjection(facingEast, W, H);
+    const near = project(view, facingEast.x + 100, facingEast.y, 0);
+    const far = project(view, facingEast.x + 900, facingEast.y, 0);
+    expect(far?.y).toBeLessThan(near?.y ?? 0);
+    expect(far?.depth).toBeGreaterThan(near?.depth ?? 0);
+  });
+
+  it('rejects everything at or behind the near plane', () => {
+    const view = viewProjection(facingEast, W, H);
+    // Well behind the camera, which itself sits behind the hull.
+    expect(project(view, facingEast.x - 500, facingEast.y, 0)).toBeNull();
+    // And exactly at the eye, where the divide would blow up.
+    expect(project(view, view.eye.x, view.eye.y, view.eye.z)).toBeNull();
+  });
+
+  it('carries the viewport inside the matrix, where both consumers can use it', () => {
+    const view = viewProjection(facingEast, W, H);
+    const m = view.matrix;
+    const [x, y, z] = [facingEast.x + 300, facingEast.y + 40, 12];
+    const row = (i: number) => m[i] * x + m[4 + i] * y + m[8 + i] * z + m[12 + i];
+
+    // The GPU side cannot do anything else: it hands `xy` and `w` to Pixi's own
+    // transform chain and the rasteriser divides. So a matrix that produced clip
+    // space would put the ground somewhere else entirely while `project` quietly
+    // compensated on the CPU — which is exactly the shape of the bug that made the
+    // wireframe ground drift off the machines standing on it.
+    const p = project(view, x, y, z);
+    expect(p?.x).toBeCloseTo(row(0) / row(3), 6);
+    expect(p?.y).toBeCloseTo(row(1) / row(3), 6);
+  });
+
+  it('agrees with the matrix the shader is handed — one projection, not two', () => {
+    const view = viewProjection(facingEast, W, H);
+    expect(view.matrix).toHaveLength(16);
+    // Column-major: the translation column is the last four, and it is not the
+    // identity's — a matrix built row-major would put the eye offset in the wrong
+    // place and every unit would draw somewhere the terrain is not.
+    const m = view.matrix;
+    expect(m[15]).toBeCloseTo(-(m[2] * view.eye.x + m[6] * view.eye.y + m[10] * view.eye.z));
+  });
+});
+
+describe('FpvCameraRig', () => {
+  const still = { pose: facingEast, dt: 1 / 60, drive: 0, shot: false, hit: 0, screenW: W, screenH: H };
+  /** How far behind the hull the eye ended up — the one number every effect here moves. */
+  const trail = (rig: FpvCameraRig, over: Partial<typeof still> = {}) => {
+    const view = rig.frame({ ...still, ...over });
+    return facingEast.x - view.eye.x;
+  };
+
+  it('opens already settled rather than easing in from nothing', () => {
+    // Taking a hull that is already at speed must not start with the camera
+    // sliding backwards into place — the first frame has no history to ease from.
+    const rig = new FpvCameraRig();
+    const first = trail(rig, { drive: 1 });
+    expect(first).toBeCloseTo(trail(rig, { drive: 1 }), 5);
+    // And it is genuinely further back than a parked hull's camera.
+    expect(first).toBeGreaterThan(facingEast.x - fpvEye(facingEast).x);
+  });
+
+  it('falls back as the hull opens the throttle and comes in again when it stops', () => {
+    const rig = new FpvCameraRig();
+    const parked = trail(rig);
+    for (let i = 0; i < 120; i++) trail(rig, { drive: 1 });
+    const running = trail(rig, { drive: 1 });
+    expect(running).toBeGreaterThan(parked);
+    for (let i = 0; i < 120; i++) trail(rig);
+    expect(trail(rig)).toBeCloseTo(parked, 0);
+  });
+
+  it('shoves the camera back on a shot and settles it', () => {
+    const rig = new FpvCameraRig();
+    const resting = trail(rig);
+    const kicked = trail(rig, { shot: true });
+    expect(kicked).toBeGreaterThan(resting + 10);
+    for (let i = 0; i < 90; i++) trail(rig);
+    expect(trail(rig)).toBeCloseTo(resting, 0);
+  });
+
+  it('rings the tube when the hull is hit, and stops', () => {
+    const rig = new FpvCameraRig();
+    trail(rig);
+    const heights: number[] = [];
+    rig.frame({ ...still, hit: 0.3 });
+    for (let i = 0; i < 40; i++) heights.push(rig.frame(still).eye.z);
+    const early = Math.max(...heights.slice(0, 8).map((z) => Math.abs(z - heights[heights.length - 1])));
+    const late = Math.max(...heights.slice(-8).map((z) => Math.abs(z - heights[heights.length - 1])));
+    expect(early).toBeGreaterThan(1);
+    expect(late).toBeLessThan(early / 3);
+  });
+
+  it('settles the same way whatever the frame rate', () => {
+    // `1 − exp(−dt/τ)` rather than a per-frame multiplier: the same wall-clock
+    // second has to land in the same place at 30 fps and at 144.
+    const slow = new FpvCameraRig();
+    const fast = new FpvCameraRig();
+    trail(slow, { dt: 1 / 30 });
+    trail(fast, { dt: 1 / 144 });
+    for (let i = 0; i < 15; i++) trail(slow, { dt: 1 / 30, drive: 1 });
+    for (let i = 0; i < 72; i++) trail(fast, { dt: 1 / 144, drive: 1 });
+    expect(trail(slow, { dt: 1 / 30, drive: 1 })).toBeCloseTo(trail(fast, { dt: 1 / 144, drive: 1 }), 0);
+  });
+
+  it('forgets everything when the pilot takes a different hull', () => {
+    const rig = new FpvCameraRig();
+    trail(rig);
+    const kicked = trail(rig, { shot: true });
+    rig.reset();
+    expect(trail(rig)).toBeLessThan(kicked - 10);
+  });
+});

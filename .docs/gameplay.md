@@ -29,6 +29,30 @@ see [architecture.md](architecture.md).
   drone only opportunistically: they never chase one, and never pick it over a
   ground target they can already shoot. The bot pilots its own drone with the
   same entity and the same rules.
+- **The hull view** — landing on a robot does not tilt the camera, it **replaces
+  the picture**. The battlefield goes, and what comes up is that machine's own
+  sensor monitor: the ground as a green vector grid with the relief on it, other
+  machines as wireframe contours (yours in blue, everyone else's in red), and
+  your own hull drawn from behind so you can see where it is pointed. Every
+  machine is drawn as what it actually is — a tank's two track bands, a buggy's
+  four exposed wheels, a walker's body carried high on six legs, and the module
+  on top of it — so the same reading that works from above works from inside.
+  **Hot parts glow**: a barrel that has just fired, wheels and legs under load.
+  A distant contour tells you what a machine is; its glow tells you what it is
+  doing, which is something the top-down view has never been able to show.
+  Unexplored ground is not drawn at all — the monitor shows you what your side
+  has found, not what is there.
+
+  Two things the monitor tells you that the top-down view never could. Drive into
+  an enemy **jammer's** aura and the picture tears itself apart — the closer you
+  get, the worse it is, and until now the only sign of a jammer was that your
+  units mysteriously stopped seeing things. And a hull knocked out by a
+  **directed-energy** hit shows you nothing at all: eight seconds of static, which
+  is why it has stopped answering the stick. **The mouse goes dead while you are inside:** no marquee, no
+  orders, no base selection. That is the trade — you give up commanding to gain a
+  gun you aim yourself. The HUD stays live, so building and directives still work,
+  and `F` (or switching the view off the drone) puts you straight back on top with
+  your selection and orders untouched.
 - **Selection & group control** — click, shift-click, drag-marquee, `Ctrl+A`,
   double-click to select every robot sharing a weapon, and classic RTS control
   groups (`Ctrl+1-9` to save a selection, `1-9` to recall it).
@@ -90,7 +114,7 @@ see [architecture.md](architecture.md).
 | **Middle-mouse drag**            | Pan the camera                                                |
 | **Esc** / **Space** / **P**      | Pause / resume                                                |
 | **W A S D** / **arrow keys**     | Fly the observer drone (pan the camera while it is shot down) |
-| **F**                            | Land the drone on / release an idle robot                     |
+| **F**                            | Land the drone on / release an idle robot (switches to the hull view) |
 | **E**                            | Fire the possessed robot's weapon                             |
 
 Use the **Program** panel in the HUD to assign a directive to the selected

@@ -157,6 +157,49 @@ export const gameConfig = {
      * says where the base's fire comes from.
      */
     spawnOffset: 104,
+
+    /**
+     * The wireframe hull view: where the camera sits once a drone lands on a robot,
+     * and how wide it looks (`pixi/render/fpv/`).
+     *
+     * **Third person, not first.** A camera at the sensor's own eye is the obvious
+     * reading of "inside the machine" and is the harder one to drive: with nothing of
+     * the hull on screen the player cannot tell which way the chassis is pointed
+     * except by moving, and a wireframe world gives no near-field detail to judge
+     * speed against. Set back and slightly above, the hull itself becomes the
+     * instrument — where it is aimed, how it is drifting, where the module sits.
+     *
+     * From the eye to over the shoulder is the same maths with different numbers, so
+     * these three are what the "which one is it" argument is settled with, live:
+     * `followDistance: 0` is first person.
+     *
+     * `fovDeg` is the one number here with a consumer outside the renderer waiting on
+     * it: the sight cone a possessed hull gets (see `.docs/internal/tasks/possession.md`,
+     * stage 4) has to agree with what the monitor actually shows, or the view hands out
+     * contours of machines the simulation says this side never detected.
+     */
+    fpv: {
+      /**
+       * How far (px) behind the hull, along its own heading, the camera trails.
+       *
+       * Set against the *art's* size, not the collision radius: a hull is 44–46 px
+       * long, so anything under about a hundred fills the lower half of the monitor
+       * with the machine the player is already sitting in and hides the ground they
+       * are driving onto — which is the one thing this view exists to show.
+       */
+      followDistance: 118,
+      /** How high (px) above the ground the camera rides. */
+      height: 62,
+      /** Downward tilt, in degrees. Small — the horizon is what makes distance readable. */
+      pitchDeg: 12,
+      /** Vertical field of view, in degrees. */
+      fovDeg: 66,
+      /**
+       * Near clip, in px. Has to clear `followDistance` minus half a hull, or the
+       * machine the player is riding gets sliced open by the front of the frustum.
+       */
+      near: 14,
+    },
   },
 
   /**

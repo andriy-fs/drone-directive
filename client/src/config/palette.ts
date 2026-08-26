@@ -141,6 +141,42 @@ export const palette = {
   dust: {
     plume: 0xb3a894,
   },
+  /**
+   * The wireframe hull view — what the pilot sees once a drone lands on a robot
+   * (`pixi/render/fpv/`). A phosphor monitor of the early 1980s: one green for the
+   * ground, and three roles on top of it that have to be told apart at a glance.
+   *
+   * **Here rather than in `client/src/theme/**` deliberately.** The battlefield is
+   * not themed, and this view *is* the battlefield — seen from a different place.
+   *
+   * The three unit roles are spread by hue *and* lightness for the same reason
+   * `weapon` is: on a screen this noisy, "which of those two contours is mine" must
+   * not rest on red-versus-green.
+   */
+  fpv: {
+    /** Behind everything — the tube's own black, darker than `background`. */
+    void: 0x030c07,
+    /** The ground grid. The dimmest of the five: it is the page, not the writing. */
+    terrain: 0x2fdc7a,
+    /** The hull the pilot is riding, drawn from behind. The brightest thing on the screen. */
+    self: 0xd6ffe8,
+    /** Another machine of this side. */
+    friend: 0x63d0ff,
+    /** Anything belonging to anyone else. */
+    foe: 0xff7a5c,
+    /**
+     * A part running hot: a barrel that has just fired, a drive under load
+     * (`pixi/render/fpv/units.ts`).
+     *
+     * Amber, and drawn **thicker** than the structure under it (see `units.ts`).
+     * Colour alone could not carry this: `self` is already a near-white, so a
+     * white-hot node would vanish on the one machine the player looks at most,
+     * and anything redder would collide with `foe`. Warm *and* fat reads as
+     * emission on all three roles — which is the whole job, since a glowing
+     * barrel on a hostile contour is the most valuable thing on this screen.
+     */
+    heat: 0xffbe52,
+  },
   /** The launcher of a base's built-in missile battery, drawn over the body. */
   turret: {
     body: 0x9aa4b2,

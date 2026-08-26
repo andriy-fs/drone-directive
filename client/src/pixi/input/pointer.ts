@@ -2,7 +2,7 @@ import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { isAlive } from '../../engine/ecs/guards';
 import { robots } from '../../engine/ecs/queries';
 import type { GameEngine } from '../../engine/game/engine';
-import { baseById, baseFootprintContains, livingRobotById } from '../../engine/systems/targeting';
+import { baseById, baseFootprintContains, livingRobotById, possessedRobotOf } from '../../engine/systems/targeting';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { useGameStore } from '../../store/gameStore';
 import { GameStatus } from '../../store/enums';
@@ -76,6 +76,14 @@ export interface PointerControls {
  *   on the base itself clears it); the robot selection is untouched.
  * - Right click on an enemy (robot or base) = order the selection to attack it;
  *   right click on open ground = move the selection there in a compact formation.
+ *
+ * **The mouse goes dead while a drone is riding a hull.** The top view is hidden
+ * then (see `pixi/render/fpv/`), so a marquee would box units nobody can see and a
+ * right click would send the selection at a point somewhere off the monitor — the
+ * pointer is over a world that is no longer on screen. The keyboard is untouched:
+ * flying, `F` and `E` are what the pilot has, and that is the trade the mode is
+ * making. There is no separate exit gesture, because cutting the view loose from
+ * the drone already bails the pilot out of the hull (`store/gameStore.ts`).
  */
 export function attachPointerControls(
   app: Application,
@@ -86,6 +94,16 @@ export function attachPointerControls(
   const stage = app.stage;
   stage.eventMode = 'static';
   stage.hitArea = app.screen;
+
+  /**
+   * Whether this side's drone is currently inside a hull — asked of the world, not
+   * of the store's `droneStatus`, which is a throttled snapshot and would leave a
+   * few ticks in which a click still ordered units the player can no longer see.
+   */
+  const possessing = (): boolean => {
+    const ctx = engine.context;
+    return !!ctx && possessedRobotOf(ctx, useGameStore.getState().localSide) !== undefined;
+  };
 
   const marqueeGfx = new Graphics();
   marqueeGfx.visible = false;
@@ -98,6 +116,7 @@ export function attachPointerControls(
   let startY = 0;
 
   const onDown = (e: FederatedPointerEvent) => {
+    if (possessing()) return;
     if (e.button === 2) {
       issueRightClick(camera, engine, e.global.x, e.global.y, hooks.onOrder);
       return;
@@ -111,6 +130,14 @@ export function attachPointerControls(
   };
 
   const onMove = (e: FederatedPointerEvent) => {
+    if (possessing()) {
+      // `F` can land mid-drag, and the marquee it opened is drawn on the stage —
+      // above the monitor. Drop it here rather than in the key handler: this is the
+      // one place that runs on every route into the possessed state.
+      cancelSelection();
+      hooks.onPointerMove(null);
+      return;
+    }
     if (selecting && Math.abs(e.global.x - startX) + Math.abs(e.global.y - startY) > CLICK_SLOP) moved = true;
     // A marquee is being dragged: the player is picking units, not aiming at one.
     hooks.onPointerMove(selecting && moved ? null : { x: e.global.x, y: e.global.y });
@@ -121,6 +148,11 @@ export function attachPointerControls(
   const onLeave = () => hooks.onPointerMove(null);
 
   const onUp = (e: FederatedPointerEvent) => {
+    if (possessing()) {
+      cancelSelection();
+      hooks.onPointerMove(null);
+      return;
+    }
     if (selecting) {
       if (moved) {
         selectInBox(camera, engine, startX, startY, e.global.x, e.global.y, additive);

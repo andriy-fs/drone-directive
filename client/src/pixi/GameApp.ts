@@ -8,6 +8,7 @@ import { bases as basesQuery, drones as dronesQuery, robots as robotsQuery } fro
 import { GameEngine } from '../engine/game/engine';
 import { isCommandFrom } from '../engine/systems/commands';
 import { canActivateShield, isShielded } from '../engine/systems/shield';
+import { possessedRobotOf } from '../engine/systems/targeting';
 import { useGameStore } from '../store/gameStore';
 import {
   ClientVersion,
@@ -54,6 +55,7 @@ import { HoverTargetView, type HoverTarget } from './render/HoverTargetView';
 import { OrderMarkerView } from './render/OrderMarkerView';
 import { RallyView, type RallyMarker } from './render/RallyView';
 import { createTerrainView } from './render/terrain/TerrainView';
+import { FpvView } from './render/fpv/FpvView';
 import { perfFlags } from './perf/perfFlags';
 import { PerfHud } from './perf/PerfHud';
 import { graphicsQuality } from './quality';
@@ -86,6 +88,12 @@ export class GameApp {
   private rallyView: RallyView | null = null;
   private orderMarkerView: OrderMarkerView | null = null;
   private hoverView: HoverTargetView | null = null;
+  /**
+   * The second renderer: the wireframe seen from inside a possessed hull. Not one
+   * of the world layers — it lives on the stage beside `camera.view`, because it
+   * *replaces* the top view rather than drawing into it.
+   */
+  private fpvView: FpvView | null = null;
   private obstacleGfx: Container | null = null;
   /** Frame-time readout — see `perf/perfFlags.ts`. Null unless `?perf=1`. */
   private perfHud: PerfHud | null = null;
@@ -246,6 +254,18 @@ export class GameApp {
     this.detachZoom = attachZoomControls(this.app, this.camera, {
       onPinchStart: pointer.cancelSelection,
     });
+
+    // Added to the stage *after* the pointer's marquee graphic, so nothing belonging
+    // to the top view can draw over the monitor. Starts hidden; `syncFpv` owns the
+    // switch from here on.
+    this.fpvView = new FpvView();
+    // `app.screen` is a live rectangle, so the monitor pass is bounded to the
+    // viewport once and tracks every resize from here on. Without it Pixi would
+    // measure the target's global bounds — and the wireframe terrain's bounds are
+    // the whole map, in world coordinates.
+    this.fpvView.attachTo(this.app.screen);
+    this.app.stage.addChild(this.fpvView.container);
+
     this.app.renderer.on('resize', this.onResize);
 
     // `resizeTo` only listens for *window* resizes, so it misses the host shrinking
@@ -422,9 +442,54 @@ export class GameApp {
     const hovered = this.attackHoverTarget(selectedRobotIds);
     this.hoverView?.update(hovered, now);
     this.setCursor(hovered ? 'crosshair' : '');
+    this.syncFpv(now);
     // One check covers every way into the menu — first load, Esc, game over, a
     // peer disconnecting — so no transition has to remember to park the loop.
     if (this.idle) this.sleep();
+  }
+
+  /**
+   * Show the wireframe view, or the top view, depending on whether this side's
+   * drone is currently riding a hull.
+   *
+   * **Derived every frame from the world, never latched.** The state that decides
+   * this is `drone.possessedId`, which the simulation writes and — crucially — also
+   * *clears* on its own: `droneSystem` drops it the tick the hull under the pilot
+   * dies. A boolean set on entry and cleared on exit would have to enumerate every
+   * way out (release, death, game over, leaving to the menu, a peer disconnecting,
+   * a restart) and would strand the player inside a machine that no longer exists
+   * the first time one of them was missed. Asking the world costs one small scan
+   * and cannot be wrong.
+   *
+   * It runs from `render()`, so `flush()` — the one-frame draw for a world change
+   * arriving while the loop is parked — gets it for free.
+   *
+   * The top view keeps syncing behind the monitor. That is deliberate rather than
+   * an oversight: `RobotView`'s gait and dust are clocked off ground covered and
+   * `ShieldDomeView` infers hits from a per-frame compare, so a view skipped for
+   * the length of a possession would come back with a visible discontinuity in it.
+   * Pixi skips *drawing* a hidden container, which is where the cost actually was.
+   */
+  private syncFpv(now: number): void {
+    const view = this.fpvView;
+    if (!view) return;
+    const ctx = this.engine.context;
+    const robot = ctx ? possessedRobotOf(ctx, this.localSide) : undefined;
+
+    this.camera.view.visible = !robot;
+    view.container.visible = !!robot;
+    if (!robot) return;
+
+    view.render({
+      robot,
+      world: this.engine.world,
+      ctx: ctx ?? null,
+      fog: ctx?.fog,
+      isVisible: (e) => this.isVisibleToLocalSide(e),
+      width: this.app.screen.width,
+      height: this.app.screen.height,
+      now,
+    });
   }
 
   /**
@@ -617,6 +682,7 @@ export class GameApp {
           this.clearOutcome();
           this.clearObstacles();
           this.clearGround();
+          this.fpvView?.setTerrain(null);
           // Flush the emptied world to the canvas here rather than waiting for the
           // next tick: this can arrive from a socket callback (peer left, error)
           // while the loop is already parked, and the last frame of the finished
@@ -652,6 +718,7 @@ export class GameApp {
           this.rebuildGround();
           this.rebuildFog();
           this.rebuildObstacles();
+          this.rebuildFpvTerrain();
         }
         this.pushSnapshot();
       }),
@@ -1230,6 +1297,16 @@ export class GameApp {
     this.layers.ground.addChild(this.obstacleGfx);
   }
 
+  /**
+   * The wireframe view's static half — the relief, its line buffer and its fog
+   * mask, all sized off this match's grid. Its own method rather than a line inside
+   * `rebuildObstacles` because that one returns early under `?terrain=0`, and a
+   * measurement switch for the top view has no business emptying the monitor.
+   */
+  private rebuildFpvTerrain(): void {
+    this.fpvView?.setTerrain(this.engine.context?.terrain ?? null);
+  }
+
   private clearObstacles(): void {
     // `children: true` because the terrain view is a stack of sub-layers now, not
     // one flat container — destroying only the root would strand the rest.
@@ -1253,6 +1330,8 @@ export class GameApp {
     this.orderMarkerView = null;
     this.hoverView?.destroy();
     this.hoverView = null;
+    this.fpvView?.destroy();
+    this.fpvView = null;
     this.perfHud?.destroy();
     this.perfHud = null;
     this.qualityUnsub?.();

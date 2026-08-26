@@ -33,6 +33,7 @@
  * &rim=0               boundary rim off
  * &peaks=0             ridge decals off
  * &debris=0            the stone and contact shadow at a mountain's foot off
+ * &feed=0              the hull view's monitor filter off (the one full-screen pass it costs)
  * &seed=7               pin the solo match's battlefield instead of seeding from the clock
  * ```
  *
@@ -54,6 +55,12 @@ export interface PerfFlags {
   rim: boolean;
   peaks: boolean;
   debris: boolean;
+  /**
+   * The hull view's CRT pass (`render/fpv/FeedFilter.ts`). Off, the wireframe draws
+   * bare — which is the *only* way to price that pass, since it is one full offscreen
+   * render and everything else in that view is a single line-list draw call.
+   */
+  feed: boolean;
   /** Fixed battlefield seed for solo play, or null to seed from the clock as usual. */
   seed: number | null;
   /** Human-readable list of everything set away from its default, for the readout. */
@@ -93,6 +100,7 @@ function read(): PerfFlags {
     rim: flag('rim', true),
     peaks: flag('peaks', true),
     debris: flag('debris', true),
+    feed: flag('feed', true),
     seed: number('seed'),
     overrides,
   };

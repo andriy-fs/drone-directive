@@ -55,6 +55,26 @@ export function livingRobotById(ctx: GameContext, id: string): RobotEntity | und
   return e && isAlive(e) ? e : undefined;
 }
 
+/**
+ * The hull a side's drone is currently riding, or undefined when it is flying
+ * free / down / sitting on a wreck.
+ *
+ * Here rather than in `systems/drone.ts` because it is a *selection*, not a rule:
+ * everything else in this file answers "which entity does `owner` mean by X", and
+ * this is asked by things that have no business importing the flight system — the
+ * wireframe view and the input layer today, sight cones later. `drone.ts` stays
+ * the only place that *writes* `possessedId`.
+ *
+ * A wreck reads as gone, matching `drivePossessed`: `droneSystem` drops the id on
+ * the next tick anyway, and a caller that got a corpse back would render (or aim)
+ * one frame of a machine that is not there.
+ */
+export function possessedRobotOf(ctx: GameContext, owner: Owner): RobotEntity | undefined {
+  const drone = drones(ctx.world).entities.find((d) => d.owner === owner);
+  const id = drone?.drone.possessedId;
+  return id ? livingRobotById(ctx, id) : undefined;
+}
+
 /** Living enemy robots relative to `owner`. */
 export function enemyRobots(ctx: GameContext, owner: Owner): RobotEntity[] {
   return robots(ctx.world).entities.filter((e) => isAlive(e) && isEnemy(owner, e.owner));
