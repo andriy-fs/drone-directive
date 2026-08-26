@@ -8,7 +8,12 @@ on:
     # Worker whose live matches take the socket drop — and neither can be affected
     # by prose. A push that touches any *other* path still runs everything, so a
     # commit mixing a doc edit with a code change is not skipped.
+    # `README.md` is listed separately on purpose: GitHub's `**` is documented as
+    # "zero or more of any character", which leaves the root file's match up to
+    # how the empty case is folded — and a filter that silently stops matching
+    # fails open, by deploying.
     paths-ignore:
+      - 'README.md'
       - '**/README.md'
       - '.docs/**'
       - 'LICENSE'
