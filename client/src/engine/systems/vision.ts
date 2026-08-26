@@ -55,10 +55,9 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
     // `systems/aiDrone.ts`), so this is where a drone's reach becomes intel.
     ...drones(ctx.world).entities.filter(isMine),
   ];
-  // Enemy `ew` robots jamming this side's scouts.
-  const jammers = robots(ctx.world).entities.filter(
-    (e) => isEnemy(owner, e.owner) && isAlive(e) && e.weapon.jamRadius > 0 && !isDisabled(e),
-  );
+  // Enemy `ew` robots jamming this side's scouts. Hoisted out of the loops below,
+  // which ask about this set once per foe per scout.
+  const jammers = jammersAgainst(ctx, owner);
 
   // The `enemySpotted` emits below all read the *previous* tick's set, which is
   // still on `intel` until the assignment that follows each loop — that one
@@ -111,7 +110,7 @@ function emitSpotted(ctx: GameContext, owner: Owner, targetId: string, targetKin
   ctx.bus.emit('enemySpotted', { owner, targetId, targetKind, pos: { x: pos.x, y: pos.y } });
 }
 
-function isSpotted(scouts: Scout[], jammers: RobotEntity[], x: number, y: number): boolean {
+function isSpotted(scouts: Scout[], jammers: readonly RobotEntity[], x: number, y: number): boolean {
   return scouts.some((s) => distance(s.position.x, s.position.y, x, y) <= effectiveSight(s, jammers));
 }
 
@@ -126,15 +125,71 @@ function isSpotted(scouts: Scout[], jammers: RobotEntity[], x: number, y: number
  * building" — a bomb's blast, a projectile's collision, a strike drone's approach
  * — already measures it this way (`distanceToBase`); this makes vision the fourth.
  */
-function isBaseSpotted(scouts: Scout[], jammers: RobotEntity[], base: BaseEntity): boolean {
+function isBaseSpotted(scouts: Scout[], jammers: readonly RobotEntity[], base: BaseEntity): boolean {
   return scouts.some((s) => distanceToBase(s.position, base) <= effectiveSight(s, jammers));
 }
 
 /** Scout's own sightRange, halved if it currently sits inside an enemy `ew` robot's jamRadius. */
-function effectiveSight(scout: Scout, jammers: RobotEntity[]): number {
+function effectiveSight(scout: Scout, jammers: readonly RobotEntity[]): number {
   const base = scout.sightRange;
-  const jammed = jammers.some(
-    (j) => distance(j.position.x, j.position.y, scout.position.x, scout.position.y) <= j.weapon.jamRadius,
+  return jamPressureFrom(jammers, scout.position.x, scout.position.y) > 0
+    ? base * gameConfig.combat.jamMultiplier
+    : base;
+}
+
+/**
+ * Enemy `ew` robots currently jamming `owner` — living, and with their own
+ * electronics up. A knocked-out jammer emits nothing, exactly as a knocked-out
+ * scout sees nothing (see `updateSideVision`).
+ *
+ * Exported alongside `jamPressure` for one reason: the callers that ask about
+ * *many* points (every tile of the fog mask, every foe against every scout) must
+ * resolve the set once per tick rather than per question. `jamPressure` is the
+ * one-shot form for callers with a single point.
+ */
+export function jammersAgainst(ctx: GameContext, owner: Owner): RobotEntity[] {
+  return robots(ctx.world).entities.filter(
+    (e) => isEnemy(owner, e.owner) && isAlive(e) && e.weapon.jamRadius > 0 && !isDisabled(e),
   );
-  return jammed ? base * gameConfig.combat.jamMultiplier : base;
+}
+
+/**
+ * How hard a point is being jammed: `0` outside every enemy jamming aura, rising
+ * to `1` at the centre of the strongest one.
+ *
+ * **This is the one place the jamming rule lives.** It used to be written out
+ * twice — once in `effectiveSight` here and once in `fogSystem`'s
+ * `effectiveRanges` — and the two had already drifted apart on whether a
+ * *disabled* jammer still jams. Both now ask this, so they cannot disagree again.
+ *
+ * The number is more than the boolean those two need, because the hull view reads
+ * it as a *pressure*: how badly a pilot's monitor is being torn up. That is what
+ * makes `combat.jamMultiplier` visible at all — until now it was a smaller number
+ * inside two systems and nothing at all on screen.
+ *
+ * **Counted from every jammer, seen or not, deliberately.** Interference tells you
+ * that you are being jammed, not where the jammer is standing; gating it on
+ * detection would turn a warning into a targeting aid.
+ *
+ * One boundary note, since the sight rule reads this as a predicate: a point at
+ * *exactly* `jamRadius` now reads as unjammed where the old `<=` called it jammed.
+ * At the edge of an aura the influence is zero either way, and no float coordinate
+ * lands there on purpose.
+ */
+export function jamPressureFrom(jammers: readonly RobotEntity[], x: number, y: number): number {
+  let worst = 0;
+  for (const j of jammers) {
+    const radius = j.weapon.jamRadius;
+    if (radius <= 0) continue;
+    const d = distance(j.position.x, j.position.y, x, y);
+    if (d >= radius) continue;
+    const pressure = 1 - d / radius;
+    if (pressure > worst) worst = pressure;
+  }
+  return worst;
+}
+
+/** `jamPressureFrom` for a caller with one point to ask about — resolves the set itself. */
+export function jamPressure(ctx: GameContext, owner: Owner, pos: Vec2): number {
+  return jamPressureFrom(jammersAgainst(ctx, owner), pos.x, pos.y);
 }

@@ -3,7 +3,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
 import { spawnBase, spawnDrone, spawnMunition, spawnRobot } from '../ecs/factory';
 import { makeCtx } from './testkit';
-import { visionSystem } from './vision';
+import { jamPressure, visionSystem } from './vision';
 
 describe('visionSystem — detection (no omniscience)', () => {
   it('does not know a distant enemy robot', () => {
@@ -157,6 +157,61 @@ describe('visionSystem — ew jamming', () => {
     jammer.disabled = { left: 8 };
     visionSystem(ctx);
     expect(ctx.intel.player.visibleRobotIds.has(foe.id)).toBe(true);
+  });
+});
+
+describe('jamPressure', () => {
+  const radius = gameConfig.robots.weapons.ew.jamRadius;
+
+  it('is nothing at all outside every aura', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.AI, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    expect(jamPressure(ctx, Owner.Player, { x: radius + 1, y: 0 })).toBe(0);
+  });
+
+  it('rises from the edge of the aura to its centre', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.AI, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    expect(jamPressure(ctx, Owner.Player, { x: 0, y: 0 })).toBe(1);
+    expect(jamPressure(ctx, Owner.Player, { x: radius / 2, y: 0 })).toBeCloseTo(0.5, 5);
+    // At exactly the radius the influence is zero — the boundary the sight rule
+    // used to call "jammed" with a `<=`, and where it makes no difference either way.
+    expect(jamPressure(ctx, Owner.Player, { x: radius, y: 0 })).toBe(0);
+  });
+
+  it('takes the worst of overlapping jammers, not their sum', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.AI, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    spawnRobot(ctx.world, Owner.AI, { x: radius / 2, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    // Midway between the two: half from each, and the answer is a half, not a whole.
+    expect(jamPressure(ctx, Owner.Player, { x: radius / 4, y: 0 })).toBeCloseTo(0.75, 5);
+  });
+
+  it('ignores a dead or disabled jammer, exactly as detection does', () => {
+    const ctx = makeCtx(1);
+    const dead = spawnRobot(ctx.world, Owner.AI, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    dead.hp = 0;
+    expect(jamPressure(ctx, Owner.Player, { x: 0, y: 0 })).toBe(0);
+    dead.hp = 10;
+    dead.disabled = { left: 8 };
+    expect(jamPressure(ctx, Owner.Player, { x: 0, y: 0 })).toBe(0);
+  });
+
+  it('is not felt from your own side jammers', () => {
+    const ctx = makeCtx(1);
+    spawnRobot(ctx.world, Owner.Player, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    expect(jamPressure(ctx, Owner.Player, { x: 0, y: 0 })).toBe(0);
+  });
+
+  it('is felt from a jammer this side has never detected', () => {
+    const ctx = makeCtx(1);
+    // No scouts at all, so nothing is in `intel` — interference tells you that you
+    // are being jammed, not where the jammer is standing, and gating it on
+    // detection would turn a warning into a targeting aid.
+    spawnRobot(ctx.world, Owner.AI, { x: 0, y: 0 }, ChassisType.Tracks, WeaponType.Ew);
+    visionSystem(ctx);
+    expect(ctx.intel.player.visibleRobotIds.size).toBe(0);
+    expect(jamPressure(ctx, Owner.Player, { x: 10, y: 0 })).toBeGreaterThan(0);
   });
 });
 
