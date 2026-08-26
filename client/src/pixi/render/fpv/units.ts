@@ -209,6 +209,74 @@ function inPass(segment: Model[number], node: NodeKind): boolean {
   return segment.node === node;
 }
 
+/** Screen-space extent of a projected model — what the target brackets are hung on. */
+export interface ScreenBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * Where a model lands on screen, without drawing it.
+ *
+ * Projects a second time rather than reading back whatever `drawUnit` last left in
+ * the scratch: at most one machine per frame is marked, so the cost is one model,
+ * and a caller silently depending on draw order is the kind of coupling that breaks
+ * the first time somebody reorders two loops.
+ */
+export function screenBoundsOf(view: FpvProjection, model: Model, pose: UnitPose): ScreenBounds | null {
+  const c = Math.cos(pose.heading);
+  const s = Math.sin(pose.heading);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const m of model) {
+    for (const [lx, ly, lz] of [
+      [m.x0, m.y0, m.z0],
+      [m.x1, m.y1, m.z1],
+    ]) {
+      const p = project(view, pose.x + lx * c - ly * s, pose.y + lx * s + ly * c, pose.z + lz);
+      if (!p) continue;
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+  }
+  return minX <= maxX ? { minX, minY, maxX, maxY } : null;
+}
+
+/**
+ * Corner brackets around the machine the trigger would take.
+ *
+ * Brackets rather than a box: the machine already has an outline, and a second one
+ * around it reads as part of the machine rather than as something said *about* it.
+ * They are given a floor size so a target at the far end of a launcher's reach is
+ * still a mark and not a dot.
+ */
+export function drawTargetMark(g: Graphics, bounds: ScreenBounds, alpha: number): void {
+  const PAD = 6;
+  const MIN_HALF = 9;
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cy = (bounds.minY + bounds.maxY) / 2;
+  const hx = Math.max((bounds.maxX - bounds.minX) / 2 + PAD, MIN_HALF);
+  const hy = Math.max((bounds.maxY - bounds.minY) / 2 + PAD, MIN_HALF);
+  // A quarter of the shorter side, so the brackets stay brackets on a base as well
+  // as on a robot instead of closing into a rectangle.
+  const arm = Math.min(hx, hy) / 2;
+
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      const x = cx + sx * hx;
+      const y = cy + sy * hy;
+      g.moveTo(x - sx * arm, y).lineTo(x, y).lineTo(x, y - sy * arm);
+    }
+  }
+  g.stroke({ width: 1, color: palette.fpv.lock, alpha });
+}
+
 /** One stroke over the segments of a pass (or the whole model when `node` is null), read out of `projected`. */
 function stroke(
   g: Graphics,

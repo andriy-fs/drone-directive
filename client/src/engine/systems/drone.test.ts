@@ -3,7 +3,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { spawnDrone, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
-import { droneSystem } from './drone';
+import { droneSystem, manualFireTarget } from './drone';
 import { reapSystem } from './reap';
 import { isTargetableDrone } from './targeting';
 import { makeCtx } from './testkit';
@@ -216,6 +216,77 @@ describe('droneSystem — manual fire', () => {
 
     expect(ctx.world.with('projectile').entities.length).toBe(1);
     expect(gun.weapon!.cooldownLeft).toBeGreaterThan(0);
+  });
+});
+
+describe('manualFireTarget — what the trigger would take', () => {
+  const possessedGun = (ctx: GameContext, weapon: WeaponType = WeaponType.Cannon) => {
+    fillNav(ctx, false);
+    const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, weapon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone!.possessedId = gun.id;
+    return gun;
+  };
+
+  it('is whatever the shot actually goes at — the mark and the round cannot disagree', () => {
+    // The whole reason this is exported: the hull view draws it, and a mark that
+    // named a different machine from the one the trigger hits would be worse than
+    // no mark at all.
+    const ctx = makeCtx(1);
+    const gun = possessedGun(ctx);
+    spawnRobot(ctx.world, Owner.AI, { x: 400, y: 470 }, ChassisType.Tracks, WeaponType.Cannon);
+    const near = spawnRobot(ctx.world, Owner.AI, { x: 440, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+
+    const marked = manualFireTarget(ctx, gun);
+    expect(marked?.id).toBe(near.id);
+
+    setControl(ctx, { x: 0, y: 0 }, false, true);
+    droneSystem(ctx, 1);
+    const shot = ctx.world.with('projectile').entities[0];
+    expect(shot.targetId).toBe(marked!.id);
+  });
+
+  it('takes nothing when the nearest enemy is past the weapon range', () => {
+    // The case behind "I pressed E and nothing happened": a cannon reaches 180 px,
+    // and from inside a hull a machine at 300 looks perfectly shootable.
+    const ctx = makeCtx(1);
+    const gun = possessedGun(ctx);
+    spawnRobot(ctx.world, Owner.AI, { x: 700, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+
+    expect(manualFireTarget(ctx, gun)).toBeUndefined();
+    setControl(ctx, { x: 0, y: 0 }, false, true);
+    droneSystem(ctx, 1);
+    expect(ctx.world.with('projectile').entities.length).toBe(0);
+  });
+
+  it('keeps marking through a reload, because that is the gun and not the target', () => {
+    const ctx = makeCtx(1);
+    const gun = possessedGun(ctx);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 440, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    gun.weapon!.cooldownLeft = gun.weapon!.cooldown;
+
+    expect(manualFireTarget(ctx, gun)?.id).toBe(foe.id);
+  });
+
+  it('takes nothing for a hull that cannot shoot at all', () => {
+    const ctx = makeCtx(1);
+    // A kamikaze has no target — its shot is the blast where it stands — and a
+    // radar has no weapon to point at anything.
+    const bomb = possessedGun(makeCtx(1), WeaponType.Bomb);
+    expect(manualFireTarget(ctx, bomb)).toBeUndefined();
+
+    const scout = possessedGun(ctx, WeaponType.Radar);
+    spawnRobot(ctx.world, Owner.AI, { x: 440, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    expect(manualFireTarget(ctx, scout)).toBeUndefined();
+  });
+
+  it('takes nothing while the hull is knocked out', () => {
+    const ctx = makeCtx(1);
+    const gun = possessedGun(ctx);
+    spawnRobot(ctx.world, Owner.AI, { x: 440, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    gun.disabled = { left: 8 };
+
+    expect(manualFireTarget(ctx, gun)).toBeUndefined();
   });
 });
 

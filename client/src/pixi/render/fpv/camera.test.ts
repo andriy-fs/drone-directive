@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../../config/gameConfig';
 import { FpvCameraRig, fpvEye, project, viewProjection } from './camera';
+import { drawTargetMark, screenBoundsOf } from './units';
+import { ROBOT_MODELS } from './models';
+import { ChassisType, WeaponType } from '@drone-directive/types/enums';
 
 /**
  * The half of this view that is genuinely easy to get backwards: which way is
@@ -170,5 +173,86 @@ describe('FpvCameraRig', () => {
     const kicked = trail(rig, { shot: true });
     rig.reset();
     expect(trail(rig)).toBeLessThan(kicked - 10);
+  });
+});
+
+describe('screenBoundsOf', () => {
+  /** A hull sitting on flat ground a little way in front of the camera. */
+  const pose = { x: facingEast.x + 260, y: facingEast.y, z: 0, heading: 0 };
+  const model = ROBOT_MODELS[ChassisType.Tracks][WeaponType.Cannon];
+
+  it('boxes the machine where the machine is drawn', () => {
+    const view = viewProjection(facingEast, W, H);
+    const bounds = screenBoundsOf(view, model, pose);
+    expect(bounds).not.toBeNull();
+    // The target brackets hang off this, so a box that missed the machine would put
+    // the mark somewhere the pilot is not looking.
+    const centre = project(view, pose.x, pose.y, pose.z + 8);
+    expect(centre?.x).toBeGreaterThan(bounds?.minX ?? 0);
+    expect(centre?.x).toBeLessThan(bounds?.maxX ?? 0);
+    expect(centre?.y).toBeGreaterThan(bounds?.minY ?? 0);
+    expect(centre?.y).toBeLessThan(bounds?.maxY ?? 0);
+  });
+
+  it('shrinks as the machine goes away', () => {
+    const view = viewProjection(facingEast, W, H);
+    const near = screenBoundsOf(view, model, pose);
+    const far = screenBoundsOf(view, model, { ...pose, x: facingEast.x + 900 });
+    const width = (b: { minX: number; maxX: number } | null) => (b ? b.maxX - b.minX : 0);
+    expect(width(far)).toBeLessThan(width(near) / 2);
+  });
+
+  it('gives nothing for a machine entirely behind the camera', () => {
+    const view = viewProjection(facingEast, W, H);
+    expect(screenBoundsOf(view, model, { ...pose, x: facingEast.x - 900 })).toBeNull();
+  });
+});
+
+describe('drawTargetMark', () => {
+  /**
+   * A stand-in for the `Graphics` the view strokes into — the bracket is geometry,
+   * and geometry is checkable without a GPU. What matters is that the four marks
+   * really are corner brackets: open in the middle, so the machine inside them is
+   * still readable as a machine.
+   */
+  const recorder = () => {
+    const moves: { x: number; y: number }[] = [];
+    const lines: { x: number; y: number }[] = [];
+    const g = {
+      moveTo(x: number, y: number) {
+        moves.push({ x, y });
+        return g;
+      },
+      lineTo(x: number, y: number) {
+        lines.push({ x, y });
+        return g;
+      },
+      stroke() {
+        return g;
+      },
+    };
+    return { g, moves, lines };
+  };
+
+  it('hangs four brackets on the corners and leaves the middle open', () => {
+    const { g, moves, lines } = recorder();
+    drawTargetMark(g as unknown as Parameters<typeof drawTargetMark>[0], { minX: 100, minY: 100, maxX: 200, maxY: 160 }, 1);
+
+    // One bracket per corner, each an elbow: a move and two lines.
+    expect(moves).toHaveLength(4);
+    expect(lines).toHaveLength(8);
+    // Every point stays outside the machine's own box, so the mark never draws
+    // across the contour it is pointing at.
+    const inside = [...moves, ...lines].filter((p) => p.x > 105 && p.x < 195 && p.y > 105 && p.y < 155);
+    expect(inside).toHaveLength(0);
+  });
+
+  it('gives a distant machine a mark that is still a mark', () => {
+    const { g, moves, lines } = recorder();
+    // A hull at the far end of a launcher's reach projects to a couple of pixels;
+    // brackets scaled straight off that would be invisible.
+    drawTargetMark(g as unknown as Parameters<typeof drawTargetMark>[0], { minX: 400, minY: 300, maxX: 402, maxY: 301 }, 1);
+    const xs = [...moves, ...lines].map((p) => p.x);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(12);
   });
 });

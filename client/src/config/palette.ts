@@ -176,6 +176,18 @@ export const palette = {
      * barrel on a hostile contour is the most valuable thing on this screen.
      */
     heat: 0xffbe52,
+    /**
+     * Brackets round the machine the trigger would take (`E`) — the one enemy in
+     * the possessed hull's weapon range.
+     *
+     * The same yellow as `selection.ring` on purpose. The two views mean the same
+     * thing by it — *this* is the one you have singled out — and a player who has
+     * learned it from above should not have to learn a second colour for it from
+     * inside. What differs is the shape: a ring up there, corner brackets here,
+     * because a contour already has an outline and a second one would read as part
+     * of the machine.
+     */
+    lock: 0xfde047,
   },
   /** The launcher of a base's built-in missile battery, drawn over the body. */
   turret: {

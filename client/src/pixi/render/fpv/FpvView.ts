@@ -4,10 +4,11 @@ import { worldPixelSize } from '../../../config/gameConfig';
 import type { Entity } from '../../../engine/ecs/entity';
 import type { EcsWorld } from '../../../engine/ecs/world';
 import type { RobotEntity } from '../../../engine/ecs/archetypes';
-import { bases, drones, robots } from '../../../engine/ecs/queries';
+import { bases, drones, munitions, projectiles, robots } from '../../../engine/ecs/queries';
 import { isAlive } from '../../../engine/ecs/guards';
 import { isDisabled } from '../../../engine/systems/status';
 import { jamPressure } from '../../../engine/systems/vision';
+import { manualFireTarget } from '../../../engine/systems/drone';
 import { perfFlags } from '../../perf/perfFlags';
 import type { FogState, GameContext } from '../../../engine/game/context';
 import type { TerrainGrid } from '../../../engine/obstacles';
@@ -16,8 +17,16 @@ import { FeedFilter } from './FeedFilter';
 import { FpvFogMask } from './fogMask';
 import { createFpvTerrainShader } from './shaders';
 import { heightField, terrainGeometry, type HeightField } from './terrain';
-import { BASE_BODY, BASE_LAUNCHER, DRONE_MODEL, ROBOT_MODELS, type Model } from './models';
-import { COLD, baseHeat, drawUnit, robotHeat, type Heat } from './units';
+import {
+  BASE_BODY,
+  BASE_LAUNCHER,
+  DRONE_MODEL,
+  MUNITION_MODEL,
+  PROJECTILE_MODEL,
+  ROBOT_MODELS,
+  type Model,
+} from './models';
+import { COLD, baseHeat, drawTargetMark, drawUnit, robotHeat, screenBoundsOf, type Heat } from './units';
 
 /**
  * The wireframe hull view: the second renderer in this folder, and the one the
@@ -295,6 +304,19 @@ export class FpvView {
       if (r.id === possessed.id) heat.drive = pilotDrive;
       this.drawModel(view, model, r.position, r.heading, this.roleColor(r, possessed), heat);
     }
+    // Rounds in flight. Untinted by owner and drawn with the heat pass — see
+    // `PROJECTILE_MODEL`. Not gated on `isVisible`: a projectile carries no owner
+    // tag the fog reads, and the top view does not hide them either.
+    for (const p of projectiles(world)) {
+      this.drawModel(view, PROJECTILE_MODEL, p.position, Math.atan2(p.velocity.y, p.velocity.x), palette.fpv.foe, {
+        drive: 0,
+        barrel: 1,
+      });
+    }
+    for (const m of munitions(world)) {
+      if (!isAlive(m) || !isVisible(m)) continue;
+      this.drawModel(view, MUNITION_MODEL, m.position, m.heading, this.roleColor(m, possessed), COLD);
+    }
     for (const d of drones(world)) {
       if (!isAlive(d) || !isVisible(d)) continue;
       // A drone inside a hull is glued to that hull's position, so drawing it puts a
@@ -304,6 +326,37 @@ export class FpvView {
       if (d.drone.possessedId) continue;
       this.drawModel(view, DRONE_MODEL, d.position, d.heading, this.roleColor(d, possessed), COLD);
     }
+
+    this.drawFireMark(frame, view, possessed);
+  }
+
+  /**
+   * Bracket whatever `E` would shoot at.
+   *
+   * The answer comes from `manualFireTarget` — the very function the trigger uses —
+   * rather than from anything this file works out about ranges. It is the only thing
+   * on the monitor that says a weapon can reach: a cannon's 180 px stops barely past
+   * the hull's own nose on screen, so a pilot with no mark is guessing, which is
+   * exactly what "I pressed E and nothing happened" was.
+   *
+   * Drawn last, over every contour, because it is something said *about* a machine.
+   */
+  private drawFireMark(frame: FpvFrame, view: FpvProjection, possessed: RobotEntity): void {
+    if (!frame.ctx) return;
+    const target = manualFireTarget(frame.ctx, possessed);
+    // The gate the rest of the view uses. A launcher can reach a great deal further
+    // than this side can see, and marking a machine it has not detected would hand
+    // out the intel every other line in this file is careful not to.
+    if (!target || !frame.isVisible(target)) return;
+
+    const dist = Math.hypot(target.position.x - view.eye.x, target.position.y - view.eye.y);
+    if (dist > FADE.end) return;
+    const model = target.base ? BASE_BODY : ROBOT_MODELS[target.chassis][target.weaponType];
+    const z = this.heights?.at(target.position.x, target.position.y) ?? 0;
+    // A base is drawn square to the world, so its bracket is measured that way too.
+    const heading = target.base ? 0 : target.heading;
+    const bounds = screenBoundsOf(view, model, { x: target.position.x, y: target.position.y, z, heading });
+    if (bounds) drawTargetMark(this.units, bounds, 1 - Math.max(0, dist - FADE.start) / Math.max(FADE.end - FADE.start, 1));
   }
 
   /**

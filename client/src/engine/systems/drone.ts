@@ -2,7 +2,7 @@ import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { TaskType } from '@drone-directive/types/enums';
 import { clamp, distance, vecLength } from '../../utils/math';
-import type { DroneEntity, Positioned, RobotEntity } from '../ecs/archetypes';
+import type { BaseEntity, DroneEntity, Positioned, RobotEntity } from '../ecs/archetypes';
 import { spawnProjectile } from '../ecs/factory';
 import { isAlive } from '../ecs/guards';
 import { drones, robots } from '../ecs/queries';
@@ -128,6 +128,40 @@ function blockedAt(ctx: GameContext, x: number, y: number): boolean {
 }
 
 /**
+ * **What the trigger would take**: the nearest enemy this hull's weapon can reach,
+ * or nothing.
+ *
+ * Split out of `fireManual` so the hull view can mark it (`pixi/render/fpv`). That
+ * mark is only worth anything if it is the *same* answer the trigger acts on, and
+ * the alternative — the renderer working out "what looks shootable" for itself —
+ * would be a second rule that agrees right up until one of the two is edited. From
+ * inside a hull there is no other way to judge range: a cannon reaches 180 px, and
+ * the camera already sits 118 px behind the machine, so almost everything a pilot
+ * can see is out of reach and nothing on screen used to say so.
+ *
+ * Three cases answer "nothing" for three different reasons, and all three are
+ * correct as a *mark*: a knocked-out hull answers no trigger at all, an unarmed one
+ * has nothing to fire, and a kamikaze has no target because its shot is the blast
+ * where it stands.
+ *
+ * Deliberately **ignores the cooldown**. This is what the gun is pointed at, not
+ * whether it has finished reloading — and the barrel's own heat already says that
+ * (`fpv/units.ts`). A mark that blinked out for every reload would read as the
+ * target being lost.
+ */
+export function manualFireTarget(ctx: GameContext, robot: RobotEntity): RobotEntity | BaseEntity | undefined {
+  const w = robot.weapon;
+  if (isDisabled(robot) || w.explosionRadius > 0 || !canEngage(w)) return undefined;
+  const pos = robot.position;
+  const foes = [...enemyRobots(ctx, robot.owner), ...enemyBases(ctx, robot.owner)].filter((e) =>
+    w.salvo > 0
+      ? isKnownTo(ctx, robot.owner, e) && withinMunitionReach(pos, e)
+      : distance(pos.x, pos.y, e.position.x, e.position.y) <= w.range,
+  );
+  return nearest(pos, foes);
+}
+
+/**
  * Fires the possessed robot's weapon once: kamikaze detonates, a launcher sends a
  * salvo, others shoot the nearest foe in range.
  *
@@ -148,12 +182,7 @@ function fireManual(ctx: GameContext, robot: RobotEntity): void {
   if (!canEngage(w) || w.cooldownLeft > 0) return;
 
   const pos = robot.position;
-  const foes = [...enemyRobots(ctx, robot.owner), ...enemyBases(ctx, robot.owner)].filter((e) =>
-    w.salvo > 0
-      ? isKnownTo(ctx, robot.owner, e) && withinMunitionReach(pos, e)
-      : distance(pos.x, pos.y, e.position.x, e.position.y) <= w.range,
-  );
-  const target = nearest(pos, foes);
+  const target = manualFireTarget(ctx, robot);
   if (!target) return;
 
   if (w.salvo > 0) launchSalvo(ctx, robot, target);

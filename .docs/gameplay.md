@@ -44,6 +44,9 @@ see [architecture.md](architecture.md).
   **Hot parts glow**: a barrel that has just fired, wheels and legs under load.
   A distant contour tells you what a machine is; its glow tells you what it is
   doing, which is something the top-down view has never been able to show.
+  **Firing is `E`, and it takes the nearest enemy inside your weapon's range** —
+  which is shorter than it looks from in there, so the one machine you can
+  actually hit is drawn in brackets. No brackets, no shot.
   Unexplored ground is not drawn at all — the monitor shows you what your side
   has found, not what is there.
 
@@ -119,7 +122,7 @@ see [architecture.md](architecture.md).
 | **Esc** / **Space** / **P**      | Pause / resume                                                |
 | **W A S D** / **arrow keys**     | Fly the observer drone (pan the camera while it is shot down) |
 | **F**                            | Land the drone on / release an idle robot (switches to the hull view) |
-| **E**                            | Fire the possessed robot's weapon                             |
+| **E**                            | Fire the possessed robot's weapon at the marked target        |
 
 Use the **Program** panel in the HUD to assign a directive to the selected
 unit(s), and the **Build Robot** dialog to produce units (once or on a
