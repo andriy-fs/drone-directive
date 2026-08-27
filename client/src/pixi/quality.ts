@@ -24,7 +24,23 @@ export const GRAPHICS_QUALITIES = ['high', 'medium', 'low'] as const;
 export type GraphicsQuality = (typeof GRAPHICS_QUALITIES)[number];
 
 const STORAGE_KEY = 'dd:gfxQuality';
-const DEFAULT: GraphicsQuality = 'high';
+/**
+ * **`medium`, not `high`** — the default has to be the setting that renders at a
+ * sane number of pixels, because `high` deliberately puts *no* ceiling on
+ * `devicePixelRatio` at all.
+ *
+ * Measured in Firefox on one machine, same seed, same spot: `high` (res 2) on a
+ * 60×60 map ran at 56 fps / 17.9 ms mean, while res 1 on an *80×80* map — a bigger,
+ * more expensive field — ran at 78 fps / 12.8 ms. Nothing changed but the pixel
+ * count. Across the same runs the main thread stayed ~90% idle (`busy` 1.3–1.9 ms
+ * against a 12–18 ms frame), so none of that time was the game's own code: it was
+ * fill rate, and no optimisation reaches it. Only fewer pixels do.
+ *
+ * `high` stays available and unchanged for whoever has the GPU for it. What it must
+ * not be is what an unknown machine gets handed on first boot, where at dpr 2 it is
+ * 4× the fragments and on a 4K screen considerably worse.
+ */
+const DEFAULT: GraphicsQuality = 'medium';
 
 /**
  * Per level: whether MSAA is on, and the ceiling put on `devicePixelRatio`.
