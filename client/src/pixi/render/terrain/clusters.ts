@@ -237,6 +237,15 @@ export function depthField(cluster: Cluster): DepthField {
  * Sorted deepest-first with a coordinate tie-break, so the greedy thinning (and
  * therefore the result) is identical on every peer.
  */
+/**
+ * Chebyshev tiles two ridge decals must be apart. Also what keeps a small blob to one.
+ *
+ * Exported because `critters.ts` has to know it too: a critter is placed by the same
+ * "deepest interior" rule that puts a summit there, so without the shared number the
+ * two would compete for the same tile and the creature would sit under a rock.
+ */
+export const PEAK_SEPARATION = 3;
+
 export function peakAnchors(cluster: Cluster, depth: DepthField, minSeparation: number): Tile[] {
   const candidates: Tile[] = [];
   for (const t of cluster.tiles) {

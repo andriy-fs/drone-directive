@@ -55,6 +55,7 @@ import { HoverTargetView, type HoverTarget } from './render/HoverTargetView';
 import { OrderMarkerView } from './render/OrderMarkerView';
 import { RallyView, type RallyMarker } from './render/RallyView';
 import { createTerrainView } from './render/terrain/TerrainView';
+import { CritterView } from './render/CritterView';
 import { FpvView } from './render/fpv/FpvView';
 import { perfFlags } from './perf/perfFlags';
 import { PerfHud } from './perf/PerfHud';
@@ -95,6 +96,11 @@ export class GameApp {
    */
   private fpvView: FpvView | null = null;
   private obstacleGfx: Container | null = null;
+  /**
+   * The mountain plateaus' decorative wildlife. Rebuilt with the terrain it stands on
+   * and torn down with it — see `render/CritterView.ts`.
+   */
+  private critterView: CritterView | null = null;
   /** Frame-time readout — see `perf/perfFlags.ts`. Null unless `?perf=1`. */
   private perfHud: PerfHud | null = null;
   private qualityUnsub: (() => void) | null = null;
@@ -438,6 +444,7 @@ export class GameApp {
     this.worldRenderer.sync(selected, (e) => this.isVisibleToLocalSide(e), now);
     if (perfFlags.fog) this.fogView?.update(this.engine.context?.fog);
     this.rallyView?.update(this.localRallyMarkers());
+    this.critterView?.update(now);
     this.orderMarkerView?.update(now);
     const hovered = this.attackHoverTarget(selectedRobotIds);
     this.hoverView?.update(hovered, now);
@@ -1295,6 +1302,14 @@ export class GameApp {
     if (!ctx || !perfFlags.terrain) return;
     this.obstacleGfx = createTerrainView(ctx.terrain);
     this.layers.ground.addChild(this.obstacleGfx);
+    // Above the terrain and still on the `ground` layer, which is what puts the
+    // creatures under the fog: unexplored ones must stay hidden along with the rock
+    // they stand on. Inside the `?terrain=0` guard deliberately — they are decoration
+    // *on* the terrain, so a switch that removes the landform removes them too.
+    if (perfFlags.critters) {
+      this.critterView = new CritterView(ctx.terrain);
+      this.layers.ground.addChild(this.critterView.container);
+    }
   }
 
   /**
@@ -1312,6 +1327,8 @@ export class GameApp {
     // one flat container — destroying only the root would strand the rest.
     this.obstacleGfx?.destroy({ children: true });
     this.obstacleGfx = null;
+    this.critterView?.destroy();
+    this.critterView = null;
   }
 
   destroy(): void {

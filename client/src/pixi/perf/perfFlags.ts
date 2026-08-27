@@ -33,6 +33,7 @@
  * &rim=0               boundary rim off
  * &peaks=0             ridge decals off
  * &debris=0            the stone and contact shadow at a mountain's foot off
+ * &critters=0          the plateau wildlife off
  * &feed=0              the hull view's monitor filter off (the one full-screen pass it costs)
  * &seed=7               pin the solo match's battlefield instead of seeding from the clock
  * ```
@@ -55,6 +56,8 @@ export interface PerfFlags {
   rim: boolean;
   peaks: boolean;
   debris: boolean;
+  /** The decorative creatures on the mountain plateaus (`render/CritterView.ts`). */
+  critters: boolean;
   /**
    * The hull view's CRT pass (`render/fpv/feed/FeedFilter.ts`). Off, the wireframe draws
    * bare — which is the *only* way to price that pass, since it is one full offscreen
@@ -100,6 +103,7 @@ function read(): PerfFlags {
     rim: flag('rim', true),
     peaks: flag('peaks', true),
     debris: flag('debris', true),
+    critters: flag('critters', true),
     feed: flag('feed', true),
     seed: number('seed'),
     overrides,

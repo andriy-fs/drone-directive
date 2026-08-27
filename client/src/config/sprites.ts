@@ -352,6 +352,76 @@ export const groundAltSprite: SpriteDef | undefined = {
 export const groundDecalSprites: SpriteDef[] = sheet2x2(`${PUBLIC_BASE}ground-decals.webp`, 256, GROUND_DECAL_TARGET);
 
 /**
+ * The species of plateau critter — the small non-combat creatures that sit on the
+ * interior of a large mountain cluster and animate there for the whole match.
+ *
+ * **Deliberately not in `types/src/enums.ts`.** That workspace is the vocabulary the
+ * wire protocol and the simulation share; a critter is neither. It is decoration that
+ * exists only inside the renderer — no ECS entity, no command, no BARE field, nothing
+ * the engine or a peer can even name — so its type has no business travelling that far.
+ * See `.docs/internal/sprites/critters.md`.
+ */
+export const CritterKind = { Warden: 'warden', Crawler: 'crawler', Bloom: 'bloom' } as const;
+export type CritterKind = (typeof CritterKind)[keyof typeof CritterKind];
+
+/**
+ * On-field diameter (px) per species. Three sizes rather than one because the three
+ * silhouettes carry their bulk differently — `warden` is a compact round mass, `crawler`
+ * is long and thin and would out-measure it at a shared size while looking lighter (the
+ * same area-not-width lesson `LEGS_TARGET` records), and `bloom` is the smallest thing
+ * on the field on purpose, since it never moves at all.
+ *
+ * All three are read against `PEAK_TARGET` (90): a critter must be visibly smaller than
+ * the summit decals it shares the plateau with, or it stops being a detail in the
+ * landscape and starts being a landmark.
+ */
+const CRITTER_TARGET: Record<CritterKind, number> = {
+  [CritterKind.Warden]: 76,
+  [CritterKind.Crawler]: 64,
+  [CritterKind.Bloom]: 56,
+};
+
+/**
+ * Idle-cycle sheets for the plateau critters, one per species. Four cells in cycle
+ * order, cell 0 the rest pose, quadrant 256 because each sheet ships at 512².
+ *
+ * **No `rotationOffset`, and `CritterView` never flips or freely rotates a cell.** Like
+ * `peakSprites`, the light is baked into this art (from the upper left, matching `LIGHT`
+ * in `pixi/render/terrain/TerrainView.ts`), so turning a cell would move that creature's
+ * sun. Species, cycle phase and a few degrees of jitter are all the variety available.
+ *
+ * A missing or half-loaded sheet means that species simply is not drawn —
+ * `getCritterTextures` is all-or-nothing on the same terms as `getBaseGaitTextures`.
+ *
+ * All three sheets are drawn and preloaded. **Adding a fourth species means adding it to
+ * `spriteSources()` only once its `.webp` is committed** — an entry there is a *preload*
+ * entry, so declaring art nobody has drawn 404s on every page load and makes
+ * `npm run shot` exit non-zero. Until then the defs resolve to `null` and that species is
+ * simply not drawn, which is the intended degraded state rather than a broken one.
+ */
+export const critterSprites: Record<CritterKind, SpriteDef[]> = {
+  [CritterKind.Warden]: sheet2x2(`${PUBLIC_BASE}critter-warden-idle.webp`, 256, CRITTER_TARGET[CritterKind.Warden]),
+  [CritterKind.Crawler]: sheet2x2(`${PUBLIC_BASE}critter-crawler-idle.webp`, 256, CRITTER_TARGET[CritterKind.Crawler]),
+  [CritterKind.Bloom]: sheet2x2(`${PUBLIC_BASE}critter-bloom-idle.webp`, 256, CRITTER_TARGET[CritterKind.Bloom]),
+};
+
+/**
+ * How long (ms) one full four-cell cycle of a critter's idle sheet takes.
+ *
+ * Timed rather than travel-driven, for the same reason the base and the drone are: the
+ * thing does not move, so there is no distance to clock it by (`render/gait.ts` explains
+ * what travel-driven buys and none of it applies here).
+ *
+ * **Deliberately double `BASE_CYCLE_MS`/`DRONE_CYCLE_MS` (1200), where those two match
+ * each other deliberately.** Those are both the "this machine is powered" idle — running
+ * lights, a turning dish, a watching camera — and they read as one system because they
+ * share a period. A critter is the opposite kind of idle: something breathing, not
+ * something switched on. At 1200 it ticks along with the base's landing lights and joins
+ * that system; at 2400, 600 ms a cell, it visibly belongs to a slower clock.
+ */
+export const CRITTER_CYCLE_MS = 2400;
+
+/**
  * The observer drone — **one** art set for every side, unlike the robot and base
  * sprites. `DroneView` recolours it per owner so an enemy drone can't be mistaken
  * for your own. Whole-image art authored facing up → `rotationOffset: Math.PI / 2`.
@@ -507,6 +577,8 @@ export function spriteSources(): string[] {
   for (const def of Object.values(terrainSprites)) if (def) srcs.push(def.src);
   for (const def of peakSprites) srcs.push(def.src);
   for (const def of groundDecalSprites) srcs.push(def.src);
+  // Four defs per sheet, three files — the de-dupe at the end collapses them.
+  for (const defs of Object.values(critterSprites)) for (const def of defs) srcs.push(def.src);
   if (ejectaSprite) srcs.push(ejectaSprite.src);
   if (groundSprite) srcs.push(groundSprite.src);
   if (groundAltSprite) srcs.push(groundAltSprite.src);

@@ -16,6 +16,7 @@ import {
   depthField,
   findClusters,
   peakAnchors,
+  PEAK_SEPARATION,
   type Cluster,
   type DepthField,
   type Side,
@@ -175,8 +176,6 @@ const HAZE = { REACH: 30, ALPHA: 0.14 } as const;
  */
 const CONTACT = { REACH: 14, ALPHA: 0.6, KNEE: 0.38, KNEE_ALPHA: 0.42 } as const;
 
-/** Chebyshev tiles two ridge decals must be apart. Also what keeps a small blob to one. */
-const PEAK_SEPARATION = 3;
 /** How much wider than its cluster's bounding box the debris halo is drawn. */
 const EJECTA_SPREAD = 1.55;
 

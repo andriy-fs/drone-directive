@@ -100,6 +100,12 @@ const SPRITES = [
   // background decor sitting under the fog.
   { name: 'terrain-ejecta', size: 512, quality: 86 },
   { name: 'ground-decals', size: 512, quality: 90 },
+  // Plateau critters: one 2×2 idle sheet per species, cropped by `frame` in
+  // config/sprites.ts. 512 ships four 256² cells for a creature drawn at 56–76 px —
+  // the same generous per-cell headroom the bases get, and worth it because a critter
+  // stands still in plain sight for the whole match. Alpha, and NOT seamless: it is a
+  // sheet, so wrap-padding would bleed one cell into the next.
+  ...['warden', 'crawler', 'bloom'].map((species) => ({ name: `critter-${species}-idle`, size: 512, quality: 90 })),
 ];
 
 /** The ffmpeg filter chain that turns a master into a correctly scaled RGBA/RGB frame. */

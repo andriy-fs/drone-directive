@@ -5,6 +5,7 @@ import { markSoundReady } from './audio/sfx';
 import {
   baseGaitSprites,
   baseSprites,
+  critterSprites,
   droneCycleSprites,
   droneSprite,
   ejectaSprite,
@@ -20,6 +21,7 @@ import {
   weaponSprites,
   type SpriteDef,
 } from '../config/sprites';
+import type { CritterKind } from '../config/sprites';
 import { Owner, type ChassisType, type TerrainKind, type WeaponType } from '@drone-directive/types/enums';
 
 /**
@@ -249,6 +251,27 @@ export const peakVariantCount = peakSprites.length;
 export function getPeakTexture(variant: number): ResolvedSprite | null {
   const i = variant % peakSprites.length;
   return cached(`peak:${i}`, peakSprites[i]);
+}
+
+/**
+ * The idle-cycle frames for one critter species in cycle order, or null if that
+ * species' sheet is missing or half-loaded (see `critterSprites`).
+ *
+ * **All or nothing**, on the same terms as `getBaseGaitTextures`: a four-frame loop
+ * with a hole in it looks worse than an empty plateau, and an empty plateau is exactly
+ * what the game looked like before these existed.
+ *
+ */
+export function getCritterTextures(kind: CritterKind): ResolvedSprite[] | null {
+  const defs = critterSprites[kind];
+  if (!defs.length) return null;
+  const frames: ResolvedSprite[] = [];
+  for (const [i, def] of defs.entries()) {
+    const frame = cached(`critter:${kind}:${i}`, def);
+    if (!frame) return null;
+    frames.push(frame);
+  }
+  return frames;
 }
 
 /** The crater debris halo, or null (→ crater draws without one) if missing/unloaded. */
