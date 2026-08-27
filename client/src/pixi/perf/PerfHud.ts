@@ -84,6 +84,19 @@ export interface FrameCost {
    */
   resolution: number;
   /**
+   * Whether the WebGL context was actually created with MSAA — read back from the
+   * context, not from the setting that asked for it.
+   *
+   * Here because a quality comparison kept being unreadable without it. `res` shows
+   * the resolution half of the graphics setting; the antialias half was invisible, so
+   * a screenshot could not say whether MSAA was on, and three runs in a row could not
+   * be told apart from runs that varied nothing at all. A `&aa=0` in the overrides
+   * line is not a substitute: it says a flag was passed, not what the renderer did
+   * with it — and the flag can only ever turn MSAA off, so on a level that already
+   * has it off it changes nothing while looking like a variable.
+   */
+  antialias: boolean;
+  /**
    * Fixed steps the sim ran this frame (`GameLoop.steps`). Averaged into a
    * ticks-per-second figure, which is the one number that says whether the
    * *world* is running at full speed. `net stall %` cannot: a stalled step keeps
@@ -104,6 +117,7 @@ export class PerfHud {
   private worst = 0;
   private worstSim = 0;
   private resolution = 1;
+  private antialias = false;
   private lastPaint = 0;
   private warmup = WARMUP_FRAMES;
   private conditions: HudConditions = { inMatch: false, paused: false, robots: 0, stalled: null };
@@ -151,6 +165,7 @@ export class PerfHud {
     this.busySamples.push(cost.busy);
     this.stepSamples.push(cost.steps);
     this.resolution = cost.resolution;
+    this.antialias = cost.antialias;
     if (deltaMs > this.worst) this.worst = deltaMs;
     if (cost.sim > this.worstSim) this.worstSim = cost.sim;
     if (this.samples.length > 240) this.samples.shift();
@@ -200,7 +215,7 @@ export class PerfHud {
     // the one thing a quality-comparison run has to be able to see.
     return (
       `${n}x${n}  ${robots} bots  ${paused ? 'PAUSED' : 'running'}  ` +
-      `res ${this.resolution}/dpr ${window.devicePixelRatio}  ${net}`
+      `res ${this.resolution}/dpr ${window.devicePixelRatio}  aa ${this.antialias ? 'on' : 'off'}  ${net}`
     );
   }
 

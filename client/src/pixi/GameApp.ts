@@ -96,6 +96,8 @@ export class GameApp {
    */
   private fpvView: FpvView | null = null;
   private obstacleGfx: Container | null = null;
+  /** What was asked of the context at boot — the fallback when it cannot be read back. */
+  private readonly requestedAntialias = perfFlags.antialias && graphicsQuality.antialias();
   /**
    * The mountain plateaus' decorative wildlife. Rebuilt with the terrain it stands on
    * and torn down with it — see `render/CritterView.ts`.
@@ -194,7 +196,7 @@ export class GameApp {
       // Both come from the player's graphics-quality setting; the perf harness can
       // only force antialias *off*, never on, so a measurement run never quietly
       // upgrades what the player chose.
-      antialias: perfFlags.antialias && graphicsQuality.antialias(),
+      antialias: this.requestedAntialias,
       autoDensity: true,
       resolution: graphicsQuality.resolution(),
     });
@@ -304,6 +306,23 @@ export class GameApp {
     if (this.perfHud) {
       this.app.ticker.add(this.measureFrameBusy, this, UPDATE_PRIORITY.UTILITY);
     }
+  }
+
+  /**
+   * Whether the live WebGL context actually has MSAA.
+   *
+   * Read back from the context rather than reported from the setting that asked for
+   * it, because the two can disagree: `antialias` is a context-creation flag, so a
+   * setting changed since boot has not taken effect, and a driver is free to refuse
+   * the request outright. A performance readout that repeated the *intent* would be
+   * confidently wrong in exactly the runs someone is comparing.
+   *
+   * Falls back to what was requested if the attributes cannot be read, which is the
+   * best available answer rather than a silent `false`.
+   */
+  private contextAntialias(): boolean {
+    const gl = (this.app.renderer as { gl?: WebGL2RenderingContext }).gl;
+    return gl?.getContextAttributes()?.antialias ?? this.requestedAntialias;
   }
 
   /**
@@ -431,6 +450,7 @@ export class GameApp {
           render: this.loop.renderMs,
           busy: this.frameBusyMs,
           resolution: this.app.renderer.resolution,
+          antialias: this.contextAntialias(),
           steps: this.loop.steps,
         },
         {
