@@ -127,6 +127,33 @@
         line-height: 1.55;
       }
 
+      .latest {
+        list-style: none;
+        margin: 10px 0 22px;
+        padding: 0;
+        display: grid;
+        gap: 12px;
+      }
+
+      .latest li {
+        margin: 0;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--accent);
+        border-radius: 12px;
+        background: #fff;
+      }
+
+      .latest h3 {
+        margin: 0 0 6px;
+        font-size: 1.02rem;
+      }
+
+      .latest p {
+        margin: 0;
+        color: var(--muted);
+      }
+
       .accent {
         color: var(--accent);
         font-weight: 700;
@@ -172,6 +199,9 @@
       <h1 id="title">Drone Directive: Updates & Plans</h1>
       <p class="lead" id="lead"></p>
 
+      <h2 id="h-latest"></h2>
+      <ul class="latest" id="latest-items"></ul>
+
       <h2 id="h-gameplay"></h2>
       <p id="gameplay-intro"></p>
       <ul id="gameplay-points"></ul>
@@ -191,6 +221,17 @@
           badge: 'News',
           title: 'Drone Directive: Updates & Plans',
           lead: 'What is already in the game, what we are working on now, and what is coming next in the roadmap.',
+          hLatest: 'Just Released',
+          latest: [
+            {
+              title: 'Wildlife on the plateaus',
+              text: 'The mountain plateaus are no longer bare. One or two alien creatures now live on the largest of them, stirring quietly in the one place on the map no machine can ever reach. They take no part in the battle: nothing can shoot them, and they never shoot back.',
+            },
+            {
+              title: 'A steadier frame rate',
+              text: 'Two changes, one result. A fresh install now starts on Medium quality rather than High, and Medium switches antialiasing off instead of cutting sharpness — measurements showed smooth edges to be by far the most expensive setting on the list. Long routes across the map are also worked out about three times faster, which removes the hitch that used to land when a big map got crowded. High is still there if your machine has the headroom.',
+            },
+          ],
           hGameplay: 'How the Game Plays',
           gameplayIntro:
             '<span class="accent">Drone Directive</span> is a real-time battle for base survival. You scout the fog of war, build a robot army with matching chassis and weapons, give orders, and try to break the enemy base before yours gets wiped out.',
@@ -213,6 +254,17 @@
           badge: 'Новости',
           title: 'Drone Directive: новости и планы',
           lead: 'Что уже появилось в игре, над чем работаем прямо сейчас и что ждет Drone Directive дальше.',
+          hLatest: 'Только что вышло',
+          latest: [
+            {
+              title: 'Обитатели плато',
+              text: 'Горные плато больше не пустуют. На самых крупных из них теперь живут одно-два инопланетных существа — в единственном месте карты, куда не доберётся ни одна машина. В бой они не вмешиваются: подбить их нельзя, и сами они не стреляют.',
+            },
+            {
+              title: 'Стабильнее кадр',
+              text: 'Два изменения, один результат. При первом запуске игра выбирает «Среднее» качество вместо «Высокого», а «Среднее» теперь отключает сглаживание, а не режет чёткость — по замерам гладкие края оказались самой дорогой настройкой из всех. Плюс расчёт длинных маршрутов по карте стал примерно втрое быстрее, и рывки, которые случались на больших картах при множестве машин, ушли. «Высокое» никуда не делось — если у вашей машины есть запас.',
+            },
+          ],
           hGameplay: 'Как устроен игровой процесс',
           gameplayIntro:
             '<span class="accent">Drone Directive</span> — это динамичная RTS-битва за базу. Вы летаете дроном-разведчиком, собираете боевых роботов под свой стиль, раздаете отрядам директивы и штурмуете базу соперника, пока он не снес вашу.',
@@ -235,6 +287,17 @@
           badge: 'Новини',
           title: 'Drone Directive: новини та плани',
           lead: 'Що вже додано до гри, над чим працюємо зараз і що з’явиться далі в дорожній карті.',
+          hLatest: 'Щойно вийшло',
+          latest: [
+            {
+              title: 'Мешканці плато',
+              text: 'Гірські плато більше не порожні. На найбільших із них тепер живуть одна-дві інопланетні істоти — у єдиному місці мапи, куди не дістанеться жодна машина. У бій вони не втручаються: підбити їх не можна, і самі вони не стріляють.',
+            },
+            {
+              title: 'Стабільніший кадр',
+              text: 'Дві зміни, один результат. На першому запуску гра обирає «Середню» якість замість «Високої», а «Середня» тепер вимикає згладжування, а не ріже чіткість — за вимірами гладкі краї виявилися найдорожчим налаштуванням зі всіх. Крім того, розрахунок довгих маршрутів мапою став приблизно втричі швидшим, і ривки, що траплялися на великих мапах із багатьма машинами, зникли. «Висока» лишилася на місці — якщо ваша машина має запас.',
+            },
+          ],
           hGameplay: 'Як влаштована гра',
           gameplayIntro:
             '<span class="accent">Drone Directive</span> — це динамічна RTS-битва за виживання бази. Ви розвідуєте мапу дроном, створюєте бойових роботів під свою тактику, роздаєте накази та знищуєте базу суперника.',
@@ -257,6 +320,17 @@
           badge: 'Aktualności',
           title: 'Drone Directive: nowości i plany',
           lead: 'Co już trafiło do gry, nad czym pracujemy obecnie i jakie są kolejne kroki na roadmapie.',
+          hLatest: 'Świeżo wydane',
+          latest: [
+            {
+              title: 'Stworzenia na płaskowyżach',
+              text: 'Górskie płaskowyże nie są już puste. Na największych z nich mieszkają teraz jedno lub dwa obce stworzenia — w jedynym miejscu na mapie, do którego nie dotrze żadna maszyna. W walce nie biorą udziału: nie da się ich zestrzelić i same nigdy nie strzelają.',
+            },
+            {
+              title: 'Stabilniejsza płynność',
+              text: 'Dwie zmiany, jeden efekt. Nowa instalacja startuje teraz na jakości „Średniej” zamiast „Wysokiej”, a „Średnia” wyłącza wygładzanie krawędzi zamiast obniżać ostrość — pomiary pokazały, że gładkie krawędzie są zdecydowanie najdroższym ustawieniem z całej listy. Do tego wyznaczanie długich tras po mapie jest około trzy razy szybsze, co usuwa zacięcia pojawiające się na dużych mapach przy wielu maszynach. „Wysoka” pozostaje dostępna, jeśli Twój sprzęt ma zapas mocy.',
+            },
+          ],
           hGameplay: 'Jak wygląda rozgrywka',
           gameplayIntro:
             '<span class="accent">Drone Directive</span> to dynamiczna bitwa RTS o przetrwanie bazy. Robisz zwiad dronem, składasz roboty bojowe pod swój styl, wydajesz rozkazy i niszczysz bazę wroga, zanim on zniszczy Twoją.',
@@ -302,6 +376,19 @@
         document.getElementById('badge').textContent = locale.badge;
         document.getElementById('title').textContent = locale.title;
         document.getElementById('lead').textContent = locale.lead;
+        const latestEl = document.getElementById('latest-items');
+        latestEl.innerHTML = '';
+        locale.latest.forEach((item) => {
+          const li = document.createElement('li');
+          const h3 = document.createElement('h3');
+          h3.textContent = item.title;
+          const text = document.createElement('p');
+          text.textContent = item.text;
+          li.append(h3, text);
+          latestEl.appendChild(li);
+        });
+
+        document.getElementById('h-latest').textContent = locale.hLatest;
         document.getElementById('h-gameplay').textContent = locale.hGameplay;
         document.getElementById('gameplay-intro').innerHTML = locale.gameplayIntro;
 
