@@ -45,13 +45,27 @@ const DEFAULT: GraphicsQuality = 'medium';
 /**
  * Per level: whether MSAA is on, and the ceiling put on `devicePixelRatio`.
  *
- * `medium` keeps antialiasing and only caps the resolution because that ordering
- * matched the measurements — dropping to 1.5 costs less visible quality than
- * losing MSAA on every Graphics edge in the HUD, and saves more.
+ * **`medium` drops MSAA and keeps the sharper buffer, which is the opposite of what
+ * this table used to do.** The old ordering assumed the resolution step was the
+ * better trade — cheaper in frames, dearer in looks — and that turned out to be
+ * backwards on cost. Measured in Firefox on the large map, same seed, same eight
+ * units on the field, same `resolution: 1.5`, MSAA the only variable:
+ *
+ * - MSAA on — 57 fps, 17.5 ms mean
+ * - MSAA off — 71 fps, 14.0 ms mean
+ *
+ * 3.5 ms, a fifth of the frame. The step from 1.5 to 1 buys about 1.2 ms by
+ * comparison, so sharpness is roughly three times cheaper per frame than smooth
+ * edges. `medium` now spends its budget accordingly, and `low` remains the level
+ * that also gives up pixels.
+ *
+ * `high` keeps MSAA *and* leaves `devicePixelRatio` uncapped, so it stays the level
+ * for whoever has the GPU to spend on both. It is no longer the default; see
+ * `DEFAULT`.
  */
 const LEVELS: Record<GraphicsQuality, { antialias: boolean; maxResolution: number }> = {
   high: { antialias: true, maxResolution: Number.POSITIVE_INFINITY },
-  medium: { antialias: true, maxResolution: 1.5 },
+  medium: { antialias: false, maxResolution: 1.5 },
   low: { antialias: false, maxResolution: 1 },
 };
 
