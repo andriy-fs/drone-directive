@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drone Directive — News & Roadmap</title>
+    <meta
+      id="meta-desc"
+      name="description"
+      content="Drone Directive updates: newly released features, upcoming roadmap plans, and a quick gameplay overview."
+    />
+    <style>
+      :root {
+        --bg: #f3efe4;
+        --card: #fffaf0;
+        --text: #1f2a2e;
+        --muted: #4f6066;
+        --accent: #d45b2c;
+        --accent-soft: #f5d7bf;
+        --line: #e3d8c5;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: 'Space Grotesk', 'Trebuchet MS', 'Segoe UI', sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 10% 0%, #f8dcc1 0, transparent 38%),
+          radial-gradient(circle at 85% 100%, #c7ddd8 0, transparent 40%), var(--bg);
+      }
+
+      main {
+        width: min(860px, 92vw);
+        margin: 40px auto;
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--card);
+        box-shadow: 0 16px 45px rgba(50, 38, 22, 0.12);
+      }
+
+      .top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #5a250f;
+        font-weight: 700;
+        font-size: 0.84rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .lang-switch {
+        display: flex;
+        gap: 6px;
+      }
+
+      .lang-btn {
+        appearance: none;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--text);
+        border-radius: 8px;
+        padding: 5px 10px;
+        font-weight: 600;
+        font-size: 0.84rem;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          color 0.15s;
+      }
+
+      .lang-btn:hover {
+        border-color: var(--accent);
+      }
+
+      .lang-btn.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 4vw, 3rem);
+        letter-spacing: 0.02em;
+      }
+
+      .lead {
+        margin: 0 0 20px;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.5;
+      }
+
+      h2 {
+        margin: 24px 0 10px;
+        font-size: 1.25rem;
+      }
+
+      p {
+        line-height: 1.6;
+      }
+
+      ul {
+        margin: 10px 0 18px;
+        padding-left: 22px;
+      }
+
+      li {
+        margin: 8px 0;
+        line-height: 1.55;
+      }
+
+      .accent {
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .footer {
+        margin-top: 28px;
+        padding-top: 14px;
+        border-top: 1px dashed var(--line);
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      @media (max-width: 640px) {
+        main {
+          margin: 16px auto;
+          padding: 18px;
+          border-radius: 14px;
+        }
+
+        .top-bar {
+          flex-wrap: wrap;
+        }
+
+        .lead {
+          font-size: 1rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="top-bar">
+        <span class="badge" id="badge">News</span>
+        <div class="lang-switch" role="group" aria-label="Language selection">
+          <button type="button" class="lang-btn" data-lang="en">EN</button>
+          <button type="button" class="lang-btn" data-lang="ru">RU</button>
+          <button type="button" class="lang-btn" data-lang="uk">UA</button>
+          <button type="button" class="lang-btn" data-lang="pl">PL</button>
+        </div>
+      </div>
+
+      <h1 id="title">Drone Directive: Updates & Plans</h1>
+      <p class="lead" id="lead"></p>
+
+      <h2 id="h-gameplay"></h2>
+      <p id="gameplay-intro"></p>
+      <ul id="gameplay-points"></ul>
+
+      <h2 id="h-purpose"></h2>
+      <p id="purpose-desc"></p>
+
+      <p class="footer" id="footer-text"></p>
+    </main>
+
+    <script>
+      const LOCALES = {
+        en: {
+          htmlLang: 'en',
+          metaTitle: 'Drone Directive — News & Roadmap',
+          metaDesc: 'Drone Directive news: new features, roadmap updates, and a quick overview of gameplay.',
+          badge: 'News',
+          title: 'Drone Directive: Updates & Plans',
+          lead: 'What is already in the game, what we are working on now, and what is coming next in the roadmap.',
+          hGameplay: 'How the Game Plays',
+          gameplayIntro:
+            '<span class="accent">Drone Directive</span> is a real-time battle for base survival. You scout the fog of war, build a robot army with matching chassis and weapons, give orders, and try to break the enemy base before yours gets wiped out.',
+          points: [
+            'You start with just a base and a flying observer drone — pilot it freely to scout paths and spot enemy moves.',
+            'Land your drone into an idle robot to take manual control and fire its weapon directly.',
+            'Build your army your way: combine chassis types with weapons for artillery, area defense, EW jamming, or fast strikes.',
+            'Give quick directives: set robots to guard key routes, hunt enemy machines, or push the enemy base autonomously.',
+            'Manage resources under pressure and keep your base alive — once a base falls, the match is decided.',
+          ],
+          hPurpose: 'About This Page',
+          purposeDesc:
+            'Here we post fresh patch notes, balance changes, UI improvements, and upcoming roadmap goals in plain player language.',
+          footer: 'Drop by anytime for the latest game updates.',
+        },
+        ru: {
+          htmlLang: 'ru',
+          metaTitle: 'Drone Directive — Новости и Roadmap',
+          metaDesc: 'Новости Drone Directive: новые фичи, планы из roadmap и живое описание геймплея.',
+          badge: 'Новости',
+          title: 'Drone Directive: новости и планы',
+          lead: 'Что уже появилось в игре, над чем работаем прямо сейчас и что ждет Drone Directive дальше.',
+          hGameplay: 'Как устроен игровой процесс',
+          gameplayIntro:
+            '<span class="accent">Drone Directive</span> — это динамичная RTS-битва за базу. Вы летаете дроном-разведчиком, собираете боевых роботов под свой стиль, раздаете отрядам директивы и штурмуете базу соперника, пока он не снес вашу.',
+          points: [
+            'В начале матча у вас только база и дрон: исследуйте карту, следите за маневрами врага и не попадайте под ракеты.',
+            'Дрон можно посадить на любого свободного робота, чтобы взять прямое управление и стрелять вручную.',
+            'Свобода в сборке армии: комбинируйте шасси и пушки — от скоростных камикадзе и РЭБ-глушилок до тяжелой артиллерии.',
+            'Удобные команды: отправляйте группы патрулировать периметр, охотиться на роботов или сразу продавливать чужую базу.',
+            'Главная цель предельно понятна: защитить свое сердце базы и стереть в пыль вражеское.',
+          ],
+          hPurpose: 'Для чего эта страница',
+          purposeDesc:
+            'Здесь мы делимся новостями о свежих патчах, изменениях в балансе, улучшениях интерфейса и планах из дорожной карты — просто, по делу и для игроков.',
+          footer: 'Заглядывайте сюда за свежими новостями проекта.',
+        },
+        uk: {
+          htmlLang: 'uk',
+          metaTitle: 'Drone Directive — Новини та Roadmap',
+          metaDesc: 'Новини Drone Directive: свіжі фічі, плани з roadmap та живий огляд геймплею.',
+          badge: 'Новини',
+          title: 'Drone Directive: новини та плани',
+          lead: 'Що вже додано до гри, над чим працюємо зараз і що з’явиться далі в дорожній карті.',
+          hGameplay: 'Як влаштована гра',
+          gameplayIntro:
+            '<span class="accent">Drone Directive</span> — це динамічна RTS-битва за виживання бази. Ви розвідуєте мапу дроном, створюєте бойових роботів під свою тактику, роздаєте накази та знищуєте базу суперника.',
+          points: [
+            'На старті у вас лише база та дрон: літайте картою, відкривайте туман війни й помічайте пересування ворога.',
+            'Дрон можна посадити на будь-якого вільного робота, щоб особисто взяти керування та вести вогонь.',
+            'Конструктор армії: поєднуйте шасі зі зброєю — від швидких ударних груп і РЕБ-перешкод до далекобійних систем.',
+            'Зрозумілі директиви: призначайте охорону підступів, полювання на техніку ворога або прямий штурм бази.',
+            'Мета проста та захоплива: зберегти свій командний центр і розбити ворожий.',
+          ],
+          hPurpose: 'Для чого ця сторінка',
+          purposeDesc:
+            'Тут публікуватимуться новини про свіжі апдейти, правки балансу, покращення інтерфейсу та плани з дорожньої карти — живою мовою та без зайвого шуму.',
+          footer: 'Заходьте сюди по свіжі оновлення гри.',
+        },
+        pl: {
+          htmlLang: 'pl',
+          metaTitle: 'Drone Directive — Aktualności i Roadmap',
+          metaDesc: 'Aktualności Drone Directive: nowe funkcje, plany z roadmapy i prosty opis rozgrywki.',
+          badge: 'Aktualności',
+          title: 'Drone Directive: nowości i plany',
+          lead: 'Co już trafiło do gry, nad czym pracujemy obecnie i jakie są kolejne kroki na roadmapie.',
+          hGameplay: 'Jak wygląda rozgrywka',
+          gameplayIntro:
+            '<span class="accent">Drone Directive</span> to dynamiczna bitwa RTS o przetrwanie bazy. Robisz zwiad dronem, składasz roboty bojowe pod swój styl, wydajesz rozkazy i niszczysz bazę wroga, zanim on zniszczy Twoją.',
+          points: [
+            'Na starcie masz tylko bazę i drona obserwacyjnego: odkrywaj mapę, kontroluj pole widzenia i unikaj rakiet przeciwlotniczych.',
+            'Dronem możesz wylądować na wolnym robocie, by przejąć nad nim bezpośrednią kontrolę i strzelać ręcznie.',
+            'Twórz własną armię: łącz podwozia z uzbrojeniem — od szybkich jednostek uderzeniowych i zagłuszania WRE po ciężki ostrzał.',
+            'Proste dyrektywy: zlecaj oddziałom obronę pozycji, polowanie na maszyny wroga lub bezpośredni atak na bazę.',
+            'Zasada wygranej jest przejrzysta: obroń swoje centrum dowodzenia i zrównaj z ziemią bazę rywala.',
+          ],
+          hPurpose: 'O tej stronie',
+          purposeDesc:
+            'Będziemy tu publikować informacje o nowych aktualizacjach, zmianach w balansie, ulepszeniach interfejsu oraz planach z roadmapy — krótko, przystępnie i z punktu widzenia gracza.',
+          footer: 'Zaglądaj tutaj po najnowsze wieści z rozwoju gry.',
+        },
+      };
+
+      const STORAGE_KEY = 'dd:locale';
+      const SUPPORTED = Object.keys(LOCALES);
+
+      function detectLocale() {
+        try {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored && SUPPORTED.includes(stored)) return stored;
+        } catch (_) {}
+
+        const langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
+        for (const lang of langs) {
+          if (!lang) continue;
+          const code = lang.toLowerCase().split('-')[0];
+          if (SUPPORTED.includes(code)) return code;
+        }
+        return 'en';
+      }
+
+      function applyLocale(lang) {
+        const locale = LOCALES[lang] || LOCALES.en;
+        document.documentElement.lang = locale.htmlLang;
+        document.title = locale.metaTitle;
+        const metaDesc = document.getElementById('meta-desc');
+        if (metaDesc) metaDesc.setAttribute('content', locale.metaDesc);
+
+        document.getElementById('badge').textContent = locale.badge;
+        document.getElementById('title').textContent = locale.title;
+        document.getElementById('lead').textContent = locale.lead;
+        document.getElementById('h-gameplay').textContent = locale.hGameplay;
+        document.getElementById('gameplay-intro').innerHTML = locale.gameplayIntro;
+
+        const pointsEl = document.getElementById('gameplay-points');
+        pointsEl.innerHTML = '';
+        locale.points.forEach((text) => {
+          const li = document.createElement('li');
+          li.textContent = text;
+          pointsEl.appendChild(li);
+        });
+
+        document.getElementById('h-purpose').textContent = locale.hPurpose;
+        document.getElementById('purpose-desc').textContent = locale.purposeDesc;
+        document.getElementById('footer-text').textContent = locale.footer;
+
+        document.querySelectorAll('.lang-btn').forEach((btn) => {
+          btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
+        });
+
+        try {
+          localStorage.setItem(STORAGE_KEY, lang);
+        } catch (_) {}
+      }
+
+      document.querySelectorAll('.lang-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const lang = btn.getAttribute('data-lang');
+          if (lang) applyLocale(lang);
+        });
+      });
+
+      applyLocale(detectLocale());
+    </script>
+  </body>
+</html>
