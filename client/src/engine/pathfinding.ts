@@ -19,6 +19,174 @@ function heuristic(ax: number, ay: number, bx: number, by: number): number {
 }
 
 /**
+ * Per-search scratch for `findPath`, kept alive between calls.
+ *
+ * **Typed arrays instead of `Map`, and that is where the time went.** Measured warm
+ * over 60 searches on an 80×80 generated map, all three variants expanding exactly
+ * the same 72 506 nodes: the original `Map` + linear-scan open list took 136 ms, a
+ * heap over the same `Map`s 110 ms, and this 44 ms. The open list was the obvious
+ * suspect and the smaller half of the answer — per-node bookkeeping through hashed
+ * `Map` lookups was the rest.
+ *
+ * It exists to stop a match's worst search blowing a frame. One search on the large
+ * map cost 7.3 ms while the mean tick was 0.6 ms, which is a stutter no graphics
+ * setting can reach, because it is not drawing.
+ *
+ * **Nothing is cleared between searches.** Wiping six arrays of `width × height`
+ * would cost more than most searches do, so every cell carries the `generation` it
+ * was last written in and anything stamped older reads as untouched.
+ *
+ * **Not reentrant**, deliberately: one buffer set, so a second search started inside
+ * another would corrupt both. The engine is single-threaded and `findPath` calls
+ * nothing that could re-enter it.
+ */
+class SearchScratch {
+  private capacity = 0;
+  private g = new Float64Array(0);
+  private f = new Float64Array(0);
+  private parent = new Int32Array(0);
+  /** Index in `heap`, or -1 when the tile is not open. */
+  private heapPos = new Int32Array(0);
+  /** Order the tile entered the open set — the tie-break between equal `f`. */
+  private arrival = new Int32Array(0);
+  private stamp = new Int32Array(0);
+  private generation = 0;
+  private arrivals = 0;
+  private readonly heap: number[] = [];
+
+  /** Starts a fresh search over a `size`-tile grid, invalidating everything written before. */
+  begin(size: number): void {
+    if (this.capacity < size) {
+      this.capacity = size;
+      this.g = new Float64Array(size);
+      this.f = new Float64Array(size);
+      this.parent = new Int32Array(size);
+      this.heapPos = new Int32Array(size);
+      this.arrival = new Int32Array(size);
+      this.stamp = new Int32Array(size);
+      this.generation = 0;
+    }
+    // `stamp` holds int32, so the counter cannot run forever without wrapping into a
+    // value some cell already carries. Reachable only after 2^31 searches, and one
+    // wipe is all it costs to be certain rather than nearly certain.
+    if (this.generation === 0x7fffffff) {
+      this.stamp.fill(0);
+      this.generation = 0;
+    }
+    this.generation++;
+    this.arrivals = 0;
+    this.heap.length = 0;
+  }
+
+  get size(): number {
+    return this.heap.length;
+  }
+
+  /** Cost known to reach `node`, or `Infinity` if this search has not reached it. */
+  costTo(node: number): number {
+    return this.stamp[node] === this.generation ? this.g[node] : Infinity;
+  }
+
+  /** The tile `node` was reached from, or -1 for the start tile. */
+  parentOf(node: number): number {
+    return this.stamp[node] === this.generation ? this.parent[node] : -1;
+  }
+
+  /**
+   * Records a better route to `node` and puts it in the open set, or re-sifts it if
+   * it is already there.
+   *
+   * The re-sift is the reason the heap is indexed: a tile already open gets its `f`
+   * lowered rather than being inserted a second time, and a plain heap would go on
+   * ordering it by the key it was pushed with.
+   */
+  open(node: number, parent: number, cost: number, estimate: number): void {
+    const fresh = this.stamp[node] !== this.generation;
+    if (fresh) {
+      this.stamp[node] = this.generation;
+      this.heapPos[node] = -1;
+    }
+    this.g[node] = cost;
+    this.f[node] = estimate;
+    this.parent[node] = parent;
+
+    const at = fresh ? -1 : this.heapPos[node];
+    if (at >= 0) {
+      this.up(at);
+      return;
+    }
+    this.arrival[node] = this.arrivals++;
+    this.heap.push(node);
+    this.heapPos[node] = this.heap.length - 1;
+    this.up(this.heap.length - 1);
+  }
+
+  /** Removes and returns the open tile with the lowest `f`, earliest arrival winning ties. */
+  pop(): number {
+    const top = this.heap[0];
+    this.heapPos[top] = -1;
+    const last = this.heap[this.heap.length - 1];
+    this.heap.length -= 1;
+    if (this.heap.length > 0) {
+      this.heap[0] = last;
+      this.heapPos[last] = 0;
+      this.down(0);
+    }
+    return top;
+  }
+
+  /**
+   * The whole ordering rule, in one place: lowest `f` wins, and equal `f` goes to
+   * whichever tile entered the open set first.
+   *
+   * **The tie-break is load-bearing.** `findPath` runs inside the deterministic
+   * lockstep pipeline, so two peers must return the same route, not two equally short
+   * ones — which of several equally good tiles is expanded first decides the polyline.
+   * `pathfinding.equivalence.test.ts` re-implements this rule the slow, obvious way and
+   * demands agreement on every input, so a later optimisation cannot quietly reorder it.
+   */
+  private before(a: number, b: number): boolean {
+    return this.f[a] !== this.f[b] ? this.f[a] < this.f[b] : this.arrival[a] < this.arrival[b];
+  }
+
+  private swap(i: number, j: number): void {
+    const a = this.heap[i];
+    const b = this.heap[j];
+    this.heap[i] = b;
+    this.heap[j] = a;
+    this.heapPos[b] = i;
+    this.heapPos[a] = j;
+  }
+
+  private up(from: number): void {
+    let i = from;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (!this.before(this.heap[i], this.heap[parent])) break;
+      this.swap(i, parent);
+      i = parent;
+    }
+  }
+
+  private down(from: number): void {
+    let i = from;
+    for (;;) {
+      const left = 2 * i + 1;
+      const right = left + 1;
+      let best = i;
+      if (left < this.heap.length && this.before(this.heap[left], this.heap[best])) best = left;
+      if (right < this.heap.length && this.before(this.heap[right], this.heap[best])) best = right;
+      if (best === i) break;
+      this.swap(i, best);
+      i = best;
+    }
+  }
+}
+
+/** One set of buffers for the whole process — see `SearchScratch` on why it is shared. */
+const scratch = new SearchScratch();
+
+/**
  * A* over the tile grid, 8-directional with no corner-cutting. Returns
  * world-space waypoints (excluding the start tile), or `[]` if unreachable. The
  * final waypoint is the exact `to` point unless it had to be snapped out of an
@@ -47,13 +215,11 @@ export function findPath(grid: ObstacleGrid, from: Vec2, to: Vec2): Vec2[] {
     return escape ? [escape, end] : [end];
   }
 
+  const { width, height } = gameConfig.grid;
   const startI = idx(start.tx, start.ty);
   const goalI = idx(goal.tx, goal.ty);
-  const gScore = new Map<number, number>([[startI, 0]]);
-  const fScore = new Map<number, number>([[startI, heuristic(start.tx, start.ty, goal.tx, goal.ty)]]);
-  const cameFrom = new Map<number, number>();
-  const open: number[] = [startI];
-  const inOpen = new Set<number>([startI]);
+  scratch.begin(width * height);
+  scratch.open(startI, -1, 0, heuristic(start.tx, start.ty, goal.tx, goal.ty));
 
   const dirs: [number, number, number][] = [
     [1, 0, 1],
@@ -66,22 +232,17 @@ export function findPath(grid: ObstacleGrid, from: Vec2, to: Vec2): Vec2[] {
     [-1, -1, SQRT2],
   ];
 
-  while (open.length) {
-    // Pick the open node with the lowest f (linear scan is fine for this grid).
-    let bestIdx = 0;
-    for (let i = 1; i < open.length; i++) {
-      if ((fScore.get(open[i]) ?? Infinity) < (fScore.get(open[bestIdx]) ?? Infinity)) bestIdx = i;
-    }
-    const current = open.splice(bestIdx, 1)[0];
-    inOpen.delete(current);
+  while (scratch.size) {
+    const current = scratch.pop();
 
     if (current === goalI) {
-      const path = reconstruct(cameFrom, current, goal, to, snapped);
+      const path = reconstruct(current, goal, to, snapped);
       return escape ? [escape, ...path] : path;
     }
 
-    const cx = current % gameConfig.grid.width;
-    const cy = Math.floor(current / gameConfig.grid.width);
+    const cx = current % width;
+    const cy = Math.floor(current / width);
+    const costHere = scratch.costTo(current);
     for (const [dx, dy, cost] of dirs) {
       const nx = cx + dx;
       const ny = cy + dy;
@@ -90,15 +251,9 @@ export function findPath(grid: ObstacleGrid, from: Vec2, to: Vec2): Vec2[] {
         if (isBlockedGrid(grid, cx + dx, cy) || isBlockedGrid(grid, cx, cy + dy)) continue;
       }
       const ni = idx(nx, ny);
-      const tentative = (gScore.get(current) ?? Infinity) + cost;
-      if (tentative < (gScore.get(ni) ?? Infinity)) {
-        cameFrom.set(ni, current);
-        gScore.set(ni, tentative);
-        fScore.set(ni, tentative + heuristic(nx, ny, goal.tx, goal.ty));
-        if (!inOpen.has(ni)) {
-          open.push(ni);
-          inOpen.add(ni);
-        }
+      const tentative = costHere + cost;
+      if (tentative < scratch.costTo(ni)) {
+        scratch.open(ni, current, tentative, tentative + heuristic(nx, ny, goal.tx, goal.ty));
       }
     }
   }
@@ -108,14 +263,13 @@ export function findPath(grid: ObstacleGrid, from: Vec2, to: Vec2): Vec2[] {
   return escape ? [escape] : [];
 }
 
-function reconstruct(cameFrom: Map<number, number>, goalI: number, goal: Tile, to: Vec2, snapped: boolean): Vec2[] {
+/** Walks the parent chain `scratch` recorded, so it must run before the next `begin`. */
+function reconstruct(goalI: number, goal: Tile, to: Vec2, snapped: boolean): Vec2[] {
   const chain: number[] = [];
   let cur = goalI;
-  while (cameFrom.has(cur)) {
+  for (let parent = scratch.parentOf(cur); parent >= 0; parent = scratch.parentOf(cur)) {
     chain.push(cur);
-    // Safe: guarded by `cameFrom.has(cur)` in the loop condition.
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    cur = cameFrom.get(cur)!;
+    cur = parent;
   }
   chain.reverse(); // first step after start ... goal
   const { width } = gameConfig.grid;
