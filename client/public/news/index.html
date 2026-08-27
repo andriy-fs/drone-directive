@@ -127,6 +127,43 @@
         line-height: 1.55;
       }
 
+      .top-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      /*
+        Styled as the page's one call to action rather than as a nav link: someone who
+        arrived here from a search result has never seen the game, and a quiet
+        underlined "home" would read as site furniture rather than as the way in.
+      */
+      .home-link {
+        display: inline-block;
+        padding: 6px 12px;
+        border: 1px solid var(--accent);
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.84rem;
+        text-decoration: none;
+        white-space: nowrap;
+        transition:
+          background 0.15s,
+          color 0.15s;
+      }
+
+      .home-link:hover,
+      .home-link:focus-visible {
+        background: #fff;
+        color: var(--accent);
+      }
+
+      .footer-cta {
+        margin: 14px 0 0;
+      }
+
       .latest {
         list-style: none;
         margin: 10px 0 22px;
@@ -187,7 +224,15 @@
   <body>
     <main>
       <div class="top-bar">
-        <span class="badge" id="badge">News</span>
+        <div class="top-left">
+          <span class="badge" id="badge">News</span>
+          <!--
+            `../` rather than an absolute path: this page lives one directory below the
+            built site root, so the link follows the deployment wherever it is mounted
+            instead of assuming the game sits at `/`.
+          -->
+          <a class="home-link" id="home-link" href="../"></a>
+        </div>
         <div class="lang-switch" role="group" aria-label="Language selection">
           <button type="button" class="lang-btn" data-lang="en">EN</button>
           <button type="button" class="lang-btn" data-lang="ru">RU</button>
@@ -210,6 +255,7 @@
       <p id="purpose-desc"></p>
 
       <p class="footer" id="footer-text"></p>
+      <p class="footer-cta"><a class="home-link" id="home-link-bottom" href="../"></a></p>
     </main>
 
     <script>
@@ -219,6 +265,7 @@
           metaTitle: 'Drone Directive — News & Roadmap',
           metaDesc: 'Drone Directive news: new features, roadmap updates, and a quick overview of gameplay.',
           badge: 'News',
+          homeLink: '← To the game',
           title: 'Drone Directive: Updates & Plans',
           lead: 'What is already in the game, what we are working on now, and what is coming next in the roadmap.',
           hLatest: 'Just Released',
@@ -252,6 +299,7 @@
           metaTitle: 'Drone Directive — Новости и Roadmap',
           metaDesc: 'Новости Drone Directive: новые фичи, планы из roadmap и живое описание геймплея.',
           badge: 'Новости',
+          homeLink: '← В игру',
           title: 'Drone Directive: новости и планы',
           lead: 'Что уже появилось в игре, над чем работаем прямо сейчас и что ждет Drone Directive дальше.',
           hLatest: 'Только что вышло',
@@ -285,6 +333,7 @@
           metaTitle: 'Drone Directive — Новини та Roadmap',
           metaDesc: 'Новини Drone Directive: свіжі фічі, плани з roadmap та живий огляд геймплею.',
           badge: 'Новини',
+          homeLink: '← До гри',
           title: 'Drone Directive: новини та плани',
           lead: 'Що вже додано до гри, над чим працюємо зараз і що з’явиться далі в дорожній карті.',
           hLatest: 'Щойно вийшло',
@@ -318,6 +367,7 @@
           metaTitle: 'Drone Directive — Aktualności i Roadmap',
           metaDesc: 'Aktualności Drone Directive: nowe funkcje, plany z roadmapy i prosty opis rozgrywki.',
           badge: 'Aktualności',
+          homeLink: '← Do gry',
           title: 'Drone Directive: nowości i plany',
           lead: 'Co już trafiło do gry, nad czym pracujemy obecnie i jakie są kolejne kroki na roadmapie.',
           hLatest: 'Świeżo wydane',
@@ -403,6 +453,10 @@
         document.getElementById('h-purpose').textContent = locale.hPurpose;
         document.getElementById('purpose-desc').textContent = locale.purposeDesc;
         document.getElementById('footer-text').textContent = locale.footer;
+        // Same string in both places on purpose — one label to translate, and the
+        // reader meets the same wording whether they act before reading or after.
+        document.getElementById('home-link').textContent = locale.homeLink;
+        document.getElementById('home-link-bottom').textContent = locale.homeLink;
 
         document.querySelectorAll('.lang-btn').forEach((btn) => {
           btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
