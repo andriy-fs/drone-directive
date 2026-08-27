@@ -62,6 +62,15 @@ const DEFAULT: GraphicsQuality = 'medium';
  * `high` keeps MSAA *and* leaves `devicePixelRatio` uncapped, so it stays the level
  * for whoever has the GPU to spend on both. It is no longer the default; see
  * `DEFAULT`.
+ *
+ * **Two things this does not rest on, and a later measurement may move it back.**
+ * The numbers above are one browser on one machine: MSAA is resolved by the driver,
+ * and Firefox's WebGL and Chrome's ANGLE do not take the same path to it, so the
+ * ratio is not safe to assume elsewhere. And what the old ordering claimed was half
+ * a *taste* judgement — that aliased Graphics edges are worse to look at than a
+ * softer buffer — which no frame time can settle either way. Flipping the table
+ * decided that too, on the grounds that the complaint being answered was about
+ * frame rate.
  */
 const LEVELS: Record<GraphicsQuality, { antialias: boolean; maxResolution: number }> = {
   high: { antialias: true, maxResolution: Number.POSITIVE_INFINITY },
