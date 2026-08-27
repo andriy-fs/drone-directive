@@ -63,14 +63,27 @@ const DEFAULT: GraphicsQuality = 'medium';
  * for whoever has the GPU to spend on both. It is no longer the default; see
  * `DEFAULT`.
  *
- * **Two things this does not rest on, and a later measurement may move it back.**
- * The numbers above are one browser on one machine: MSAA is resolved by the driver,
- * and Firefox's WebGL and Chrome's ANGLE do not take the same path to it, so the
- * ratio is not safe to assume elsewhere. And what the old ordering claimed was half
- * a *taste* judgement — that aliased Graphics edges are worse to look at than a
- * softer buffer — which no frame time can settle either way. Flipping the table
- * decided that too, on the grounds that the complaint being answered was about
- * frame rate.
+ * **Chrome agrees, and says it in a different unit.** Same map, same nine units, same
+ * `resolution: 2`, MSAA the only variable:
+ *
+ * - MSAA off — mean 16.7 ms, **p95 16.8 ms**, worst 17.6 ms
+ * - MSAA on — mean 16.9 ms, **p95 25.0 ms**, worst 50.0 ms
+ *
+ * The mean barely moves, and that is the point: Chrome holds vsync, so extra GPU work
+ * cannot make the average frame longer — it makes frames **miss**. The cost lands
+ * entirely in the tail. Firefox, not locked to the refresh, spent the same cost as a
+ * 3.5 ms higher mean instead. Two renderers, two unrelated symptoms, one cause, and
+ * MSAA off is the run with no dropped frames at all.
+ *
+ * A methodological note worth keeping: on a vsync-locked browser, judge GPU work by
+ * `p95` and `worst`. `mean` is pinned to the refresh interval and will report a scene
+ * that drops every twentieth frame as costing 0.2 ms more than one that drops none.
+ *
+ * **What none of it settles** is the other half of what the old ordering claimed: that
+ * aliased Graphics edges are worse to look at than a softer buffer. That is a taste
+ * judgement, no frame time reaches it, and flipping the table decided it too — on the
+ * grounds that the complaint being answered was about frame rate. `high` is what keeps
+ * MSAA available for whoever disagrees.
  */
 const LEVELS: Record<GraphicsQuality, { antialias: boolean; maxResolution: number }> = {
   high: { antialias: true, maxResolution: Number.POSITIVE_INFINITY },
