@@ -138,9 +138,13 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
 }
 
 /**
- * The observer drone's per-tick input. `dir` is a unit vector or zero, so anything
- * outside [-1, 1] is not something a correct client sends — and a NaN here would
- * walk the drone off the map and poison the world hash.
+ * The observer drone's per-tick input. `dir` is two axes bounded to [-1, 1] — a
+ * world direction while the drone flies free, that machine's own throttle and yaw
+ * while it rides a hull (see `types`' `DroneControl`) — so anything outside the
+ * bound is not something a correct client sends, and a NaN here would walk the
+ * drone off the map and poison the world hash. The *meaning* is the receiver's to
+ * decide from the world; only the bound is checkable here, and it is the same
+ * bound for both readings.
  *
  * This is the game's own shape, not the wire's: renaming the wire's
  * `possess`/`fire` to `possessPulse`/`firePulse` is the codec's job, and by the

@@ -22,13 +22,25 @@ export interface BuildOrder {
 }
 
 /**
- * The observer drone's input for one tick: a continuous flight direction plus two
- * one-shot pulses. Lives here rather than in the engine because it crosses the
- * network — both the engine and `@drone-directive/net` need it, and neither may
- * depend on the other.
+ * The observer drone's input for one tick: two continuous axes plus two one-shot
+ * pulses. Lives here rather than in the engine because it crosses the network —
+ * both the engine and `@drone-directive/net` need it, and neither may depend on
+ * the other.
  */
 export interface DroneControl {
-  /** Continuous flight/steer direction; `{0,0}` = hold position. */
+  /**
+   * The stick, `{0,0}` = centred. **What the two components mean depends on what
+   * the drone is doing**, and the receiver decides that from the world, not from
+   * anything on the wire:
+   *
+   * - flying free, it is a world direction — a unit vector, or zero;
+   * - riding a hull, it is that machine's own controls — `y` is throttle along its
+   *   heading (negative is forward, matching screen axes) and `x` is a yaw rate.
+   *
+   * Either way each component is within `[-1, 1]`, which is all the wire promises
+   * and all the validator checks (`net/src/wire/validation`). The split itself is
+   * argued at `drivePossessed` in `client/src/engine/systems/drone.ts`.
+   */
   dir: Vec2;
   /** One-shot: land on / take off from a robot this tick. */
   possessPulse: boolean;

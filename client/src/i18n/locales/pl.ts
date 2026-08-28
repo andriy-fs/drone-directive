@@ -26,6 +26,7 @@ export const pl: Dict = {
     droneHeading: 'Dron obserwacyjny',
     flyDrone: 'Lot dronem',
     landRelease: 'Wsiądź na robota / wystartuj',
+    steerHull: 'Prowadź opanowany kadłub: W/S — ciąg, A/D — skręt',
     fireWeapon: 'Strzał z broni opanowanego robota',
     panView: 'Przesuwaj widok, gdy nie jest przypięty do drona',
     units: 'Jednostki',

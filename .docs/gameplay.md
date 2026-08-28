@@ -37,7 +37,11 @@ see [architecture.md](architecture.md).
   the picture**. The battlefield goes, and what comes up is that machine's own
   sensor monitor: the ground as a green vector grid with the relief on it, other
   machines as wireframe contours (yours in blue, everyone else's in red), and
-  your own hull drawn from behind so you can see where it is pointed. Every
+  your own hull drawn from behind so you can see where it is pointed. **You
+  drive it from inside**, not across a map: `W`/`S` are throttle forward and
+  reverse along the nose, `A`/`D` swing the machine left and right at its own
+  turning rate, and the view comes round with it. Reverse backs out without
+  spinning the hull. Every
   machine is drawn as what it actually is — a tank's two track bands, a buggy's
   four exposed wheels, a walker's body carried high on six legs, and the module
   on top of it — so the same reading that works from above works from inside.
@@ -122,6 +126,7 @@ see [architecture.md](architecture.md).
 | **Esc** / **Space** / **P**      | Pause / resume                                                |
 | **W A S D** / **arrow keys**     | Fly the observer drone (pan the camera while it is shot down) |
 | **F**                            | Land the drone on / release an idle robot (switches to the hull view) |
+| **W** / **S**, **A** / **D**     | Once landed: drive the hull forward / back, turn it left / right |
 | **E**                            | Fire the possessed robot's weapon at the marked target        |
 
 Use the **Program** panel in the HUD to assign a directive to the selected

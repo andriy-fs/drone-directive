@@ -27,6 +27,7 @@ export const en: Dict = {
     droneHeading: 'Observer drone',
     flyDrone: 'Fly the drone',
     landRelease: 'Land on / release an idle robot',
+    steerHull: 'Drive the hull you are riding — W/S throttle, A/D turn',
     fireWeapon: "Fire the possessed robot's weapon",
     panView: 'Pan the view, while it is not synced to the drone',
     units: 'Units',

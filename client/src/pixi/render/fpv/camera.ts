@@ -209,14 +209,19 @@ export function project(view: FpvProjection, x: number, y: number, z: number): S
  * How far (px) the camera drifts back at full speed, and the time constant it
  * settles over.
  *
- * **The lag is longitudinal, not positional, and that is the whole design.** The
- * obvious way to write inertia is to smooth the eye's world position toward where
- * it belongs — but a possessed hull's heading snaps to the stick, so a 180° flip
- * would swing the anchor a quarter of a turn away and take the machine clean off
- * the monitor for as long as the smoothing lasted. Pulling *back along the hull's
- * own axis* with speed gives the same reading — the camera falls behind as you
- * open the throttle and comes back in as you stop — and cannot lose the hull,
- * because it never leaves that axis.
+ * **The lag is longitudinal, not positional.** The obvious way to write inertia is
+ * to smooth the eye's world position toward where it belongs; pulling *back along
+ * the hull's own axis* with speed gives the same reading — the camera falls behind
+ * as you open the throttle and comes back in as you stop — and cannot lose the
+ * hull, because it never leaves that axis.
+ *
+ * It was written this way because a possessed hull's heading used to *snap* to the
+ * stick, and a 180° flip would have swung a smoothed anchor a quarter of a turn
+ * away and taken the machine clean off the monitor for as long as the smoothing
+ * lasted. That is no longer true — the pilot now turns the hull at a bounded rate
+ * (`drivePossessed`), so positional inertia has become possible. It is still not
+ * *here*: swinging with the hull is a separate call about how the view should
+ * feel, not a consequence of the control law.
  */
 const DOLLY = { atFullSpeed: 26, tau: 0.5 };
 

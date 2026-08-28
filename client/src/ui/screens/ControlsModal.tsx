@@ -32,6 +32,9 @@ function droneControls(t: T): { keys: string[]; action: string }[] {
   return [
     { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'flyDrone') },
     { keys: ['F'], action: t('mainMenu', 'landRelease') },
+    // Same keys, third job: on a hull they are that machine's own controls rather
+    // than a compass — throttle along its nose and a turn rate (`drivePossessed`).
+    { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'steerHull') },
     { keys: ['E'], action: t('mainMenu', 'fireWeapon') },
     // The same keys, doing the other job — worth a row of its own, since which
     // one they do depends on the Drone panel's toggle rather than on the key.

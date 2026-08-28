@@ -136,6 +136,22 @@ export const gameConfig = {
     sightRange: 220,
     /** Max distance (px) to an idle robot to land on / possess it. */
     possessRadius: 40,
+    /**
+     * How fast the pilot may swing a possessed hull, degrees/second — a 180°
+     * reversal in a little over a second.
+     *
+     * A piloted hull is steered *relative to itself*: the stick's y axis is
+     * throttle along the heading and its x axis is this rate (`drivePossessed`).
+     * The heading is therefore integrated against `fixedDt` in the simulation, so
+     * both peers swing it identically and nothing here may move to the renderer.
+     *
+     * The number is the whole feel of the hull view. Lower reads as weight, and
+     * far enough down the machine can no longer be pointed at something that is
+     * moving; higher walks back toward the snap this replaced, where a tap on the
+     * stick whipped the entire world round in one frame. One value for every
+     * chassis — a per-chassis rate is a bigger design question than a control law.
+     */
+    possessTurnRateDeg: 160,
     /** Hull strength. At `missiles` damage (22) that's three hits to bring one down. */
     maxHp: 60,
     /** Collision radius (px) for anti-air fire — see `systems/combat.ts`. */

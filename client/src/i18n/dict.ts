@@ -25,6 +25,8 @@ export interface Dict {
     droneHeading: string;
     flyDrone: string;
     landRelease: string;
+    /** The same flight keys again, once the drone is riding a hull: throttle and turn. */
+    steerHull: string;
     fireWeapon: string;
     /** The same flight keys once the view has been unpinned from the drone. */
     panView: string;

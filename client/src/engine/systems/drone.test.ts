@@ -18,6 +18,9 @@ function setControl(ctx: GameContext, dir = { x: 0, y: 0 }, possessPulse = false
   ctx.droneControl[Owner.Player] = { dir, possessPulse, firePulse };
 }
 
+/** `W`: screen y grows downward, so full ahead on a ridden hull is y = -1. */
+const FORWARD = { x: 0, y: -1 };
+
 describe('droneSystem — free flight', () => {
   it('flies straight through obstacles (never pathfinds)', () => {
     const ctx = makeCtx(1);
@@ -163,31 +166,97 @@ describe('droneSystem — possession', () => {
   });
 });
 
+/**
+ * A ridden hull reads the stick as its *own* controls, not as a compass: `y` is
+ * throttle along the heading and `x` is a turn rate. A robot spawns pointing east
+ * (`heading = 0`), so "forward" in these tests is east — which is the shortest
+ * statement of the whole change: the same key that used to mean north.
+ */
 describe('droneSystem — driving a possessed robot', () => {
-  it('steers the robot and drags the drone along', () => {
+  /** Radians the pilot may swing the hull in one tick. */
+  const turnStep = ((gameConfig.drone.possessTurnRateDeg * Math.PI) / 180) * gameConfig.fixedDt;
+
+  const possessed = (ctx: GameContext, at = { x: 400, y: 400 }) => {
+    const robot = spawnRobot(ctx.world, Owner.Player, at, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, at);
+    drone.drone!.possessedId = robot.id;
+    return { robot, drone };
+  };
+
+  it('drives along the heading, not along the stick, and drags the drone with it', () => {
     const ctx = makeCtx(1);
     fillNav(ctx, false); // open ground
-    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
-    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
-    drone.drone!.possessedId = robot.id;
-    setControl(ctx, { x: 1, y: 0 });
+    const { robot, drone } = possessed(ctx);
+    setControl(ctx, FORWARD);
 
-    droneSystem(ctx, 1);
+    droneSystem(ctx, gameConfig.fixedDt);
 
-    expect(robot.position!.x).toBeGreaterThan(400);
+    // East, because that is where the hull points — the stick said "forward".
+    expect(robot.position!.x).toBeCloseTo(400 + robot.movement!.speed * gameConfig.fixedDt, 3);
+    expect(robot.position!.y).toBeCloseTo(400, 3);
     expect(drone.position!.x).toBeCloseTo(robot.position!.x, 3);
     expect(drone.position!.y).toBeCloseTo(robot.position!.y, 3);
+  });
+
+  it('turns at the configured rate without moving the hull', () => {
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const { robot } = possessed(ctx);
+    setControl(ctx, { x: 1, y: 0 }); // D — to the pilot's right
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    // Screen y grows downward, so a right turn increases the heading.
+    expect(robot.heading).toBeCloseTo(turnStep, 6);
+    expect(robot.position!.x).toBeCloseTo(400, 6);
+    expect(robot.position!.y).toBeCloseTo(400, 6);
+  });
+
+  it('turns the other way on the other key', () => {
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const { robot } = possessed(ctx);
+    setControl(ctx, { x: -1, y: 0 }); // A
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.heading).toBeCloseTo(-turnStep, 6);
+  });
+
+  it('reverses along the heading without spinning the machine round', () => {
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const { robot } = possessed(ctx);
+    setControl(ctx, { x: 0, y: 1 }); // S
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.position!.x).toBeCloseTo(400 - robot.movement!.speed * gameConfig.fixedDt, 3);
+    expect(robot.heading).toBe(0); // still pointing the way it was
+  });
+
+  it('keeps turning while pinned against a wall', () => {
+    // The step can be refused; the heading never is. A pilot nosed into rock must
+    // still be able to point the machine somewhere else.
+    const ctx = makeCtx(1);
+    fillNav(ctx, true);
+    const { robot } = possessed(ctx);
+    setControl(ctx, { x: 1, y: -1 }); // full ahead and hard over, into the rock
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.position!.x).toBeCloseTo(400, 6);
+    expect(robot.position!.y).toBeCloseTo(400, 6);
+    expect(robot.heading).toBeGreaterThan(0);
   });
 
   it('stops the possessed robot at walls (obstacle-checked)', () => {
     const ctx = makeCtx(1);
     fillNav(ctx, true); // every destination tile blocked
-    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
-    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
-    drone.drone!.possessedId = robot.id;
-    setControl(ctx, { x: 1, y: 0 });
+    const { robot } = possessed(ctx);
+    setControl(ctx, FORWARD);
 
-    droneSystem(ctx, 1);
+    droneSystem(ctx, gameConfig.fixedDt);
 
     expect(robot.position!.x).toBeCloseTo(400, 3); // did not phase through the wall
   });
@@ -198,25 +267,34 @@ describe('droneSystem — driving a possessed robot', () => {
     // neighbour reciprocates against in the ORCA solve.
     const ctx = makeCtx(1);
     fillNav(ctx, false);
-    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
-    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
-    drone.drone!.possessedId = robot.id;
-    setControl(ctx, { x: 0, y: -1 }); // north
+    const { robot } = possessed(ctx);
+    setControl(ctx, FORWARD);
 
     droneSystem(ctx, gameConfig.fixedDt);
 
-    expect(robot.movement!.velY).toBeCloseTo(-robot.movement!.speed, 3);
-    expect(robot.movement!.velX).toBeCloseTo(0, 3);
+    expect(robot.movement!.velX).toBeCloseTo(robot.movement!.speed, 3);
+    expect(robot.movement!.velY).toBeCloseTo(0, 3);
+  });
+
+  it('publishes zero for a hull that only turned — it covered no ground', () => {
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const { robot } = possessed(ctx);
+    robot.movement!.velX = 60;
+    setControl(ctx, { x: 1, y: 0 });
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.movement!.velX).toBe(0);
+    expect(robot.movement!.velY).toBe(0);
   });
 
   it('publishes zero for a centred stick rather than last tick\'s reading', () => {
     const ctx = makeCtx(1);
     fillNav(ctx, false);
-    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const { robot } = possessed(ctx);
     robot.movement!.velX = 60;
     robot.movement!.velY = -12;
-    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
-    drone.drone!.possessedId = robot.id;
     setControl(ctx); // stick centred
 
     droneSystem(ctx, gameConfig.fixedDt);
@@ -228,10 +306,8 @@ describe('droneSystem — driving a possessed robot', () => {
   it('stops at a wall and says so — no velocity for a step it did not take', () => {
     const ctx = makeCtx(1);
     fillNav(ctx, true);
-    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
-    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
-    drone.drone!.possessedId = robot.id;
-    setControl(ctx, { x: 1, y: 0 });
+    const { robot } = possessed(ctx);
+    setControl(ctx, FORWARD);
 
     droneSystem(ctx, gameConfig.fixedDt);
 
@@ -265,19 +341,19 @@ describe('droneSystem + movementSystem — one hand on the hull', () => {
     const ctx = makeCtx(1);
     fillNav(ctx, false);
     const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
-    setGoal(ctx, robot, 1200, 400); // walking east when the pilot arrives
+    setGoal(ctx, robot, 400, 1200); // sent south when the pilot arrives
     const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
     drone.drone!.possessedId = robot.id;
-    setControl(ctx, { x: 0, y: -1 }); // stick held north
+    setControl(ctx, FORWARD); // and driven forward — east, where the hull points
     const dt = gameConfig.fixedDt;
 
     droneSystem(ctx, dt);
     movementSystem(ctx, dt);
 
-    expect(robot.position!.x).toBeCloseTo(400, 3); // not a pixel east
-    expect(robot.position!.y).toBeCloseTo(400 - robot.movement!.speed * dt, 3);
-    expect(robot.movement!.velX).toBeCloseTo(0, 3);
-    expect(robot.movement!.velY).toBeCloseTo(-robot.movement!.speed, 3);
+    expect(robot.position!.y).toBeCloseTo(400, 3); // not a pixel south
+    expect(robot.position!.x).toBeCloseTo(400 + robot.movement!.speed * dt, 3);
+    expect(robot.movement!.velX).toBeCloseTo(robot.movement!.speed, 3);
+    expect(robot.movement!.velY).toBeCloseTo(0, 3);
   });
 });
 

@@ -18,6 +18,7 @@ import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from './
  * pathfinds), and can land on an idle friendly robot to possess it — then it
  * steers that robot directly (obstacle-checked, so the robot still stops at
  * walls) and fires/detonates its weapon on demand (fully manual — no auto-fire).
+ * The stick is read differently once it is riding a hull — see `drivePossessed`.
  *
  * Runs after `taskSystem` so it can override the target the Idle resolver set,
  * keeping a possessed robot's fire strictly manual. Every side has a drone, and
@@ -33,17 +34,19 @@ export function droneSystem(ctx: GameContext, dt: number): void {
 
 function driveDrone(ctx: GameContext, dt: number, drone: DroneEntity): void {
   const control = ctx.droneControl[drone.owner];
-  const dir = normalize(control.dir);
 
   const possessedId = drone.drone.possessedId;
   const robot = possessedId ? livingRobotById(ctx, possessedId) : undefined;
 
   if (robot) {
-    drivePossessed(ctx, dt, drone, robot, dir, control.possessPulse, control.firePulse);
+    // Raw, deliberately: while a hull is being ridden the two components are
+    // *axes*, not a direction, and normalising them would rescale a half-pushed
+    // throttle back up to full.
+    drivePossessed(ctx, dt, drone, robot, control.dir, control.possessPulse, control.firePulse);
   } else {
     // The possessed robot is gone (e.g. a kamikaze detonated) — drop to free flight.
     drone.drone.possessedId = undefined;
-    freeFly(ctx, dt, drone, dir, control.possessPulse);
+    freeFly(ctx, dt, drone, normalize(control.dir), control.possessPulse);
   }
 
   control.possessPulse = false;
@@ -84,7 +87,25 @@ function tryPossess(ctx: GameContext, drone: DroneEntity): boolean {
   return true;
 }
 
-/** While possessing: release, or steer + fire the robot; the drone rides along. */
+/**
+ * While possessing: release, or steer + fire the robot; the drone rides along.
+ *
+ * **The stick means something different here than it does in free flight.** A
+ * free-flying drone is watched from above and steered in world directions: press
+ * north, fly north. A ridden hull is watched from behind its own nose
+ * (`pixi/render/fpv`), where an absolute direction is the wrong instrument — the
+ * key that means "forward" would move to a different finger every time the machine
+ * turned. So the same `Vec2` is read as the machine's own controls: `y` is throttle
+ * along the heading, `x` is a yaw *rate*, and the heading is integrated rather than
+ * snapped.
+ *
+ * Keyed to possession rather than to which view is on screen, and that is not a
+ * shortcut: the view is renderer state the simulation knows nothing about, so
+ * deciding the control law by it would mean either a second field on the wire or
+ * converting on the client — and a client-side conversion puts the lockstep delay
+ * inside the yaw feedback loop, which wobbles. Possession is a fact both peers read
+ * from the same world, so both read the stick the same way.
+ */
 function drivePossessed(
   ctx: GameContext,
   dt: number,
@@ -105,10 +126,22 @@ function drivePossessed(
   } else {
     // Manual-only fire: never let the Idle-under-fire resolver auto-fire this robot.
     robot.targetId = undefined;
-    const speed = robot.movement.speed;
+    // Screen y grows downward, so `W` arrives as y = -1 and is forward.
+    const throttle = -clamp(dir.y, -1, 1);
+    const yaw = clamp(dir.x, -1, 1);
+
+    // Turning is independent of driving, in both directions: the hull turns on the
+    // spot with the throttle centred, and it keeps turning while pinned against a
+    // wall — the step below can be refused, the heading never is. Reverse leaves
+    // the heading alone, so backing out of a dead end does not spin the machine
+    // (and, with the camera on its nose, does not spin the world either).
+    const turnRate = (gameConfig.drone.possessTurnRateDeg * Math.PI) / 180;
+    if (yaw !== 0) robot.heading = wrapAngle(robot.heading + yaw * turnRate * dt);
+
     const startX = rpos.x;
     const startY = rpos.y;
-    stepWithWalls(ctx, robot, dir, speed * dt);
+    const heading = { x: Math.cos(robot.heading), y: Math.sin(robot.heading) };
+    if (throttle !== 0) stepWithWalls(ctx, robot, heading, robot.movement.speed * throttle * dt);
     // What the pilot just drove, in the same form `recordTick` uses — because for
     // this one hull that pass cannot measure it. `movementSystem` runs next and
     // captures its own start *after* this step, so the pilot's movement falls in
@@ -119,7 +152,6 @@ function drivePossessed(
     // way round.
     robot.movement.velX = (rpos.x - startX) / dt;
     robot.movement.velY = (rpos.y - startY) / dt;
-    if (dir.x !== 0 || dir.y !== 0) robot.heading = Math.atan2(dir.y, dir.x);
     if (fire) fireManual(ctx, robot);
   }
 
@@ -208,6 +240,19 @@ function fireManual(ctx: GameContext, robot: RobotEntity): void {
   else spawnProjectile(ctx.world, robot.owner, pos, target.position, target.id, w.damage, robot.id, robot.weaponType);
   w.cooldownLeft = w.cooldown;
   ctx.bus.emit('projectileFired', { owner: robot.owner, pos: { x: pos.x, y: pos.y }, weapon: robot.weaponType });
+}
+
+/**
+ * Back into (-pi, pi]. The heading is *accumulated* under a pilot rather than
+ * derived from a vector, so without this it drifts away from the range every
+ * `atan2` in the codebase produces and loses precision over a long match.
+ */
+function wrapAngle(a: number): number {
+  const turn = Math.PI * 2;
+  const wrapped = a % turn;
+  if (wrapped > Math.PI) return wrapped - turn;
+  if (wrapped <= -Math.PI) return wrapped + turn;
+  return wrapped;
 }
 
 function normalize(v: Vec2): Vec2 {
