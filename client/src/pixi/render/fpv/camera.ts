@@ -76,6 +76,20 @@ export interface FpvProjection {
   eye: FpvEye;
   /** Copied through so `project` can reject what the vertex shader would clip. */
   near: number;
+  /**
+   * Where the ground plane's vanishing line lands, in CSS pixels from the top.
+   *
+   * **A horizontal line, always.** Screen right is `[-sin h, cos h, 0]` — its `z`
+   * component is a hard zero, because this camera does not roll — so every
+   * horizontal direction projects to the same screen `y`, and the horizon cannot
+   * tilt. It therefore reduces to one number rather than a line equation.
+   *
+   * Carried here rather than recomputed by the caller for the reason the eye is:
+   * `pitch` is known at the only place the matrix is built and nowhere else, and
+   * recovering it from the matrix would be the duplication this module exists to
+   * prevent. It moves with the recoil, since that is what recoil tilts.
+   */
+  horizonY: number;
 }
 
 /** A point that survived projection, in CSS pixels from the canvas's top-left. */
@@ -84,6 +98,19 @@ export interface ScreenPoint {
   y: number;
   /** Distance in front of the camera along the view direction, in world px. */
   depth: number;
+}
+
+/**
+ * Back into (-pi, pi]. The rig accumulates a heading of its own, so it needs the
+ * same wrap `drivePossessed` does — duplicated rather than shared because the
+ * renderer may not reach into the engine for three lines of trigonometry.
+ */
+function wrapAngle(a: number): number {
+  const turn = Math.PI * 2;
+  const wrapped = a % turn;
+  if (wrapped > Math.PI) return wrapped - turn;
+  if (wrapped <= -Math.PI) return wrapped + turn;
+  return wrapped;
 }
 
 /** Where the camera sits for a given pose — behind the hull along its heading, and above it. */
@@ -182,7 +209,12 @@ function projectionFrom(
     for (let row = 0; row < 4; row++) matrix[col * 4 + row] = rows[row][col];
   }
 
-  return { matrix, eye, near };
+  // A horizontal direction has `u · dir = sin p` and `d · dir = cos p`, so the `y`
+  // row over the `w` row collapses to this — independent of heading and of where
+  // the eye is, which is what makes the horizon one number.
+  const horizonY = halfH * (1 - (fy * sp) / cp);
+
+  return { matrix, eye, near, horizonY };
 }
 
 /**
@@ -218,10 +250,8 @@ export function project(view: FpvProjection, x: number, y: number, z: number): S
  * It was written this way because a possessed hull's heading used to *snap* to the
  * stick, and a 180° flip would have swung a smoothed anchor a quarter of a turn
  * away and taken the machine clean off the monitor for as long as the smoothing
- * lasted. That is no longer true — the pilot now turns the hull at a bounded rate
- * (`drivePossessed`), so positional inertia has become possible. It is still not
- * *here*: swinging with the hull is a separate call about how the view should
- * feel, not a consequence of the control law.
+ * lasted. The pilot now turns the hull at a bounded rate (`drivePossessed`), which
+ * is what let `SWING` below add the lateral half.
  */
 const DOLLY = { atFullSpeed: 26, tau: 0.5 };
 
@@ -236,6 +266,24 @@ const RECOIL = { push: 22, climbDeg: 5.5, tau: 0.16 };
 
 /** Being hit: how far the tube is thrown about, and how fast it stops ringing. */
 const SHAKE = { amplitude: 7, tau: 0.28, hz: 17 };
+
+/**
+ * How long the view takes to come round after the hull has turned.
+ *
+ * **This is the lateral half of the lag, and it is bought by placing the camera on
+ * a heading of its own.** The eye trails behind along `anchor` and the matrix looks
+ * down `anchor` — so the hull sits dead centre either way and the camera cannot
+ * lose it, which is the objection that kept this out. What lags is the *world*:
+ * mid-turn the machine is drawn at its own heading while the picture is still
+ * built on the old one, so the pilot watches their own hull nose into the corner
+ * and the ground swing after it.
+ *
+ * Short. At the shipped 160°/s a quarter-second constant leaves the view about 20°
+ * behind at full rate, which reads as weight; much more and aiming stops feeling
+ * connected to the stick, because the thing you are pointing has left the middle of
+ * the screen for as long as you hold the turn.
+ */
+const SWING = { tau: 0.18 };
 
 /** What the rig is told each frame beyond the pose — all of it read off the world by `FpvView`. */
 export interface FpvRigInput {
@@ -270,6 +318,8 @@ export class FpvCameraRig {
   private dolly = 0;
   private recoil = 0;
   private shake = 0;
+  /** The heading the *view* is built on, chasing the hull's — see `SWING`. */
+  private anchor = 0;
   /** Rig-local clock, for the shake waveform. Wall time, and only ever cosmetic. */
   private clock = 0;
   private fresh = true;
@@ -279,7 +329,7 @@ export class FpvCameraRig {
     this.dolly = 0;
     this.recoil = 0;
     this.shake = 0;
-    this.fresh = true;
+    this.fresh = true; // `anchor` is snapped to the new hull on the next frame, not zeroed
   }
 
   frame(input: FpvRigInput): FpvProjection {
@@ -300,11 +350,17 @@ export class FpvCameraRig {
     this.dolly += (drive * DOLLY.atFullSpeed - this.dolly) * ease(DOLLY.tau);
     this.recoil -= this.recoil * ease(RECOIL.tau);
     this.shake -= this.shake * ease(SHAKE.tau);
+    // Eased over the *shortest* arc: the two headings sit either side of ±pi
+    // whenever a turn crosses due west, and easing the raw difference there would
+    // send the view the long way round a machine that turned a single degree.
+    // `fresh` makes the first frame a snap, so taking a hull that faces west does
+    // not open with a half-second sweep from due east.
+    this.anchor = wrapAngle(this.anchor + wrapAngle(pose.heading - this.anchor) * ease(SWING.tau));
     this.fresh = false;
 
     const back = followDistance + this.dolly + this.recoil * RECOIL.push;
-    const ch = Math.cos(pose.heading);
-    const sh = Math.sin(pose.heading);
+    const ch = Math.cos(this.anchor);
+    const sh = Math.sin(this.anchor);
     // A decaying wobble rather than noise: this file may not touch the engine's
     // seeded `Rng` (it would desync lockstep), and a sine pair reads as a tube
     // ringing where white noise reads as a dropped frame.
@@ -317,6 +373,9 @@ export class FpvCameraRig {
     };
     // The muzzle climbs on recoil: less downward tilt, so the horizon drops.
     const pitch = ((pitchDeg - this.recoil * RECOIL.climbDeg) * Math.PI) / 180;
-    return projectionFrom(eye, pose.heading, pitch, screenW, screenH);
+    // `anchor`, not the hull's heading, and for both halves: the eye is placed on
+    // this axis and the matrix looks down it, so the hull stays centred while the
+    // world is the thing that lags.
+    return projectionFrom(eye, this.anchor, pitch, screenW, screenH);
   }
 }

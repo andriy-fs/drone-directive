@@ -9,6 +9,7 @@ import { isAlive } from '../../../engine/ecs/guards';
 import { isDisabled } from '../../../engine/systems/status';
 import { jamPressure } from '../../../engine/systems/vision';
 import { manualFireTarget } from '../../../engine/systems/drone';
+import { ownBase } from '../../../engine/systems/targeting';
 import { perfFlags } from '../../perf/perfFlags';
 import type { FogState, GameContext } from '../../../engine/game/context';
 import type { TerrainGrid } from '../../../engine/obstacles';
@@ -26,6 +27,7 @@ import {
   type Model,
 } from './models';
 import { COLD, baseHeat, drawTargetMark, drawUnit, robotHeat, screenBoundsOf, type Heat } from './units';
+import { drawInstruments } from './instruments';
 
 /**
  * The wireframe hull view: the second renderer in this folder, and the one the
@@ -75,6 +77,16 @@ const FADE = { start: 380, end: 1180 };
 /** Time constant (seconds) the dead-signal static comes up and goes down over. */
 const DEAD_RAMP = 0.09;
 
+/**
+ * The haze on the horizon: how far down the screen it reaches, how thick it starts,
+ * how far above the line it glows, and how many bands it is stacked from.
+ *
+ * Bands rather than a gradient fill because a stack of translucent rects needs no
+ * API this renderer does not already use. Sixteen is where the steps stop being
+ * visible against the void — at ten, the top of the ramp still reads as an edge.
+ */
+const HAZE = { reach: 96, glow: 10, alpha: 0.13, bands: 16 };
+
 /** Line colour as linear 0..1, which is what the shader wants. */
 function rgb(hex: number): number[] {
   return [((hex >> 16) & 0xff) / 255, ((hex >> 8) & 0xff) / 255, (hex & 0xff) / 255];
@@ -103,7 +115,17 @@ export interface FpvFrame {
 export class FpvView {
   readonly container: Container;
   private readonly backdrop = new Graphics();
+  /**
+   * The horizon and the haze on it. Between the ground and the machines on purpose:
+   * it has to wash the far ground to read as distance, and it must not wash the
+   * machines standing on it — those already recede through their own per-unit fade,
+   * and a hull greyed out because it happens to be near the horizon *on screen*
+   * would be greyed out for the wrong reason.
+   */
+  private readonly depth = new Graphics();
   private readonly units = new Graphics();
+  /** The hull's own instruments, over everything — see `instruments.ts`. */
+  private readonly instruments = new Graphics();
   private terrain: Mesh<Geometry, Shader> | null = null;
   private shader: Shader | null = null;
   /**
@@ -133,7 +155,9 @@ export class FpvView {
     // hit-test reaching them would select or order things the player cannot see.
     this.container.eventMode = 'none';
     this.container.visible = false;
-    this.container.addChild(this.backdrop, this.units);
+    // `setTerrain` inserts the ground at index 1, so the finished order is
+    // backdrop · terrain · depth · units · instruments.
+    this.container.addChild(this.backdrop, this.depth, this.units, this.instruments);
     // Attached once and left on: this container is only ever visible while a drone
     // is riding a hull, so "only during possession" is already true of the whole
     // subtree. `filterArea` is what makes it affordable — see `attachTo`.
@@ -205,6 +229,8 @@ export class FpvView {
 
     this.backdrop.clear();
     this.backdrop.rect(0, 0, width, height).fill(palette.fpv.void);
+    this.depth.clear();
+    this.instruments.clear();
 
     // Electronics down: the monitor is showing nothing but its own noise. The
     // scene is not drawn *at all* rather than being covered over — there is no
@@ -215,6 +241,8 @@ export class FpvView {
     const blind = this.dead > 0.985;
     if (this.terrain) this.terrain.visible = !blind;
     this.units.visible = !blind;
+    this.depth.visible = !blind;
+    this.instruments.visible = !blind;
 
     this.feed?.update({
       time: frame.now / 1000,
@@ -233,8 +261,24 @@ export class FpvView {
       this.uniforms.uEye = this.eye;
     }
 
-    if (!blind) this.drawUnits(frame, view);
-    else this.units.clear();
+    if (blind) {
+      this.units.clear();
+      return;
+    }
+    this.drawDepth(view, width, height);
+    this.drawUnits(frame, view);
+    // Where the camera is looking, which mid-turn is *not* where the hull points:
+    // the eye sits on the axis it looks down, so the axis is the line from one to
+    // the other (`FpvCameraRig`, `SWING`).
+    const viewHeading = Math.atan2(robot.position.y - view.eye.y, robot.position.x - view.eye.x);
+    drawInstruments(this.instruments, {
+      view,
+      viewHeading,
+      robot,
+      home: frame.ctx ? ownBase(frame.ctx, robot.owner)?.position : undefined,
+      screenW: width,
+      screenH: height,
+    });
   }
 
   /** Wall clock at the previous frame, for the frame delta the rig and the ramps run on. */
@@ -273,6 +317,43 @@ export class FpvView {
     last.cooldown = robot.weapon.cooldownLeft;
     last.hp = robot.hp;
     return dt;
+  }
+
+  /**
+   * The horizon, and the haze sitting on it.
+   *
+   * **A screen-space approximation, and knowingly so.** Real aerial perspective is
+   * a function of distance per fragment; this is a band of alpha where far ground
+   * happens to land. It is honest for the ground, which is the whole point — the
+   * grid used to thin to nothing and simply stop, so the far edge read as the
+   * picture running out rather than as distance — and it is deliberately drawn
+   * under the machines, which recede by their own range fade instead.
+   *
+   * `horizonY` comes off the projection rather than being worked out here, so the
+   * band rides the recoil: the muzzle climbs, the tilt eases, and the horizon drops
+   * with it.
+   */
+  private drawDepth(view: FpvProjection, width: number, height: number): void {
+    const y = view.horizonY;
+    if (y > height + HAZE.reach || y + HAZE.reach < 0) return;
+
+    const g = this.depth;
+    const band = HAZE.reach / HAZE.bands;
+    for (let i = 0; i < HAZE.bands; i++) {
+      const t = i / HAZE.bands;
+      // Squared, so the wash is dense in the first few px under the horizon and
+      // gone well before the ground the pilot is actually driving over.
+      const alpha = HAZE.alpha * (1 - t) * (1 - t);
+      if (alpha < 0.004) continue;
+      // Butted, never overlapped: a shared edge composites twice and draws itself
+      // as a bright line, which on this view reads as another scan line rather
+      // than as haze.
+      g.rect(0, y + t * HAZE.reach, width, band).fill({ color: palette.fpv.terrain, alpha });
+    }
+    // A thin glow above it too: nothing is drawn up there at all, and an unlit edge
+    // reads as the top of a shape rather than as the end of the ground.
+    g.rect(0, y - HAZE.glow, width, HAZE.glow).fill({ color: palette.fpv.terrain, alpha: HAZE.alpha * 0.35 });
+    g.moveTo(0, y).lineTo(width, y).stroke({ width: 1, color: palette.fpv.terrain, alpha: 0.55 });
   }
 
   private drawUnits(frame: FpvFrame, view: FpvProjection): void {

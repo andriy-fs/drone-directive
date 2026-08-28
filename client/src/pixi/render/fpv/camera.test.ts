@@ -174,6 +174,90 @@ describe('FpvCameraRig', () => {
     rig.reset();
     expect(trail(rig)).toBeLessThan(kicked - 10);
   });
+
+  /** Which way the view is pointing: the eye sits on the axis it looks down. */
+  const looking = (rig: FpvCameraRig, pose: typeof facingEast, over: Partial<typeof still> = {}) => {
+    const view = rig.frame({ ...still, pose, ...over });
+    return Math.atan2(pose.y - view.eye.y, pose.x - view.eye.x);
+  };
+
+  it('swings after the hull rather than with it', () => {
+    const rig = new FpvCameraRig();
+    looking(rig, facingEast); // settled, pointing east
+    const turned = { ...facingEast, heading: Math.PI / 2 };
+    const first = looking(rig, turned);
+    // A quarter turn in one frame: the view has begun to come round and is
+    // nowhere near arrived.
+    expect(first).toBeGreaterThan(0.01);
+    expect(first).toBeLessThan(Math.PI / 2 - 0.2);
+    for (let i = 0; i < 120; i++) looking(rig, turned);
+    expect(looking(rig, turned)).toBeCloseTo(Math.PI / 2, 3);
+  });
+
+  it('takes the short way round the back', () => {
+    // Just south of due west to just north of it: one degree of hull, and the view
+    // must not sweep 359 the other way to follow it.
+    const rig = new FpvCameraRig();
+    const west = { ...facingEast, heading: Math.PI - 0.01 };
+    looking(rig, west);
+    const over = { ...facingEast, heading: -Math.PI + 0.01 };
+    for (let i = 0; i < 5; i++) looking(rig, over);
+    const at = looking(rig, over);
+    expect(Math.abs(at)).toBeGreaterThan(Math.PI - 0.05); // still pointing west
+  });
+
+  it('opens pointed at the hull it was just given', () => {
+    // Taking a machine that faces west must not start with half a second of sweep
+    // from wherever the last one was looking.
+    const rig = new FpvCameraRig();
+    looking(rig, facingEast);
+    rig.reset();
+    const west = { ...facingEast, heading: Math.PI };
+    expect(Math.abs(looking(rig, west))).toBeCloseTo(Math.PI, 5);
+  });
+
+  it('swings the same way whatever the frame rate', () => {
+    const slow = new FpvCameraRig();
+    const fast = new FpvCameraRig();
+    looking(slow, facingEast, { dt: 1 / 30 });
+    looking(fast, facingEast, { dt: 1 / 144 });
+    const turned = { ...facingEast, heading: 1 };
+    for (let i = 0; i < 6; i++) looking(slow, turned, { dt: 1 / 30 });
+    for (let i = 0; i < 29; i++) looking(fast, turned, { dt: 1 / 144 });
+    expect(looking(slow, turned, { dt: 1 / 30 })).toBeCloseTo(looking(fast, turned, { dt: 1 / 144 }), 1);
+  });
+});
+
+describe('the horizon', () => {
+  it('is where a far-off point at eye height lands', () => {
+    const view = viewProjection(facingEast, W, H);
+    const far = project(view, view.eye.x + 1e6, view.eye.y, view.eye.z);
+    expect(far).not.toBeNull();
+    expect(far?.y).toBeCloseTo(view.horizonY, 2);
+  });
+
+  it('is the same line whichever way the camera faces', () => {
+    // Screen right has no z component, so the horizon cannot tilt or shift with a
+    // turn — which is what lets it be one number instead of a line.
+    const east = viewProjection(facingEast, W, H);
+    const other = viewProjection({ ...facingEast, heading: 2.1 }, W, H);
+    expect(other.horizonY).toBeCloseTo(east.horizonY, 6);
+  });
+
+  it('sits above the middle of the screen, where a tilted-down camera puts it', () => {
+    const view = viewProjection(facingEast, W, H);
+    expect(view.horizonY).toBeGreaterThan(0);
+    expect(view.horizonY).toBeLessThan(H / 2);
+  });
+
+  it('drops when the muzzle climbs on recoil', () => {
+    const rig = new FpvCameraRig();
+    const input = { pose: facingEast, dt: 1 / 60, drive: 0, shot: false, hit: 0, screenW: W, screenH: H };
+    const resting = rig.frame(input).horizonY;
+    const kicked = rig.frame({ ...input, shot: true }).horizonY;
+    // Less downward tilt puts the vanishing line further down the screen.
+    expect(kicked).toBeGreaterThan(resting);
+  });
 });
 
 describe('screenBoundsOf', () => {
