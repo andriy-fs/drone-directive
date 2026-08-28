@@ -101,11 +101,11 @@ the constants are shared via `@drone-directive/protocol`:
 - guest: `?room=<CODE>&v=<PROTOCOL_VERSION>`
 - resume: `?room=<CODE>&v=<PROTOCOL_VERSION>&resume=<RESUME_TOKEN>`
 
-`Worker.fetch` then does five things and nothing else: answers `GET /health` with
-`ok`, rejects non-upgrade requests with **426**, routes `/chat` to
-`env.CHAT.get(idFromName(chatId))` (**400** on a missing or too-short id), rejects a
-missing `?room=` with **400**, and otherwise forwards the untouched request to
-`env.ROOM.get(idFromName(roomCode))`.
+`Worker.fetch` then does six things and nothing else: answers `GET /health` with
+`ok`, answers `GET /desktop/version` (see below), rejects non-upgrade requests with
+**426**, routes `/chat` to `env.CHAT.get(idFromName(chatId))` (**400** on a missing
+or too-short id), rejects a missing `?room=` with **400**, and otherwise forwards
+the untouched request to `env.ROOM.get(idFromName(roomCode))`.
 
 The room code is generated **client-side** by the host (`randomRoomCode()`, 4 chars
 from an alphabet with no `0/O/1/I`) — the server never allocates codes, it just
@@ -223,6 +223,41 @@ Each frame is one `MessageTag` octet followed by that message's BARE payload:
 `BAD_MESSAGE` is declared in the schema but never sent by the relay — the client
 uses it locally for a malformed `VITE_MULTIPLAYER_URL` (`LockstepSession.open`).
 
+## `/desktop/version` — the desktop shell's update check
+
+The one route here that has nothing to do with a match, and the only thing in the
+project that knows the desktop build has users.
+
+```
+GET /desktop/version?shell=0.1.8&os=linux&arch=x64
+  -> {"latest":"0.1.8","url":"https://github.com/andriy-fs/drone-directive-desktop/releases/latest"}
+```
+
+The packaged shell asks once per launch and, if `latest` is newer than its own
+version, offers the player the releases page — it downloads and installs nothing.
+It has to ask *something*: inside the shell the game's own `useUpdateCheck` fetches
+a `version.json` that `protocol.ts` serves out of the bundle itself, so a desktop
+client only ever compares equal to itself, and a player who never goes online would
+never hear about a new release. Asking our relay rather than GitHub's API costs
+nothing, avoids GitHub's per-IP rate limit, and is what makes the count below
+possible.
+
+`latest` is the `DESKTOP_LATEST` var in `wrangler.toml`, bumped by hand when a
+desktop release is cut (`.docs/internal/release/README.md`); a var rather than a
+call out to the GitHub API, because it is one string that changes a few times a
+year.
+
+**What is recorded.** One Analytics Engine data point per request — version, OS,
+architecture, and the country Cloudflare derives from the connection. No identifier
+is sent or stored, so this counts *launches*, not people, and the IP is never
+written down (Cloudflare sees it in transit, as it does for every request). Every
+caller-supplied field is validated against `/^[0-9a-z._-]{1,24}$/` and recorded as
+`other` otherwise — this is a public endpoint, and unvalidated dimensions are how a
+dataset becomes unbounded garbage. Data points live for three months. The shell
+documents all of it in its own README and turns the request off entirely with
+`--no-update-check`; unpackaged runs (its dev server, its smoke test, CI) never send
+it at all.
+
 ## Configuration
 
 [`server/wrangler.toml`](../server/wrangler.toml) is the whole deployment config:
@@ -234,6 +269,9 @@ uses it locally for a malformed `VITE_MULTIPLAYER_URL` (`LockstepSession.open`).
   is disabled as a side effect of declaring a route.
 - One DO binding, `ROOM` → `class_name = "Room"` (which is why `Room` is re-exported
   from the Worker entry — wrangler needs it as a named export of `main`).
+- `[vars] DESKTOP_LATEST` and the `DESKTOP_LAUNCHES` Analytics Engine dataset, both
+  for `/desktop/version` above. The dataset binding is read as optional in code, so
+  `wrangler dev` — which has none — serves the route rather than 500ing on it.
 - `[[migrations]] new_sqlite_classes = ["Room"]`. **The relay never touches
   storage**; SQLite-backed classes are simply what Cloudflare's free plan requires
   for Durable Objects, so the declaration is a formality.

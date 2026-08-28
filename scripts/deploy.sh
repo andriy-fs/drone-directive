@@ -104,6 +104,9 @@ check() {
 check 'site'     'https://drone-directive.space/'             200
 check 'www'      'https://www.drone-directive.space/'         200
 check 'relay'    'https://relay.drone-directive.space/health' 200
+# The desktop shell's update check. A packaged app asks this on every launch, and a
+# 404 here would be invisible from the website — nothing else calls it.
+check 'desktop'  'https://relay.drone-directive.space/desktop/version' 200
 # A 404 here is the pass: the sprite pipeline's scratch directory must not ship.
 check 'no .tmp'  'https://drone-directive.space/.tmp/base-ai.png' 404
 

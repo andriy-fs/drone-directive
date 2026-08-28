@@ -35,3 +35,19 @@ new_sqlite_classes = ["Room"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Chat"]
+
+# The newest published release of the desktop shell
+# (andriy-fs/drone-directive-desktop), which `/desktop/version` hands back to a
+# running copy so it can tell the player a new build exists. Bumped by hand right
+# after `npm run release` there, then `npm run deploy -w server` — see
+# `.docs/internal/release/README.md`. A var rather than a call to GitHub's API:
+# one string, no external dependency, no rate limit.
+[vars]
+DESKTOP_LATEST = "0.1.8"
+
+# One row per desktop launch: version, OS, architecture, country. No identifier is
+# sent or stored, so this counts launches rather than people — see `src/desktop.ts`
+# for what the shell sends and why. Data points live for three months.
+[[analytics_engine_datasets]]
+binding = "DESKTOP_LAUNCHES"
+dataset = "desktop_launches"
