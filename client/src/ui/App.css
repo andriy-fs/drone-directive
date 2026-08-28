@@ -118,11 +118,19 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  /* The controls take a line of their own — see `.hud__controls` below. */
+  flex-wrap: wrap;
 }
 
+/* Its own full-width line under the title, never squeezed beside it: four tiles
+   do not fit next to a 22px display heading in a 300px rail. `space-between`
+   rather than a fixed gap so the row always ends flush with both edges of the
+   panel — the last tile lines up with the cards below it whatever the tile count
+   or the language. */
 .hud__controls {
   display: flex;
-  gap: 6px;
+  flex: 1 1 100%;
+  justify-content: space-between;
 }
 
 .hud__title {
@@ -186,7 +194,9 @@
   min-width: 34px;
   font-size: 16px;
   line-height: 1;
-  padding: 5px 8px;
+  /* Deliberately no padding: this rule sits above `.btn` and ties it on
+     specificity, so `.btn` — the later one — wins whatever is written here. The
+     tiles take their size from there. */
 }
 
 .sound-toggle:disabled {

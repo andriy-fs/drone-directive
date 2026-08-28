@@ -34,6 +34,7 @@ export const en: Dict = {
     singleplayer: 'Singleplayer',
     matchSetup: 'Match setup',
     desktopApp: 'Desktop app',
+    quit: 'Quit game',
   },
   difficulty: {
     easy: 'Easy',
@@ -61,6 +62,12 @@ export const en: Dict = {
     viewDrone: 'View: drone',
     viewFree: 'View: free',
     viewSyncHint: 'Tie the view to the drone, or look around on your own',
+  },
+  confirmExit: {
+    title: 'Leave the match?',
+    body: 'The match ends here — there is no way back to it. In an online match your opponent is told it is over.',
+    confirm: 'Leave',
+    cancel: 'Stay',
   },
   gameOver: {
     victory: 'Victory',
@@ -200,6 +207,9 @@ export const en: Dict = {
     language: 'Language',
     theme: 'Interface theme',
     close: 'Close',
+    enterFullscreen: 'Full screen',
+    exitFullscreen: 'Leave full screen',
+    exitToMenu: 'Leave the match',
   },
   theme: {
     command: 'Command',

@@ -45,6 +45,11 @@ import {
   Square as LucideSquare,
   Maximize2 as LucideMaximize2,
   Ban as LucideBan,
+  Maximize as LucideMaximize,
+  Minimize as LucideMinimize,
+  LogOut as LucideLogOut,
+  Keyboard as LucideKeyboard,
+  Power as LucidePower,
 } from 'lucide-react';
 
 /** The shape every icon here has — so callers can take one as a prop without importing lucide. */
@@ -66,6 +71,17 @@ export const BellIcon = LucideBell;
 export const BellOffIcon = LucideBellOff;
 /** A networked match standing still — waiting on the peer, or on our own socket. */
 export const HourglassIcon = LucideHourglass;
+/* The titlebar's two new controls. `Maximize`/`Minimize` — the plain corner
+   brackets — rather than the arrow pair `Maximize2` already spoken for by the
+   spread formation, and a door-with-an-arrow for the way out of a match. */
+export const MaximizeIcon = LucideMaximize;
+export const MinimizeIcon = LucideMinimize;
+export const LogOutIcon = LucideLogOut;
+/* The controls reference, in both places that open it: the HUD titlebar and the
+   title screen's settings bar. A keyboard rather than the `?` it used to carry —
+   in the sidebar that glyph is the Directives card's own help button one card
+   below, and the same symbol must not mean two things there. */
+export const KeyboardIcon = LucideKeyboard;
 
 /* The HUD's Directives card: its header, then one icon per program (see TASK_ICONS). */
 export const ClipboardCheckIcon = LucideClipboardCheck;
@@ -96,6 +112,9 @@ export const BookOpenIcon = LucideBookOpen;
    MonitorDown: `GraphicsIcon` is already a monitor two zones away on the very
    same screen, and the arrow says "leaves the page" without competing with it. */
 export const DownloadIcon = LucideDownload;
+/* Its mirror: the entry that quits the desktop app, shown only there. A power
+   symbol, because this ends the process rather than navigating anywhere. */
+export const PowerIcon = LucidePower;
 
 /* The build modal's chassis cards (see CHASSIS_ICONS); legs reuse BotIcon above. */
 export const TruckIcon = LucideTruck;

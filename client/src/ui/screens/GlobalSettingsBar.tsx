@@ -7,7 +7,7 @@ import {
   CheckIcon,
   GlobeIcon,
   GraphicsIcon,
-  HelpCircleIcon,
+  KeyboardIcon,
   PaletteIcon,
   Volume2Icon,
   VolumeXIcon,
@@ -130,7 +130,7 @@ export function GlobalSettingsBar({
         aria-label={t('mainMenu', 'controls')}
         title={t('mainMenu', 'controls')}
       >
-        <HelpCircleIcon size={16} aria-hidden />
+        <KeyboardIcon size={16} aria-hidden />
       </Button>
     </div>
   );

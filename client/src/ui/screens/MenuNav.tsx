@@ -1,8 +1,8 @@
-import { DESKTOP_RELEASES_URL, isDesktopApp } from '../../config/platform';
+import { DESKTOP_RELEASES_URL, isDesktopApp, quitDesktopApp } from '../../config/platform';
 import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
 import { Button } from '../common/Button';
-import { BookOpenIcon, DownloadIcon, UserIcon, UsersIcon } from '../common/icons';
+import { BookOpenIcon, DownloadIcon, PowerIcon, UserIcon, UsersIcon } from '../common/icons';
 
 /** Which kind of game the title screen is setting up — one panel per value. */
 export type MenuMode = 'single' | 'online';
@@ -69,6 +69,17 @@ export function MenuNav({
           <DownloadIcon size={16} aria-hidden />
           <span className="menu-nav__label">{t('mainMenu', 'desktopApp')}</span>
         </a>
+      )}
+
+      {/* The mirror of the link above: in a browser the rail offers the desktop
+          build, in the desktop build it offers the way out of it. No confirmation
+          — nothing is running here, and the title screen is where quitting is
+          the ordinary thing to want. */}
+      {isDesktopApp && (
+        <Button className="menu-nav__item menu-nav__item--tertiary" onClick={quitDesktopApp}>
+          <PowerIcon size={16} aria-hidden />
+          <span className="menu-nav__label">{t('mainMenu', 'quit')}</span>
+        </Button>
       )}
     </nav>
   );

@@ -22,3 +22,33 @@ export const isDesktopApp = typeof navigator !== 'undefined' && navigator.userAg
  * link would need a version this repository must not know.
  */
 export const DESKTOP_RELEASES_URL = 'https://github.com/andriy-fs/drone-directive-desktop/releases/latest';
+
+/**
+ * The bridge the desktop shell *may* expose, and nothing more.
+ *
+ * Kept as a global declaration rather than an import because it is not this
+ * app's API: it belongs to `andriy-fs/drone-directive-desktop`, and every member
+ * is optional because the page cannot know which shell version is hosting it.
+ */
+declare global {
+  interface Window {
+    droneDirectiveShell?: { quit?: () => void };
+  }
+}
+
+/**
+ * Quits the desktop app. A no-op in a browser tab — the entry that calls it is
+ * only rendered when {@link isDesktopApp}.
+ *
+ * Two paths, in this order and for one reason each. The shell's IPC is preferred
+ * because on macOS closing the window does *not* end the app (the shell's
+ * `window-all-closed` deliberately skips darwin), so only the main process can
+ * actually quit. `window.close()` is the fallback for shells published before
+ * that bridge existed: Chromium normally refuses it for a window a script did
+ * not open, but Electron closes its `BrowserWindow` anyway.
+ */
+export function quitDesktopApp(): void {
+  const quit = window.droneDirectiveShell?.quit;
+  if (quit) quit();
+  else window.close();
+}

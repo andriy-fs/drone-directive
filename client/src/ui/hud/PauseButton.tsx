@@ -25,6 +25,7 @@ export function PauseButton() {
       // nothing flowing it would sit unsent and then fire on reconnect.
       disabled={status !== GameStatus.Playing || link !== OnlineLink.Ok}
       aria-label={paused ? t('aria', 'resume') : t('aria', 'pause')}
+      title={paused ? t('aria', 'resume') : t('aria', 'pause')}
     >
       {paused ? <PlayIcon size={16} /> : <PauseIcon size={16} />}
     </Button>

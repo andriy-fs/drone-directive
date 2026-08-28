@@ -33,6 +33,7 @@ export const uk: Dict = {
     singleplayer: 'Одиночна гра',
     matchSetup: 'Налаштування матчу',
     desktopApp: 'Версія для ПК',
+    quit: 'Вийти з гри',
   },
   difficulty: {
     easy: 'Легкий',
@@ -60,6 +61,12 @@ export const uk: Dict = {
     viewDrone: 'Огляд: дрон',
     viewFree: 'Огляд: вільний',
     viewSyncHint: "Прив'язати огляд до дрона або дивитися самостійно",
+  },
+  confirmExit: {
+    title: 'Вийти в головне меню?',
+    body: 'Матч на цьому завершиться — повернутися до нього не можна. У мережевому матчі суперник дізнається, що гру закінчено.',
+    confirm: 'Вийти',
+    cancel: 'Залишитися',
   },
   gameOver: {
     victory: 'Перемога',
@@ -200,6 +207,9 @@ export const uk: Dict = {
     language: 'Мова',
     theme: 'Тема інтерфейсу',
     close: 'Закрити',
+    enterFullscreen: 'Повний екран',
+    exitFullscreen: 'Вийти з повного екрана',
+    exitToMenu: 'Вийти в головне меню',
   },
   theme: {
     command: 'Командна',

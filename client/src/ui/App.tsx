@@ -3,8 +3,11 @@ import { GameCanvas } from './GameCanvas';
 import { ClipboardCheckIcon, HourglassIcon, PauseIcon } from './common/icons';
 import { HudCard } from './common/HudCard';
 import { ChatPanel } from './hud/ChatPanel';
+import { ControlsButton } from './hud/ControlsButton';
 import { DirectivesHelpButton } from './hud/DirectivesHelpButton';
 import { DroneReadyToast } from './hud/DroneReadyToast';
+import { ExitToMenuButton } from './hud/ExitToMenuButton';
+import { FullscreenButton } from './hud/FullscreenButton';
 import { RadioLog } from './hud/RadioLog';
 import { PauseButton } from './hud/PauseButton';
 import { SoundButton } from './hud/SoundButton';
@@ -76,6 +79,11 @@ function App() {
             <div className="hud__controls">
               <PauseButton />
               <SoundButton />
+              {/* What the game sounds like, then what it is played with, then the
+                  two that change the frame around it — destructive one last. */}
+              <ControlsButton />
+              <FullscreenButton />
+              <ExitToMenuButton />
             </div>
           </div>
           <div className="hud__section">

@@ -39,6 +39,8 @@ export interface Dict {
      * breaks the alignment of the whole tertiary block.
      */
     desktopApp: string;
+    /** Its mirror, shown only under the desktop shell: this one ends the process. */
+    quit: string;
   };
   difficulty: {
     easy: string;
@@ -68,6 +70,13 @@ export interface Dict {
     viewFree: string;
     /** What the toggle does, for the tooltip. */
     viewSyncHint: string;
+  };
+  /** The HUD titlebar's exit button asks first, because abandoning is final. */
+  confirmExit: {
+    title: string;
+    body: string;
+    confirm: string;
+    cancel: string;
   };
   gameOver: {
     victory: string;
@@ -225,6 +234,11 @@ export interface Dict {
     theme: string;
     /** A modal's corner [X] — the label the button's icon can't provide. */
     close: string;
+    /** The HUD titlebar's fullscreen toggle, in its two states. */
+    enterFullscreen: string;
+    exitFullscreen: string;
+    /** The HUD titlebar's way back to the title screen. */
+    exitToMenu: string;
   };
   /**
    * The UI schemes (`theme/`). Names, not descriptions — they sit in a dropdown

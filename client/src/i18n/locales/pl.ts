@@ -33,6 +33,7 @@ export const pl: Dict = {
     singleplayer: 'Gra jednoosobowa',
     matchSetup: 'Ustawienia rozgrywki',
     desktopApp: 'Wersja na PC',
+    quit: 'Zakończ grę',
   },
   difficulty: {
     easy: 'Łatwy',
@@ -60,6 +61,12 @@ export const pl: Dict = {
     viewDrone: 'Widok: dron',
     viewFree: 'Widok: swobodny',
     viewSyncHint: 'Przypnij widok do drona albo rozglądaj się samodzielnie',
+  },
+  confirmExit: {
+    title: 'Wyjść do menu głównego?',
+    body: 'Mecz się na tym kończy — nie da się do niego wrócić. W meczu sieciowym przeciwnik zostanie powiadomiony, że gra się skończyła.',
+    confirm: 'Wyjdź',
+    cancel: 'Zostań',
   },
   gameOver: {
     victory: 'Zwycięstwo',
@@ -200,6 +207,9 @@ export const pl: Dict = {
     language: 'Język',
     theme: 'Motyw interfejsu',
     close: 'Zamknij',
+    enterFullscreen: 'Pełny ekran',
+    exitFullscreen: 'Wyjdź z pełnego ekranu',
+    exitToMenu: 'Wyjdź do menu głównego',
   },
   theme: {
     command: 'Dowodzenie',

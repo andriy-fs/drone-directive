@@ -27,7 +27,12 @@ export function SoundButton() {
 
   return (
     <>
-      <Button className="sound-toggle" onClick={() => setOpen(true)} aria-label={t('aria', 'soundSettings')}>
+      <Button
+        className="sound-toggle"
+        onClick={() => setOpen(true)}
+        aria-label={t('aria', 'soundSettings')}
+        title={t('aria', 'soundSettings')}
+      >
         {silent ? <VolumeXIcon size={16} /> : <Volume2Icon size={16} />}
       </Button>
       {open && <SoundSettingsModal onClose={() => setOpen(false)} />}
