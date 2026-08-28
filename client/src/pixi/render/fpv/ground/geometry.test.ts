@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TerrainKind } from '@drone-directive/types/enums';
 import { gameConfig } from '../../../../config/gameConfig';
 import type { TerrainGrid } from '../../../../engine/obstacles';
-import { heightField } from './geometry';
+import { heightField, landformSegments, type Segment } from './geometry';
 
 /**
  * The relief, on grids small enough to reason about. What is checked here is the
@@ -11,6 +11,11 @@ import { heightField } from './geometry';
  * crater goes down, and that a big landform out-tops a small one — which is the
  * whole reason the height is read off the distance transform rather than being a
  * constant per tile.
+ *
+ * `landformSegments` is checked for the property the view exists to deliver: that a
+ * boundary a robot cannot cross has something *vertical* on it. A screenshot can say
+ * whether that reads; only this can say whether it is there at all, and whether it
+ * stands on its own ground.
  */
 
 const O = TerrainKind.Open;
@@ -80,5 +85,70 @@ describe('heightField', () => {
     expect(h.corner(0, 99)).toBe(0);
     expect(h.at(-500, -500)).toBe(0);
     expect(h.at(99999, 99999)).toBe(0);
+  });
+});
+
+/** Segments that go straight up or down: one map position, two heights. */
+function ribs(segments: Segment[]): Segment[] {
+  return segments.filter((s) => s.x0 === s.x1 && s.y0 === s.y1);
+}
+
+describe('landformSegments', () => {
+  it('draws nothing on open ground', () => {
+    const terrain = grid('...', '...', '...');
+    expect(landformSegments(terrain, heightField(terrain))).toEqual([]);
+  });
+
+  it('stands a cliff up at a mountain, and hangs one down into a crater', () => {
+    const mountain = grid('.....', '.###.', '.###.', '.....');
+    const crater = grid('.....', '.ooo.', '.ooo.', '.....');
+    const up = landformSegments(mountain, heightField(mountain));
+    const down = landformSegments(crater, heightField(crater));
+
+    expect(ribs(up).length).toBeGreaterThan(0);
+    expect(ribs(down).length).toBeGreaterThan(0);
+    // A rise never dips below the ground it stands on, and a pit never pokes above it.
+    expect(Math.min(...up.map((s) => Math.min(s.h0, s.h1)))).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...down.map((s) => Math.max(s.h0, s.h1)))).toBeLessThanOrEqual(0);
+  });
+
+  it('tops the cliff out at the rim tile\'s own height, whatever the massif behind it', () => {
+    // Every tile touching the outline is one step of depth in, so the crest is one
+    // height all the way round — the summit rises behind it, not at it.
+    const small = grid('...', '.#.', '...');
+    const big = grid('.......', '.#####.', '.#####.', '.#####.', '.#####.', '.......');
+    const crest = (t: TerrainGrid) => Math.max(...landformSegments(t, heightField(t)).map((s) => Math.max(s.h0, s.h1)));
+    expect(crest(small)).toBeCloseTo(crest(big), 6);
+    // And it clears the camera's own perch, which is the whole point of the change.
+    expect(crest(big)).toBeGreaterThan(gameConfig.drone.fpv.height / 2);
+  });
+
+  it('stands every rib on the ground under it rather than on zero', () => {
+    // The foot ramp has already lifted the surface by the time the outline reaches
+    // it. A rib that started at zero would hang off the bottom of its own cliff.
+    const terrain = grid('.....', '.###.', '.###.', '.###.', '.....');
+    const h = heightField(terrain);
+    for (const rib of ribs(landformSegments(terrain, h))) {
+      expect(rib.h0).toBeCloseTo(h.at(rib.x0, rib.y0), 6);
+      expect(rib.h1).not.toBeCloseTo(rib.h0, 3); // and it genuinely goes somewhere
+    }
+  });
+
+  it('closes the crest into a loop', () => {
+    const terrain = grid('.....', '.###.', '.###.', '.....');
+    const segments = landformSegments(terrain, heightField(terrain));
+    const crest = segments.filter((s) => s.h0 === s.h1 && s.h0 > 0);
+    // Every crest sample is joined to the next, so the run of them ends where it began.
+    const first = crest[0];
+    const last = crest[crest.length - 1];
+    expect(last.x1).toBeCloseTo(first.x0, 6);
+    expect(last.y1).toBeCloseTo(first.y0, 6);
+  });
+
+  it('still cliffs a landform pressed against the edge of the map', () => {
+    // The depth transform reads off-map as open, so a cluster on the edge is the
+    // shallowest one there is — and the case most likely to come out empty.
+    const terrain = grid('##..', '##..', '....');
+    expect(ribs(landformSegments(terrain, heightField(terrain))).length).toBeGreaterThan(0);
   });
 });
