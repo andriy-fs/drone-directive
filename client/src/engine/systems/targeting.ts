@@ -75,6 +75,27 @@ export function possessedRobotOf(ctx: GameContext, owner: Owner): RobotEntity | 
   return id ? livingRobotById(ctx, id) : undefined;
 }
 
+/**
+ * Every hull currently under a pilot, by id — the same selection as
+ * `possessedRobotOf`, asked without naming a side.
+ *
+ * `movementSystem` asks this once per pass and then tests every robot against the
+ * answer, which is why it is a set of ids rather than a per-robot predicate: the
+ * question is asked of the whole world, and resolving each drone's id back to an
+ * entity to answer it would be a lookup per robot for a fact that is fixed for the
+ * tick.
+ *
+ * No liveness check, unlike `possessedRobotOf`: `droneSystem` runs first and drops
+ * the id of a hull that died, so nothing here can name a wreck.
+ */
+export function pilotedHullIds(ctx: GameContext): Set<string> {
+  const ids = new Set<string>();
+  for (const d of drones(ctx.world)) {
+    if (d.drone.possessedId) ids.add(d.drone.possessedId);
+  }
+  return ids;
+}
+
 /** Living enemy robots relative to `owner`. */
 export function enemyRobots(ctx: GameContext, owner: Owner): RobotEntity[] {
   return robots(ctx.world).entities.filter((e) => isAlive(e) && isEnemy(owner, e.owner));

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
 import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import { spawnBase, spawnRobot } from '../ecs/factory';
+import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
 import { refreshNavObstacles } from '../navGrid';
 import { isBlockedGrid, tileOf } from '../obstacles';
 import { findPath } from '../pathfinding';
@@ -150,6 +150,68 @@ describe('movementSystem — disabled robots', () => {
 
     expect(robot.movement!.stuckTime).toBe(0);
     expect(robot.movement!.retreatTime ?? 0).toBe(0);
+  });
+});
+
+describe('movementSystem — a hull under a pilot', () => {
+  /**
+   * Runs the case under both avoidance layers, because the carve-out is written
+   * twice — the sequential pass and ORCA's phase A are deliberately separate loops
+   * (see the note on `movementSystem`), so a fix to one proves nothing about the
+   * other. The flag is restored in a `finally`.
+   */
+  const bothLayers = (scenario: () => void): void => {
+    const cfg = gameConfig.behavior.orca as { enabled: boolean };
+    const was = cfg.enabled;
+    try {
+      cfg.enabled = false;
+      scenario();
+      cfg.enabled = true;
+      scenario();
+    } finally {
+      cfg.enabled = was;
+    }
+  };
+
+  it('neither drives it nor overwrites the velocity `droneSystem` recorded', () => {
+    bothLayers(() => {
+      const ctx = makeCtx(1);
+      const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+      // A destination left over from a move order, as a hull possessed mid-march
+      // has: this pass used to drive it there under the pilot's hands.
+      robot.movement!.goal = { x: 900, y: 400 };
+      robot.movement!.destination = { x: 900, y: 400 };
+      // What the pilot drove this tick — north, at speed.
+      robot.movement!.velX = 0;
+      robot.movement!.velY = -robot.movement!.speed;
+      const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+      drone.drone!.possessedId = robot.id;
+      const start = { ...robot.position! };
+
+      for (let i = 0; i < 30; i++) movementSystem(ctx, gameConfig.fixedDt);
+
+      expect(robot.position).toEqual(start);
+      expect(robot.movement!.velX).toBe(0);
+      expect(robot.movement!.velY).toBe(-robot.movement!.speed);
+    });
+  });
+
+  it('does not retreat a pilot leaning on something — the anti-jam is frozen', () => {
+    // Standing still under a pilot is the pilot's business. The bookkeeping is
+    // left frozen rather than kept current the way `parkDisabled` keeps it.
+    bothLayers(() => {
+      const ctx = makeCtx(1);
+      const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+      robot.movement!.goal = { x: 900, y: 400 };
+      const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+      drone.drone!.possessedId = robot.id;
+
+      const ticks = Math.ceil(gameConfig.behavior.stuckAfter / gameConfig.fixedDt) + 2;
+      for (let i = 0; i < ticks; i++) movementSystem(ctx, gameConfig.fixedDt);
+
+      expect(robot.movement!.stuckTime ?? 0).toBe(0);
+      expect(robot.movement!.retreatTime ?? 0).toBe(0);
+    });
   });
 });
 

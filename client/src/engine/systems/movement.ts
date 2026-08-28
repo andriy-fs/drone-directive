@@ -10,7 +10,7 @@ import { isBlockedGrid, tileOf } from '../obstacles';
 import { findPath, smoothPath } from '../pathfinding';
 import { steerAround } from './avoidance';
 import { isDisabled } from './status';
-import { baseFootprintContains } from './targeting';
+import { baseFootprintContains, pilotedHullIds } from './targeting';
 
 /**
  * Sets a robot's navigation goal, pathfinding around obstacles. Skips the A*
@@ -119,6 +119,7 @@ export function movementSystem(ctx: GameContext, dt: number): void {
 /** The original one-at-a-time loop: decide, step, next robot sees the result. */
 function sequentialPass(ctx: GameContext, dt: number): void {
   const list = robots(ctx.world).entities;
+  const piloted = pilotedHullIds(ctx);
 
   for (const e of robots(ctx.world)) {
     const m = e.movement;
@@ -132,6 +133,19 @@ function sequentialPass(ctx: GameContext, dt: number): void {
       parkDisabled(e);
       continue;
     }
+
+    // Under a pilot: `droneSystem` already moved this hull and recorded what it
+    // drove, so this pass has nothing to say about it and must not overwrite the
+    // velocity with a reading of its own inaction. Checked *after* `isDisabled`,
+    // because a hull knocked out under its pilot answers neither stick nor
+    // trigger and `parkDisabled` is the truthful account of it.
+    //
+    // The anti-jam bookkeeping is deliberately left frozen rather than kept
+    // current the way `parkDisabled` keeps it: a pilot leaning on a wall is not
+    // jammed, and the retreat is not a thing to do to someone holding the stick.
+    // Harmless on release, because possession cleared the goal — an Idle hull
+    // without one zeroes `stuckTime` at the first gate of `maybeStartRetreat`.
+    if (piloted.has(e.id)) continue;
 
     // Net progress is measured over a *full* tick: compare the start-of-tick
     // position against last tick's start (which folds in the robot's own
@@ -155,6 +169,8 @@ const PLAN_DRIVE = 2;
 const PLAN_RETREAT = 3;
 /** Knocked out: registered so others flow around it, but nothing to commit. */
 const PLAN_DISABLED = 4;
+/** Under a pilot: `droneSystem` already drove it, so likewise nothing to commit. */
+const PLAN_PILOTED = 5;
 
 /**
  * How much of its preferred speed the solver must have taken away before a
@@ -192,6 +208,7 @@ const planStartY: number[] = [];
  */
 function orcaPass(ctx: GameContext, dt: number): void {
   const orca = ctx.orca;
+  const piloted = pilotedHullIds(ctx);
   orca.begin(dt);
   let n = 0;
 
@@ -208,6 +225,27 @@ function orcaPass(ctx: GameContext, dt: number): void {
       planEntity[n] = e;
       planKind[n] = PLAN_DISABLED;
       planAgent[n] = orca.register(e, 'passive', 0, 0, 0);
+      planStartX[n] = pos.x;
+      planStartY[n] = pos.y;
+      n++;
+      continue;
+    }
+
+    // Under a pilot — see the sequential pass for why this pass keeps its hands
+    // off. Registered *passive* at the velocity `drivePossessed` just wrote: a
+    // player-driven machine is not negotiating, so its own side owes the whole
+    // correction, which is the same treatment a retreating hull gets and for the
+    // same reason. It still takes a plan slot, as a disabled hull does, because
+    // the commit loop walks slots by index.
+    //
+    // Snapshotted one step (~2 px at 30 Hz) further on than everyone else, since
+    // `droneSystem` has already moved it. That is where the hull actually is this
+    // tick; the alternative is running `droneSystem` after this pass, and it sits
+    // where it does so it can override the target the Idle resolver set.
+    if (piloted.has(e.id)) {
+      planEntity[n] = e;
+      planKind[n] = PLAN_PILOTED;
+      planAgent[n] = orca.register(e, 'passive', m.velX, m.velY, 0);
       planStartX[n] = pos.x;
       planStartY[n] = pos.y;
       n++;
@@ -299,6 +337,7 @@ function orcaPass(ctx: GameContext, dt: number): void {
     const e = planEntity[i];
     const kind = planKind[i];
     if (kind === PLAN_DISABLED) continue; // `parkDisabled` already did its bookkeeping
+    if (kind === PLAN_PILOTED) continue; // `drivePossessed` already moved it and recorded it
 
     // The jam check runs **before** the move, exactly as the sequential pass does.
     // It compares the current position against `m.prevX`, which still holds the

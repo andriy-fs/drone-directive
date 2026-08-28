@@ -9,6 +9,7 @@ import { drones, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { isBlockedGrid, tileOf } from '../obstacles';
 import { canEngage, detonateBomb, launchSalvo, withinMunitionReach } from './combat';
+import { clearGoal } from './movement';
 import { isDisabled } from './status';
 import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from './targeting';
 
@@ -73,6 +74,12 @@ function tryPossess(ctx: GameContext, drone: DroneEntity): boolean {
   );
   const target = nearest(pos, idle);
   if (!target) return false;
+  // Taking the wheel spends whatever order the hull was still walking to. Idle is
+  // not the same as "not en route": `taskSystem` deliberately emits no move intent
+  // for an Idle robot, which is exactly what lets a right-clicked destination
+  // survive — so without this the pilot steers while `movementSystem` keeps driving
+  // toward the old goal in the same tick, and the machine crabs.
+  clearGoal(target);
   drone.drone.possessedId = target.id;
   return true;
 }
@@ -99,7 +106,19 @@ function drivePossessed(
     // Manual-only fire: never let the Idle-under-fire resolver auto-fire this robot.
     robot.targetId = undefined;
     const speed = robot.movement.speed;
+    const startX = rpos.x;
+    const startY = rpos.y;
     stepWithWalls(ctx, robot, dir, speed * dt);
+    // What the pilot just drove, in the same form `recordTick` uses — because for
+    // this one hull that pass cannot measure it. `movementSystem` runs next and
+    // captures its own start *after* this step, so the pilot's movement falls in
+    // the gap between the two systems; left to it, a hull crossing its own
+    // formation registers with ORCA as parked and its neighbours plan through it.
+    // The carve-out in `movementSystem` is what stops this being overwritten.
+    // Written even for a centred stick: a stale velocity is the same lie the other
+    // way round.
+    robot.movement.velX = (rpos.x - startX) / dt;
+    robot.movement.velY = (rpos.y - startY) / dt;
     if (dir.x !== 0 || dir.y !== 0) robot.heading = Math.atan2(dir.y, dir.x);
     if (fire) fireManual(ctx, robot);
   }

@@ -18,6 +18,11 @@ export interface Movement {
    * the hull by, divided by `dt`, excluding whatever `separationSystem` did to it
    * afterwards. Zero for a hull that held station.
    *
+   * Written by whichever system did the driving: `movementSystem` for a hull under
+   * its own orders, `droneSystem` for one under a pilot (it moves `position`
+   * itself, so the pass that follows it carves the hull out rather than measuring
+   * its own inaction and calling that the answer).
+   *
    * Required rather than optional, deliberately. A reciprocal avoidance layer's
    * whole premise is a statement about what the *neighbour* is doing, and an
    * `undefined` velocity is one every agent silently reads as "parked" — the one

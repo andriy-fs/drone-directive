@@ -4,6 +4,7 @@ import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types
 import { spawnDrone, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { droneSystem, manualFireTarget } from './drone';
+import { movementSystem, setGoal } from './movement';
 import { reapSystem } from './reap';
 import { isTargetableDrone } from './targeting';
 import { makeCtx } from './testkit';
@@ -128,6 +129,26 @@ describe('droneSystem — possession', () => {
     expect(drone.position!.x).toBeCloseTo(400, 3);
   });
 
+  it('clears an outstanding move order — taking the wheel spends it', () => {
+    // Idle is not "not en route": `taskSystem` emits no move intent for an Idle
+    // robot, so a right-clicked destination survives and would leave two hands on
+    // the hull — the pilot steering while `movementSystem` drives the old goal.
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    setGoal(ctx, robot, 1200, 400);
+    expect(robot.movement!.goal).toBeDefined();
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 405, y: 400 });
+    setControl(ctx, { x: 0, y: 0 }, true);
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(drone.drone!.possessedId).toBe(robot.id);
+    expect(robot.movement!.goal).toBeUndefined();
+    expect(robot.movement!.destination).toBeUndefined();
+    expect(robot.movement!.path).toBeUndefined();
+  });
+
   it('frees itself when the possessed robot dies', () => {
     const ctx = makeCtx(1);
     const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
@@ -171,6 +192,53 @@ describe('droneSystem — driving a possessed robot', () => {
     expect(robot.position!.x).toBeCloseTo(400, 3); // did not phase through the wall
   });
 
+  it('publishes the velocity the pilot drove', () => {
+    // `movementSystem` cannot measure this hull — the pilot's step lands between
+    // the two systems — so `drivePossessed` records it, and it is what every
+    // neighbour reciprocates against in the ORCA solve.
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone!.possessedId = robot.id;
+    setControl(ctx, { x: 0, y: -1 }); // north
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.movement!.velY).toBeCloseTo(-robot.movement!.speed, 3);
+    expect(robot.movement!.velX).toBeCloseTo(0, 3);
+  });
+
+  it('publishes zero for a centred stick rather than last tick\'s reading', () => {
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    robot.movement!.velX = 60;
+    robot.movement!.velY = -12;
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone!.possessedId = robot.id;
+    setControl(ctx); // stick centred
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.movement!.velX).toBe(0);
+    expect(robot.movement!.velY).toBe(0);
+  });
+
+  it('stops at a wall and says so — no velocity for a step it did not take', () => {
+    const ctx = makeCtx(1);
+    fillNav(ctx, true);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone!.possessedId = robot.id;
+    setControl(ctx, { x: 1, y: 0 });
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.movement!.velX).toBe(0);
+    expect(robot.movement!.velY).toBe(0);
+  });
+
   it('keeps a possessed robot from auto-firing (clears its target)', () => {
     const ctx = makeCtx(1);
     fillNav(ctx, false);
@@ -183,6 +251,33 @@ describe('droneSystem — driving a possessed robot', () => {
     droneSystem(ctx, 1);
 
     expect(robot.targetId).toBeUndefined();
+  });
+});
+
+/**
+ * The two systems in the order `gameScene` runs them, which is the only place the
+ * fault was ever visible: `droneSystem` steers, `movementSystem` follows, and it
+ * used to both drive the hull toward a stale destination and overwrite what the
+ * pilot drove with a reading of its own pass.
+ */
+describe('droneSystem + movementSystem — one hand on the hull', () => {
+  it('a hull possessed mid-move obeys the stick alone', () => {
+    const ctx = makeCtx(1);
+    fillNav(ctx, false);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    setGoal(ctx, robot, 1200, 400); // walking east when the pilot arrives
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone!.possessedId = robot.id;
+    setControl(ctx, { x: 0, y: -1 }); // stick held north
+    const dt = gameConfig.fixedDt;
+
+    droneSystem(ctx, dt);
+    movementSystem(ctx, dt);
+
+    expect(robot.position!.x).toBeCloseTo(400, 3); // not a pixel east
+    expect(robot.position!.y).toBeCloseTo(400 - robot.movement!.speed * dt, 3);
+    expect(robot.movement!.velX).toBeCloseTo(0, 3);
+    expect(robot.movement!.velY).toBeCloseTo(-robot.movement!.speed, 3);
   });
 });
 

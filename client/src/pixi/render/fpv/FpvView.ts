@@ -72,16 +72,6 @@ import { COLD, baseHeat, drawTargetMark, drawUnit, robotHeat, screenBoundsOf, ty
  */
 const FADE = { start: 380, end: 1180 };
 
-/**
- * Time constant (seconds) the pilot's own drive reading settles over.
- *
- * Long enough to bridge two frames landing inside one 30 Hz tick — which would
- * otherwise alternate between full speed and a dead stop — and short enough that
- * letting go of the stick puts the glow out while the hull is still rolling to a
- * halt, which is what it is doing.
- */
-const DRIVE_SMOOTHING = 0.12;
-
 /** Time constant (seconds) the dead-signal static comes up and goes down over. */
 const DEAD_RAMP = 0.09;
 
@@ -106,7 +96,7 @@ export interface FpvFrame {
   /** Canvas size in CSS px. */
   width: number;
   height: number;
-  /** `GameApp`'s single wall-clock read for the frame — see `pilotDrive`. */
+  /** `GameApp`'s single wall-clock read for the frame. */
   now: number;
 }
 
@@ -125,8 +115,6 @@ export class FpvView {
   private readonly eye = new Float32Array(3);
   private fogMask: FpvFogMask | null = null;
   private heights: HeightField | null = null;
-  /** Ground the pilot's own hull has covered since the last frame — see `pilotDrive`. */
-  private readonly pilot = { id: '', x: 0, y: 0, at: 0, drive: 0 };
   private readonly rig = new FpvCameraRig();
   private readonly feed: FeedFilter | null = perfFlags.feed ? new FeedFilter() : null;
   /**
@@ -205,7 +193,10 @@ export class FpvView {
     const view = this.rig.frame({
       pose: { x: robot.position.x, y: robot.position.y, heading: robot.heading, ground },
       dt,
-      drive: this.pilot.drive,
+      // The same reading the pilot's own drive nodes glow at — `droneSystem`
+      // records what it drove, so a possessed hull's velocity is honest. Handed
+      // over raw: the rig smooths it on its own clock (`DOLLY.tau`).
+      drive: robotHeat(robot).drive,
       shot: this.shot,
       hit: this.hit,
       screenW: width,
@@ -246,6 +237,8 @@ export class FpvView {
     else this.units.clear();
   }
 
+  /** Wall clock at the previous frame, for the frame delta the rig and the ramps run on. */
+  private frameAt = 0;
   /** A shot left the pilot's barrel on this frame. */
   private shot = false;
   /** Fraction of max hp the pilot's hull lost on this frame. */
@@ -262,7 +255,8 @@ export class FpvView {
    * world when the frame is drawn.
    */
   private beat(robot: RobotEntity, now: number): number {
-    const dt = Math.min(Math.max((now - this.pilot.at) / 1000, 0), 0.25);
+    const dt = Math.min(Math.max((now - this.frameAt) / 1000, 0), 0.25);
+    this.frameAt = now;
     const last = this.last;
     if (last.id !== robot.id) {
       // A different hull: its cooldown and hp are not this one's history, and
@@ -295,13 +289,10 @@ export class FpvView {
       this.drawModel(view, BASE_BODY, base.position, 0, color, COLD);
       this.drawModel(view, BASE_LAUNCHER, base.position, base.heading, color, baseHeat(base));
     }
-    const pilotDrive = this.pilotDrive(possessed, frame.now);
     for (const r of robots(world)) {
       if (!isAlive(r) || !isVisible(r)) continue;
       const model = ROBOT_MODELS[r.chassis][r.weaponType];
-      const heat = robotHeat(r);
-      if (r.id === possessed.id) heat.drive = pilotDrive;
-      this.drawModel(view, model, r.position, r.heading, this.roleColor(r, possessed), heat);
+      this.drawModel(view, model, r.position, r.heading, this.roleColor(r, possessed), robotHeat(r));
     }
     // Rounds in flight. Untinted by owner and drawn with the heat pass — see
     // `PROJECTILE_MODEL`. Not gated on `isVisible`: a projectile carries no owner
@@ -358,47 +349,6 @@ export class FpvView {
     if (bounds) drawTargetMark(this.units, bounds, 1 - Math.max(0, dist - FADE.start) / Math.max(FADE.end - FADE.start, 1));
   }
 
-  /**
-   * How hard the pilot's own hull is driving — measured here, because it is the one
-   * machine in the world whose `movement.velX/velY` is not the answer.
-   *
-   * A possessed hull is steered by `droneSystem`, which moves `position` directly;
-   * `movementSystem` runs after it and records only what its *own* pass drove, which
-   * for a hull with no destination is nothing. So the simulation honestly reports the
-   * pilot's machine as parked while the player is holding the stick down — and that
-   * machine is the one thing on this screen at all times, so a dead drive on it reads
-   * as the feature being broken rather than as the hull standing still.
-   *
-   * Measured off ground covered between frames, which is the same clock
-   * `render/gait.ts` and `render/dust.ts` run on and for the same reason: it is the
-   * honest answer whatever is doing the moving. Smoothed exponentially and
-   * frame-rate independently, because the simulation steps at 30 Hz and the view
-   * does not — two frames inside one tick would otherwise read as a full stop.
-   *
-   * Deliberately **not** generalised to every machine: everything else is driven by
-   * `movementSystem` and already carries a truthful velocity, and shadowing that with
-   * a renderer-side table of previous positions would be a second source of truth
-   * that has to be evicted as entities die.
-   */
-  private pilotDrive(robot: RobotEntity, now: number): number {
-    const p = this.pilot;
-    const dt = (now - p.at) / 1000;
-    const moved = Math.hypot(robot.position.x - p.x, robot.position.y - p.y);
-    p.x = robot.position.x;
-    p.y = robot.position.y;
-    p.at = now;
-    // A different hull (or the first frame in this one) has no history to difference
-    // against, and the jump from the last one's position would read as a lurch.
-    if (p.id !== robot.id || dt <= 0 || dt > 0.5) {
-      p.id = robot.id;
-      p.drive = 0;
-      return 0;
-    }
-    const top = robot.movement.speed;
-    const instant = top > 0 ? Math.min(1, moved / dt / top) : 0;
-    p.drive += (instant - p.drive) * (1 - Math.exp(-dt / DRIVE_SMOOTHING));
-    return p.drive;
-  }
 
   /**
    * Which of the three roles a machine wears. Keyed off the possessed hull's own
