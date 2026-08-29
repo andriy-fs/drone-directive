@@ -34,6 +34,7 @@
  * &peaks=0             ridge decals off
  * &debris=0            the stone and contact shadow at a mountain's foot off
  * &critters=0          the plateau wildlife off
+ * &fx=0                muzzle flashes, trails, sparks and smoke off
  * &feed=0              the hull view's monitor filter off (the one full-screen pass it costs)
  * &seed=7               pin the solo match's battlefield instead of seeding from the clock
  * ```
@@ -58,6 +59,15 @@ export interface PerfFlags {
   debris: boolean;
   /** The decorative creatures on the mountain plateaus (`render/CritterView.ts`). */
   critters: boolean;
+  /**
+   * The combustion layer (`render/fx/`): muzzle flashes, projectile trails,
+   * impact sparks and smoke. Unlike every other switch here this one scales with
+   * *the fight*, not with the map — a quiet field costs nothing and five carriers
+   * emptying their salvos into a firefight is the worst case. Off, combat draws
+   * as it did before this layer existed, which is what makes the difference
+   * between the two readings the price of it.
+   */
+  fx: boolean;
   /**
    * The hull view's CRT pass (`render/fpv/feed/FeedFilter.ts`). Off, the wireframe draws
    * bare — which is the *only* way to price that pass, since it is one full offscreen
@@ -104,6 +114,7 @@ function read(): PerfFlags {
     peaks: flag('peaks', true),
     debris: flag('debris', true),
     critters: flag('critters', true),
+    fx: flag('fx', true),
     feed: flag('feed', true),
     seed: number('seed'),
     overrides,

@@ -239,7 +239,7 @@ function fireManual(ctx: GameContext, robot: RobotEntity): void {
   if (w.salvo > 0) launchSalvo(ctx, robot, target);
   else spawnProjectile(ctx.world, robot.owner, pos, target.position, target.id, w.damage, robot.id, robot.weaponType);
   w.cooldownLeft = w.cooldown;
-  ctx.bus.emit('projectileFired', { owner: robot.owner, pos: { x: pos.x, y: pos.y }, weapon: robot.weaponType });
+  ctx.bus.emit('projectileFired', { owner: robot.owner, pos: { x: pos.x, y: pos.y }, weapon: robot.weaponType, sourceId: robot.id });
 }
 
 /**

@@ -142,6 +142,46 @@ export const palette = {
     plume: 0xb3a894,
   },
   /**
+   * **Combustion and impact** — the muzzle flash, the tracer, the fireball, the
+   * sparks a round throws off a hull (`pixi/render/fx/`, `ProjectileView`,
+   * `ExplosionView`). These used to be literals scattered through the two views;
+   * they are here because they are a *set* and only work as one.
+   *
+   * The set is a heat ladder — `flash` (white-hot) → `fireCore` (amber) →
+   * `fireEdge` (deep orange) → `smoke` (grey) — and it is deliberately read in
+   * that order by the explosion, which is what makes a blast look like it is
+   * cooling rather than merely shrinking.
+   *
+   * Two constraints, both borrowed from the `weapon` block above and for the
+   * same reasons:
+   *
+   * 1. **Spread by lightness.** The ladder above survives a grayscale check, so
+   *    an explosion still reads as staged for a player who cannot separate red
+   *    from orange.
+   * 2. **Nothing here may collide with `status.disabled` / `shield.glow`.** Those
+   *    are cold blue on purpose — a directed-energy effect must never be mistaken
+   *    for something burning, which is the one confusion this whole family of
+   *    effects is prone to. Hence no blue in this block at all.
+   */
+  fx: {
+    /** Ignition and the muzzle: white-hot, and gone within a fraction of the life. */
+    flash: 0xfff3d6,
+    /** The body of a fireball — the amber the old hardcoded blast used. */
+    fireCore: 0xffb020,
+    /** Its cooling rim and shockwave; the darkest thing still on fire. */
+    fireEdge: 0xff5522,
+    /** What is left once the fire is out. Warmer than `dust.plume`: this is soot, not soil. */
+    smoke: 0x6b6259,
+    /** Chips and embers thrown off an impact — a shade hotter than `fireCore`, so they read on top of it. */
+    spark: 0xffd88a,
+    /** A cannon round's streak. Near-white and translucent in use, so it reads as speed, not as a body. */
+    tracer: 0xfff7ed,
+    /** A missile's exhaust flame, held apart from `fireCore` so a launch and a death never look alike. */
+    exhaust: 0xfbbf24,
+    /** The mark a blast leaves on the ground — a burn, so it darkens what it is drawn over. */
+    scorch: 0x2a2118,
+  },
+  /**
    * The wireframe hull view — what the pilot sees once a drone lands on a robot
    * (`pixi/render/fpv/`). A phosphor monitor of the early 1980s: one green for the
    * ground, and three roles on top of it that have to be told apart at a glance.

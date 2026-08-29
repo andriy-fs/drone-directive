@@ -9,9 +9,10 @@ import type {
   RobotEntity,
   ShieldedBase,
 } from '../../engine/ecs/archetypes';
-import type { Entity } from '../../engine/ecs/entity';
+import { EffectKind, type Entity } from '../../engine/ecs/entity';
 import { bases, drones, explosions, munitions, projectiles, robots, shieldedBases } from '../../engine/ecs/queries';
 import type { EcsWorld } from '../../engine/ecs/world';
+import { gameConfig } from '../../config/gameConfig';
 import type { Layers } from '../layers';
 import { BaseView } from './BaseView';
 import { DroneView } from './DroneView';
@@ -50,7 +51,16 @@ export class WorldRenderer {
   private readonly domeViews = new Map<string, ShieldDomeView>();
   private readonly unsubs: (() => void)[] = [];
 
-  constructor(layers: Layers, world: EcsWorld) {
+  /**
+   * @param onBlast Called once when a *fireball* effect entity appears, with its
+   *   peak radius. The debris an explosion throws (embers, smoke, the scorch on
+   *   the ground) outlives the effect entity by design, so it cannot be drawn by
+   *   `ExplosionView` — that view dies with the entity. This is the seam: the
+   *   entity's own clock still drives the fireball, and everything longer-lived
+   *   is handed to the particle field. Only `Blast` fires it — an EMP discharge
+   *   and a collapsing dome are not combustion and must not throw embers.
+   */
+  constructor(layers: Layers, world: EcsWorld, onBlast?: (x: number, y: number, radius: number) => void) {
     // Archetype-typed throughout: `engine/ecs/queries` declares each one once and
     // the return types are checked rather than asserted, so a view can read
     // `base.footprint` or `explosion.effect` without a fallback for a component
@@ -66,7 +76,18 @@ export class WorldRenderer {
     this.bind(this.bases, this.baseViews, (e) => new BaseView(e), layers.units);
     this.bind(this.robots, this.robotViews, (e) => new RobotView(e), layers.units);
     this.bind(this.projectiles, this.projectileViews, (e) => new ProjectileView(e), layers.projectiles);
-    this.bind(this.explosions, this.explosionViews, (e) => new ExplosionView(e), layers.fx);
+    this.bind(
+      this.explosions,
+      this.explosionViews,
+      (e) => {
+        const kind = e.effect.kind ?? EffectKind.Blast;
+        if (onBlast && kind === EffectKind.Blast) {
+          onBlast(e.position.x, e.position.y, e.effect.maxRadius ?? gameConfig.fx.explosionMaxRadius);
+        }
+        return new ExplosionView(e);
+      },
+      layers.fx,
+    );
     this.bind(this.drones, this.droneViews, (e) => new DroneView(e), layers.overlay);
     // `overlay` for the same reasons the observer drone is there: it flies, and it
     // must not swallow clicks aimed at the ground it is crossing.
@@ -92,12 +113,16 @@ export class WorldRenderer {
    * A **base** is the other way round: it never travels, so its idle cycle is
    * driven by nothing else (`BASE_CYCLE_MS`). A **drone** needs it both ways: its
    * hover cycle is timed, while the pitch it flies at is measured off its travel.
+   * A **projectile** uses it to sample its own trail and to flicker its exhaust
+   * at a rate rather than per frame; an **explosion** to hold the same phase for
+   * its ember streaks. Both used to animate off `Math.random()` every frame,
+   * which strobes at whatever the frame rate happens to be.
    */
   sync(selectedIds: Set<string>, isVisible: (e: Entity) => boolean, now: number): void {
     for (const e of this.robots) this.robotViews.get(e.id)?.update(e, selectedIds.has(e.id), isVisible(e), now);
     for (const e of this.bases) this.baseViews.get(e.id)?.update(e, isVisible(e), selectedIds.has(e.id), now);
-    for (const e of this.projectiles) this.projectileViews.get(e.id)?.update(e);
-    for (const e of this.explosions) this.explosionViews.get(e.id)?.update(e);
+    for (const e of this.projectiles) this.projectileViews.get(e.id)?.update(e, now);
+    for (const e of this.explosions) this.explosionViews.get(e.id)?.update(e, now);
     for (const e of this.drones) this.droneViews.get(e.id)?.update(e, isVisible(e), now);
     for (const e of this.munitions) this.munitionViews.get(e.id)?.update(e, isVisible(e));
     for (const e of this.domes) this.domeViews.get(e.id)?.update(e, isVisible(e), now);

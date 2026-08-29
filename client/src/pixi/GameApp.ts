@@ -47,6 +47,7 @@ import { Camera } from './Camera';
 import { GameLoop } from './GameLoop';
 import { createGround } from './Grid';
 import { createLayers, type Layers } from './layers';
+import { FxView } from './render/fx/FxView';
 import { attachPointerControls } from './input/pointer';
 import { attachZoomControls } from './input/zoom';
 import { enemyAt, selectionCanAttack } from './input/hitTest';
@@ -103,6 +104,12 @@ export class GameApp {
    * and torn down with it — see `render/CritterView.ts`.
    */
   private critterView: CritterView | null = null;
+  /**
+   * Muzzle flashes, impact sparks, smoke and scorch (`render/fx/`). Never
+   * rebuilt per match, for `RallyView`'s reason — it holds no per-match state,
+   * only particles, and those are dropped by `clear()` when a match ends.
+   */
+  private fxView!: FxView;
   /** Frame-time readout — see `perf/perfFlags.ts`. Null unless `?perf=1`. */
   private perfHud: PerfHud | null = null;
   private qualityUnsub: (() => void) | null = null;
@@ -230,12 +237,19 @@ export class GameApp {
     this.layers.overlay.addChild(this.orderMarkerView.container);
     this.hoverView = new HoverTargetView();
     this.layers.overlay.addChild(this.hoverView.container);
+    // The airborne half of the combustion layer sits on `fx`, over the units: a
+    // muzzle flash happens in front of the hull that made it. Its scorch half
+    // goes on `ground` instead and is attached per match — see `attachScorch`.
+    this.fxView = new FxView();
+    this.layers.fx.addChild(this.fxView.container);
     this.camera = new Camera(this.layers.root);
     this.app.stage.addChild(this.camera.view);
     this.camera.setViewport(this.app.screen.width, this.app.screen.height);
 
     this.engine = new GameEngine();
-    this.worldRenderer = new WorldRenderer(this.layers, this.engine.world);
+    this.worldRenderer = new WorldRenderer(this.layers, this.engine.world, (x, y, r) => {
+      if (perfFlags.fx) this.fxView.blast(x, y, r);
+    });
     this.wireBus();
     // Selection never reaches the bus (it is store-only state), so its sounds
     // come off a store subscription rather than out of `wireBus`.
@@ -462,6 +476,7 @@ export class GameApp {
       );
     }
     this.worldRenderer.sync(selected, (e) => this.isVisibleToLocalSide(e), now);
+    if (perfFlags.fx) this.fxView.update(now);
     if (perfFlags.fog) this.fogView?.update(this.engine.context?.fog);
     this.rallyView?.update(this.localRallyMarkers());
     this.critterView?.update(now);
@@ -610,12 +625,31 @@ export class GameApp {
     store.clearDroneReadyNotice();
   }
 
+  /**
+   * Which way the hull that just fired is facing. Both shooter archetypes carry
+   * `heading` (`ROBOT_KEYS`, `BASE_KEYS`), so this only ever falls back to zero
+   * for a shooter that died on the same tick it fired — in which case the flash
+   * is a single frame at a point nobody is looking at, and a wrong angle costs
+   * nothing.
+   */
+  private shooterHeading(sourceId: string): number {
+    const world = this.engine.world;
+    const robot = robotsQuery(world).entities.find((e) => e.id === sourceId);
+    if (robot) return robot.heading;
+    return basesQuery(world).entities.find((e) => e.id === sourceId)?.heading ?? 0;
+  }
+
   /** Subscribe app-layer observers (audio + store sync) to discrete engine events. */
   private wireBus(): void {
     const bus = this.engine.bus;
     const store = useGameStore.getState;
     this.busUnsubs.push(
-      bus.on('projectileFired', ({ weapon }) => {
+      bus.on('projectileFired', ({ weapon, pos, sourceId }) => {
+        // The visual half. Anchored to the shooter's own heading rather than to
+        // the round's, which is why the event carries `sourceId`: a flash aimed
+        // down the projectile's path would sit off the barrel on any hull that
+        // fires while turning.
+        if (perfFlags.fx) this.fxView.muzzle(pos.x, pos.y, this.shooterHeading(sourceId), weapon);
         // One case per weapon with a cue of its own; the cannon report is the
         // fallback for everything else (a `bomb` never gets here — it detonates
         // rather than firing).
@@ -633,6 +667,14 @@ export class GameApp {
             sfx.cannonShot();
             break;
         }
+      }),
+    );
+    this.busUnsubs.push(
+      bus.on('projectileHit', ({ pos, dir, weapon, target }) => {
+        // Renderer-only, and with no sound of its own: `sfx.explosion()` already
+        // fires on every death, and a second cue on every *connecting* round
+        // would bury it. The gap is noted in `.docs/internal/todo/weapon-fx.md`.
+        if (perfFlags.fx) this.fxView.impact(pos.x, pos.y, Math.atan2(dir.y, dir.x), weapon, target);
       }),
     );
     this.busUnsubs.push(bus.on('entityDestroyed', () => sfx.explosion()));
@@ -745,6 +787,7 @@ export class GameApp {
           this.rebuildGround();
           this.rebuildFog();
           this.rebuildObstacles();
+          this.attachScorch();
           this.rebuildFpvTerrain();
         }
         this.pushSnapshot();
@@ -1299,9 +1342,28 @@ export class GameApp {
     this.layers.ground.addChild(createGround(ctx.terrain));
   }
 
-  /** Drop the ground surface (and anything else on its layer) — no match, nothing to stand on. */
+  /**
+   * Drop the ground surface (and anything else on its layer) — no match, nothing
+   * to stand on.
+   *
+   * The scorch marks are detached first rather than destroyed with the tiles:
+   * they belong to `fxView`, which outlives every match, and sweeping its
+   * container up here would leave that view holding a destroyed `Container` for
+   * the rest of the session.
+   */
   private clearGround(): void {
+    this.layers.ground.removeChild(this.fxView.groundContainer);
     for (const child of this.layers.ground.removeChildren()) child.destroy({ children: true });
+    this.fxView.clear();
+  }
+
+  /**
+   * Put the scorch layer back on top of the freshly built ground. Called after
+   * the terrain rather than inside `rebuildGround`, because `addChild` appends:
+   * from inside, the landforms drawn afterwards would cover every burn mark.
+   */
+  private attachScorch(): void {
+    this.layers.ground.addChild(this.fxView.groundContainer);
   }
 
   /** Fresh fog mask sized for the current match's grid, with its redraw cache reset. */
@@ -1359,6 +1421,7 @@ export class GameApp {
     this.loop?.stop();
     this.app.ticker.remove(this.measureFrameBusy, this);
     this.worldRenderer?.destroy();
+    this.fxView?.destroy();
     this.fogView?.destroy();
     this.fogView = null;
     this.rallyView?.destroy();

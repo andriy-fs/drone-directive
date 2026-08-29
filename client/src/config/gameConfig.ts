@@ -717,6 +717,91 @@ export const gameConfig = {
     orderMarkerRadius: 22,
     /** Period (seconds) of the alpha pulse on the hovered attack target's highlight. */
     hoverPulsePeriod: 1.2,
+
+    /**
+     * **The combustion layer** (`pixi/render/fx/`) — the muzzle, the trail and
+     * the impact. Everything below is renderer-only: none of it is an effect
+     * entity, none of it is read by a system, and the numbers may be changed
+     * freely without touching a replay.
+     *
+     * The whole set is built around one asymmetry. A shot is fired constantly
+     * and must stay *cheap and quiet* or a firing line becomes a light show;
+     * an impact happens exactly as often but is the beat the game was missing
+     * entirely, so it is allowed to be the loud one.
+     */
+    muzzle: {
+      /**
+       * How long the flash at the barrel lives. Deliberately under a tenth of a
+       * second: long enough to be caught at 30 Hz, short enough that ten robots
+       * firing in a line read as ten separate reports rather than a glow.
+       */
+      flashDuration: 0.08,
+      /** Radius (px) of the cannon's flash. About a third of a hull, so it reads as a barrel, not a blast. */
+      flashRadius: 9,
+      /** A missile launch is the heavier event of the two — a bigger bloom at the tube. */
+      launchFlashRadius: 14,
+      /** Seconds the smoke a shot leaves at the barrel hangs around. */
+      smokeDuration: 0.55,
+      /** …and how long a missile's launch cloud does. Longer: the tube dumps far more of it. */
+      launchSmokeDuration: 1.1,
+    },
+    /**
+     * The trail behind a round, sampled from its own positions (see
+     * `pixi/render/ProjectileView.ts`). `dust.ts`'s argument applies unchanged:
+     * a projectile is a handful of pixels on a field with no zoom, so what makes
+     * it legible is drawn *behind* it, not on it.
+     */
+    trail: {
+      /** Positions kept per projectile. The cap on both the look and the cost. */
+      samples: 14,
+      /** Seconds between samples. Below a frame's worth and the ribbon is just the round again. */
+      interval: 0.022,
+      /** Width (px) of a missile's smoke ribbon at the body, tapering to nothing at the tail. */
+      missileWidth: 4.5,
+      /** Width (px) of a cannon tracer's streak — thin, so it reads as speed rather than as a body. */
+      tracerWidth: 2.2,
+    },
+    /**
+     * What a round leaves where it stopped. Four looks, because the player has to
+     * be able to tell a hit that connected from one a mountain ate and from one
+     * that simply ran out of range — and only the first of those is worth reacting to.
+     */
+    impact: {
+      /** Seconds a spark lives. Short: sparks are the punctuation, the smoke is the sentence. */
+      sparkDuration: 0.34,
+      /** Sparks thrown by a round striking a hull, before the per-weapon multiplier. */
+      sparkCount: 7,
+      /** How fast they leave (px/s) before drag. */
+      sparkSpeed: 150,
+      /** Streak length (px) of a fresh spark. */
+      sparkLength: 6,
+      /** Radius (px) of the flash at the point of impact. */
+      flashRadius: 7,
+      /** Seconds the dust thrown up by a round hitting terrain hangs. */
+      dustDuration: 0.7,
+    },
+    /**
+     * What an explosion leaves once the fire is out. These outlive the blast
+     * itself on purpose — a fireball that vanishes cleanly reads as a sprite
+     * being removed, and the smoke is what makes it read as something that burned.
+     */
+    debris: {
+      /** Seconds the smoke left by a blast drifts for. */
+      smokeDuration: 1.6,
+      /** Embers thrown by a blast, before scaling with its radius. */
+      emberCount: 10,
+      /** Ember speed (px/s) before drag. */
+      emberSpeed: 190,
+      /** Seconds a scorch mark stays on the ground before weathering away. */
+      scorchDuration: 4.5,
+      /**
+       * Scorch radius as a fraction of a *robot's* blast radius, before the
+       * square-root scaling in `FxView.blast`. Measured against the small blast
+       * rather than against the one that happens to be going off, so a kamikaze's
+       * 120 px reach leaves a bigger mark without leaving a crater.
+       */
+      scorchScale: 0.75,
+    },
   },
 
   /**

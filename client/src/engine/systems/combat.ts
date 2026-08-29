@@ -1,12 +1,13 @@
 import { gameConfig, munitionReach } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
-import { distance } from '../../utils/math';
+import { distance, vecLength } from '../../utils/math';
 import type { BaseEntity, Positioned, ProjectileEntity, Shooter } from '../ecs/archetypes';
 import { spawnEmpBurst, spawnExplosion, spawnMunition, spawnProjectile } from '../ecs/factory';
 import type { Entity, WeaponComp } from '../ecs/entity';
 import { isAlive, isBase, isPositioned } from '../ecs/guards';
 import { bases, projectiles, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
+import type { HitTarget } from '../game/events';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
 import { absorbShieldDamage, isShielded } from './shield';
 import { applyDisable, blockRegen, isDisabled } from './status';
@@ -101,13 +102,13 @@ function fireWeapon(ctx: GameContext, e: Shooter, dt: number): void {
     if (!withinMunitionReach(pos, target)) return;
     launchSalvo(ctx, e, target);
     w.cooldownLeft = w.cooldown;
-    ctx.bus.emit('projectileFired', { owner: e.owner, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType });
+    ctx.bus.emit('projectileFired', { owner: e.owner, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType, sourceId: e.id });
     return;
   }
 
   spawnProjectile(world, e.owner, pos, target.position, target.id, w.damage, e.id, e.weaponType);
   w.cooldownLeft = w.cooldown;
-  ctx.bus.emit('projectileFired', { owner: e.owner, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType });
+  ctx.bus.emit('projectileFired', { owner: e.owner, pos: { x: pos.x, y: pos.y }, weapon: e.weaponType, sourceId: e.id });
 }
 
 /**
@@ -295,12 +296,14 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     pos.y += projectile.velocity.y * dt;
     projectile.ttl -= dt;
     if (projectile.ttl <= 0) {
+      emitHit(ctx, projectile, 'expired');
       world.remove(projectile);
       continue;
     }
 
     const cell = tileOf(pos);
     if (isBlockedGrid(ctx.sightBlockers, cell.tx, cell.ty)) {
+      emitHit(ctx, projectile, 'terrain');
       world.remove(projectile); // absorbed by a mountain (a crater is a depression — shots fly over)
       continue;
     }
@@ -309,7 +312,10 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     // on every shot precisely so its effect survives the shooter's death.
     const fired = gameConfig.robots.weapons[projectile.weaponType];
 
-    let hit = false;
+    // What this round ran into, or null while it is still flying. Doubles as the
+    // old `hit` flag — the renderer needs to know *what* was struck, not just
+    // that something was.
+    let struck: HitTarget | null = null;
     // Where to put the discharge ring, if this round knocked something out. The
     // spawn waits until the query loop is done — adding entities mid-iteration is
     // what `detonateBomb` avoids too.
@@ -322,7 +328,7 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
           applyDisable(robot, fired.freezeDuration);
           burstAt = { x: robot.position.x, y: robot.position.y };
         }
-        hit = true;
+        struck = 'robot';
         break;
       }
     }
@@ -332,7 +338,7 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
     // A harmless round (dew) flies straight over a base rather than being eaten
     // by it: buildings have no crew to knock out, so a hit there is a dud, and
     // absorbing the shot would only make the weapon feel broken.
-    if (!hit && projectile.damage > 0) {
+    if (!struck && projectile.damage > 0) {
       for (const base of bases(world)) {
         if (!isAlive(base) || !isEnemy(projectile.owner, base.owner)) continue;
         // Ahead of `hitsBase`, and while a dome stands it is the only branch a
@@ -340,17 +346,43 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
         // the footprint (48), so the roof is simply out of reach.
         if (hitsDome(projectile, pos, base)) {
           applyDamage(base, projectile.damage, projectile.sourceId);
-          hit = true;
+          struck = 'dome';
           break;
         }
         if (hitsBase(pos, base)) {
           applyDamage(base, projectile.damage, projectile.sourceId);
-          hit = true;
+          struck = 'base';
           break;
         }
       }
     }
-    if (!hit) hit = hitsAimedAir(ctx, projectile, pos);
-    if (hit) world.remove(projectile);
+    if (!struck && hitsAimedAir(ctx, projectile, pos)) struck = 'air';
+    if (struck) {
+      emitHit(ctx, projectile, struck);
+      world.remove(projectile);
+    }
   }
+}
+
+/**
+ * Announce where a round stopped and which way it was going, for whoever draws
+ * the impact. Emitted from every exit in `stepProjectiles`, including the two
+ * that are not collisions at all — the renderer needs to tell a shell absorbed
+ * by a mountain from one that simply ran out of fuel, and neither of those may
+ * look like a hit on a hull.
+ *
+ * The direction is normalised here rather than at the far end because this is
+ * the last place the projectile exists: it is removed from the world on the very
+ * next line, and the app layer observing the event has nothing left to look up.
+ */
+function emitHit(ctx: GameContext, projectile: ProjectileEntity, target: HitTarget): void {
+  const v = projectile.velocity;
+  const speed = vecLength(v.x, v.y) || 1;
+  ctx.bus.emit('projectileHit', {
+    owner: projectile.owner,
+    pos: { x: projectile.position.x, y: projectile.position.y },
+    dir: { x: v.x / speed, y: v.y / speed },
+    weapon: projectile.weaponType,
+    target,
+  });
 }

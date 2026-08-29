@@ -5,6 +5,14 @@ import type { EntityKind } from '../ecs/entity';
 export type SceneName = 'menu' | 'game';
 
 /**
+ * What a round ran into. Not `EntityKind`: `'terrain'` is not an entity and
+ * `'expired'` is not a collision at all, and both need a look of their own —
+ * a mountain absorbing a shell should say so, and a round dying of old age
+ * must not be dressed up as a hit.
+ */
+export type HitTarget = 'robot' | 'base' | 'dome' | 'air' | 'terrain' | 'expired';
+
+/**
  * Discrete engine events (the EventBus payload map). These SUPPLEMENT the store:
  * they cover one-off notifications (spawn/destroy/fire/gameOver/sceneChanged)
  * for observers like audio and the store-sync bridge. Per-frame state
@@ -27,7 +35,26 @@ export interface GameEvents {
    */
   enemySpotted: { owner: Owner; targetId: string; targetKind: EntityKind; pos: Vec2 };
   baseDestroyed: { owner: Owner };
-  projectileFired: { owner: Owner; pos: Vec2; weapon: WeaponType };
+  /**
+   * A shot left a barrel. `sourceId` is the shooter (robot or base) — the app
+   * layer needs it to hang a muzzle flash on the hull that fired rather than on
+   * a point in space near it, which drifts the moment the hull moves.
+   */
+  projectileFired: { owner: Owner; pos: Vec2; weapon: WeaponType; sourceId: string };
+  /**
+   * A round stopped travelling, and how. Every exit from `stepProjectiles` emits
+   * one, `'expired'` included, because the renderer draws a *different* nothing
+   * for a round that ran out of fuel than for one that connected.
+   *
+   * `dir` is the projectile's travel direction (normalised) — sparks have to fly
+   * away from the impact, and the projectile is gone from the world by the time
+   * anyone observing this could look it up.
+   *
+   * Nothing in the simulation consumes this. It exists so the arrival of a shot
+   * is drawable at all: hits are otherwise silent unless they happen to kill,
+   * and only a death spawns an effect entity.
+   */
+  projectileHit: { owner: Owner; pos: Vec2; dir: Vec2; weapon: WeaponType; target: HitTarget };
   /** A base spent its one-shot energy dome (see `systems/shield.ts`). */
   shieldRaised: { owner: Owner; baseId: string; pos: Vec2 };
   /**
