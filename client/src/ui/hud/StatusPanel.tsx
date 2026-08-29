@@ -6,6 +6,7 @@ import {
   selectLocalSide,
   selectPlayerBase,
   selectResources,
+  selectRobotLoad,
   selectRobots,
   selectViewSync,
 } from '../../store/selectors';
@@ -45,7 +46,10 @@ export function StatusPanel() {
   const setBuildOpen = useGameStore((s) => s.setBuildDialogOpen);
 
   const myRobotCount = robots.filter((r) => r.owner === localSide).length;
-  const queueLength = playerBase?.queueLength ?? 0;
+  const queueLength = playerBase?.queue.length ?? 0;
+  // A queue that cannot pay for its next machine sits at zero progress. Saying so
+  // is the difference between "the game has stopped" and "you are short".
+  const waiting = playerBase?.waitingForResources ?? false;
   // Read as `7/12`, like the base's HP row above it — the cap is invisible
   // otherwise, and a factory that has quietly stopped looks like a bug.
   //
@@ -54,7 +58,7 @@ export function StatusPanel() {
   // on screen: at 10 built + 2 queued the row reads `10/12` and is already red,
   // which is exactly the state the player needs explained.
   const maxRobots = gameConfig.production.maxRobots;
-  const robotLoad = myRobotCount + queueLength;
+  const robotLoad = useGameStore(selectRobotLoad);
   let capClass = '';
   if (robotLoad >= maxRobots) capClass = 'hud__row-value--cap';
   else if (robotLoad >= maxRobots - 1) capClass = 'hud__row-value--near-cap';
@@ -107,9 +111,11 @@ export function StatusPanel() {
 
       <div className={`build-progress ${!queueLength ? 'build-progress--idle' : ''}`.trim()}>
         <span className="hud__muted">
-          {queueLength > 0
-            ? `${t('statusPanel', 'building')} · ${queueLength} ${t('statusPanel', 'queued')}`
-            : t('statusPanel', 'idle')}
+          {queueLength === 0
+            ? t('statusPanel', 'idle')
+            : waiting
+              ? `${t('statusPanel', 'waiting')} · ${queueLength} ${t('statusPanel', 'queued')}`
+              : `${t('statusPanel', 'building')} · ${queueLength} ${t('statusPanel', 'queued')}`}
         </span>
         <Bar value={playerBase?.buildProgress ?? 0} />
       </div>

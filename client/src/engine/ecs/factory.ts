@@ -57,6 +57,7 @@ export function spawnBase(world: EcsWorld, owner: Owner, tx: number, ty: number)
     production: {
       queue: [],
       progress: 0,
+      funded: false,
       autoBuild: null,
       autoBuildPreset: null,
       autoBuildStep: 0,

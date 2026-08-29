@@ -5,10 +5,7 @@ import type { PhraseBank } from '../../radio/types';
 import { useGameStore } from '../../store/gameStore';
 import { selectRadio } from '../../store/selectors';
 import type { RadioLine } from '../../store/types';
-
-/** Per character, and the ceiling on a whole line — a long report speeds up rather than drags. */
-const CHAR_MS = 55;
-const MAX_TYPE_MS = 2200;
+import { useTypewriter } from '../hooks/useTypewriter';
 
 /**
  * The radio feed: unit chatter over the game scene, top-right.
@@ -57,7 +54,7 @@ export function RadioLog() {
   }, [pruneRadio]);
 
   const newest = lines.at(-1);
-  const revealed = useTypewriter(newest?.id ?? 0, newest && bank ? lengthOf(bank, newest) : 0);
+  const revealed = useTypewriter(newest?.id ?? null, newest && bank ? lengthOf(bank, newest) : 0);
 
   if (!bank || lines.length === 0) return null;
 
@@ -83,37 +80,6 @@ export function RadioLog() {
       })}
     </div>
   );
-}
-
-/**
- * How many characters of the newest line are visible. Only the newest one types —
- * everything above it was finished before it arrived, and re-typing the whole feed
- * on every append would be a different (and much sillier) effect.
- *
- * Returns the full length immediately when the player has asked for reduced
- * motion, so the text is simply *there*.
- */
-function useTypewriter(lineId: number, length: number): number {
-  const [reduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  // Progress is tagged with the line it belongs to, so a new line resets it by
-  // simply not matching — no state has to be written to start one over.
-  const [progress, setProgress] = useState({ id: 0, n: 0 });
-
-  useEffect(() => {
-    if (reduced || lineId === 0 || length === 0) return;
-    const step = Math.max(8, Math.min(CHAR_MS, MAX_TYPE_MS / length));
-    const timer = window.setInterval(() => {
-      // Returning the same object once the line is fully typed is what stops the
-      // re-renders; the timer itself is cleaned up when the newest line changes.
-      setProgress((p) =>
-        p.id === lineId && p.n >= length ? p : { id: lineId, n: Math.min(p.id === lineId ? p.n + 1 : 1, length) },
-      );
-    }, step);
-    return () => window.clearInterval(timer);
-  }, [lineId, length, reduced]);
-
-  if (reduced) return length;
-  return progress.id === lineId ? Math.min(progress.n, length) : 0;
 }
 
 /** The rendered length of a line, so the typewriter knows where to stop. */

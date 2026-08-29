@@ -44,7 +44,19 @@ export function commandToWire(command: Command): wire.Command {
     case 'AssignTask':
       return { tag: 'AssignTask', robotId: command.robotId, task: TASK_TO_WIRE[command.task] };
     case 'BuildRobot':
-      return { tag: 'BuildRobot', baseId: command.baseId, order: buildOrderToWire(command.order) };
+      return {
+        tag: 'BuildRobot',
+        baseId: command.baseId,
+        order: buildOrderToWire(command.order),
+        front: command.front,
+      };
+    case 'CancelQueued':
+      return {
+        tag: 'CancelQueued',
+        baseId: command.baseId,
+        index: command.index,
+        order: buildOrderToWire(command.order),
+      };
     case 'SetAutoBuild':
       return {
         tag: 'SetAutoBuild',
@@ -83,7 +95,19 @@ export function commandFromWire(command: wire.Command): Command {
     case 'AssignTask':
       return { kind: 'AssignTask', robotId: command.robotId, task: TASK_FROM_WIRE[command.task] };
     case 'BuildRobot':
-      return { kind: 'BuildRobot', baseId: command.baseId, order: buildOrderFromWire(command.order) };
+      return {
+        kind: 'BuildRobot',
+        baseId: command.baseId,
+        order: buildOrderFromWire(command.order),
+        front: command.front,
+      };
+    case 'CancelQueued':
+      return {
+        kind: 'CancelQueued',
+        baseId: command.baseId,
+        index: command.index,
+        order: buildOrderFromWire(command.order),
+      };
     case 'SetAutoBuild':
       return {
         kind: 'SetAutoBuild',

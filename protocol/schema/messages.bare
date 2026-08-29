@@ -94,8 +94,23 @@ type AssignTask struct {
     task: TaskType
 }
 
+# `front` is where in the queue the order goes: false joins the back, true jumps
+# ahead of everything waiting. The engine will not displace an order it has
+# already paid for and started, so jumping the queue costs nothing already
+# committed.
 type BuildRobot struct {
     baseId: str
+    order: BuildOrder
+    front: bool
+}
+
+# Take one order back off the queue. `index` is where the player clicked and
+# `order` is what they meant: a build can finish between the snapshot the dialog
+# drew and the tick this lands on, and the engine falls back to the first order
+# that matches. u32 rather than uint so the generated code stays on `number`.
+type CancelQueued struct {
+    baseId: str
+    index: u32
     order: BuildOrder
 }
 
@@ -155,7 +170,8 @@ type Command union {
     SetRallyPoint |
     ActivateShield |
     SetDefaultTask |
-    SetFormation
+    SetFormation |
+    CancelQueued
 }
 
 # ---------------------------------------------------------------------------

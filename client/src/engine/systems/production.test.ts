@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getBuildPreset } from '../../config/buildPresets';
 import { gameConfig } from '../../config/gameConfig';
 import { BuildPresetType, ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
+import type { BuildOrder } from '@drone-directive/types/entities';
 import type { Entity } from '../ecs/entity';
 import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
 import { commandsSystem } from './commands';
@@ -174,15 +175,25 @@ describe('productionSystem — auto-build presets', () => {
     expect(chassis).toEqual([ChassisType.Tracks, ChassisType.Wheels, ChassisType.Wheels, ChassisType.Tracks]);
   });
 
-  it('does not advance the cycle when a step is unaffordable', () => {
+  it('queues an unaffordable step and waits, rather than stalling the cycle', () => {
+    // This used to retry the same step until the money arrived. Now that the price
+    // is paid at the head of the queue, the refill has nothing left to refuse: the
+    // step advances, the order waits, and the pacing is unchanged because a refill
+    // only ever happens on an empty queue.
     const ctx = makeCtx(1);
     ctx.resources.player = 0;
     const base = spawnBase(ctx.world, Owner.Player, 4, 33);
-    base.production!.autoBuildPreset = BuildPresetType.Tracks;
+    // A multi-step series, so "the cycle moved on" is actually observable — a
+    // one-entry preset wraps straight back to 0 and would pass either way.
+    base.production!.autoBuildPreset = BuildPresetType.TracksWheels;
     base.production!.progress = 0.999;
     productionSystem(ctx, 1000);
-    expect(base.production!.queue.length).toBe(0);
-    expect(base.production!.autoBuildStep).toBe(0);
+    expect(base.production!.queue.length).toBe(1);
+    expect(base.production!.autoBuildStep).toBe(1);
+    // Queued, but not begun: no robot, no progress, and nothing spent.
+    expect(ctx.world.with('robot').entities.length).toBe(0);
+    expect(base.production!.funded).toBe(false);
+    expect(ctx.resources.player).toBe(0);
   });
 });
 
@@ -266,6 +277,7 @@ describe('per-side robot cap (shared by player and AI)', () => {
       kind: 'BuildRobot',
       baseId: base.id,
       order: { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon },
+      front: false,
     });
     commandsSystem(ctx);
     expect(base.production!.queue.length).toBe(0);
@@ -278,9 +290,202 @@ describe('per-side robot cap (shared by player and AI)', () => {
       kind: 'BuildRobot',
       baseId: base.id,
       order: { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon },
+      front: false,
     });
     commandsSystem(ctx);
     expect(base.production!.queue.length).toBe(1);
+  });
+});
+
+describe('paying at the head of the queue', () => {
+  const cannonTank = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
+  const cost = gameConfig.economy.chassisCost.tracks + gameConfig.economy.weaponCost.cannon;
+
+  function order(ctx: GameContext, base: Entity, front = false) {
+    ctx.commands.push({ kind: 'BuildRobot', baseId: base.id, order: cannonTank, front });
+    commandsSystem(ctx);
+  }
+
+  it('takes an order the side cannot pay for, and charges nothing yet', () => {
+    // The whole point of the change: a player short of resources states the
+    // intent now instead of watching a number climb with a dead button.
+    const ctx = makeCtx(1);
+    ctx.resources.player = 0;
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base);
+    expect(base.production!.queue.length).toBe(1);
+    expect(ctx.resources.player).toBe(0);
+  });
+
+  it('holds the whole queue at zero progress until the head is covered', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.player = cost - 1;
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base);
+
+    productionSystem(ctx, gameConfig.production.buildTime);
+    expect(base.production!.funded).toBe(false);
+    expect(base.production!.progress).toBe(0);
+    expect(ctx.world.with('robot').entities.length).toBe(0);
+
+    // One resource short, then not: the same queue starts on its own.
+    ctx.resources.player = cost;
+    productionSystem(ctx, gameConfig.production.buildTime / 2);
+    expect(base.production!.funded).toBe(true);
+    expect(base.production!.progress).toBeGreaterThan(0);
+    expect(ctx.resources.player).toBe(0);
+  });
+
+  it('charges the price once, not once per tick', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.player = cost * 3;
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base);
+    for (let i = 0; i < 5; i++) productionSystem(ctx, gameConfig.production.buildTime / 10);
+    expect(ctx.resources.player).toBe(cost * 2);
+  });
+
+  it('pays for the next order only when it reaches the front', () => {
+    const ctx = makeCtx(1);
+    ctx.resources.player = cost;
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base);
+    order(ctx, base);
+    // Enough for one. The first is built and paid for; the second waits its turn
+    // rather than being refused at the door.
+    productionSystem(ctx, gameConfig.production.buildTime);
+    expect(ctx.world.with('robot').entities.length).toBe(1);
+    expect(base.production!.queue.length).toBe(1);
+    expect(base.production!.funded).toBe(false);
+    expect(ctx.resources.player).toBe(0);
+  });
+});
+
+describe('jumping the queue', () => {
+  const tank = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
+  const buggy = { chassis: ChassisType.Wheels, weapon: WeaponType.Missiles };
+
+  function order(ctx: GameContext, base: Entity, o: BuildOrder, front: boolean) {
+    ctx.commands.push({ kind: 'BuildRobot', baseId: base.id, order: o, front });
+    commandsSystem(ctx);
+  }
+
+  it('goes to the front while nothing has started', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank, false);
+    order(ctx, base, buggy, true);
+    expect(base.production!.queue.map((o) => o.chassis)).toEqual([ChassisType.Wheels, ChassisType.Tracks]);
+  });
+
+  it('goes second once the head has been paid for and started', () => {
+    // Displacing a funded order would hand the player a different machine on
+    // someone else's progress and someone else's money.
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank, false);
+    productionSystem(ctx, gameConfig.production.buildTime / 4);
+    expect(base.production!.funded).toBe(true);
+
+    order(ctx, base, buggy, true);
+    expect(base.production!.queue.map((o) => o.chassis)).toEqual([ChassisType.Tracks, ChassisType.Wheels]);
+    // And the tank keeps the progress it had.
+    expect(base.production!.progress).toBeGreaterThan(0);
+  });
+
+  it('still joins the back when it is not a jump', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank, false);
+    order(ctx, base, buggy, false);
+    expect(base.production!.queue.map((o) => o.chassis)).toEqual([ChassisType.Tracks, ChassisType.Wheels]);
+  });
+});
+
+describe('taking an order back off the queue', () => {
+  const tank = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
+  const buggy = { chassis: ChassisType.Wheels, weapon: WeaponType.Missiles };
+  const cost = (o: BuildOrder) =>
+    gameConfig.economy.chassisCost[o.chassis] + gameConfig.economy.weaponCost[o.weapon];
+
+  function order(ctx: GameContext, base: Entity, o: BuildOrder) {
+    ctx.commands.push({ kind: 'BuildRobot', baseId: base.id, order: o, front: false });
+    commandsSystem(ctx);
+  }
+  function cancel(ctx: GameContext, base: Entity, index: number, o: BuildOrder) {
+    ctx.commands.push({ kind: 'CancelQueued', baseId: base.id, index, order: o });
+    commandsSystem(ctx);
+  }
+
+  it('removes the order at the position given', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank);
+    order(ctx, base, buggy);
+    cancel(ctx, base, 1, buggy);
+    expect(base.production!.queue.map((o) => o.chassis)).toEqual([ChassisType.Tracks]);
+  });
+
+  it('charges nothing back for an order that was never paid for', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank);
+    order(ctx, base, buggy);
+    productionSystem(ctx, gameConfig.production.buildTime / 4); // pays for the head only
+    const before = ctx.resources.player;
+    cancel(ctx, base, 1, buggy);
+    expect(ctx.resources.player).toBe(before);
+  });
+
+  it('refunds the order it was building, and stops the clock', () => {
+    const ctx = makeCtx(1);
+    // A balance a real match could hold: the testkit's is far past the economy's
+    // own ceiling, where the refund below is legitimately clamped.
+    ctx.resources.player = 500;
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank);
+    productionSystem(ctx, gameConfig.production.buildTime / 4);
+    const paid = ctx.resources.player;
+    expect(base.production!.funded).toBe(true);
+
+    cancel(ctx, base, 0, tank);
+    expect(ctx.resources.player).toBe(paid + cost(tank));
+    expect(base.production!.funded).toBe(false);
+    expect(base.production!.progress).toBe(0);
+  });
+
+  it('never refunds past the ceiling the economy itself has', () => {
+    // Otherwise queue-and-cancel banks without limit: pay at the cap, let income
+    // fill the hole back up, cancel, and repeat for as much as you like.
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank);
+    productionSystem(ctx, gameConfig.production.buildTime / 4);
+    ctx.resources.player = gameConfig.economy.maxResources;
+    cancel(ctx, base, 0, tank);
+    expect(ctx.resources.player).toBe(gameConfig.economy.maxResources);
+  });
+
+  it('finds the order by value when the queue has moved under the click', () => {
+    // A build finishing between the snapshot the dialog drew and this tick slides
+    // everything up by one; the position is stale but what the player meant is not.
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank);
+    order(ctx, base, buggy);
+    productionSystem(ctx, gameConfig.production.buildTime); // the tank rolls out
+    expect(base.production!.queue.map((o) => o.chassis)).toEqual([ChassisType.Wheels]);
+    // The player clicked slot 1, which is now empty — the buggy moved to slot 0.
+    cancel(ctx, base, 1, buggy);
+    expect(base.production!.queue).toEqual([]);
+  });
+
+  it('does nothing when the order named is no longer anywhere in the queue', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    order(ctx, base, tank);
+    cancel(ctx, base, 0, buggy);
+    expect(base.production!.queue).toHaveLength(1);
   });
 });
 

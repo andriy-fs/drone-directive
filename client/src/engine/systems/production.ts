@@ -41,21 +41,40 @@ export function atRobotCap(world: EcsWorld, owner: Owner): boolean {
  * robot's program is its order's own `task` when set, else the base's
  * `production.defaultTask` (see `BuildOrder`). A `production.rally` point sends
  * the Idle and Guard units it produces to gather there. Fully owner-agnostic:
- * the only limits on a refill are affordability and the per-side robot cap.
+ * the only limit on a refill is the per-side robot cap.
+ *
+ * ## Money is taken at the gate, not at the door
+ *
+ * **Queueing is free and building is what costs** (`Production.funded`). An order
+ * sits in the queue whatever the balance; when it reaches the head, the side pays
+ * for it and the clock starts. Short of the price, the whole queue simply waits.
+ *
+ * That is what lets the build dialog offer an order the player cannot afford yet
+ * — the alternative, and what this used to be, is a disabled button and a player
+ * watching a number climb. It also means the price is the one in force when the
+ * machine is actually built, not when it was thought of.
+ *
+ * Two consequences worth naming. A queued order still counts against the per-side
+ * cap (`sideRobotLoad`), so the cap — not the wallet — is now the only thing that
+ * refuses an order outright. And a preset series no longer stalls on a step it
+ * cannot afford: it enqueues and waits, where it used to retry the same step
+ * until the money arrived. The pacing is the same, because a refill only happens
+ * on an empty queue.
  */
 export function productionSystem(ctx: GameContext, dt: number): void {
   for (const base of bases(ctx.world)) {
     const prod = base.production;
 
-    // Auto-build: refill an empty queue if affordable and under the side cap.
+    // Auto-build: refill an empty queue while under the side cap. Affordability
+    // is no longer a condition — the refill queues, and the gate below waits.
     if (prod.queue.length === 0 && !atRobotCap(ctx.world, base.owner)) {
       if (prod.autoBuild) {
-        tryEnqueue(ctx, base, prod.autoBuild);
+        tryEnqueue(base, prod.autoBuild);
       } else if (prod.autoBuildPreset) {
         // Preset series (AI): cycle one step forward on a successful enqueue.
         const sequence = getBuildPreset(prod.autoBuildPreset).sequence;
         const order = sequence[prod.autoBuildStep % sequence.length];
-        if (tryEnqueue(ctx, base, order)) {
+        if (tryEnqueue(base, order)) {
           prod.autoBuildStep = (prod.autoBuildStep + 1) % sequence.length;
         }
       }
@@ -66,10 +85,21 @@ export function productionSystem(ctx: GameContext, dt: number): void {
       continue;
     }
 
+    // The gate: nothing accrues until the order in front has been paid for. A
+    // side that cannot cover it keeps its queue and its place, and starts the
+    // moment income catches up.
+    if (!prod.funded) {
+      const cost = buildCost(prod.queue[0]);
+      if (!canAfford(ctx.resources, base.owner, cost)) continue;
+      spend(ctx.resources, base.owner, cost);
+      prod.funded = true;
+    }
+
     prod.progress += dt / gameConfig.production.buildTime;
     if (prod.progress >= 1) {
       const order = prod.queue.shift();
       prod.progress = 0;
+      prod.funded = false;
       if (!order) continue;
       const pos = spawnPointFor(base, ctx.rng);
       const robot = spawnRobot(ctx.world, base.owner, pos, order.chassis, order.weapon);
@@ -101,11 +131,16 @@ export function productionSystem(ctx: GameContext, dt: number): void {
   }
 }
 
-/** Queues one build order if the base's owner can afford it; returns whether it did. */
-function tryEnqueue(ctx: GameContext, base: BaseEntity, order: BuildOrder): boolean {
-  const cost = buildCost(order);
-  if (!canAfford(ctx.resources, base.owner, cost)) return false;
-  spend(ctx.resources, base.owner, cost);
+/**
+ * Queues one build order. Always succeeds — the caller has already checked the cap,
+ * and there is nothing else left to refuse it now that the money is taken at the
+ * head of the queue rather than here.
+ *
+ * Kept as a function, and still returning a boolean, because the preset caller
+ * reads it: `autoBuildStep` advances on an enqueue, and burying that in a bare
+ * `push` would hide which of the two refill paths moved the series on.
+ */
+function tryEnqueue(base: BaseEntity, order: BuildOrder): boolean {
   base.production.queue.push({ ...order });
   return true;
 }

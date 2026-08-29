@@ -79,8 +79,26 @@ export interface BaseSnapshot {
   owner: Owner;
   hp: number;
   maxHp: number;
-  queueLength: number;
+  /**
+   * What the factory has been told to build, in order — the head is what it is
+   * working on now.
+   *
+   * The orders themselves rather than a count, because the build dialog lists them
+   * and lets the player take one back off. Rebuilt with the snapshot like every
+   * other field here; a queue is a dozen small objects at most (`maxRobots`).
+   */
+  queue: BuildOrder[];
   buildProgress: number;
+  /**
+   * The queue has something in it but the factory has not started, because the
+   * side cannot yet pay for the order in front (`Production.funded`).
+   *
+   * Here because the feature that made queueing free also made it possible for a
+   * queue to sit at zero progress indefinitely, and a progress bar that never
+   * moves with no explanation reads as a broken game rather than as an empty
+   * wallet.
+   */
+  waitingForResources: boolean;
   /** Continuously auto-produced model, or null = off. */
   autoBuild: BuildOrder | null;
   /** Default program produced robots take when their build order doesn't set one. */

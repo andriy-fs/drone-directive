@@ -20,6 +20,23 @@ npm run codegen -w protocol   # regenerate after editing the schema, then commit
 | `src/generated/messages.ts` | Generated encoders/decoders (`@drone-directive/protocol/codec`). Do not edit.           |
 | `src/index.ts`              | What a schema cannot express: the handshake constants and the framing. No dependencies. |
 
+### One trap in the generator: comments are emitted verbatim
+
+`@bare-ts` copies a schema comment into the generated file as JSDoc, and then
+decides which imports the file needs by **running regexes over that finished
+text** ([`generate-js.js`][gen]). So a comment can conjure an import out of
+nothing. The one that bites is a full stop preceded by the three letters `e`,
+`x`, `t` — which hide inside ordinary words like "n·e·x·t.", "cont·e·x·t.",
+"t·e·x·t." — and which make the generator `import * as ext from "./ext.js"`, a
+module that does not exist. (`bare.` and `assert(` in a comment are the same
+class of hazard.)
+
+**It fails quietly.** Codegen exits 0, and `npm run build` does not cover this
+workspace, so the only thing that catches it is `npm run type-check`. Run it
+after every regeneration.
+
+[gen]: https://github.com/bare-ts/tools/blob/main/src/generate-js.ts
+
 ## Framing
 
 A frame is **one tag octet followed by the BARE payload**:

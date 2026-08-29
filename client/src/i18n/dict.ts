@@ -106,13 +106,38 @@ export interface Dict {
     program: string;
     cost: string;
     available: string;
-    cancel: string;
-    setAutoBuild: string;
-    buildOnce: string;
+    /** The way out. Nothing here is committed on close — every button beside it commits its own thing. */
+    close: string;
+    /**
+     * The two halves of auto-build: put this model on repeat, and take it off
+     * again. Two buttons rather than a toggle, because the dialog is also where
+     * the model is chosen — "start" always means *this* configuration, and a
+     * toggle would have to mean two different things depending on what is running.
+     */
+    startAutoBuild: string;
+    stopAutoBuild: string;
+    /** Alt text for the turning model beside the pickers. */
+    preview: string;
+    /**
+     * The two ways to order one machine: onto the back of the queue, or in front
+     * of everything waiting. Neither is gated on the wallet — the price is taken
+     * when the order reaches the head of the queue.
+     */
+    queueBack: string;
+    queueBackHint: string;
+    queueFront: string;
+    queueFrontHint: string;
+    /** Why both of those are dead: the per-side robot cap, the only thing that refuses an order. */
+    atCap: string;
+    /** The list of what the factory has been told to build, and the label on each row's x. */
+    queueHeading: string;
+    cancelQueued: string;
   };
   statusPanel: {
     resources: string;
     building: string;
+    /** The queue has something in it but cannot pay for it yet, so nothing is moving. */
+    waiting: string;
     queued: string;
     idle: string;
     auto: string;

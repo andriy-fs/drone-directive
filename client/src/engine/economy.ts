@@ -31,3 +31,15 @@ export function canAfford(resources: ResourcePool, owner: Owner, cost: number): 
 export function spend(resources: ResourcePool, owner: Owner, cost: number): void {
   resources[owner] -= cost;
 }
+
+/**
+ * Give a charge back — a build order cancelled after it was paid for.
+ *
+ * Capped at the same ceiling income is, so a refund cannot park a side above a
+ * limit its own economy could never take it past. Without the cap a player could
+ * bank over the maximum by queueing and cancelling, which is not a strategy
+ * anybody should discover.
+ */
+export function refund(resources: ResourcePool, owner: Owner, cost: number): void {
+  resources[owner] = Math.min(gameConfig.economy.maxResources, resources[owner] + cost);
+}

@@ -72,9 +72,23 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
       robotId: idSchema,
       task: v.picklist(Object.values(TaskType)),
     }),
+    // `front` is a plain flag rather than a bounded value, so there is nothing to
+    // clamp — but it is required, not optional: the wire carries a `bool` either
+    // way, and letting it be absent here would accept a shape the encoder cannot
+    // produce. Symmetry is the whole job of this file.
     BuildRobot: v.object({
       kind: v.literal('BuildRobot'),
       baseId: idSchema,
+      order: buildOrderSchema,
+      front: v.boolean(),
+    }),
+    // The index is bounded by the same cap the queue is: a peer cannot hold more
+    // orders than the side may have units, so anything past it names a slot that
+    // could not exist. Integer and non-negative, since it indexes an array.
+    CancelQueued: v.object({
+      kind: v.literal('CancelQueued'),
+      baseId: idSchema,
+      index: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(limits.maxRobots)),
       order: buildOrderSchema,
     }),
     SetAutoBuild: v.object({
@@ -134,6 +148,7 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
     commandSchemas.ActivateShield,
     commandSchemas.SetDefaultTask,
     commandSchemas.SetFormation,
+    commandSchemas.CancelQueued,
   ]);
 }
 

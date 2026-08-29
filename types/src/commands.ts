@@ -9,7 +9,35 @@ import type { FormationType, TaskType } from './enums';
  */
 export type Command =
   | { kind: 'AssignTask'; robotId: string; task: TaskType }
-  | { kind: 'BuildRobot'; baseId: string; order: BuildOrder }
+  /**
+   * Put one robot on a base's build queue.
+   *
+   * `front` is where in the queue: `false` joins the back, `true` jumps it and is
+   * built next. **Next, not instead of** — the engine will not displace an order it
+   * has already paid for and started, so a rush order costs the player nothing they
+   * had already committed.
+   *
+   * Deliberately *not* gated on affordability, here or in the engine: a player who
+   * cannot pay yet should be able to state the intent and let the factory act on it
+   * when the bank catches up. The cost is taken when the order reaches the head of
+   * the queue and building actually begins.
+   */
+  | { kind: 'BuildRobot'; baseId: string; order: BuildOrder; front: boolean }
+  /**
+   * Take one order back off a base's build queue.
+   *
+   * Carries **both** the position and the order that was there. The position is
+   * what the player clicked; the order is what they meant, and the engine falls
+   * back to the first matching one when a build finished between the snapshot the
+   * dialog drew and the tick this lands on. Two identical orders are
+   * interchangeable, so matching on value rather than on an identity of its own is
+   * enough — and it keeps `BuildOrder` a plain value, which is what the whole
+   * queue is made of.
+   *
+   * A cancelled order that had already been paid for is refunded; see
+   * `productionSystem` on why the two can differ.
+   */
+  | { kind: 'CancelQueued'; baseId: string; index: number; order: BuildOrder }
   /** Repeat this order continuously (player single-model auto-build), or null = off. */
   | { kind: 'SetAutoBuild'; baseId: string; order: BuildOrder | null }
   /**

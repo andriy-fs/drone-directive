@@ -982,10 +982,63 @@
   text-align: center;
 }
 
-/* Three buttons of unequal weight: the way out sits alone on the left, the two
-   ways to commit group on the right. */
+/* Buttons of unequal weight: the way out sits alone on the left, the ways to
+   commit group on the right. */
 .modal__buttons--split {
   justify-content: flex-start;
+}
+
+/* Lets a row too crowded to split wrap instead — the build dialog's five buttons.
+   Centring is `.modal__buttons`'s own, and it has to be stated nowhere here: a
+   wrapped row centres each line separately, which is what keeps the second line
+   under the middle of the first rather than adrift at one end. */
+.modal__buttons--wrap {
+  flex-wrap: wrap;
+}
+
+/* The build dialog scrolls its middle, not the whole panel: the title stays put at
+   the top and the actions stay put at the bottom.
+
+   They have to. Five buttons wrap to two lines, and this is the tallest dialog in
+   the game — measured at 1366×700 its content runs 156px past the 88vh cap, which
+   put the entire action row below the fold and made it look like a dialog with no
+   way out.
+
+   Done by moving the scroll inward rather than by sticking the row to the bottom,
+   and that is not a stylistic preference: `--panel-bg` is **translucent** in the
+   CRT theme (`theme/themes/crt.css`), so a docked strip painted with it shows the
+   pickers sliding underneath at 15%. Outside the scroll container there is nothing
+   to show through. */
+.modal--build {
+  overflow: hidden;
+}
+
+.build-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  /* Without this a flex item refuses to shrink below its content, and the panel
+     grows past its own max-height instead of scrolling. */
+  min-height: 0;
+  /* Out to the panel's edge and back again, so the scrollbar rides the edge while
+     the content keeps the padding it had. */
+  margin: 0 -32px;
+  padding: 0 32px;
+  /* A pixel of slack, taken straight back out by the negative margin so nothing
+     moves. Without it this scrolls by one pixel *when the content fits*: Chrome
+     reports `scrollHeight` a pixel over `clientHeight` here whatever the content
+     rounds to, and the result is a scrollbar on a dialog with nothing to scroll.
+     Measured at 1× and 2×, and at four viewport heights; where the content really
+     does overflow (115px at 768) it still scrolls exactly as before. */
+  padding-block: 1px;
+  margin-block: -1px;
+}
+
+/* Reads as a footer now that it no longer travels with the content. */
+.modal--build .modal__buttons {
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
 }
 
 .modal__buttons--split .btn--ghost {
@@ -1198,9 +1251,190 @@
   -webkit-user-select: none;
 }
 
-/* Wider than a plain `.modal`: three rows of cards, three across, need the room. */
+/* Wider than a plain `.modal`: three rows of cards, three across, plus the
+   preview standing beside them. */
 .modal--build {
-  max-width: min(92vw, 560px);
+  max-width: min(94vw, 760px);
+}
+
+/* The machine on the left, what it is made of on the right. The preview column is
+   fixed and the configurator takes the rest, so changing a weapon never re-flows
+   the cards the player is clicking through. */
+/* What the machine is made of on the left, the machine itself on the right.
+   The right column is fixed and the configurator takes the rest, so changing a
+   weapon never re-flows the cards the player is clicking through. */
+.build-layout {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 18px;
+  align-items: start;
+}
+
+.build-config {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* The model and its numbers, placed by column rather than by source order. The
+   aside comes first in the markup — it is what the rows beside it add up to, and
+   reading it first is the right order for a screen reader — but it belongs on the
+   right of the picture. Safe to reorder visually because it holds nothing
+   focusable, so no tab order disagrees with what is on screen. */
+.build-aside {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Sunken, so the outline reads as something being looked at rather than as more
+   interface. */
+.build-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+/* The spec sheet, typed out under the model. Wearing the radio's colours and its
+   halo on purpose: this is the same machine reporting in, and reusing the
+   `--radio-*` tokens is what keeps the two looking like one voice rather than two
+   green texts that happen to animate.
+
+   `pre-line` because the passage arrives as one string with newlines in it — the
+   typewriter reveals a slice of the whole thing, so its lines cannot be separate
+   elements. */
+.build-spec {
+  margin: 0;
+  /* Left, against the dialog's centred text: a passage that types itself out
+     while centred slides sideways with every character, which is a different and
+     much busier effect than the radio's. */
+  text-align: left;
+  white-space: pre-line;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--radio-green);
+  text-shadow: var(--radio-halo);
+  overflow-wrap: anywhere;
+  /* Three lines at this size, so the block does not jump as the text arrives and
+     the cards beside it never shift under the cursor. */
+  min-height: 3lh;
+}
+
+/* The same blink as the radio's, from the same keyframes. */
+.build-spec__cursor {
+  margin-left: 1px;
+  animation: radio-cursor 1.4s steps(1) infinite;
+}
+
+/* Under ~640px the two columns stop being two. Source order takes over, so the
+   model and its numbers go back on top, and the model loses most of its height so
+   the pickers are still reachable without scrolling past a spinning robot. */
+@media (max-width: 640px) {
+  .build-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .build-aside,
+  .build-config {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .build-preview {
+    max-height: 140px;
+  }
+
+  .build-preview .wireframe {
+    max-height: 124px;
+  }
+}
+
+/* What the factory has been told to build, under the model's numbers. Numbered,
+   so the row a player is about to drop is unambiguous — 1 is the one being built.
+   Kept in the same green as the spec above it: both are the machine reporting its
+   own state, as against the cards on the left, which are choices. */
+.build-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Against the dialog's centred text, for the same reason the spec above it is
+     left: a list is read down its left edge, and centred rows put the numbering
+     in a different place on every line. */
+  text-align: left;
+}
+
+.build-queue__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Twelve orders is the cap, and twelve rows would push the pickers beside it off
+     a short screen — so the list scrolls rather than the dialog growing. */
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.build-queue__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--radio-green);
+  text-shadow: var(--radio-halo);
+}
+
+.build-queue__index {
+  opacity: 0.65;
+  /* Two digits' worth, so the names line up whether the row is 1 or 12. */
+  min-width: 20px;
+  text-align: right;
+}
+
+.build-queue__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Small enough to sit inside a 12px row, and only coloured on approach — a column
+   of red crosses beside a queue reads as a list of errors. */
+.build-queue__drop {
+  flex: none;
+  min-width: 0;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.55;
+}
+
+.build-queue__drop:hover,
+.build-queue__drop:focus-visible {
+  background: none;
+  opacity: 1;
+  color: var(--danger-text);
+}
+
+/* The cap notice under the cost row: the one thing that really does refuse an
+   order now that the wallet does not. */
+.build-warning {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--danger-text);
 }
 
 /* Title plus its close button. The title keeps the left edge rather than the

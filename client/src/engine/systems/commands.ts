@@ -1,12 +1,12 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Command } from '@drone-directive/types/commands';
-import type { Vec2 } from '@drone-directive/types/entities';
+import type { BuildOrder, Vec2 } from '@drone-directive/types/entities';
 import type { FormationType, Owner } from '@drone-directive/types/enums';
 import type { RobotScript } from '@drone-directive/types/tasks';
 import { clamp, vecLength } from '../../utils/math';
 import type { RobotEntity } from '../ecs/archetypes';
 import { isAlive } from '../ecs/guards';
-import { buildCost, canAfford, spend } from '../economy';
+import { buildCost, refund } from '../economy';
 import type { GameContext } from '../game/context';
 import { isTaskBlockedForWeapon, makeAttackTarget, makeIdle, scriptForTask } from '../tasks/taskDefinitions';
 import { setGoal } from './movement';
@@ -31,6 +31,7 @@ export function isCommandFrom(ctx: GameContext, command: Command, side: Owner): 
     case 'AssignTask':
       return ownedBySide(command.robotId);
     case 'BuildRobot':
+    case 'CancelQueued':
     case 'SetAutoBuild':
     case 'SetDefaultTask':
     case 'SetRallyPoint':
@@ -64,11 +65,45 @@ function applyCommand(ctx: GameContext, command: Command): void {
     case 'BuildRobot': {
       const base = baseById(ctx, command.baseId);
       if (!base) break;
-      if (atRobotCap(ctx.world, base.owner)) break; // at the per-side cap
-      const cost = buildCost(command.order);
-      if (!canAfford(ctx.resources, base.owner, cost)) break;
-      spend(ctx.resources, base.owner, cost);
-      base.production.queue.push(command.order);
+      // The cap is the only thing that refuses an order outright. Affordability is
+      // deliberately not checked: the cost is taken when the order reaches the head
+      // of the queue (`productionSystem`), so a player may order what they cannot
+      // yet pay for and let the factory act on it when the bank catches up.
+      if (atRobotCap(ctx.world, base.owner)) break;
+      const prod = base.production;
+      // A queue jump goes in front of everything *waiting*, but never in front of
+      // the order being built: that one has been paid for, and displacing it would
+      // hand the player a different machine on someone else's progress and money.
+      const at = command.front ? (prod.funded ? 1 : 0) : prod.queue.length;
+      prod.queue.splice(at, 0, command.order);
+      break;
+    }
+    case 'CancelQueued': {
+      const base = baseById(ctx, command.baseId);
+      if (!base) break;
+      const prod = base.production;
+      const same = (order: BuildOrder) =>
+        order.chassis === command.order.chassis &&
+        order.weapon === command.order.weapon &&
+        order.task === command.order.task;
+      // The clicked slot when it still holds what the player saw there, else the
+      // first order that matches: a build can finish between the snapshot the
+      // dialog drew and this tick, sliding everything up by one. Two identical
+      // orders are interchangeable, so "the first match" is never the wrong robot
+      // in any sense the player could tell.
+      const at = prod.queue[command.index] !== undefined && same(prod.queue[command.index])
+        ? command.index
+        : prod.queue.findIndex(same);
+      if (at < 0) break;
+      const [removed] = prod.queue.splice(at, 1);
+      // Cancelling the order being built gives the money back and stops the clock.
+      // Anything further down the queue was never charged for — see
+      // `productionSystem`, which pays at the head and nowhere else.
+      if (at === 0 && prod.funded) {
+        refund(ctx.resources, base.owner, buildCost(removed));
+        prod.funded = false;
+        prod.progress = 0;
+      }
       break;
     }
     case 'SetAutoBuild': {

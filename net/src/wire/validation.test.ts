@@ -27,6 +27,13 @@ const valid: Record<Command['kind'], Command> = {
     kind: 'BuildRobot',
     baseId: 'base_1',
     order: { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon, task: TaskType.Scout },
+    front: false,
+  },
+  CancelQueued: {
+    kind: 'CancelQueued',
+    baseId: 'base_1',
+    index: 2,
+    order: { chassis: ChassisType.Legs, weapon: WeaponType.Dew },
   },
   SetAutoBuild: { kind: 'SetAutoBuild', baseId: 'base_1', order: null },
   SetDefaultTask: { kind: 'SetDefaultTask', baseId: 'base_1', task: TaskType.Guard },
@@ -48,9 +55,9 @@ describe('parseCommands', () => {
   it('keeps all three states of a build order task', () => {
     const base = { chassis: ChassisType.Legs, weapon: WeaponType.Missiles };
     const batch: Command[] = [
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base } }, // unspecified
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: null } }, // explicitly none
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: TaskType.Overwatch } },
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base }, front: false }, // unspecified
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: null }, front: false }, // explicitly none
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: TaskType.Overwatch }, front: true },
     ];
     const parsed = parse(batch);
     expect(parsed).toEqual(batch);
@@ -79,9 +86,37 @@ describe('parseCommands', () => {
     const order = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
     const junk = [
       { kind: 'AssignTask', robotId: 'robot_1', task: 'guard ' },
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...order, chassis: 'hovercraft' } },
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...order, weapon: 'railgun' } },
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...order, task: 'conquer' } },
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...order, chassis: 'hovercraft' }, front: false },
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...order, weapon: 'railgun' }, front: false },
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...order, task: 'conquer' }, front: false },
+    ];
+    expect(parse(junk)).toEqual([]);
+  });
+
+  it('refuses a queue position that could not exist', () => {
+    // Bounded by the same cap the queue is: a side cannot hold more orders than
+    // it may have units, so anything past that names a slot no base ever had.
+    const order = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
+    const junk = [
+      { kind: 'CancelQueued', baseId: 'base_1', index: -1, order },
+      { kind: 'CancelQueued', baseId: 'base_1', index: 1.5, order },
+      { kind: 'CancelQueued', baseId: 'base_1', index: limits.maxRobots + 1, order },
+      { kind: 'CancelQueued', baseId: 'base_1', index: '0', order },
+      { kind: 'CancelQueued', baseId: 'base_1', order },
+    ];
+    expect(parse(junk)).toEqual([]);
+  });
+
+  it('insists on a queue placement, and on it being a boolean', () => {
+    // The wire carries a `bool` either way, so an absent or truthy-ish `front` is
+    // a shape our own encoder cannot produce — accepting it would break the
+    // symmetry this file exists to keep.
+    const order = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
+    const junk = [
+      { kind: 'BuildRobot', baseId: 'base_1', order },
+      { kind: 'BuildRobot', baseId: 'base_1', order, front: 1 },
+      { kind: 'BuildRobot', baseId: 'base_1', order, front: 'true' },
+      { kind: 'BuildRobot', baseId: 'base_1', order, front: null },
     ];
     expect(parse(junk)).toEqual([]);
   });

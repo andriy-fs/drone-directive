@@ -411,10 +411,17 @@ export function writeAssignTask(bc: bare.ByteCursor, x: AssignTask): void {
     writeTaskType(bc, x.task)
 }
 
+/**
+ * `front` is where in the queue the order goes: false joins the back, true jumps
+ * ahead of everything waiting. The engine will not displace an order it has
+ * already paid for and started, so jumping the queue costs nothing already
+ * committed.
+ */
 export type BuildRobot = {
     readonly tag: "BuildRobot"
     readonly baseId: string
     readonly order: BuildOrder
+    readonly front: boolean
 }
 
 export function readBuildRobot(bc: bare.ByteCursor): BuildRobot {
@@ -422,11 +429,41 @@ export function readBuildRobot(bc: bare.ByteCursor): BuildRobot {
         tag: "BuildRobot",
         baseId: bare.readString(bc),
         order: readBuildOrder(bc),
+        front: bare.readBool(bc),
     }
 }
 
 export function writeBuildRobot(bc: bare.ByteCursor, x: BuildRobot): void {
     bare.writeString(bc, x.baseId)
+    writeBuildOrder(bc, x.order)
+    bare.writeBool(bc, x.front)
+}
+
+/**
+ * Take one order back off the queue. `index` is where the player clicked and
+ * `order` is what they meant: a build can finish between the snapshot the dialog
+ * drew and the tick this lands on, and the engine falls back to the first order
+ * that matches. u32 rather than uint so the generated code stays on `number`.
+ */
+export type CancelQueued = {
+    readonly tag: "CancelQueued"
+    readonly baseId: string
+    readonly index: u32
+    readonly order: BuildOrder
+}
+
+export function readCancelQueued(bc: bare.ByteCursor): CancelQueued {
+    return {
+        tag: "CancelQueued",
+        baseId: bare.readString(bc),
+        index: bare.readU32(bc),
+        order: readBuildOrder(bc),
+    }
+}
+
+export function writeCancelQueued(bc: bare.ByteCursor, x: CancelQueued): void {
+    bare.writeString(bc, x.baseId)
+    bare.writeU32(bc, x.index)
     writeBuildOrder(bc, x.order)
 }
 
@@ -656,6 +693,7 @@ export type Command =
     | ActivateShield
     | SetDefaultTask
     | SetFormation
+    | CancelQueued
 
 export function readCommand(bc: bare.ByteCursor): Command {
     const offset = bc.offset
@@ -679,6 +717,8 @@ export function readCommand(bc: bare.ByteCursor): Command {
             return readSetDefaultTask(bc)
         case 8:
             return readSetFormation(bc)
+        case 9:
+            return readCancelQueued(bc)
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -731,6 +771,11 @@ export function writeCommand(bc: bare.ByteCursor, x: Command): void {
         case "SetFormation": {
             bare.writeU8(bc, 8)
             writeSetFormation(bc, x)
+            break
+        }
+        case "CancelQueued": {
+            bare.writeU8(bc, 9)
+            writeCancelQueued(bc, x)
             break
         }
     }

@@ -111,8 +111,10 @@ describe('isCommandFrom — a side may only command what it owns', () => {
     const mine = spawnBase(ctx.world, Owner.Player, 2, 2);
     const theirs = spawnBase(ctx.world, Owner.AI, 20, 20);
     const order = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
-    expect(isCommandFrom(ctx, { kind: 'BuildRobot', baseId: mine.id, order }, Owner.Player)).toBe(true);
-    expect(isCommandFrom(ctx, { kind: 'BuildRobot', baseId: theirs.id, order }, Owner.Player)).toBe(false);
+    expect(isCommandFrom(ctx, { kind: 'BuildRobot', baseId: mine.id, order, front: false }, Owner.Player)).toBe(true);
+    expect(isCommandFrom(ctx, { kind: 'BuildRobot', baseId: theirs.id, order, front: false }, Owner.Player)).toBe(
+      false,
+    );
     expect(isCommandFrom(ctx, { kind: 'SetAutoBuild', baseId: theirs.id, order: null }, Owner.Player)).toBe(false);
     const task = TaskType.Guard;
     expect(isCommandFrom(ctx, { kind: 'SetDefaultTask', baseId: mine.id, task }, Owner.Player)).toBe(true);

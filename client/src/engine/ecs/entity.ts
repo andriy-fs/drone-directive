@@ -105,6 +105,20 @@ export interface WeaponComp {
 export interface Production {
   queue: BuildOrder[];
   progress: number;
+  /**
+   * Whether the order at the head of the queue has been paid for.
+   *
+   * **Queueing is free; building is what costs.** A player may order anything at
+   * any balance — the factory simply will not start until the bank covers the
+   * order in front, and this is the flag that says which side of that line the
+   * head is on. It is also the only thing the HUD can read to say *why* a queue
+   * with something in it is showing no progress.
+   *
+   * An explicit flag rather than "progress is still zero": the two coincide today
+   * only because the loop never runs a system with `dt = 0`, and a payment that
+   * repeats every tick is not a bug anybody would enjoy finding.
+   */
+  funded: boolean;
   /** Repeat this exact order when the queue empties, or null = off (player single-model auto-build). */
   autoBuild: BuildOrder | null;
   /** Auto-production series to cycle through (AI only), or null = off. */

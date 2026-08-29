@@ -1492,8 +1492,11 @@ function toBaseSnapshot(e: BaseEntity, ctx: GameContext, localSide: Owner): Base
     owner: e.owner,
     hp: e.hp,
     maxHp: e.maxHp,
-    queueLength: e.production.queue.length,
+    // Copied, not handed over: the engine goes on mutating its own array, and the
+    // UI must never see a queue change under it between renders.
+    queue: e.production.queue.map((o) => ({ ...o })),
     buildProgress: e.production.progress,
+    waitingForResources: e.production.queue.length > 0 && !e.production.funded,
     autoBuild: e.production.autoBuild,
     defaultTask: e.production.defaultTask,
     rally: e.production.rally,

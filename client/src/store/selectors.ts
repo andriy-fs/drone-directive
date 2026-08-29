@@ -43,3 +43,18 @@ export const selectRadio = (s: GameState) => s.radio;
 
 /** The local side's (first) base, or undefined if it has been destroyed. */
 export const selectPlayerBase = (s: GameState) => s.bases.find((b) => b.owner === s.localSide);
+
+/**
+ * What the local side has committed against the per-side robot cap: living units
+ * plus everything its base still has queued.
+ *
+ * The same sum the engine's `sideRobotLoad` computes, from the HUD's side of the
+ * bridge — and the number the cap is actually judged on, which is why the units
+ * row can read `10/12` and already be red. Shared because two places need it: the
+ * status panel colours a row with it, and the build dialog refuses an order with
+ * it. Since the wallet no longer gates a build, this is the only thing that does.
+ */
+export const selectRobotLoad = (s: GameState) => {
+  const base = selectPlayerBase(s);
+  return s.robots.filter((r) => r.owner === s.localSide).length + (base?.queue.length ?? 0);
+};

@@ -42,6 +42,7 @@ describe('command round-trip', () => {
         kind: 'BuildRobot',
         baseId: 'base_1',
         order: { chassis: ChassisType.Wheels, weapon: WeaponType.Missiles, task: TaskType.Guard },
+        front: true,
       },
       {
         kind: 'SetAutoBuild',
@@ -71,12 +72,37 @@ describe('command round-trip', () => {
     expect(roundTrip(commands).commands).toEqual(commands);
   });
 
+  it('carries a cancellation with the slot and the order it names', () => {
+    const commands: Command[] = [
+      { kind: 'CancelQueued', baseId: 'base_1', index: 0, order: { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon } },
+      {
+        kind: 'CancelQueued',
+        baseId: 'base_2',
+        index: 7,
+        order: { chassis: ChassisType.Legs, weapon: WeaponType.Fpv, task: TaskType.Scout },
+      },
+    ];
+    expect(roundTrip(commands).commands).toEqual(commands);
+  });
+
+  it('keeps a queue jump distinct from an ordinary order', () => {
+    // One bool, and the only thing that separates the two buttons in the build
+    // dialog — a codec that dropped it would silently turn every rush order into
+    // a normal one, online only.
+    const order = { chassis: ChassisType.Legs, weapon: WeaponType.Dew };
+    const commands: Command[] = [
+      { kind: 'BuildRobot', baseId: 'base_1', order, front: true },
+      { kind: 'BuildRobot', baseId: 'base_1', order, front: false },
+    ];
+    expect(roundTrip(commands).commands).toEqual(commands);
+  });
+
   it('keeps the three states of a build order task distinct', () => {
     const base = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
     const commands: Command[] = [
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base } }, // unspecified
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: null } }, // explicitly none
-      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: TaskType.Overwatch } },
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base }, front: false }, // unspecified
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: null }, front: false }, // explicitly none
+      { kind: 'BuildRobot', baseId: 'base_1', order: { ...base, task: TaskType.Overwatch }, front: true },
     ];
     const decoded = roundTrip(commands).commands;
     expect(decoded).toEqual(commands);
@@ -98,11 +124,12 @@ describe('command round-trip', () => {
         kind: 'BuildRobot',
         baseId: 'base_1',
         order: { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon, task },
+        front: false,
       });
     }
     for (const chassis of Object.values(ChassisType)) {
       for (const weapon of Object.values(WeaponType)) {
-        commands.push({ kind: 'BuildRobot', baseId: 'base_1', order: { chassis, weapon } });
+        commands.push({ kind: 'BuildRobot', baseId: 'base_1', order: { chassis, weapon }, front: false });
       }
     }
     expect(roundTrip(commands).commands).toEqual(commands);

@@ -130,8 +130,14 @@ see [architecture.md](architecture.md).
 | **E**                            | Fire the possessed robot's weapon at the marked target        |
 
 Use the **Program** panel in the HUD to assign a directive to the selected
-unit(s), and the **Build Robot** dialog to produce units (once or on a
-continuous auto-build loop).
+unit(s), and the **Build Robot** dialog to produce units — onto the back of the
+build queue, in front of everything waiting, or on a continuous auto-build loop.
+
+**Ordering is free; building is what costs.** An order can be placed at any
+balance: it waits its turn, and the price is taken when it reaches the head of
+the queue and the factory starts on it. Short of the price, the queue simply
+holds and the HUD says so. The one thing that refuses an order outright is the
+per-side unit cap, which counts what is queued as well as what is built.
 
 ## How a match flows
 
