@@ -1,12 +1,12 @@
 import type { Graphics } from 'pixi.js';
 import { palette } from '../../../config/palette';
 import type { BaseEntity, RobotEntity } from '../../../engine/ecs/archetypes';
-import { project, type FpvProjection } from './camera';
-import { NodeKind, type Model } from './models';
+import { NodeKind, flatten, type Flat, type Model, type ScreenBounds, type UnitPose } from '../../../models';
+import type { FpvProjection } from './camera';
 
 /**
- * How a model gets onto the monitor: rotate it onto the machine's heading, project
- * it with the frame's matrix, and stroke it into a `Graphics`.
+ * How a model gets onto the monitor: `flatten` rotates it onto the machine's
+ * heading and projects it, and this strokes the result into a `Graphics`.
  *
  * **Rebuilt every frame, and that is affordable here for the reason the ground is
  * not.** The ground is the whole map, so it is a static buffer with the projection
@@ -32,6 +32,9 @@ import { NodeKind, type Model } from './models';
  * worth the segments: at range a contour tells you what a machine is, and its nodes
  * tell you what it is doing. An enemy whose barrel is glowing has just shot at
  * someone — which is knowledge the top view has never had a way to show.
+ *
+ * Heat stays here rather than in `models/` for the same reason the `Graphics` does:
+ * it reads ECS entities, and that layer knows nothing about the simulation.
  */
 
 /** How hot the two families of node are running, 0..1. */
@@ -74,15 +77,6 @@ export interface UnitStyle {
   heat: Heat;
 }
 
-/** Position, altitude and facing of one machine, in world coordinates. */
-export interface UnitPose {
-  x: number;
-  y: number;
-  /** Ground height under it — see `terrain.ts`. */
-  z: number;
-  heading: number;
-}
-
 export function robotHeat(robot: RobotEntity): Heat {
   const { weapon, movement } = robot;
   const speed = movement.speed > 0 ? Math.hypot(movement.velX, movement.velY) / movement.speed : 0;
@@ -120,29 +114,14 @@ function heatOf(node: NodeKind, heat: Heat): number {
 }
 
 /**
- * Projected ends of one segment, reused across frames.
+ * Projected segments, reused across frames.
  *
  * The array grows to the largest model ever drawn and is then never reallocated:
  * every machine in the frustum is projected into it once and read three times (the
  * structure pass and the two heat passes), rather than being run through the matrix
- * once per pass.
+ * once per pass. `flatten` is written to fill a buffer for exactly this reason.
  */
-interface Projected {
-  ax: number;
-  ay: number;
-  bx: number;
-  by: number;
-  ok: boolean;
-}
-const projected: Projected[] = [];
-
-function slot(i: number): Projected {
-  const existing = projected[i];
-  if (existing) return existing;
-  const fresh = { ax: 0, ay: 0, bx: 0, by: 0, ok: false };
-  projected[i] = fresh;
-  return fresh;
-}
+const projected: Flat[] = [];
 
 /**
  * Draw one machine: its structure, then its hot nodes over the top.
@@ -159,31 +138,18 @@ export function drawUnit(
   pose: UnitPose,
   style: UnitStyle,
 ): void {
-  const c = Math.cos(pose.heading);
-  const s = Math.sin(pose.heading);
+  const count = flatten(projected, model, pose, view);
 
   let any = false;
-  for (let i = 0; i < model.length; i++) {
-    const m = model[i];
-    const p = slot(i);
-    // Forward is (cos h, sin h); right is that turned 90° clockwise on the map,
-    // which is (−sin h, cos h) — see `camera.ts` on why clockwise is right here.
-    const a = project(view, pose.x + m.x0 * c - m.y0 * s, pose.y + m.x0 * s + m.y0 * c, pose.z + m.z0);
-    const b = project(view, pose.x + m.x1 * c - m.y1 * s, pose.y + m.x1 * s + m.y1 * c, pose.z + m.z1);
-    // Both ends or neither: `project` clips rather than intersects, so half a
-    // projected segment is a line to a point the model never had.
-    p.ok = a !== null && b !== null;
-    if (a && b) {
-      p.ax = a.x;
-      p.ay = a.y;
-      p.bx = b.x;
-      p.by = b.y;
+  for (let i = 0; i < count; i++) {
+    if (projected[i].ok) {
       any = true;
+      break;
     }
   }
   if (!any) return;
 
-  stroke(g, model, null, style.color, style.alpha, WIDTH.structure);
+  stroke(g, count, null, style.color, style.alpha, WIDTH.structure);
 
   // One pass per rate rather than one per channel: a `Graphics` stroke carries a
   // single alpha, and an idling engine glows while the wheels under it do not.
@@ -191,7 +157,7 @@ export function drawUnit(
   for (const node of HEAT_PASSES) {
     const rate = heatOf(node, style.heat);
     if (rate <= HEAT_FLOOR) continue;
-    stroke(g, model, node, palette.fpv.heat, style.alpha * rate, WIDTH.heat);
+    stroke(g, count, node, palette.fpv.heat, style.alpha * rate, WIDTH.heat);
   }
 }
 
@@ -204,48 +170,9 @@ export function drawUnit(
 const HEAT_PASSES = [NodeKind.Wheel, NodeKind.Engine, NodeKind.Barrel] as const;
 
 /** Whether a segment belongs to the pass `node` is drawing. */
-function inPass(segment: Model[number], node: NodeKind): boolean {
+function inPass(segment: Flat, node: NodeKind): boolean {
   if (node === NodeKind.Wheel) return segment.node === NodeKind.Wheel || segment.node === NodeKind.Joint;
   return segment.node === node;
-}
-
-/** Screen-space extent of a projected model — what the target brackets are hung on. */
-export interface ScreenBounds {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
-
-/**
- * Where a model lands on screen, without drawing it.
- *
- * Projects a second time rather than reading back whatever `drawUnit` last left in
- * the scratch: at most one machine per frame is marked, so the cost is one model,
- * and a caller silently depending on draw order is the kind of coupling that breaks
- * the first time somebody reorders two loops.
- */
-export function screenBoundsOf(view: FpvProjection, model: Model, pose: UnitPose): ScreenBounds | null {
-  const c = Math.cos(pose.heading);
-  const s = Math.sin(pose.heading);
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const m of model) {
-    for (const [lx, ly, lz] of [
-      [m.x0, m.y0, m.z0],
-      [m.x1, m.y1, m.z1],
-    ]) {
-      const p = project(view, pose.x + lx * c - ly * s, pose.y + lx * s + ly * c, pose.z + lz);
-      if (!p) continue;
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
-    }
-  }
-  return minX <= maxX ? { minX, minY, maxX, maxY } : null;
 }
 
 /**
@@ -280,17 +207,17 @@ export function drawTargetMark(g: Graphics, bounds: ScreenBounds, alpha: number)
 /** One stroke over the segments of a pass (or the whole model when `node` is null), read out of `projected`. */
 function stroke(
   g: Graphics,
-  model: Model,
+  count: number,
   node: NodeKind | null,
   color: number,
   alpha: number,
   width: number,
 ): void {
   let drew = false;
-  for (let i = 0; i < model.length; i++) {
-    if (node !== null && !inPass(model[i], node)) continue;
+  for (let i = 0; i < count; i++) {
     const p = projected[i];
-    if (!p?.ok) continue;
+    if (!p.ok) continue;
+    if (node !== null && !inPass(p, node)) continue;
     g.moveTo(p.ax, p.ay).lineTo(p.bx, p.by);
     drew = true;
   }

@@ -1961,3 +1961,29 @@ a.menu-nav__item {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* A machine drawn as an outline (`common/Wireframe.tsx`). Strokes are
+   `currentColor`, so a preview wears whatever colour the panel around it sets —
+   which is what keeps the battlefield's palette out of the interface. */
+.wireframe {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--text-h);
+  overflow: visible;
+}
+
+.wireframe__line {
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+
+/* The parts that would run hot on the field — a barrel, a drive. Brighter rather
+   than a different hue: the interface is not the monitor, and an amber glow here
+   would read as a warning. */
+.wireframe__line--node {
+  opacity: 1;
+  stroke-width: 1.4;
+}

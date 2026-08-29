@@ -2,7 +2,8 @@ import type { Graphics } from 'pixi.js';
 import { palette } from '../../../config/palette';
 import type { Vec2 } from '@drone-directive/types/entities';
 import type { RobotEntity } from '../../../engine/ecs/archetypes';
-import { project, type FpvProjection } from './camera';
+import { project } from '../../../models';
+import type { FpvProjection } from './camera';
 import { robotHeat } from './units';
 
 /**

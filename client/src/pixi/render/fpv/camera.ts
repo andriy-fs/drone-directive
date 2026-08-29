@@ -1,39 +1,26 @@
 import { gameConfig } from '../../../config/gameConfig';
+import { horizonOf, perspective, type Eye, type Projection } from '../../../models';
 
 /**
- * Where the wireframe view is looking from, and the one matrix everything in it
- * is projected with.
+ * Where the wireframe view is looking from: the eye, and the physics that shoves
+ * it about.
  *
- * **There is exactly one projection in this folder, and it lives here.** The
- * terrain is projected on the GPU and the units on the CPU, which is two code
- * paths — but they are two *consumers* of the same sixteen numbers, never two
- * transcriptions of the same formula. A shader-side copy of this would be right
- * for as long as nobody edited either one, and the failure it eventually produces
- * (hills and machines half a frame apart) is one nobody would think to look for
- * in a shader.
+ * **The projection itself is not here.** It lives in `client/src/models/project.ts`,
+ * with the machines it draws, because a preview panel in the interface needs the
+ * same sixteen numbers built round a different eye. What is left in this file is
+ * the half that is specific to riding a hull — where the camera sits behind it,
+ * how far it lags, how hard a shot shoves it — all of which reads `gameConfig`
+ * and none of which any other view wants.
  *
- * Pure: no Pixi, no store, no world. It takes a pose and a viewport and returns
- * numbers, which is what lets `camera.test.ts` check the awkward half — that
- * "right" on screen is the driver's right, and that what is behind the hull is
- * behind the near plane.
+ * The invariant that mattered survives the move intact: the terrain is projected
+ * on the GPU and the units on the CPU, and they are two *consumers* of one matrix,
+ * never two transcriptions of one formula. There is still exactly one place that
+ * matrix is written down; it is one directory further out.
  *
- * ## The space
- *
- * The simulation is 2D and its `y` runs **down** the top-down map (south). This
- * view adds a third axis, `z`, running **up** out of the ground, and keeps `x`/`y`
- * exactly as the world has them — so a world position needs no conversion, only a
- * height. The camera basis is then:
- *
- * - `R` — screen right, which is the driver's right: heading turned 90° clockwise
- *   on the map, and clockwise-on-the-map *is* to the right of something facing
- *   along the heading, precisely because `y` points south.
- * - `U` — screen up.
- * - `D` — the view direction, heading tilted down by `pitch`.
- *
- * `R × U = D`, so the triple is right-handed with **+z forward** rather than
- * GL's −z. That is a deliberate simplification: the projection below is written
- * here rather than borrowed, and taking `w = camZ` directly saves a sign that
- * would otherwise have to be right in two places.
+ * Pure above `FpvCameraRig`: `fpvEye` and `viewProjection` take a pose and a
+ * viewport and return numbers, which is what lets `camera.test.ts` check the
+ * awkward half — that "right" on screen is the driver's right, and that what is
+ * behind the hull is behind the near plane.
  */
 
 /** Where the camera is and what it is looking at — everything `viewProjection` needs. */
@@ -48,56 +35,22 @@ export interface FpvPose {
 }
 
 /** The camera's own position in the 3D world, in world px. */
-export interface FpvEye {
-  x: number;
-  y: number;
-  z: number;
-}
+export type FpvEye = Eye;
 
 /**
- * A built projection: the matrix, plus the eye it was built from.
+ * The shared projection plus the one thing only a view of the *ground* needs.
  *
- * The eye rides along because the distance fade needs it and deriving it back out
- * of the matrix would be the same duplication this module exists to prevent.
+ * `horizonY` rides along rather than being recomputed by the caller for the reason
+ * the eye does: `pitch` is known at the only place the matrix is built and nowhere
+ * else, and recovering it from the matrix would be the duplication `project.ts`
+ * exists to prevent. It moves with the recoil, since that is what recoil tilts.
  */
-export interface FpvProjection {
-  /**
-   * World → **canvas pixels**, homogeneous and **column-major** (the order a GLSL
-   * `mat4` uniform expects). `xy` come out premultiplied by `w`; divide by `w` and
-   * you have the point in CSS pixels from the canvas's top-left.
-   *
-   * Pixels rather than clip space, deliberately. Both consumers need the pixel
-   * position — the CPU one to stroke a `Graphics`, the GPU one to hand Pixi's own
-   * `mat3` a point in the container's coordinate space — so if the viewport step
-   * were left out of here, each of them would write it out again, and this module
-   * exists to stop exactly that.
-   */
-  matrix: Float32Array;
-  eye: FpvEye;
-  /** Copied through so `project` can reject what the vertex shader would clip. */
-  near: number;
+export interface FpvProjection extends Projection {
   /**
    * Where the ground plane's vanishing line lands, in CSS pixels from the top.
-   *
-   * **A horizontal line, always.** Screen right is `[-sin h, cos h, 0]` — its `z`
-   * component is a hard zero, because this camera does not roll — so every
-   * horizontal direction projects to the same screen `y`, and the horizon cannot
-   * tilt. It therefore reduces to one number rather than a line equation.
-   *
-   * Carried here rather than recomputed by the caller for the reason the eye is:
-   * `pitch` is known at the only place the matrix is built and nowhere else, and
-   * recovering it from the matrix would be the duplication this module exists to
-   * prevent. It moves with the recoil, since that is what recoil tilts.
+   * A horizontal line, always — this camera does not roll. See `horizonOf`.
    */
   horizonY: number;
-}
-
-/** A point that survived projection, in CSS pixels from the canvas's top-left. */
-export interface ScreenPoint {
-  x: number;
-  y: number;
-  /** Distance in front of the camera along the view direction, in world px. */
-  depth: number;
 }
 
 /**
@@ -124,35 +77,25 @@ export function fpvEye(pose: FpvPose): FpvEye {
 }
 
 /**
- * The world → canvas-pixel matrix for one frame.
+ * The world → canvas-pixel matrix for one frame, at the pose the pilot's hull is in.
  *
- * The perspective half is written out rather than taken from a library because it
- * is unusual in two respects. `w = camZ` (not `−camZ`), and the `z` row is `camZ −
- * 2·near`: that second one is doing real work — GL clips a vertex unless
- * `−w ≤ z ≤ w`, and with those two rows the lower bound reduces to `camZ ≥ near`.
- * So the near plane is enforced by the same rasteriser that interpolates across
- * it, and a grid line running from under the hull out past the horizon is cut at
- * the right place instead of exploding through the division. Depth itself is never
- * read: there is no depth buffer here, and draw order does the sorting.
- *
- * The second is that the `x`/`y` rows carry the **viewport** as well as the
- * perspective, so the result is pixels and not NDC. Folding it in costs two extra
- * terms and keeps the promise in the header: the shader hands `xy` and `w` straight
- * to Pixi's `mat3` and the CPU divides them, and neither writes the mapping out.
- *
- * It is also what makes the whole thing survive being rendered somewhere other than
- * the canvas. Under a filter, Pixi draws the container into a pooled offscreen
- * texture — rounded **up to a power of two**, so 980×800 becomes 1024×1024 — and
- * compensates in the matrices it binds. Anything writing NDC itself ignores that
- * compensation and spreads across the whole pooled texture; the ground did exactly
- * that, and drifted away from the machines standing on it.
+ * The matrix itself is `perspective()`'s; what this adds is the two numbers that
+ * make it *this* view — the eye placed behind the hull, and the fixed downward tilt
+ * the monitor is bolted at.
  */
 export function viewProjection(pose: FpvPose, screenW: number, screenH: number): FpvProjection {
   const { pitchDeg } = gameConfig.drone.fpv;
   return projectionFrom(fpvEye(pose), pose.heading, (pitchDeg * Math.PI) / 180, screenW, screenH);
 }
 
-/** The matrix for an explicit eye and orientation — what the rig below needs, and what `viewProjection` is. */
+/**
+ * The matrix for an explicit eye and orientation — what the rig needs, and what
+ * `viewProjection` is.
+ *
+ * Two lines, and both of them are this view's own numbers: the shared builder is
+ * told the field of view and near plane the monitor uses, and the horizon is the
+ * same projection said a different way.
+ */
 function projectionFrom(
   eye: FpvEye,
   heading: number,
@@ -161,80 +104,10 @@ function projectionFrom(
   screenH: number,
 ): FpvProjection {
   const { fovDeg, near } = gameConfig.drone.fpv;
-
-  const ch = Math.cos(heading);
-  const sh = Math.sin(heading);
-  const cp = Math.cos(pitch);
-  const sp = Math.sin(pitch);
-
-  // Screen right, screen up, and the view direction. See the header for why R is
-  // the heading turned clockwise on the map.
-  const r = [-sh, ch, 0] as const;
-  const u = [ch * sp, sh * sp, cp] as const;
-  const d = [ch * cp, sh * cp, -sp] as const;
-
-  const dot = (v: readonly number[]): number => v[0] * eye.x + v[1] * eye.y + v[2] * eye.z;
-
-  const aspect = screenH > 0 ? screenW / screenH : 1;
-  const fy = 1 / Math.tan(((fovDeg * Math.PI) / 180) / 2);
-  const fx = fy / aspect;
-
-  // Rows of viewport · P · V, in the order (x, y, z, w). Written as rows because
-  // that is how the derivation reads; transposed on the way into the buffer.
-  //
-  // Each of `x` and `y` is the perspective row scaled by a half-extent, plus the
-  // `w` row scaled by the same — which is the centring `+ screenW/2` of an ordinary
-  // viewport transform, expressed homogeneously so nothing has to divide early. `y`
-  // takes the perspective term negative because screen `y` runs down and the
-  // camera's `U` runs up.
-  const halfW = screenW / 2;
-  const halfH = screenH / 2;
-  const wRow = [d[0], d[1], d[2], -dot(d)];
-  /** One viewport row: the perspective term, plus the centring offset carried on `w`. */
-  const viewportRow = (axis: readonly number[], scale: number, half: number): number[] => [
-    scale * axis[0] + half * wRow[0],
-    scale * axis[1] + half * wRow[1],
-    scale * axis[2] + half * wRow[2],
-    -scale * dot(axis) + half * wRow[3],
-  ];
-  const rows = [
-    viewportRow(r, fx * halfW, halfW),
-    viewportRow(u, -fy * halfH, halfH),
-    [d[0], d[1], d[2], -dot(d) - 2 * near],
-    wRow,
-  ];
-
-  const matrix = new Float32Array(16);
-  for (let col = 0; col < 4; col++) {
-    for (let row = 0; row < 4; row++) matrix[col * 4 + row] = rows[row][col];
-  }
-
-  // A horizontal direction has `u · dir = sin p` and `d · dir = cos p`, so the `y`
-  // row over the `w` row collapses to this — independent of heading and of where
-  // the eye is, which is what makes the horizon one number.
-  const horizonY = halfH * (1 - (fy * sp) / cp);
-
-  return { matrix, eye, near, horizonY };
-}
-
-/**
- * A world point through the same matrix the shader uses, landed on the canvas —
- * or null when it is at or behind the near plane, which is where the GPU would
- * have clipped it.
- *
- * Callers drawing line segments must drop a segment when **either** end comes back
- * null rather than skipping just that end: this does no clipping, and half a
- * projected segment is a line to somewhere the other end never was.
- */
-export function project(view: FpvProjection, x: number, y: number, z: number): ScreenPoint | null {
-  const m = view.matrix;
-  const px = m[0] * x + m[4] * y + m[8] * z + m[12];
-  const py = m[1] * x + m[5] * y + m[9] * z + m[13];
-  const w = m[3] * x + m[7] * y + m[11] * z + m[15];
-  if (w <= view.near) return null;
-  // The viewport is already in the matrix, so this is the whole of the CPU side:
-  // one divide, and no second copy of where the middle of the screen is.
-  return { x: px / w, y: py / w, depth: w };
+  return {
+    ...perspective({ eye, heading, pitch, fovDeg, near, screenW, screenH }),
+    horizonY: horizonOf(pitch, fovDeg, screenH),
+  };
 }
 
 /**

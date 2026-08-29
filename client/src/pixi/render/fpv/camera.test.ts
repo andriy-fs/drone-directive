@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../../config/gameConfig';
-import { FpvCameraRig, fpvEye, project, viewProjection } from './camera';
-import { drawTargetMark, screenBoundsOf } from './units';
-import { ROBOT_MODELS } from './models';
+import { FpvCameraRig, fpvEye, viewProjection } from './camera';
+import { drawTargetMark } from './units';
+import { ROBOT_MODELS, project, screenBoundsOf } from '../../../models';
 import { ChassisType, WeaponType } from '@drone-directive/types/enums';
 
 /**

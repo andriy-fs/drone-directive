@@ -24,9 +24,10 @@ import {
   MUNITION_MODEL,
   PROJECTILE_MODEL,
   ROBOT_MODELS,
+  screenBoundsOf,
   type Model,
-} from './models';
-import { COLD, baseHeat, drawTargetMark, drawUnit, robotHeat, screenBoundsOf, type Heat } from './units';
+} from '../../../models';
+import { COLD, baseHeat, drawTargetMark, drawUnit, robotHeat, type Heat } from './units';
 import { drawInstruments } from './instruments';
 
 /**
