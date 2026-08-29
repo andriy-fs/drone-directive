@@ -44,6 +44,41 @@ export function isCommandFrom(ctx: GameContext, command: Command, side: Owner): 
   }
 }
 
+/**
+ * True for the commands a player may still issue while the world is stopped.
+ *
+ * A build queue is a list of intentions the factory has not acted on yet, so
+ * editing it under pause changes nothing that is happening — `productionSystem`
+ * is inside the tick and cannot advance. Settings on a building are the same
+ * kind of thing. Orders to an army are not: "pause, hand every unit a target,
+ * unpause" is a different game, and `ActivateShield` is a reaction to something
+ * in flight — pausing to place the dome perfectly is exactly what pause is
+ * stopped from doing.
+ *
+ * Applied where input is *sampled*, never where it is received: a command the
+ * sender drops never reaches the wire, so the peers cannot disagree about it.
+ *
+ * Exhaustive `switch` with no `default`, like `isCommandFrom` — a new command
+ * kind fails the build here until somebody decides which side of the line it is
+ * on.
+ */
+export function isAllowedWhilePaused(kind: Command['kind']): boolean {
+  switch (kind) {
+    case 'BuildRobot':
+    case 'CancelQueued':
+    case 'SetAutoBuild':
+    case 'SetDefaultTask':
+    case 'SetRallyPoint':
+      return true;
+    case 'AssignTask':
+    case 'MoveRobots':
+    case 'AttackTarget':
+    case 'SetFormation':
+    case 'ActivateShield':
+      return false;
+  }
+}
+
 /** Drains and applies queued UI intents (task/build/move/attack). */
 export function commandsSystem(ctx: GameContext): void {
   if (ctx.commands.length === 0) return;

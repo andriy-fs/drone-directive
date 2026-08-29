@@ -4,7 +4,7 @@ import { ChassisType, FormationType, Owner, TaskType, WeaponType } from '@drone-
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import { spawnBase, spawnRobot } from '../ecs/factory';
 import { makeGuard } from '../tasks/taskDefinitions';
-import { commandsSystem, isCommandFrom } from './commands';
+import { commandsSystem, isAllowedWhilePaused, isCommandFrom } from './commands';
 import { makeCtx } from './testkit';
 
 describe('commandsSystem — AssignTask refuses attack orders for a radar', () => {
@@ -294,4 +294,35 @@ describe('commandsSystem — a formation survives the orders that replace a scri
     const goals = pair.map((r) => r.movement!.goal);
     expect(goals[0]).not.toEqual(goals[1]);
   });
+});
+
+/**
+ * The list that decides which orders survive a pause. It is a design decision
+ * (`.docs/internal/todo/commands-while-paused.md` §3), not a mechanical rule, so
+ * it is spelled out here one kind at a time: the thing that rots is somebody
+ * adding a command and never revisiting which side of the line it sits on. The
+ * exhaustive `switch` in `isAllowedWhilePaused` catches that at compile time;
+ * this catches a wrong answer.
+ */
+describe('isAllowedWhilePaused', () => {
+  const verdicts: Array<[Command['kind'], boolean]> = [
+    // Settings on a building — nothing they touch can move while the world is stopped.
+    ['BuildRobot', true],
+    ['CancelQueued', true],
+    ['SetAutoBuild', true],
+    ['SetDefaultTask', true],
+    ['SetRallyPoint', true],
+    // Orders to an army, and the dome. Pause is not thinking time.
+    ['AssignTask', false],
+    ['MoveRobots', false],
+    ['AttackTarget', false],
+    ['SetFormation', false],
+    ['ActivateShield', false],
+  ];
+
+  for (const [kind, allowed] of verdicts) {
+    it(`${allowed ? 'lets' : 'blocks'} ${kind} ${allowed ? 'through' : ''}`.trim(), () => {
+      expect(isAllowedWhilePaused(kind)).toBe(allowed);
+    });
+  }
 });

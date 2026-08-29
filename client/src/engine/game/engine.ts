@@ -64,9 +64,17 @@ export class GameEngine {
     this.commands.push(command);
   }
 
-  /** Advances the active scene by one fixed step (unless paused). */
+  /**
+   * Advances the active scene by one fixed step. While paused the world holds
+   * still, but the scene still drains the command queue: the orders that survive
+   * a pause are settings on a building (see `isAllowedWhilePaused`), and the app
+   * layer has already dropped the rest before they got here.
+   */
   tick(dt: number): void {
-    if (this.paused) return;
+    if (this.paused) {
+      this.manager.applyCommands();
+      return;
+    }
     this.manager.update(dt);
   }
 

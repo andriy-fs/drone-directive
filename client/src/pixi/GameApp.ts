@@ -6,7 +6,7 @@ import type { Entity } from '../engine/ecs/entity';
 import { isAlive } from '../engine/ecs/guards';
 import { bases as basesQuery, drones as dronesQuery, robots as robotsQuery } from '../engine/ecs/queries';
 import { GameEngine } from '../engine/game/engine';
-import { isCommandFrom } from '../engine/systems/commands';
+import { isAllowedWhilePaused, isCommandFrom } from '../engine/systems/commands';
 import { canActivateShield, isShielded } from '../engine/systems/shield';
 import { possessedRobotOf } from '../engine/systems/targeting';
 import { useGameStore } from '../store/gameStore';
@@ -925,7 +925,10 @@ export class GameApp {
 
     // Solo / offline live loop.
     this.engine.setPaused(store.paused);
-    this.enqueueFrom(Owner.Player, store.drainCommands());
+    // Paused, only the orders that survive a pause go through — the rest are
+    // dropped here rather than held, so unpausing never replays a stale batch.
+    const drained = store.drainCommands();
+    this.enqueueFrom(Owner.Player, store.paused ? drained.filter((c) => isAllowedWhilePaused(c.kind)) : drained);
     this.engine.setDroneControl(Owner.Player, this.localDroneControl(store));
     store.clearDroneRequests();
     this.engine.tick(dt);
@@ -1061,18 +1064,25 @@ export class GameApp {
   }
 
   /**
-   * This client's input for one tick. While the match is paused everything but
-   * the pause request itself is dropped on the floor: a stopped world is a break,
-   * not free thinking time in which to queue up orders. Each peer decides that
-   * about its own input, so the two never have to agree on it — nothing here can
-   * make the simulations differ.
+   * This client's input for one tick. While the match is paused only the orders
+   * that survive a pause are kept (`isAllowedWhilePaused`: settings on a
+   * building, not orders to an army) and the drone stick goes dead — a stopped
+   * world is a break, not free thinking time in which to manoeuvre.
+   *
+   * The filter belongs *here*, where the input is sampled: a command this peer
+   * drops never reaches the wire, so the two can never disagree about it. Doing
+   * it on receive instead is how this gets desynced.
    */
   private captureLocalInput(store: GameState): TickInput {
     const pauseToggle = store.consumePauseToggle();
     if (this.onlinePaused) {
-      store.drainCommands();
+      const paused = store.drainCommands().filter((c) => isAllowedWhilePaused(c.kind));
       store.clearDroneRequests();
-      return { commands: [], drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false }, pauseToggle };
+      return {
+        commands: paused,
+        drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false },
+        pauseToggle,
+      };
     }
     const commands = store.drainCommands();
     const drone = this.localDroneControl(store);

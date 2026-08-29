@@ -77,6 +77,16 @@ export class GameScene implements Scene {
     this.ctx.bus.emit('sceneChanged', { scene: 'game' });
   }
 
+  /**
+   * A paused tick runs this instead of `update`. Only the command pass — the
+   * world holds still. Same `over` guard as below: once the match is decided
+   * `commandsSystem` stops running, and pause must not be a way back in.
+   */
+  applyCommands(): void {
+    if (this.over) return;
+    commandsSystem(this.ctx);
+  }
+
   update(dt: number): void {
     const ctx = this.ctx;
 
