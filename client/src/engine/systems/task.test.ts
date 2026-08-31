@@ -464,6 +464,38 @@ describe('taskSystem — anti-air is a last resort', () => {
   });
 });
 
+describe('taskSystem — a kamikaze on its lit fuse', () => {
+  it('is left out of the resolver: nothing re-aims a bomb that has committed', () => {
+    // It cannot be walked away, re-targeted or pulled into a formation any more —
+    // `combatSystem` owns both the countdown and its end. Resolving it would write a
+    // goal it is never going to drive to.
+    const ctx = makeCtx(2);
+    const bomb = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Wheels, WeaponType.Bomb);
+    bomb.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    spawnRobot(ctx.world, Owner.AI, { x: 110, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    bomb.arming = { left: gameConfig.robots.weapons.bomb.armingTime };
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(bomb.targetId).toBeUndefined();
+    expect(bomb.movement!.goal).toBeUndefined();
+  });
+
+  it('does not burn the fuse: only combat may spend it', () => {
+    // Two systems decaying one timer is two different countdowns, and the one that
+    // matters is the one that can detonate.
+    const ctx = makeCtx(2);
+    const bomb = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Wheels, WeaponType.Bomb);
+    const left = gameConfig.robots.weapons.bomb.armingTime;
+    bomb.arming = { left };
+
+    for (let i = 0; i < 10; i++) taskSystem(ctx, DT);
+
+    expect(bomb.arming!.left).toBe(left);
+  });
+});
+
 describe('taskSystem — the directed-energy knock-out', () => {
   it('does not run the program of a disabled robot', () => {
     const ctx = makeCtx(2);

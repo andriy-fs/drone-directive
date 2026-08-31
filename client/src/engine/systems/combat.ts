@@ -10,7 +10,7 @@ import type { GameContext } from '../game/context';
 import type { HitTarget } from '../game/events';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
 import { absorbShieldDamage, isShielded } from './shield';
-import { applyDisable, blockRegen, isDisabled } from './status';
+import { applyDisable, beginArming, blockRegen, decayArming, isArming, isDisabled } from './status';
 import { alreadyDoomed, distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from './targeting';
 
 /**
@@ -61,8 +61,24 @@ function fireWeapon(ctx: GameContext, e: Shooter, dt: number): void {
   // weight until it recovers, so the cooldown must not tick down here. (Always
   // false for a base: a directed-energy round has no crew to knock out.)
   if (isDisabled(e)) return;
+  // Dead before its turn came round — caught in another bomb's blast this tick.
+  // Checked ahead of the fuse below, so a kamikaze killed on the doorstep does not
+  // still get its blast off; a corpse reloading was never observable either way.
+  if (e.hp <= 0) return;
+  // A lit fuse is the whole of this hull's turn: it has already committed, so
+  // nothing below — target, range, line of sight — is asked again, and when the
+  // fuse runs out it goes off wherever it is standing. Ticked here because
+  // `combatSystem` calls this exactly once per entity per tick, and because this
+  // is the one place that can act on the moment it expires.
+  //
+  // Sitting *below* the knock-out check is a rule, not an accident: a `dew` hit
+  // stops the fuse for as long as it holds the hull, which is the only way to
+  // take a started kamikaze off a target without killing it.
+  if (isArming(e)) {
+    if (decayArming(e, dt)) detonateBomb(ctx, e);
+    return;
+  }
   if (w.cooldownLeft > 0) w.cooldownLeft -= dt;
-  if (e.hp <= 0) return; // already caught in another bomb's blast this tick
   if (!canEngage(w) || w.cooldownLeft > 0) return;
 
   const target = currentTarget(ctx, e);
@@ -81,7 +97,14 @@ function fireWeapon(ctx: GameContext, e: Shooter, dt: number): void {
   if (!isKnownTo(ctx, e.owner, target)) return;
 
   if (w.explosionRadius > 0) {
-    detonateBomb(ctx, e); // kamikaze: AOE blast + self-destruct, no projectile
+    // Kamikaze: no projectile and no second thoughts. It stops here and lights its
+    // fuse; the blast (AOE + self-destruct) comes `armingTime` later, in the branch
+    // above. Everything that gated this tick — range, `isKnownTo`, line of sight —
+    // is checked once, right here, and never revisited: the seconds it stands still
+    // are the price of the payload, and letting a target walk out of range refund
+    // them would hand the attacker a free look at the defence.
+    beginArming(e, w.armingTime);
+    ctx.bus.emit('bombArming', { owner: e.owner, id: e.id, pos: { x: pos.x, y: pos.y } });
     return;
   }
 

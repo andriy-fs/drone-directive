@@ -71,6 +71,7 @@ function runBot(ctx: GameContext, owner: Owner, state: AiState, dt: number): voi
   maybeRaiseShield(ctx, owner, base);
   ensureFactoryDefault(base);
   ensureEwRobot(ctx, owner, base);
+  ensureInterceptor(ctx, owner, base);
   updateProduction(ctx, owner, state, base, dt);
   // Ahead of the generic assignment: `dew` hulls are governed by their own rule
   // for the whole match, not just while waiting, so they must be off the table
@@ -196,6 +197,51 @@ function ensureEwRobot(ctx: GameContext, owner: Owner, base: BaseEntity): void {
 
   spend(ctx.resources, owner, cost);
   base.production.queue.push(order);
+}
+
+/**
+ * One FPV carrier, built the moment the bot lays eyes on an enemy kamikaze — and
+ * never otherwise.
+ *
+ * **Reactive, not standing.** `ensureEwRobot` above keeps its jammer alive
+ * unconditionally because an aura is worth something in every match; a launcher is
+ * not. It costs 140 and, parked on `Guard` by `positionFpvUnits`, only ever shells
+ * — so building one into every game is a tax on the bot's whole army for a threat
+ * most matches never contain. Seeing a bomb hull is the cheapest possible signal
+ * that this match does, and it comes from the same query the dome reads.
+ *
+ * **Why a launcher answers a kamikaze at all**, and where it stops: it is the only
+ * weapon the bot has that reaches a bomb *on the approach*, before the second of
+ * fuse is the last chance anybody gets. A volley is 5 x 12 = 60 against a 70 hp
+ * `wheels` hull, so it does not kill one outright — two volleys nine seconds apart,
+ * or one volley and anything else that fires. That is the honest ceiling on this:
+ * it thins a wave, it does not stop one. And an enemy `ew` escort deletes the
+ * munitions outright (`systems/munition.ts`), which is why a *second* carrier is
+ * never queued — against a jammer the first one already buys nothing, and the
+ * answer to that is a `dew` hit on the escort, not more tubes.
+ *
+ * It jumps the queue by exactly the player's own rule (`applyCommand`'s `front`):
+ * in front of everything waiting, never in front of the order being built, which
+ * has been paid for and whose progress belongs to it.
+ */
+function ensureInterceptor(ctx: GameContext, owner: Owner, base: BaseEntity): void {
+  if (atRobotCap(ctx.world, owner)) return;
+  if (knownKamikazes(ctx, owner).length === 0) return;
+
+  const hasCarrier = robots(ctx.world).entities.some(
+    (e) => e.owner === owner && isAlive(e) && e.weaponType === WeaponType.Fpv,
+  );
+  if (hasCarrier) return;
+
+  const prod = base.production;
+  if (prod.queue.some((o) => o.weapon === WeaponType.Fpv)) return;
+
+  // `tracks` for the hull, as the preset's own carrier uses: this thing never
+  // moves, so speed buys nothing and the extra armour is what keeps it shelling
+  // when the wave it was built for arrives. No `task` — `positionFpvUnits` is the
+  // single owner of where a carrier stands, and a second opinion in the order
+  // would only be a second place to change it.
+  prod.queue.splice(prod.funded ? 1 : 0, 0, { chassis: ChassisType.Tracks, weapon: WeaponType.Fpv });
 }
 
 function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: BaseEntity, dt: number): void {
@@ -424,9 +470,19 @@ function mobilizeDefense(ctx: GameContext, owner: Owner, base: BaseEntity, aiRob
 }
 
 /**
- * The bot's one energy dome, spent on the two situations it cannot recover from
- * otherwise: the base is already being chewed through, or a rush is inside the
- * defence radius in numbers the line will not hold.
+ * The bot's one energy dome, spent on the three situations it cannot recover from
+ * otherwise: the base is already being chewed through, a rush is inside the
+ * defence radius in numbers the line will not hold, or the kamikazes it can see on
+ * the approach already add up to more damage than the base has hp left.
+ *
+ * That third trigger is the one that had to be added, and the first two are why.
+ * A `bomb` deals 300 to a 600 hp base, so two of them end a match — and neither
+ * of the older triggers fires on that: three raiders are short of
+ * `massRushThreshold`, and one bomb leaves the base at exactly 50%, above
+ * `shieldHpThreshold`. The dome was never raised at all, which is not a balance
+ * setting but a hole. Counting *burst* rather than bodies closes it without a new
+ * knob and without a damage log: it is a sum over the world and the intel, and so
+ * is identical on every peer.
  *
  * Counts *known* enemies rather than reusing the omniscient `nearbyEnemyCount`,
  * and that is a deliberate departure. Elsewhere the bot's omniscience is a
@@ -443,7 +499,46 @@ function maybeRaiseShield(ctx: GameContext, owner: Owner, base: BaseEntity): voi
   if (!canRaiseShield(base)) return;
   const hurt = base.hp < base.maxHp * gameConfig.ai.shieldHpThreshold;
   const swarmed = knownNearbyEnemyCount(ctx, owner, base) >= gameConfig.ai.massRushThreshold;
-  if (hurt || swarmed) raiseShield(ctx, base);
+  const doomed = base.hp <= knownIncomingBurst(ctx, owner, base);
+  if (hurt || swarmed || doomed) raiseShield(ctx, base);
+}
+
+/**
+ * What the kamikazes this side can *see* would take off the base if every one of
+ * them arrived — the sum of their blast damage, inside the radius the defence line
+ * already covers.
+ *
+ * `behavior.defendBaseRadius` rather than a knob of its own: it is deliberately
+ * wider than `ai.threatRange` and wider than what a base can see unaided
+ * (`bases.sightRange` 260), so in practice this is "every kamikaze in the picture" —
+ * and the moment a bot starts a defence is the moment it should be deciding about
+ * the dome, not two thresholds later.
+ *
+ * Intel-limited like `knownNearbyEnemyCount`, and for the reason set out above it:
+ * the dome is the one control both sides hold, so a bot must not answer a raid it
+ * has never spotted while the player's own button stays dark against the same one.
+ */
+function knownIncomingBurst(ctx: GameContext, owner: Owner, base: BaseEntity): number {
+  const bp = base.position;
+  const radius = gameConfig.behavior.defendBaseRadius;
+  let burst = 0;
+  for (const r of knownKamikazes(ctx, owner)) {
+    if (distance(r.position.x, r.position.y, bp.x, bp.y) > radius) continue;
+    burst += r.weapon.damage;
+  }
+  return burst;
+}
+
+/**
+ * Every enemy kamikaze this side can see right now, wherever it is.
+ *
+ * The one query behind two different policies — the dome (`knownIncomingBurst`,
+ * which only cares about the ones already on the doorstep) and the interceptor
+ * (`ensureInterceptor`, which cares that they exist at all). Kept as a list rather
+ * than a count so neither has to re-filter the world.
+ */
+function knownKamikazes(ctx: GameContext, owner: Owner): RobotEntity[] {
+  return knownEnemyRobots(ctx, owner).filter((r) => r.weapon.explosionRadius > 0);
 }
 
 /** `nearbyEnemyCount`'s intel-limited twin — see `maybeRaiseShield` for why it exists. */

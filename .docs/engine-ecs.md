@@ -57,7 +57,9 @@ position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
   the component is dropped rather than zeroed (see `systems/status.ts`, which
   owns every read and write of it, and decays it in `taskSystem`). `regenLock:
   {left}` — the pause on passive repair after a hit — works the same way, but is
-  carried by bases as well as robots and decays in `regenSystem`. A base's
+  carried by bases as well as robots and decays in `regenSystem`. So does
+  `arming: {left}`, a kamikaze's lit fuse, which decays in `combatSystem` —
+  the only system that can act on the moment it runs out, by detonating. A base's
   energy dome, `shield: {hp,left}`, is the same idea taken one step further: it
   is not merely temporary, it is a **query tag**, so raising and losing it moves
   the base in and out of `world.with('base','position','shield')` and the Pixi

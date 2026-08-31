@@ -8,7 +8,7 @@ import { robots } from '../../ecs/queries';
 import type { GameContext } from '../../game/context';
 import { isBlockedGrid, tileOf } from '../../obstacles';
 import { findPath, smoothPath } from '../../pathfinding';
-import { isDisabled } from '../status';
+import { isArming, isDisabled } from '../status';
 import { findById, knownEnemyBases, knownEnemyRobots } from '../targeting';
 import { centroidOf } from './roam';
 import type { MoveIntent, Outcome } from './types';
@@ -464,8 +464,11 @@ function applyGroup(ctx: GameContext, members: RobotEntity[], resolved: Map<stri
   const type = members[0].script.blackboard.formation?.type;
   if (type === undefined) return;
 
-  const mobile = members.filter((e) => !isDisabled(e));
-  if (mobile.length === 0) return; // the whole group is knocked out — nothing to steer
+  // A hull that cannot drive this tick — knocked out, or committed to its own blast —
+  // is not part of the shape: leaving it in would anchor the frame on a machine that
+  // is never coming, and the group would wait out somebody else's fuse.
+  const mobile = members.filter((e) => !isDisabled(e) && !isArming(e));
+  if (mobile.length === 0) return; // nobody left who can steer
 
   const anchor = anchorOf(ctx, mobile);
   const cfg = gameConfig.behavior.formation;

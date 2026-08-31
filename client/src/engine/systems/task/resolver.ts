@@ -9,7 +9,7 @@ import type { GameContext } from '../../game/context';
 import { hasLineOfSight } from '../../obstacles';
 import { canEngage } from '../combat';
 import { clearGoal, setGoal } from '../movement';
-import { decayDisabled, isDisabled } from '../status';
+import { decayDisabled, isArming, isDisabled } from '../status';
 import { findById, knownEnemyAir, knownEnemyBases, knownEnemyRobots, nearest, worthShooting } from '../targeting';
 import {
   attackAttackerOutcome,
@@ -56,6 +56,11 @@ export function taskSystem(ctx: GameContext, dt: number): void {
     // identically on both peers.
     decayDisabled(e, dt);
     if (isDisabled(e)) continue;
+    // A kamikaze on its lit fuse has stopped being something with a program: it
+    // cannot be re-aimed, re-tasked or walked away, and `combatSystem` owns both
+    // the countdown and its end. Skipped rather than resolved so nothing writes a
+    // goal it will never drive to — `movement.ts` parks it on the same test.
+    if (isArming(e)) continue;
 
     if (e.threat && e.threat.underFireLeft > 0) {
       e.threat.underFireLeft = Math.max(0, e.threat.underFireLeft - dt);

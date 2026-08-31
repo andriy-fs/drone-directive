@@ -35,6 +35,21 @@ export function atRobotCap(world: EcsWorld, owner: Owner): boolean {
 }
 
 /**
+ * How long one order takes to assemble, in seconds — the weapon's own figure, so
+ * pace is a per-model property the way price already is (`buildCost` in
+ * `economy.ts`, which this sits alongside rather than inside: time is not a
+ * resource).
+ *
+ * Only the head of the queue is ever asked, and only while it is being built. That
+ * is safe because the head cannot change under a part-built order: cancelling it is
+ * the one thing that removes it, and that path resets `progress` and `funded`
+ * together (see `applyCommand`).
+ */
+export function buildTimeFor(order: BuildOrder): number {
+  return gameConfig.production.weaponBuildTime[order.weapon];
+}
+
+/**
  * Auto-build refill + timed production for every base. Refill sources, when the
  * queue empties: `autoBuild` repeats a single fixed order (player's chosen
  * model), else `autoBuildPreset` cycles a named series (AI only). A produced
@@ -95,7 +110,7 @@ export function productionSystem(ctx: GameContext, dt: number): void {
       prod.funded = true;
     }
 
-    prod.progress += dt / gameConfig.production.buildTime;
+    prod.progress += dt / buildTimeFor(prod.queue[0]);
     if (prod.progress >= 1) {
       const order = prod.queue.shift();
       prod.progress = 0;

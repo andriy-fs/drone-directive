@@ -31,6 +31,7 @@ export type SoundName =
   | 'select-legs'
   | 'select-group'
   | 'unit-ready'
+  | 'bomb-arming'
   | 'shield-up'
   | 'shield-break'
   | 'shield-down'
@@ -139,6 +140,13 @@ export const soundDefs: Record<SoundName, SoundDef> = {
   // — this is not a shot, it is five machines taking off. Peaks at −0.8 dBFS, in
   // line with the pack, so no compensation like `shot-cannon` needs.
   'shot-fpv': { src: src('digital/spaceTrash2'), volume: 0.4, tier: 'match' },
+  // A kamikaze on its lit fuse: a rising three-tone alarm, deliberately outside
+  // the laser/phaser family the guns share, because this is not a shot — it is a
+  // warning with a second left to run on it. Rising rather than steady so it reads
+  // as leading somewhere, and it is meant to be heard *over* whatever is going on:
+  // the fuse is the only window either side gets to react to a kamikaze, and a cue
+  // nobody notices is the same as no cue.
+  'bomb-arming': { src: src('digital/zapThreeToneUp'), volume: 0.45, tier: 'match' },
   // The energy dome's three moments. `shield-break` deliberately does *not* share
   // a family with the other two: raising and powering down are both a force
   // field, so they may sound related, but being beaten down must not be mistaken

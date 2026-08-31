@@ -48,6 +48,7 @@ function readVolume(): number {
 /** Context time of the last pip/boom of each rate-limited cue. */
 let lastUnitReadyAt = -Infinity;
 let lastExplosionAt = -Infinity;
+let lastBombArmingAt = -Infinity;
 
 /** Selection cues layer a chassis voice under the group cue; see `groupSelected`. */
 const GROUP_LAYER_DELAY_MS = 70;
@@ -201,6 +202,18 @@ export const sfx = {
     if (now - lastUnitReadyAt < COALESCE_MS) return;
     lastUnitReadyAt = now;
     play('unit-ready');
+  },
+
+  /**
+   * A kamikaze lit its fuse. Coalesced like the two above: a wave of them commits
+   * within a few ticks of each other, and identical buffers starting together sum
+   * into one loud smear rather than into several warnings.
+   */
+  bombArming(): void {
+    const now = performance.now();
+    if (now - lastBombArmingAt < COALESCE_MS) return;
+    lastBombArmingAt = now;
+    play('bomb-arming');
   },
 
   /**

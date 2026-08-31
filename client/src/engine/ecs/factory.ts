@@ -16,7 +16,7 @@ import type { EcsWorld } from './world';
 
 /**
  * A fresh weapon component off the config stats. Shared by robots and bases so
- * the nine fields can't drift apart between them — a new stat has to be added
+ * the ten fields can't drift apart between them — a new stat has to be added
  * in exactly one place.
  */
 function weaponComp(weapon: WeaponType): WeaponComp {
@@ -31,6 +31,7 @@ function weaponComp(weapon: WeaponType): WeaponComp {
     canHitAir: w.canHitAir,
     freezeDuration: w.freezeDuration,
     salvo: w.salvo,
+    armingTime: w.armingTime,
   };
 }
 

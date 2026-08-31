@@ -8,9 +8,17 @@ import { tileOf } from '../obstacles';
 import { combatSystem } from './combat';
 import { visionSystem } from './vision';
 import { raiseShield } from './shield';
+import { applyDisable } from './status';
 import { makeCtx } from './testkit';
 
 const DT = gameConfig.fixedDt;
+/**
+ * Ticks that certainly cover a kamikaze's whole fuse and its blast: the one that
+ * lights it (which does not decay it), the ones that burn it down, and one spare —
+ * `armingTime / DT` is 30 subtractions of a third of nothing, so the last of them
+ * can leave a few 1e-16 of a second behind.
+ */
+const FUSE_TICKS = Math.ceil(gameConfig.robots.weapons.bomb.armingTime / DT) + 2;
 
 /** Clear the generated terrain so a stray mountain can't absorb the test's shot. */
 function openGround(ctx: GameContext): void {
@@ -362,7 +370,7 @@ describe('combatSystem — a base under its energy dome', () => {
     bomb.targetId = base.id;
     const bystander = spawnRobot(ctx.world, Owner.AI, at(60), ChassisType.Tracks, WeaponType.Cannon);
 
-    tick(ctx);
+    for (let i = 0; i < FUSE_TICKS; i++) tick(ctx);
 
     expect(base.hp).toBe(base.maxHp);
     expect(base.shield!.hp).toBe(DOME.hp - gameConfig.robots.weapons.bomb.damage);
@@ -616,11 +624,94 @@ describe('combatSystem — the kamikaze detonates inside its own blast', () => {
     const behind = spawnRobot(ctx.world, Owner.AI, { x: 400 + BOMB.range + 25, y: 400 }, ChassisType.Legs, WeaponType.Cannon);
     bomb.targetId = target.id;
 
-    tick(ctx);
+    for (let i = 0; i < FUSE_TICKS; i++) tick(ctx);
 
     expect(target.hp!).toBeLessThanOrEqual(0);
     expect(behind.hp!).toBeLessThanOrEqual(0);
     expect(bomb.hp!).toBeLessThanOrEqual(0); // spent itself, as a kamikaze must
+  });
+});
+
+describe('combatSystem — the kamikaze burns a fuse before it goes off', () => {
+  const BOMB = gameConfig.robots.weapons.bomb;
+
+  /** A bomb in range of one enemy hull, on open ground, aimed and ready to commit. */
+  function staged(ctx: GameContext) {
+    openGround(ctx);
+    const bomb = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Bomb);
+    const target = spawnRobot(ctx.world, Owner.AI, { x: 400 + BOMB.range, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    bomb.targetId = target.id;
+    return { bomb, target };
+  }
+
+  it('nothing happens on the tick it arrives — the fuse is the whole point', () => {
+    // The exploit this exists for: before the fuse, arriving *was* the blast, and a
+    // 70 hp hull at 135 px/s could not be shot off a base in the time it took.
+    const ctx = makeCtx(1);
+    const { bomb, target } = staged(ctx);
+
+    tick(ctx);
+
+    expect(target.hp!).toBe(target.maxHp!);
+    expect(bomb.hp!).toBeGreaterThan(0);
+    expect(bomb.arming!.left).toBeGreaterThan(0);
+  });
+
+  it('goes off once the fuse runs out, not before', () => {
+    const ctx = makeCtx(1);
+    const { bomb, target } = staged(ctx);
+
+    // One tick short of the fuse: still standing there, still nothing dead.
+    for (let i = 0; i < FUSE_TICKS - 1; i++) tick(ctx);
+    expect(target.hp!).toBe(target.maxHp!);
+
+    tick(ctx);
+    expect(target.hp!).toBeLessThanOrEqual(0);
+    expect(bomb.hp!).toBeLessThanOrEqual(0);
+  });
+
+  it('detonates anyway when the target dies while the fuse is burning', () => {
+    // Committed, not conditional. A kamikaze that could be talked out of its blast
+    // by killing what it aimed at would be a free scout with a panic button.
+    const ctx = makeCtx(1);
+    const { bomb, target } = staged(ctx);
+    const bystander = spawnRobot(ctx.world, Owner.AI, { x: 400 + BOMB.range + 20, y: 400 }, ChassisType.Legs, WeaponType.Cannon);
+
+    tick(ctx);
+    target.hp = 0; // somebody else got there first
+
+    for (let i = 0; i < FUSE_TICKS; i++) tick(ctx);
+
+    expect(bomb.hp!).toBeLessThanOrEqual(0);
+    expect(bystander.hp!).toBeLessThan(bystander.maxHp!);
+  });
+
+  it('a directed-energy hit stops the fuse for as long as it holds the hull', () => {
+    // The one way to take a started kamikaze off a target without killing it, and
+    // the reason the fuse is ticked below the knock-out check rather than above it.
+    const ctx = makeCtx(1);
+    const { bomb, target } = staged(ctx);
+
+    tick(ctx);
+    const left = bomb.arming!.left;
+    applyDisable(bomb, 10);
+
+    for (let i = 0; i < FUSE_TICKS; i++) tick(ctx);
+
+    expect(bomb.arming!.left).toBe(left); // not a second burned while it was out
+    expect(target.hp!).toBe(target.maxHp!);
+  });
+
+  it('a bomb killed on its own doorstep never gets the blast off', () => {
+    const ctx = makeCtx(1);
+    const { bomb, target } = staged(ctx);
+
+    tick(ctx);
+    bomb.hp = 0; // the defender's window, used
+
+    for (let i = 0; i < FUSE_TICKS; i++) tick(ctx);
+
+    expect(target.hp!).toBe(target.maxHp!);
   });
 });
 

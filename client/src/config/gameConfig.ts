@@ -311,6 +311,9 @@ export const gameConfig = {
      * own `damage` (see the `munition` block above and `systems/munition.ts`).
      * Only `fpv` has it, and it is what exempts the weapon from the line-of-sight
      * check — drones fly over mountains (`needsLineOfSight` in `systems/combat.ts`).
+     * `armingTime` (seconds, >0) only matters for `bomb`: the fuse it burns
+     * standing still before it goes off — see `systems/status.ts` and the note on
+     * `bomb` below.
      */
     weapons: {
       none: {
@@ -323,6 +326,7 @@ export const gameConfig = {
         canHitAir: false,
         freezeDuration: 0,
         salvo: 0,
+        armingTime: 0,
       },
       cannon: {
         range: 180,
@@ -334,6 +338,7 @@ export const gameConfig = {
         canHitAir: false,
         freezeDuration: 0,
         salvo: 0,
+        armingTime: 0,
       },
       // The only surface-to-air weapon: doubles as this side's answer to an enemy
       // drone — and, since `fpv` exists, the only thing that can shoot a salvo down.
@@ -347,14 +352,29 @@ export const gameConfig = {
         canHitAir: true,
         freezeDuration: 0,
         salvo: 0,
+        armingTime: 0,
       },
-      // Kamikaze: closes to `range` then detonates, dealing `damage` in `explosionRadius`, destroying itself.
+      // Kamikaze: closes to `range`, burns `armingTime` standing still, then detonates,
+      // dealing `damage` in `explosionRadius` and destroying itself.
       // range (90) must exceed a base's half-footprint (48px) so it can trigger at the base's edge, not only inside it.
       // damage doubled (150 → 300) so building one is worth it against a base/cluster, not just chip damage.
       // `explosionRadius` must stay comfortably **above** `range`: the trigger is measured centre-to-centre
       // while the blast reaches `explosionRadius + robots.radius`, so a radius at or below the trigger
       // distance would detonate on the rim of its own blast — the aimed target barely clipped and everything
       // standing behind it untouched, which is the opposite of what a kamikaze is bought for.
+      //
+      // `armingTime` is the one thing standing between this weapon and an unanswerable
+      // opening: `wheels` + `bomb` costs 140 and takes 300 hp off a 600 hp base, so two
+      // of them ended matches, and nothing could stop them. The interception window used
+      // to be `behavior.defendBaseRadius` (280) minus this `range` — 190 px, which a
+      // 135 px/s hull crosses in 1.4 s, in which a cannon lands ~24 damage against 70 hp.
+      // A fuse burned *stationary* is what turns that into a real window: the base's own
+      // battery plus one defender now finish a light chassis inside the second. It is a
+      // delay, never a cancellation (see `systems/combat.ts`) — a kamikaze that started
+      // still trades itself for whatever it is standing next to, so its job against a
+      // cluster or a dome is untouched. Raising it much past a second stops being a
+      // window and starts being "escort or don't bother"; dropping it below one puts the
+      // arithmetic above back.
       bomb: {
         range: 90,
         damage: 300,
@@ -365,6 +385,7 @@ export const gameConfig = {
         canHitAir: false,
         freezeDuration: 0,
         salvo: 0,
+        armingTime: 1,
       },
       /** Unarmed spotter: no damage, but doubles detection radius. */
       radar: {
@@ -377,6 +398,7 @@ export const gameConfig = {
         canHitAir: false,
         freezeDuration: 0,
         salvo: 0,
+        armingTime: 0,
       },
       /**
        * Unarmed jammer. `jamRadius` does **two** jobs, both passive: it halves the
@@ -396,6 +418,7 @@ export const gameConfig = {
         canHitAir: false,
         freezeDuration: 0,
         salvo: 0,
+        armingTime: 0,
       },
       // Directed-energy weapon: the cannon's reach and price, but it deals no damage at
       // all — a hit disables the target for `freezeDuration` seconds instead. Control,
@@ -410,6 +433,7 @@ export const gameConfig = {
         canHitAir: false,
         freezeDuration: 8,
         salvo: 0,
+        armingTime: 0,
       },
       /**
        * FPV carrier: one pull of the trigger releases `salvo` single-use strike
@@ -449,6 +473,7 @@ export const gameConfig = {
         canHitAir: false,
         freezeDuration: 0,
         salvo: 5,
+        armingTime: 0,
       },
     },
   },
@@ -940,8 +965,32 @@ export const gameConfig = {
 
   /** Robot production from a base's build queue. */
   production: {
-    /** Seconds to build one robot. */
+    /** Seconds to build one robot, unless its weapon says otherwise (`weaponBuildTime`). */
     buildTime: 4,
+    /**
+     * Per-weapon build time, seconds — the whole record, like `economy.weaponCost`,
+     * so a new weapon cannot quietly inherit a number nobody chose for it. Read
+     * through `buildTimeFor` in `systems/production.ts`, never directly.
+     *
+     * The **pace** of a build is a balance lever in its own right, separate from its
+     * price, and `bomb` is what proved it. A kamikaze is deliberately cheap per point
+     * of damage against a building, so making it dearer would only make it a worse
+     * anti-cluster weapon without slowing the opening it enabled: auto-build a
+     * `wheels` + `bomb` from the first second and the conveyor outran any defence
+     * that could be assembled against it. Eight seconds is the assembly line paying
+     * for the payload — a kamikaze wave now has to be planned rather than trickled,
+     * and every other hull keeps the tempo it had. See `weapons.bomb`.
+     */
+    weaponBuildTime: {
+      none: 4,
+      cannon: 3,
+      missiles: 4,
+      bomb: 8,
+      radar: 4,
+      ew: 4,
+      dew: 4,
+      fpv: 4,
+    } as Record<WeaponType, number>,
     /** How far (tiles) beyond the footprint new robots appear. */
     spawnOffsetTiles: 2,
     /** Robots per side allowed at once (built + queued) — same cap for player and AI. */
@@ -986,10 +1035,17 @@ export const gameConfig = {
     /** Enemy robots within `threatRange` at once, at/above which the AI recalls its whole force (including active attackers) to defend, not just home-based units. */
     massRushThreshold: 5,
     /**
-     * Base hp fraction below which a bot spends its one energy dome (the other
-     * trigger is a rush of `massRushThreshold` known enemies inside
-     * `threatRange`). Bot *policy*, so it lives here rather than in
-     * `bases.shield`, which holds the dome's own stats — see `systems/ai.ts`.
+     * Base hp fraction below which a bot spends its one energy dome. Bot *policy*,
+     * so it lives here rather than in `bases.shield`, which holds the dome's own
+     * stats — see `systems/ai.ts`.
+     *
+     * One of **three** triggers, and the slowest of them: a fraction of max hp is
+     * coarser than a single hit, which is exactly how the kamikaze opening used to
+     * walk past it. Two bombs kill a 600 hp base, and the first leaves it at 50% —
+     * above this line, so the dome was never raised at all. `maybeRaiseShield` now
+     * also predicts a lethal burst from the kamikazes it can *see*, which is what
+     * answers that; this threshold is left to cover the ordinary case it was
+     * written for, a base being shelled down over time.
      */
     shieldHpThreshold: 0.45,
     /** Minimum other known enemy robots huddled within the bomb's blast radius before a kamikaze bothers with a cluster run. */

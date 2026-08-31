@@ -666,6 +666,106 @@ describe('aiSystem — directed-energy escort discipline', () => {
   });
 });
 
+describe('aiSystem — the FPV interceptor', () => {
+  /** A bot base with money on hand, so the only thing gating a build is policy. */
+  function botBase(ctx: ReturnType<typeof makeCtx>) {
+    ctx.resources.ai = 1000;
+    return spawnBase(ctx.world, Owner.AI, 33, 4);
+  }
+
+  /** One player kamikaze somewhere on the map, spotted or not. */
+  function kamikaze(ctx: ReturnType<typeof makeCtx>) {
+    return spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Wheels, WeaponType.Bomb);
+  }
+
+  function spotted(ctx: ReturnType<typeof makeCtx>, robots: { id: string }[]) {
+    ctx.intel[Owner.AI].visibleRobotIds = new Set(robots.map((r) => r.id));
+  }
+
+  const carriers = (base: ReturnType<typeof spawnBase>) =>
+    base.production!.queue.filter((o) => o.weapon === WeaponType.Fpv);
+
+  it('queues one the moment a kamikaze is spotted', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    spotted(ctx, [kamikaze(ctx)]);
+
+    aiSystem(ctx, 0);
+
+    expect(carriers(base)).toHaveLength(1);
+  });
+
+  it('builds none in a match with no kamikaze in it', () => {
+    // The whole reason this is reactive rather than standing like the jammer: a
+    // launcher that only ever shells is 140 resources off every other match.
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    spotted(ctx, [spawnRobot(ctx.world, Owner.Player, { x: 600, y: 600 }, ChassisType.Tracks, WeaponType.Cannon)]);
+
+    aiSystem(ctx, 0);
+
+    expect(carriers(base)).toHaveLength(0);
+  });
+
+  it('does not answer a kamikaze it has not seen', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    kamikaze(ctx); // present, unseen
+
+    aiSystem(ctx, 0);
+
+    expect(carriers(base)).toHaveLength(0);
+  });
+
+  it('queues exactly one, however many ticks the threat stands there', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    spotted(ctx, [kamikaze(ctx)]);
+
+    for (let i = 0; i < 5; i++) aiSystem(ctx, 0);
+
+    expect(carriers(base)).toHaveLength(1);
+  });
+
+  it('leaves it at one when a carrier is already on the field — a jammer beats two as easily as one', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    spawnRobot(ctx.world, Owner.AI, { x: 900, y: 200 }, ChassisType.Tracks, WeaponType.Fpv);
+    spotted(ctx, [kamikaze(ctx)]);
+
+    aiSystem(ctx, 0);
+
+    expect(carriers(base)).toHaveLength(0);
+  });
+
+  it('jumps the queue, but never displaces the order being built', () => {
+    // Same rule as the player's own queue jump: the head has been paid for, and
+    // its progress belongs to it.
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    const head = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
+    base.production!.queue.push(head, { chassis: ChassisType.Legs, weapon: WeaponType.Missiles });
+    base.production!.funded = true;
+    spotted(ctx, [kamikaze(ctx)]);
+
+    aiSystem(ctx, 0);
+
+    expect(base.production!.queue[0]).toBe(head);
+    expect(base.production!.queue[1].weapon).toBe(WeaponType.Fpv);
+  });
+
+  it('goes to the very front when nothing is part-built', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    base.production!.queue.push({ chassis: ChassisType.Tracks, weapon: WeaponType.Cannon });
+    spotted(ctx, [kamikaze(ctx)]);
+
+    aiSystem(ctx, 0);
+
+    expect(base.production!.queue[0].weapon).toBe(WeaponType.Fpv);
+  });
+});
+
 describe('aiSystem — the energy dome', () => {
   /** A bot base with an empty bank, so nothing here trips the production path. */
   function botBase(ctx: ReturnType<typeof makeCtx>) {
@@ -684,6 +784,23 @@ describe('aiSystem — the energy dome', () => {
           { x: base.position!.x + 60 + i, y: base.position!.y + 60 },
           ChassisType.Tracks,
           WeaponType.Cannon,
+        ),
+      );
+    }
+    return out;
+  }
+
+  /** `count` player kamikazes on the bot's doorstep, inside the defence radius. */
+  function kamikazes(ctx: ReturnType<typeof makeCtx>, base: ReturnType<typeof spawnBase>, count: number) {
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      out.push(
+        spawnRobot(
+          ctx.world,
+          Owner.Player,
+          { x: base.position!.x + 100 + i, y: base.position!.y + 100 },
+          ChassisType.Wheels,
+          WeaponType.Bomb,
         ),
       );
     }
@@ -726,6 +843,59 @@ describe('aiSystem — the energy dome', () => {
   });
 
   it('holds its fire below the rush threshold', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    spotted(ctx, raiders(ctx, base, gameConfig.ai.massRushThreshold - 1));
+
+    aiSystem(ctx, 0);
+
+    expect(base.shield).toBeUndefined();
+  });
+
+  it('raises it for kamikazes that already add up to the base, long before either older trigger', () => {
+    // The hole this closes: two bombs (300 each) end a 600 hp base, and neither the
+    // hp threshold (the first leaves it at 50%, above the line) nor the rush count
+    // (two is nowhere near five) ever fired. The dome was spent on nothing, every
+    // match, and a `wheels` + `bomb` opening simply won.
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    const needed = Math.ceil(base.maxHp! / gameConfig.robots.weapons.bomb.damage);
+    spotted(ctx, kamikazes(ctx, base, needed));
+
+    aiSystem(ctx, 0);
+
+    expect(base.hp).toBe(base.maxHp); // not a scratch on it yet, and the dome is up
+    expect(base.shield).toBeDefined();
+  });
+
+  it('holds it for a burst that does not add up to the base yet', () => {
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    const needed = Math.ceil(base.maxHp! / gameConfig.robots.weapons.bomb.damage);
+    spotted(ctx, kamikazes(ctx, base, needed - 1));
+
+    aiSystem(ctx, 0);
+
+    expect(base.shield).toBeUndefined();
+  });
+
+  it('counts only the kamikazes it has spotted', () => {
+    // Same rule as the rush above, and for the same reason: the dome is the one
+    // control both sides hold, so a bot must not answer a raid it cannot see while
+    // the player's own button stays dark against the same one.
+    const ctx = makeCtx(1);
+    const base = botBase(ctx);
+    kamikazes(ctx, base, 10); // present, unseen
+
+    aiSystem(ctx, 0);
+
+    expect(base.shield).toBeUndefined();
+  });
+
+  it('does not count guns toward the burst — only what lands all at once', () => {
+    // A cannon takes its 600 hp off over forty seconds of shooting, which is what
+    // the hp threshold is for. Reading its `damage` as a burst would spend the dome
+    // on the first skirmish that wandered past.
     const ctx = makeCtx(1);
     const base = botBase(ctx);
     spotted(ctx, raiders(ctx, base, gameConfig.ai.massRushThreshold - 1));

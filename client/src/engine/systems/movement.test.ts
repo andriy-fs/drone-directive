@@ -123,7 +123,7 @@ describe('movementSystem — anti-jam retreat', () => {
   });
 });
 
-describe('movementSystem — disabled robots', () => {
+describe('movementSystem — hulls that cannot drive', () => {
   it('does not move a robot that has been knocked out, goal or no goal', () => {
     const ctx = makeCtx(1);
     const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
@@ -135,6 +135,24 @@ describe('movementSystem — disabled robots', () => {
     for (let i = 0; i < 60; i++) movementSystem(ctx, gameConfig.fixedDt);
 
     expect(robot.position).toEqual(start);
+  });
+
+  it('does not move a kamikaze standing on its own lit fuse', () => {
+    // Same carve-out as the knock-out above, and written twice for the same reason
+    // (see `bothLayers` below): a committed bomb has to be a stationary target for
+    // the second it is burning, or the window the fuse exists to open is not there.
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Wheels, WeaponType.Bomb);
+    robot.movement!.goal = { x: 900, y: 400 };
+    robot.movement!.destination = { x: 900, y: 400 };
+    robot.arming = { left: gameConfig.robots.weapons.bomb.armingTime };
+    const start = { ...robot.position! };
+
+    for (let i = 0; i < 30; i++) movementSystem(ctx, gameConfig.fixedDt);
+
+    expect(robot.position).toEqual(start);
+    expect(robot.movement!.velX).toBe(0);
+    expect(robot.movement!.velY).toBe(0);
   });
 
   it('does not mistake the standstill for a jam once it recovers', () => {
@@ -198,7 +216,7 @@ describe('movementSystem — a hull under a pilot', () => {
 
   it('does not retreat a pilot leaning on something — the anti-jam is frozen', () => {
     // Standing still under a pilot is the pilot's business. The bookkeeping is
-    // left frozen rather than kept current the way `parkDisabled` keeps it.
+    // left frozen rather than kept current the way `parkStationary` keeps it.
     bothLayers(() => {
       const ctx = makeCtx(1);
       const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);

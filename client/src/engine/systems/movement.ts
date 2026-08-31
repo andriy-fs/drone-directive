@@ -9,7 +9,7 @@ import type { GameContext } from '../game/context';
 import { isBlockedGrid, tileOf } from '../obstacles';
 import { findPath, smoothPath } from '../pathfinding';
 import { steerAround } from './avoidance';
-import { isDisabled } from './status';
+import { isArming, isDisabled } from './status';
 import { baseFootprintContains, pilotedHullIds } from './targeting';
 
 /**
@@ -124,13 +124,14 @@ function sequentialPass(ctx: GameContext, dt: number): void {
   for (const e of robots(ctx.world)) {
     const m = e.movement;
 
-    // Knocked out by a directed-energy hit: it doesn't drive. The anti-jam
-    // bookkeeping is kept current anyway — left stale, standing still for eight
-    // seconds would read as a jam and send the robot into a retreat the instant
-    // it recovers. Separation still shoves it around, on purpose: a frozen
-    // cluster must not become a wall its own side has to path around.
-    if (isDisabled(e)) {
-      parkDisabled(e);
+    // Knocked out by a directed-energy hit, or a kamikaze standing on its own lit
+    // fuse: either way it doesn't drive. The anti-jam bookkeeping is kept current
+    // anyway — left stale, standing still for eight seconds would read as a jam and
+    // send the robot into a retreat the instant it recovers. Separation still shoves
+    // it around, on purpose: a frozen cluster must not become a wall its own side has
+    // to path around, and a bomb nudged a few px off its mark still detonates on it.
+    if (isDisabled(e) || isArming(e)) {
+      parkStationary(e);
       continue;
     }
 
@@ -138,10 +139,10 @@ function sequentialPass(ctx: GameContext, dt: number): void {
     // drove, so this pass has nothing to say about it and must not overwrite the
     // velocity with a reading of its own inaction. Checked *after* `isDisabled`,
     // because a hull knocked out under its pilot answers neither stick nor
-    // trigger and `parkDisabled` is the truthful account of it.
+    // trigger and `parkStationary` is the truthful account of it.
     //
     // The anti-jam bookkeeping is deliberately left frozen rather than kept
-    // current the way `parkDisabled` keeps it: a pilot leaning on a wall is not
+    // current the way `parkStationary` keeps it: a pilot leaning on a wall is not
     // jammed, and the retreat is not a thing to do to someone holding the stick.
     // Harmless on release, because possession cleared the goal — an Idle hull
     // without one zeroes `stuckTime` at the first gate of `maybeStartRetreat`.
@@ -168,7 +169,7 @@ const PLAN_SNAP = 1;
 const PLAN_DRIVE = 2;
 const PLAN_RETREAT = 3;
 /** Knocked out: registered so others flow around it, but nothing to commit. */
-const PLAN_DISABLED = 4;
+const PLAN_PARKED = 4;
 /** Under a pilot: `droneSystem` already drove it, so likewise nothing to commit. */
 const PLAN_PILOTED = 5;
 
@@ -216,14 +217,14 @@ function orcaPass(ctx: GameContext, dt: number): void {
     const m = e.movement;
     const pos = e.position;
 
-    if (isDisabled(e)) {
-      parkDisabled(e);
+    if (isDisabled(e) || isArming(e)) {
+      parkStationary(e);
       // Still registered, and passive: a frozen hull is an obstacle its own side
       // has to flow around, and one nobody can expect to yield. It still takes a
       // plan slot — the commit loop walks slots by index, so skipping one here
       // while advancing the count would hand it the *previous* tick's entity.
       planEntity[n] = e;
-      planKind[n] = PLAN_DISABLED;
+      planKind[n] = PLAN_PARKED;
       planAgent[n] = orca.register(e, 'passive', 0, 0, 0);
       planStartX[n] = pos.x;
       planStartY[n] = pos.y;
@@ -336,7 +337,7 @@ function orcaPass(ctx: GameContext, dt: number): void {
   for (let i = 0; i < n; i++) {
     const e = planEntity[i];
     const kind = planKind[i];
-    if (kind === PLAN_DISABLED) continue; // `parkDisabled` already did its bookkeeping
+    if (kind === PLAN_PARKED) continue; // `parkStationary` already did its bookkeeping
     if (kind === PLAN_PILOTED) continue; // `drivePossessed` already moved it and recorded it
 
     // The jam check runs **before** the move, exactly as the sequential pass does.
@@ -579,8 +580,11 @@ function driveHold(ctx: GameContext, e: RobotEntity, agent: number, dt: number):
   pos.y += vy * dt;
 }
 
-/** Shared by both passes: a disabled hull's per-tick bookkeeping. */
-function parkDisabled(e: RobotEntity): void {
+/**
+ * Shared by both passes: the per-tick bookkeeping of a hull that is not driving
+ * this tick — knocked out, or burning a kamikaze fuse.
+ */
+function parkStationary(e: RobotEntity): void {
   const m = e.movement;
   m.prevX = e.position.x;
   m.prevY = e.position.y;

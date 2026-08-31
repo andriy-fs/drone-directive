@@ -55,6 +55,16 @@ export interface GameEvents {
    * and only a death spawns an effect entity.
    */
   projectileHit: { owner: Owner; pos: Vec2; dir: Vec2; weapon: WeaponType; target: HitTarget };
+  /**
+   * A kamikaze lit its fuse and stopped moving — `gameConfig.robots.weapons.bomb`'s
+   * `armingTime` seconds before the blast (see `systems/combat.ts`).
+   *
+   * Nothing in the simulation consumes it. It exists because the whole point of the
+   * fuse is that both sides get to *notice* it: the attacker sees the machine commit,
+   * the defender gets the one warning they can still act on. `id` is the bomb, so the
+   * warning can be hung on the hull rather than on a spot it is standing near.
+   */
+  bombArming: { owner: Owner; id: string; pos: Vec2 };
   /** A base spent its one-shot energy dome (see `systems/shield.ts`). */
   shieldRaised: { owner: Owner; baseId: string; pos: Vec2 };
   /**

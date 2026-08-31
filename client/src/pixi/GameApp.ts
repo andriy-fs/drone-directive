@@ -715,6 +715,15 @@ export class GameApp {
       }),
     );
     this.busUnsubs.push(bus.on('entityDestroyed', () => this.pushSnapshot()));
+    // A kamikaze committing to its blast. Gated on sight rather than knowledge: a
+    // bomb is a unit, and one arming inside the fog is not something the player has
+    // earned the right to hear — unlike a dome, which is the size of a building.
+    // Their own always sounds; it is the confirmation that the order landed.
+    this.busUnsubs.push(
+      bus.on('bombArming', ({ owner, id }) => {
+        if (this.hearsRobot(owner, id)) sfx.bombArming();
+      }),
+    );
     // The dome's three moments. Gated on *knowledge* rather than ownership,
     // unlike the factory pip above: a dome is a large thing happening on screen,
     // so once its base has been found, hearing it come up and hearing it fail is
@@ -1303,6 +1312,15 @@ export class GameApp {
   private hearsBase(owner: Owner, baseId: string): boolean {
     if (owner === this.localSide) return true;
     return this.engine.context?.intel[this.localSide].knownBaseIds.has(baseId) ?? false;
+  }
+
+  /**
+   * `hearsBase`'s per-unit twin, on sight rather than memory: a rival's robot has to
+   * be visible *right now*, because unlike a base a unit is not discovered for good.
+   */
+  private hearsRobot(owner: Owner, id: string): boolean {
+    if (owner === this.localSide) return true;
+    return this.engine.context?.intel[this.localSide].visibleRobotIds.has(id) ?? false;
   }
 
   /** Fog of war: the local side's own units are always visible; every rival's only once detected. */

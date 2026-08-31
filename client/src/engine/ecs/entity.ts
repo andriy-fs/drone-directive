@@ -99,6 +99,11 @@ export interface WeaponComp {
    * weapon's own `damage` — see `systems/munition.ts`.
    */
   salvo: number;
+  /**
+   * Seconds a kamikaze stands still arming before it goes off (bomb); 0 = a
+   * weapon with no fuse to burn. See `Arming` and `systems/status.ts`.
+   */
+  armingTime: number;
 }
 
 /** Base production component. */
@@ -174,6 +179,19 @@ export interface Threat {
  */
 export interface Disabled {
   /** Seconds left of the knock-out (decays each tick in `taskSystem`). */
+  left: number;
+}
+
+/**
+ * A kamikaze's burning fuse: present from the moment it commits to its blast until
+ * the blast happens. While `left > 0` the robot stands still and does nothing —
+ * it has already spent itself, and the seconds are the window a defender gets to
+ * shoot it before it lands. Committed, not conditional: whatever happens to the
+ * target meanwhile, the detonation comes. Only ever created/advanced through
+ * `systems/status.ts`, and detonated by `systems/combat.ts`.
+ */
+export interface Arming {
+  /** Seconds left on the fuse (decays each tick in `combatSystem`). */
   left: number;
 }
 
@@ -285,6 +303,8 @@ export interface Entity {
   threat?: Threat;
   /** Present only while knocked out by a directed-energy hit — see `systems/status.ts`. */
   disabled?: Disabled;
+  /** Present only while a kamikaze's fuse is burning — see `systems/status.ts`. */
+  arming?: Arming;
 
   // Base
   production?: Production;

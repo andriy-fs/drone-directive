@@ -6,7 +6,7 @@ import type { BuildOrder } from '@drone-directive/types/entities';
 import type { Entity } from '../ecs/entity';
 import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
 import { commandsSystem } from './commands';
-import { productionSystem } from './production';
+import { buildTimeFor, productionSystem } from './production';
 import { makeCtx } from './testkit';
 import type { GameContext } from '../game/context';
 
@@ -294,6 +294,37 @@ describe('per-side robot cap (shared by player and AI)', () => {
     });
     commandsSystem(ctx);
     expect(base.production!.queue.length).toBe(1);
+  });
+});
+
+describe('build time is the weapon\'s own', () => {
+  const bombBuggy = { chassis: ChassisType.Wheels, weapon: WeaponType.Bomb };
+  const cannonTank = { chassis: ChassisType.Tracks, weapon: WeaponType.Cannon };
+
+  function queue(ctx: GameContext, base: Entity, order: BuildOrder) {
+    ctx.commands.push({ kind: 'BuildRobot', baseId: base.id, order, front: false });
+    commandsSystem(ctx);
+  }
+
+  it('takes a kamikaze longer to assemble than a gun', () => {
+    // Pace as a balance lever, separate from price: the `wheels` + `bomb` opening
+    // was unanswerable partly because the conveyor outran any defence that could be
+    // built against it, and making the payload *dearer* would only have made it a
+    // worse anti-cluster weapon.
+    expect(buildTimeFor(bombBuggy)).toBeGreaterThan(buildTimeFor(cannonTank));
+  });
+
+  it('does not roll a bomb out on the time a cannon would have taken', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.Player, 4, 33);
+    queue(ctx, base, bombBuggy);
+
+    productionSystem(ctx, buildTimeFor(cannonTank));
+    expect(ctx.world.with('robot').entities.length).toBe(0);
+    expect(base.production!.queue.length).toBe(1);
+
+    productionSystem(ctx, buildTimeFor(bombBuggy) - buildTimeFor(cannonTank));
+    expect(ctx.world.with('robot').entities.length).toBe(1);
   });
 });
 

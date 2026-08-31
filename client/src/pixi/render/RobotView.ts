@@ -53,6 +53,28 @@ const DUST: Record<ChassisType, DustSpec> = {
   tracks: { spacing: 12, radius: 3.4, life: 0.75, spread: 8, offset: 13, alpha: 0.34 },
   wheels: { spacing: 10, radius: 2.8, life: 0.6, spread: 9, offset: 12, alpha: 0.38 },
 };
+/**
+ * The kamikaze fuse's blink, in `[0, 1]`, off the seconds it has left.
+ *
+ * `FUSE_BLINK_HZ` is the rate at one second remaining and it climbs from there,
+ * because the phase is `left²`: the flashing visibly quickens as the blast nears,
+ * which is the difference between a warning and a decoration. Shared by the arc and
+ * by the blast ring's lift so the two pulse together rather than beating against
+ * each other.
+ */
+function blink(left: number): number {
+  return 0.5 + 0.5 * Math.cos(left * left * Math.PI * 2 * FUSE_BLINK_HZ);
+}
+
+/** Blinks per second at one second left; faster as the fuse runs down (see `blink`). */
+const FUSE_BLINK_HZ = 5;
+/**
+ * What the standing blast ring is dimmed to when no fuse is lit — the look it has
+ * always had. The geometry is painted at the brightness it reaches on a blink and
+ * held here, so lighting the fuse has somewhere to go: alpha only goes down from 1.
+ */
+const FUSE_ZONE_REST = 0.45;
+
 /** Seconds for the gait to spin up from a standstill, or to settle back into one. */
 const GAIT_EASE_S = 0.15;
 /** Below this amplitude the walker is treated as stopped and snapped back to its stance. */
@@ -81,6 +103,11 @@ export class RobotView {
   private readonly spotted: Graphics;
   private readonly stunned: Graphics;
   private readonly stunnedRadius: number;
+  /** The kamikaze blast-radius ring, kept so a lit fuse can pulse it; null on any other hull. */
+  private readonly blastZone: Graphics | null;
+  /** The countdown drawn over a kamikaze whose fuse is burning; repainted every frame. */
+  private readonly fuse: Graphics;
+  private readonly fuseRadius: number;
   private readonly healthBar: HealthBar;
   private readonly isEnemy: boolean;
   private lastClickAt = 0;
@@ -120,12 +147,20 @@ export class RobotView {
     // Kamikaze blast-radius ring: shown on every bomb-armed robot, on both
     // sides — the payload's kill zone matters whether it's yours or theirs.
     if (robot.weaponType === WeaponType.Bomb && robot.weapon.explosionRadius > 0) {
+      // Painted at the alpha it reaches at the *peak of a blink*, then held down to
+      // `FUSE_ZONE_REST` by the node's own alpha — which is what leaves the pulse
+      // somewhere to go. A Graphics drawn at its resting alpha could only ever be
+      // dimmed, since a display object's alpha is capped at 1.
       const blast = new Graphics();
       blast
         .circle(0, 0, robot.weapon.explosionRadius)
-        .fill({ color: palette.blast.zone, alpha: 0.05 })
-        .stroke({ width: 1, color: palette.blast.zone, alpha: 0.4 });
+        .fill({ color: palette.blast.zone, alpha: 0.05 / FUSE_ZONE_REST })
+        .stroke({ width: 1, color: palette.blast.zone, alpha: 0.4 / FUSE_ZONE_REST });
+      blast.alpha = FUSE_ZONE_REST;
       this.container.addChild(blast);
+      this.blastZone = blast;
+    } else {
+      this.blastZone = null;
     }
 
     this.body = new Container();
@@ -184,6 +219,15 @@ export class RobotView {
     this.stunned = new Graphics();
     this.stunned.visible = false;
 
+    // The lit fuse: a ring that empties as the second runs out, over a hull that has
+    // stopped dead. Shown for both sides, like the knock-out above and for the same
+    // reason — `armingTime` exists so that both the attacker and the defender get to
+    // act on it, and neither can act on something they cannot see. Repainted every
+    // frame (see `drawFuse`) because it is a clock, not a badge.
+    this.fuseRadius = outerRadius + 7;
+    this.fuse = new Graphics();
+    this.fuse.visible = false;
+
     this.healthBar = new HealthBar(2 * outerRadius + 6, 4);
     this.healthBar.container.position.set(0, -(outerRadius + 10));
 
@@ -197,6 +241,7 @@ export class RobotView {
       this.spotted,
       this.body,
       this.stunned,
+      this.fuse,
       this.healthBar.container,
     );
 
@@ -246,6 +291,16 @@ export class RobotView {
     this.stunned.visible = off;
     this.body.alpha = off ? 0.45 : 1;
     if (off) this.drawStunned();
+
+    // Committed to its own blast: the countdown over the hull, and the kill zone it
+    // is about to fill brought up out of its resting whisper — the ring is a standing
+    // fact on every kamikaze, so it has to change to mean "now".
+    const fuseLeft = robot.arming?.left ?? 0;
+    this.fuse.visible = fuseLeft > 0;
+    if (fuseLeft > 0) this.drawFuse(robot, fuseLeft);
+    if (this.blastZone) {
+      this.blastZone.alpha = fuseLeft > 0 ? FUSE_ZONE_REST + (1 - FUSE_ZONE_REST) * blink(fuseLeft) : FUSE_ZONE_REST;
+    }
 
     // After `body.rotation`, which the sway adds to rather than replaces.
     this.move(robot, visible && !off, now);
@@ -340,6 +395,36 @@ export class RobotView {
         alpha: puffAlpha(puff, spec),
       });
     }
+  }
+
+  /**
+   * The burning fuse: an arc that unwinds with the seconds left, plus a ring that
+   * blinks over the hull.
+   *
+   * Clocked off `arming.left` rather than off wall time, so the blink *is* the
+   * countdown — it accelerates as the fuse shortens, and two peers watching the same
+   * bomb see the same thing at the same moment. Deliberately louder than the stun
+   * cage: that one says "this unit is out of the fight", this one says "everything
+   * inside that circle is about to be hit".
+   */
+  private drawFuse(robot: RobotEntity, left: number): void {
+    const total = robot.weapon.armingTime || left;
+    const r = this.fuseRadius;
+    const g = this.fuse;
+    const b = blink(left);
+    g.clear();
+
+    // What is left of the second, wound anticlockwise from twelve o'clock — the
+    // direction a countdown empties in.
+    const span = Math.PI * 2 * Math.max(0, Math.min(1, left / total));
+    const from = -Math.PI / 2;
+    g.moveTo(Math.cos(from) * r, Math.sin(from) * r)
+      .arc(0, 0, r, from, from - span, true)
+      .stroke({ width: 3, color: palette.blast.zone, alpha: 0.55 + 0.45 * b });
+
+    // A full ring under it, faint, so the arc reads as a *fraction* of something
+    // rather than as an arbitrary scratch on one side of the hull.
+    g.circle(0, 0, r).stroke({ width: 1, color: palette.blast.zone, alpha: 0.2 + 0.2 * b });
   }
 
   /** The crackling cage over a knocked-out hull; re-rolled every frame. */
