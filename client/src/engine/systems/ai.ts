@@ -12,7 +12,6 @@ import { distance } from '../../utils/math';
 import type { BaseEntity, RobotEntity } from '../ecs/archetypes';
 import { isAlive } from '../ecs/guards';
 import { bases, robots } from '../ecs/queries';
-import { buildCost, canAfford, spend } from '../economy';
 import type { AiState, GameContext } from '../game/context';
 import {
   makeAttackBase,
@@ -180,8 +179,9 @@ function advancingCombatCount(ctx: GameContext, owner: Owner): number {
  * Keeps one EW jammer alive/queued at all times — cheapest hull (wheels) since
  * it's a support unit, not a combatant, and it's ordered to defend the base so
  * it stays home instead of wandering off with an attack group. Runs every tick
- * (not gated by the normal production cadence) so a dead jammer gets replaced
- * as soon as the AI can afford one, independent of whatever else is queued.
+ * (not gated by the normal production cadence) so a dead jammer is re-ordered
+ * the moment it dies, independent of whatever else is queued. Paying for it is
+ * `productionSystem`'s job, at the head of the queue — same as the player.
  */
 function ensureEwRobot(ctx: GameContext, owner: Owner, base: BaseEntity): void {
   if (atRobotCap(ctx.world, owner)) return;
@@ -191,12 +191,7 @@ function ensureEwRobot(ctx: GameContext, owner: Owner, base: BaseEntity): void {
   if (hasEw) return;
   if (base.production.queue.some((o) => o.weapon === WeaponType.Ew)) return;
 
-  const order = { chassis: ChassisType.Wheels, weapon: WeaponType.Ew, task: TaskType.DefendBase };
-  const cost = buildCost(order);
-  if (!canAfford(ctx.resources, owner, cost)) return;
-
-  spend(ctx.resources, owner, cost);
-  base.production.queue.push(order);
+  base.production.queue.push({ chassis: ChassisType.Wheels, weapon: WeaponType.Ew, task: TaskType.DefendBase });
 }
 
 /**
@@ -255,10 +250,9 @@ function updateProduction(ctx: GameContext, owner: Owner, state: AiState, base: 
   // exists). Each bot keeps its own build cadence.
   const sequence = getBuildPreset(AI_BUILD_PRESET).sequence;
   const order = sequence[state.buildStep % sequence.length];
-  const cost = buildCost(order);
-  if (!canAfford(ctx.resources, owner, cost)) return; // wait, retry next tick
-
-  spend(ctx.resources, owner, cost);
+  // Ordered, not paid for: `productionSystem` charges at the head of the queue, so
+  // the cadence below advances even while the bot is broke and the series never
+  // wedges on a step it cannot yet afford. The queue waits; the schedule does not.
   base.production.queue.push({ ...order });
   state.buildStep += 1;
   state.timer = 0;

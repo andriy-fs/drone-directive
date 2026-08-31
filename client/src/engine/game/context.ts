@@ -144,7 +144,8 @@ function startingResources(bots: Set<Owner>, difficulty: Difficulty): ResourcePo
  * Per-side income multiplier for `stepEconomy`: `1` for every human side, the
  * difficulty table's `aiIncome` for the bots. This is the difficulty curve —
  * with no starting robots, how fast a side can *afford* an army is the whole
- * of it, and a bot that is gated by `canAfford` needs nothing else changed.
+ * of it, and a bot whose queue waits on the bank (`productionSystem` pays at the
+ * head, for bot and player alike) needs nothing else changed.
  */
 function incomeRates(bots: Set<Owner>, difficulty: Difficulty): Record<Owner, number> {
   const scale = gameConfig.difficulty[difficulty].aiIncome;

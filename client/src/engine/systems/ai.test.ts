@@ -94,14 +94,66 @@ describe('aiSystem — EW guarantee', () => {
     expect(base.production!.queue.some((o) => o.weapon === WeaponType.Ew)).toBe(true);
   });
 
-  it('does not queue one it cannot afford', () => {
+  it('queues one it cannot yet afford, and lets the queue wait', () => {
+    // The bot orders on exactly the player's rule: stating the intent is free,
+    // and `productionSystem` charges when the order reaches the head. Ordering
+    // while broke is therefore a queued order and an untouched bank, not a skip.
     const ctx = makeCtx(1);
     const base = spawnBase(ctx.world, Owner.AI, 33, 4);
     ctx.resources.ai = 0;
 
     aiSystem(ctx, 0);
 
-    expect(base.production!.queue.length).toBe(0);
+    expect(base.production!.queue.length).toBe(1);
+    expect(base.production!.funded).toBe(false);
+    expect(ctx.resources.ai).toBe(0);
+  });
+});
+
+describe('aiSystem — the bot pays for a build exactly once', () => {
+  const ewGuard = gameConfig.economy.chassisCost.wheels + gameConfig.economy.weaponCost.ew;
+
+  /**
+   * Regression guard for a double charge that survived a commit unnoticed: the
+   * bot used to pay at `queue.push` *and* again at the head of the queue, so
+   * every order cost twice its price and the bot's real economy was half of what
+   * `gameConfig.difficulty` claimed. `productionSystem` is the only place money
+   * moves — for the bot as for the player.
+   */
+  it('moves the bank by the build cost, not twice it', () => {
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    ctx.resources.ai = 1000;
+
+    // dt 0 keeps the preset cadence asleep, so the EW guarantee is the only order.
+    aiSystem(ctx, 0);
+    expect(base.production!.queue.length).toBe(1);
+    expect(ctx.resources.ai).toBe(1000); // ordering is free
+
+    productionSystem(ctx, 100); // charge at the head, then build it
+    expect(ctx.resources.ai).toBe(1000 - ewGuard);
+  });
+
+  it('keeps the build cadence moving while broke, instead of stalling on a step', () => {
+    // The affordability check used to return before `buildStep` advanced, so a
+    // bot that could not cover the step in front retried that same step forever.
+    const ctx = makeCtx(1);
+    const base = spawnBase(ctx.world, Owner.AI, 33, 4);
+    // Pre-seed the jammer so `ensureEwRobot` doesn't add orders of its own.
+    spawnRobot(
+      ctx.world,
+      Owner.AI,
+      { x: base.position!.x, y: base.position!.y + 40 },
+      ChassisType.Wheels,
+      WeaponType.Ew,
+    );
+    ctx.resources.ai = 0;
+
+    for (let i = 0; i < 3; i++) aiSystem(ctx, 100);
+
+    expect(ctx.ai[Owner.AI]!.buildStep).toBe(3);
+    expect(base.production!.queue.length).toBe(3);
+    expect(ctx.resources.ai).toBe(0);
   });
 });
 
