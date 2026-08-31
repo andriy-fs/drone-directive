@@ -22,6 +22,7 @@
     "publish:client": "npm run pack:client && npm publish ./client/.pack",
     "preview": "npm run preview -w client",
     "shot": "npm run shot -w client --",
+    "shot:fpv": "npm run shot:fpv -w client --",
     "test": "npm run test -w net && npm run test -w chat && npm run test -w client",
     "test:watch": "npm run test:watch -w client",
     "type-check": "npm run type-check -w types && npm run type-check -w net && npm run type-check -w chat && npm run type-check -w server",

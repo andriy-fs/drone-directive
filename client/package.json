@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "shot": "node scripts/screenshot.mjs"
+    "shot": "node scripts/screenshot.mjs",
+    "shot:fpv": "node scripts/fpv-shot.mjs"
   },
   "dependencies": {
     "@drone-directive/chat": "*",

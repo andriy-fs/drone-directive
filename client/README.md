@@ -223,3 +223,27 @@ machine** — no 300 MB postinstall download. `scripts/lib/chromium.mjs` explain
 the search order and `DD_CHROMIUM` if it picks the wrong one; `scripts/lib/game.mjs`
 holds the dev-server + enter-a-match part, which is what a visual test would reuse.
 Output goes to `client/screenshots/`, which is git-ignored.
+
+### The wireframe view
+
+`npm run shot` cannot reach the monitor: it only comes on once a drone has landed
+on a hull, which means waiting for a robot to be built, flying across the map and
+landing — a minute per look, on a camera that stops somewhere different every time.
+So `pixi/render/fpv/` has its own bench, `npm run shot:fpv`:
+
+```
+npm run shot:fpv                                  # → client/screenshots/fpv.png
+npm run shot:fpv -- --pose crater --out pit.png   # cliff | crater | plain
+npm run shot:fpv -- --all --out-dir before        # one of each, for a comparison
+npm run shot:fpv -- --x 600 --y 800 --heading 90  # an explicit spot: world px, degrees
+```
+
+It photographs `/fpv-lab.html` (`src/devtools/fpvLab.ts`) — a dev-only page that
+builds a map, one robot to hang the camera off and an all-seeing fog, then renders
+`FpvView` itself at a pose it **finds in the terrain**, so `--pose cliff` stands off
+the massif nearest the middle of whatever seed it was given. Vite builds only
+`index.html`, so neither the page nor the module ever enters `dist`.
+
+Two things it is not: there is no match behind it, so jamming and the interference
+the feed filter draws for it cannot be photographed; and the fog is fully open,
+which makes the picture denser than the same spot in a real game.
