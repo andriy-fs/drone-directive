@@ -198,6 +198,29 @@ export const palette = {
     void: 0x030c07,
     /** The ground grid. The dimmest of the five: it is the page, not the writing. */
     terrain: 0x2fdc7a,
+    /**
+     * The same grid where the ground has fallen below level — a crater floor.
+     *
+     * **Not a darker `terrain`.** Dimming is already spoken for: distance, fog and
+     * slope all move brightness, so a crater told apart by lightness alone would be
+     * indistinguishable from the same ground a hundred px further away. A hole has no
+     * silhouette to give it away either — from a metre off the ground the far rim
+     * hides the floor — so the one channel left is hue, and this is the cold end of
+     * the same phosphor: still unmistakably the tube's green, just drained of the
+     * yellow that makes `terrain` read as lit.
+     */
+    hollow: 0x1f8fb4,
+    /**
+     * The other end of the same scale — ground high enough to be the inside of a
+     * massif rather than its foot.
+     *
+     * Kept in the tube's own green rather than pushed into neon: the gradient's job
+     * is to say *how high*, and it has to do that without ever out-shouting
+     * `self` or `foe`. A crest that glowed brighter than a hostile contour would be
+     * a monitor arguing for the terrain, which is the one thing on it that cannot
+     * shoot back.
+     */
+    crest: 0x8ef2a6,
     /** The hull the pilot is riding, drawn from behind. The brightest thing on the screen. */
     self: 0xd6ffe8,
     /** Another machine of this side. */

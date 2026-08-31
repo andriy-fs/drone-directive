@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { TerrainKind } from '@drone-directive/types/enums';
 import { gameConfig } from '../../../../config/gameConfig';
 import type { TerrainGrid } from '../../../../engine/obstacles';
-import { heightField, landformSegments, type Segment } from './geometry';
+import {
+  fallLineSegments,
+  heightField,
+  landformSegments,
+  MICRO_PX,
+  slopeOf,
+  SLOPE_MAX,
+  type Segment,
+} from './geometry';
 
 /**
  * The relief, on grids small enough to reason about. What is checked here is the
@@ -30,12 +38,56 @@ function grid(...rows: string[]): TerrainGrid {
 const { tilePx } = gameConfig.grid;
 
 describe('heightField', () => {
-  it('leaves open ground flat', () => {
+  it('leaves open ground level, to within the micro-relief', () => {
     const h = heightField(grid('...', '...', '...'));
     expect(h.tilesX).toBe(3);
     expect(h.tilesY).toBe(3);
     for (let cy = 0; cy <= 3; cy++) {
-      for (let cx = 0; cx <= 3; cx++) expect(h.corner(cx, cy)).toBe(0);
+      for (let cx = 0; cx <= 3; cx++) {
+        // The landform under it is nothing at all...
+        expect(h.baseCorner(cx, cy)).toBe(0);
+        // ...and what is drawn wanders by a few px, but only inside the map. The
+        // boundary stays exactly level: it is the edge of the world, not terrain.
+        const edge = cx === 0 || cy === 0 || cx === 3 || cy === 3;
+        if (edge) expect(h.corner(cx, cy)).toBe(0);
+        else expect(Math.abs(h.corner(cx, cy))).toBeLessThanOrEqual(MICRO_PX);
+      }
+    }
+  });
+
+  it('gives the plain a relief at all', () => {
+    // The point of the whole thing: a large open field is not one flat plane, or the
+    // grid over it slides instead of receding as the hull drives.
+    const h = heightField(grid(...Array.from({ length: 9 }, () => '.........')));
+    let moved = 0;
+    for (let cy = 1; cy < 9; cy++) {
+      for (let cx = 1; cx < 9; cx++) if (h.corner(cx, cy) !== 0) moved++;
+    }
+    expect(moved).toBeGreaterThan(50);
+  });
+
+  it('keeps the micro-relief off every corner a landform touches', () => {
+    // This is what lets the cliff pass stand on exact numbers — see MICRO_PX.
+    const terrain = grid('.....', '.###.', '.###.', '.###.', '.....');
+    const h = heightField(terrain);
+    const blocked = (tx: number, ty: number) =>
+      tx >= 0 && ty >= 0 && tx < 5 && ty < 5 && terrain[ty][tx] !== O;
+    for (let cy = 0; cy <= 5; cy++) {
+      for (let cx = 0; cx <= 5; cx++) {
+        const touches =
+          blocked(cx - 1, cy - 1) || blocked(cx, cy - 1) || blocked(cx - 1, cy) || blocked(cx, cy);
+        if (touches) expect(h.corner(cx, cy)).toBe(h.baseCorner(cx, cy));
+      }
+    }
+  });
+
+  it('places the micro-relief by hash rather than by chance', () => {
+    // Two builds of the same map have to agree, or a rebuild would shift the ground
+    // under a parked hull — and two players on one seed would see different fields.
+    const a = heightField(grid('....', '....', '....', '....'));
+    const b = heightField(grid('....', '....', '....', '....'));
+    for (let cy = 0; cy <= 4; cy++) {
+      for (let cx = 0; cx <= 4; cx++) expect(a.corner(cx, cy)).toBe(b.corner(cx, cy));
     }
   });
 
@@ -150,5 +202,86 @@ describe('landformSegments', () => {
     // shallowest one there is — and the case most likely to come out empty.
     const terrain = grid('##..', '##..', '....');
     expect(ribs(landformSegments(terrain, heightField(terrain))).length).toBeGreaterThan(0);
+  });
+});
+
+describe('slopeOf', () => {
+  it('reports a level line as flat', () => {
+    expect(slopeOf(0, 0, 12, 32, 0, 12)).toBe(0);
+  });
+
+  it('reports rise over run', () => {
+    expect(slopeOf(0, 0, 0, 32, 0, 16)).toBeCloseTo(0.5, 6);
+    // Sign is not part of it: a line is as steep going down as going up.
+    expect(slopeOf(0, 0, 16, 32, 0, 0)).toBeCloseTo(0.5, 6);
+  });
+
+  it('gives a cliff rib the ceiling instead of a division by zero', () => {
+    // The one vertical in the buffer, and the segment that most has to be bright.
+    expect(slopeOf(64, 64, 0, 64, 64, 46)).toBe(SLOPE_MAX);
+    expect(Number.isFinite(slopeOf(64, 64, 0, 64, 64, 46))).toBe(true);
+  });
+
+  it('caps a very steep line rather than running away', () => {
+    expect(slopeOf(0, 0, 0, 1, 0, 1000)).toBe(SLOPE_MAX);
+  });
+});
+
+describe('fallLineSegments', () => {
+  const massif = grid('.......', '.#####.', '.#####.', '.#####.', '.#####.', '.......');
+
+  it('draws nothing on open ground', () => {
+    const terrain = grid('....', '....', '....', '....');
+    expect(fallLineSegments(terrain, heightField(terrain))).toEqual([]);
+  });
+
+  it('hatches the flank of a massif', () => {
+    expect(fallLineSegments(massif, heightField(massif)).length).toBeGreaterThan(0);
+  });
+
+  it('always points downhill', () => {
+    // The whole content of the pass: a lattice cannot say which way is down, so if a
+    // hair ever ran uphill it would be saying the opposite of the thing it is for.
+    const crater = grid('.......', '.ooooo.', '.ooooo.', '.ooooo.', '.ooooo.', '.......');
+    for (const terrain of [massif, crater]) {
+      const h = heightField(terrain);
+      const lines = fallLineSegments(terrain, h);
+      expect(lines.length).toBeGreaterThan(0);
+      // A pit falls away from its rim exactly as a mountain falls away from its
+      // summit — descent is descent, whichever side of level the ground is on.
+      for (const line of lines) expect(line.h1).toBeLessThan(line.h0);
+    }
+  });
+
+  it('leaves a lone bump alone', () => {
+    // Corner averaging makes a single tile a dome with no flank: its four corners are
+    // one height, so there is no steepest descent to draw and nothing to say with it.
+    const terrain = grid('.....', '..#..', '.....');
+    expect(fallLineSegments(terrain, heightField(terrain))).toEqual([]);
+  });
+
+  it('stands each hair on the surface under it', () => {
+    const h = heightField(massif);
+    for (const line of fallLineSegments(massif, h)) {
+      expect(line.h0).toBeCloseTo(h.at(line.x0, line.y0), 6);
+      expect(line.h1).toBeCloseTo(h.at(line.x1, line.y1), 6);
+    }
+  });
+});
+
+describe('baseAt', () => {
+  it('samples the landform without the micro-relief on it', () => {
+    // What the camera rides. Open ground is level to it however much the drawn mesh
+    // wanders, or the horizon would swing every time the hull crossed a corner.
+    const h = heightField(grid('.....', '.....', '.....', '.....', '.....'));
+    for (let i = 0; i < 5; i++) expect(h.baseAt((i + 0.5) * tilePx, 2.5 * tilePx)).toBe(0);
+  });
+
+  it('still follows a landform exactly', () => {
+    // Only open interior corners are jittered, so over a massif the two agree.
+    const terrain = grid('.....', '.###.', '.###.', '.###.', '.....');
+    const h = heightField(terrain);
+    expect(h.baseAt(2.5 * tilePx, 2.5 * tilePx)).toBeCloseTo(h.at(2.5 * tilePx, 2.5 * tilePx), 6);
+    expect(h.baseAt(2.5 * tilePx, 2.5 * tilePx)).toBeGreaterThan(0);
   });
 });

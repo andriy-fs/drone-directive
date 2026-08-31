@@ -16,7 +16,14 @@ import type { TerrainGrid } from '../../../engine/obstacles';
 import { FpvCameraRig, type FpvProjection } from './camera';
 import { FeedFilter } from './feed';
 import { FpvFogMask } from './fogMask';
-import { createFpvTerrainShader, heightField, terrainGeometry, type HeightField } from './ground';
+import {
+  createFpvFillShader,
+  createFpvTerrainShader,
+  fillGeometry,
+  heightField,
+  terrainGeometry,
+  type HeightField,
+} from './ground';
 import {
   BASE_BODY,
   BASE_LAUNCHER,
@@ -128,13 +135,20 @@ export class FpvView {
   /** The hull's own instruments, over everything — see `instruments.ts`. */
   private readonly instruments = new Graphics();
   private terrain: Mesh<Geometry, Shader> | null = null;
-  private shader: Shader | null = null;
+  /** The lit surface under the lattice — see `ground/fill.ts`. */
+  private fill: Mesh<Geometry, Shader> | null = null;
+  private readonly shaders: Shader[] = [];
   /**
-   * The two uniforms that move. Held as the live object rather than re-read through
-   * `shader.resources` each frame — a uniform group with `isStatic` off is uploaded
-   * on every bind, so writing the fields is the whole update.
+   * The two uniforms that move, one entry per program that reads them. Held as the
+   * live objects rather than re-read through `shader.resources` each frame — a
+   * uniform group with `isStatic` off is uploaded on every bind, so writing the
+   * fields is the whole update.
+   *
+   * A list rather than one object because the lattice and the surface are two
+   * programs with two groups, and the camera they share is written in one place: two
+   * copies of that write is two things to keep in step for no gain.
    */
-  private uniforms: { uViewProj: Float32Array; uEye: Float32Array } | null = null;
+  private readonly uniforms: { uViewProj: Float32Array; uEye: Float32Array }[] = [];
   private readonly eye = new Float32Array(3);
   private fogMask: FpvFogMask | null = null;
   private heights: HeightField | null = null;
@@ -189,32 +203,53 @@ export class FpvView {
 
     const heights = heightField(terrain);
     const fogMask = new FpvFogMask(heights.tilesX, heights.tilesY);
+    const worldSize: [number, number] = [worldPixelSize.width, worldPixelSize.height];
+
+    const fillShader = createFpvFillShader(
+      fogMask.texture,
+      worldSize,
+      rgb(palette.fpv.terrain),
+      rgb(palette.fpv.hollow),
+      rgb(palette.fpv.crest),
+      FADE,
+    );
+    const fill = new Mesh({ geometry: fillGeometry(heights), shader: fillShader });
+    // Order-independent by construction, which is the whole reason this pass can be
+    // one static buffer — see `ground/fill.ts`.
+    fill.blendMode = 'add';
+
     const shader = createFpvTerrainShader(
       fogMask.texture,
-      [worldPixelSize.width, worldPixelSize.height],
+      worldSize,
       rgb(palette.fpv.terrain),
+      rgb(palette.fpv.hollow),
       FADE,
     );
     const mesh = new Mesh({ geometry: terrainGeometry(terrain, heights), shader });
+
     // Every vertex is placed by `uViewProj`, so the container transform Pixi would
     // otherwise fold in means nothing here — and the bounds derived from world-space
     // positions describe the map, not the part of it on screen.
-    mesh.cullable = false;
+    for (const m of [fill, mesh]) m.cullable = false;
 
     this.heights = heights;
     this.fogMask = fogMask;
-    this.shader = shader;
-    this.uniforms = shader.resources.fpvUniforms.uniforms;
+    this.shaders.push(fillShader, shader);
+    for (const sh of this.shaders) this.uniforms.push(sh.resources.fpvUniforms.uniforms);
+    this.fill = fill;
     this.terrain = mesh;
-    // Under the machines, over the backdrop.
-    this.container.addChildAt(mesh, 1);
+    // Surface, then the lattice on it, then the machines — all over the backdrop.
+    this.container.addChildAt(fill, 1);
+    this.container.addChildAt(mesh, 2);
   }
 
   /** Draw one frame. Cheap to call while hidden — `GameApp` simply doesn't. */
   render(frame: FpvFrame): void {
     const { robot, width, height } = frame;
     const dt = this.beat(robot, frame.now);
-    const ground = this.heights?.at(robot.position.x, robot.position.y) ?? 0;
+    // The analytic surface, not the drawn one: the micro-relief belongs to the picture,
+    // and a viewpoint that rode it would swing the horizon on every grid corner.
+    const ground = this.heights?.baseAt(robot.position.x, robot.position.y) ?? 0;
     const view = this.rig.frame({
       pose: { x: robot.position.x, y: robot.position.y, heading: robot.heading, ground },
       dt,
@@ -241,6 +276,7 @@ export class FpvView {
     this.dead += (target - this.dead) * (1 - Math.exp(-dt / DEAD_RAMP));
     const blind = this.dead > 0.985;
     if (this.terrain) this.terrain.visible = !blind;
+    if (this.fill) this.fill.visible = !blind;
     this.units.visible = !blind;
     this.depth.visible = !blind;
     this.instruments.visible = !blind;
@@ -254,12 +290,12 @@ export class FpvView {
     });
 
     this.fogMask?.update(frame.fog);
-    if (this.uniforms) {
-      this.eye[0] = view.eye.x;
-      this.eye[1] = view.eye.y;
-      this.eye[2] = view.eye.z;
-      this.uniforms.uViewProj = view.matrix;
-      this.uniforms.uEye = this.eye;
+    this.eye[0] = view.eye.x;
+    this.eye[1] = view.eye.y;
+    this.eye[2] = view.eye.z;
+    for (const u of this.uniforms) {
+      u.uViewProj = view.matrix;
+      u.uEye = this.eye;
     }
 
     if (blind) {
@@ -462,15 +498,18 @@ export class FpvView {
   private clearTerrain(): void {
     // `Mesh.destroy` releases its texture, never its geometry — and the geometry is
     // the only large thing here (two buffers over every line on the map).
-    this.terrain?.geometry.destroy();
-    this.terrain?.destroy();
+    for (const m of [this.fill, this.terrain]) {
+      m?.geometry.destroy();
+      m?.destroy();
+    }
+    this.fill = null;
     this.terrain = null;
     // Without `true`, deliberately: `GlProgram.from` caches by source, so the next
     // match's shader is the same program object and destroying it here would leave
     // the second match of a session drawing nothing.
-    this.shader?.destroy();
-    this.shader = null;
-    this.uniforms = null;
+    for (const sh of this.shaders) sh.destroy();
+    this.shaders.length = 0;
+    this.uniforms.length = 0;
     this.fogMask?.destroy();
     this.fogMask = null;
     this.heights = null;
