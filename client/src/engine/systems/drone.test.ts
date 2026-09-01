@@ -418,7 +418,7 @@ describe('manualFireTarget — what the trigger would take', () => {
   });
 
   it('takes nothing when the nearest enemy is past the weapon range', () => {
-    // The case behind "I pressed E and nothing happened": a cannon reaches 180 px,
+    // The case behind "I pressed E and nothing happened": a cannon reaches 200 px,
     // and from inside a hull a machine at 300 looks perfectly shootable.
     const ctx = makeCtx(1);
     const gun = possessedGun(ctx);

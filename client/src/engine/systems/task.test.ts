@@ -548,8 +548,12 @@ describe('taskSystem — the directed-energy knock-out', () => {
     const ctx = makeCtx(2);
     openGround(ctx);
     const gun = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Legs, WeaponType.Cannon);
-    // Inside the legs hull's 210px sight, outside the cannon's 180px reach.
-    const foe = spawnRobot(ctx.world, Owner.AI, { x: 595, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    // Halfway between the cannon's reach and the legs hull's sight: seen, but not
+    // shootable. Read off the config rather than written out, because that gap is
+    // exactly what a balance pass moves — pinning it to a literal made this test fail
+    // the day the cannon's range went up.
+    const seenNotShot = (gameConfig.robots.weapons.cannon.range + gameConfig.robots.chassis.legs.sight) / 2;
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 400 + seenNotShot, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
     foe.disabled = { left: 8 };
 
     visionSystem(ctx);
