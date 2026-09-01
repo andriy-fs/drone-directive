@@ -37,6 +37,7 @@ import { ErrorCode, LockstepSession, randomRoomCode, setNetDebug, type TickInput
 import { ChatSeat } from '@drone-directive/chat';
 import { attachChat } from '../chat/chatBridge';
 import { lockstepConfig } from '../config/multiplayer';
+import { BASE_PAD_OFFSET } from '../config/sprites';
 import { worldHash } from '../engine/worldHash';
 import { whenIdle } from '../utils/whenIdle';
 import { attachSelectionAudio } from './audio/selectionAudio';
@@ -626,17 +627,28 @@ export class GameApp {
   }
 
   /**
-   * Which way the hull that just fired is facing. Both shooter archetypes carry
-   * `heading` (`ROBOT_KEYS`, `BASE_KEYS`), so this only ever falls back to zero
-   * for a shooter that died on the same tick it fired — in which case the flash
-   * is a single frame at a point nobody is looking at, and a wrong angle costs
-   * nothing.
+   * Where the flash belongs and which way the thing that just fired is facing.
+   *
+   * Both shooter archetypes carry `heading` (`ROBOT_KEYS`, `BASE_KEYS`), so this only
+   * ever falls back to the round's own origin and a zero angle for a shooter that
+   * died on the same tick it fired — in which case the flash is a single frame at a
+   * point nobody is looking at, and a wrong angle costs nothing.
+   *
+   * A base is the one shooter whose gun is not where the simulation says it is: the
+   * round leaves the building's centre (`spawnProjectile`, and that number is
+   * deterministic state nobody should move for a decoration), while the launcher
+   * stands on the roof's pad — `BASE_PAD_OFFSET`, the same vector `BaseView` parks it
+   * at. Without this the flash blooms a few pixels below the barrels.
    */
-  private shooterHeading(sourceId: string): number {
+  private muzzleOrigin(sourceId: string, pos: { x: number; y: number }): { x: number; y: number; heading: number } {
     const world = this.engine.world;
     const robot = robotsQuery(world).entities.find((e) => e.id === sourceId);
-    if (robot) return robot.heading;
-    return basesQuery(world).entities.find((e) => e.id === sourceId)?.heading ?? 0;
+    if (robot) return { x: pos.x, y: pos.y, heading: robot.heading };
+
+    const base = basesQuery(world).entities.find((e) => e.id === sourceId);
+    if (!base) return { x: pos.x, y: pos.y, heading: 0 };
+    const pad = base.owner ? BASE_PAD_OFFSET[base.owner] : undefined;
+    return { x: pos.x + (pad?.x ?? 0), y: pos.y + (pad?.y ?? 0), heading: base.heading };
   }
 
   /** Subscribe app-layer observers (audio + store sync) to discrete engine events. */
@@ -649,7 +661,10 @@ export class GameApp {
         // the round's, which is why the event carries `sourceId`: a flash aimed
         // down the projectile's path would sit off the barrel on any hull that
         // fires while turning.
-        if (perfFlags.fx) this.fxView.muzzle(pos.x, pos.y, this.shooterHeading(sourceId), weapon);
+        if (perfFlags.fx) {
+          const muzzle = this.muzzleOrigin(sourceId, pos);
+          this.fxView.muzzle(muzzle.x, muzzle.y, muzzle.heading, weapon);
+        }
         // One case per weapon with a cue of its own; the cannon report is the
         // fallback for everything else (a `bomb` never gets here — it detonates
         // rather than firing).

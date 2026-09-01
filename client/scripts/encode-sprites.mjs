@@ -70,6 +70,10 @@ const SPRITES = [
   ...['bomb', 'cannon', 'dew', 'ew', 'fpv', 'missiles', 'radar'].flatMap((weapon) =>
     ['player', 'ai'].map((side) => ({ name: `weapon-${weapon}-${side}`, size: 96, quality: 90 })),
   ),
+  // The launcher on a base's roof — on-field 34 px (BASE_WEAPON_TARGET). A touch more
+  // headroom than the robot modules get: it sits still on a building the player looks
+  // at for the whole match, and the file is tiny either way.
+  ...['player', 'ai'].map((side) => ({ name: `weapon-missiles-base-${side}`, size: 128, quality: 90 })),
   // Observer drone — on-field 40 px (DRONE_TARGET).
   { name: 'drone-player', size: 128, quality: 90 },
   // Its hover cycle: a 2×2 sheet of phases, cropped by `frame` in config/sprites.ts.

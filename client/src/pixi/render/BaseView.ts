@@ -1,13 +1,14 @@
 import { Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
-import { BASE_CYCLE_MS } from '../../config/sprites';
+import { BASE_CYCLE_MS, BASE_PAD_OFFSET, BASE_WEAPON_TARGET } from '../../config/sprites';
 import type { BaseEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
-import { getBaseGaitTextures, getBaseTexture, type ResolvedSprite } from '../assets';
+import { getBaseGaitTextures, getBaseTexture, getBaseWeaponTexture, type ResolvedSprite } from '../assets';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
 import { cellAt } from './cycle';
+import { idleScan, recoilPx, reloadFill, reloadTint, SCAN_PERIOD_S } from './launcher';
 import { ownerColor, teamTint } from './ownerColor';
 import { hashUnit } from './terrain/hash';
 
@@ -29,7 +30,10 @@ export class BaseView {
   readonly container: Container;
   private readonly healthBar: HealthBar;
   private readonly ring: Graphics;
-  private readonly turret: Graphics;
+  /** The launcher's mount: parked on the pad, rotated to where the battery is aiming. */
+  private readonly launcher: Container;
+  /** What is drawn on that mount — the art if it exists, the fallback turntable if not. */
+  private readonly launcherArt: Container;
   /** The idle-cycle cells in cycle order, or null when this base has no sheet. */
   private readonly frames: ResolvedSprite[] | null;
   /** The sprite the cycle swaps textures on; null when the art fell back to Graphics. */
@@ -42,6 +46,21 @@ export class BaseView {
   private readonly phase: number;
   private frame = 0;
   private lastClickAt = 0;
+  /**
+   * The battery's countdown as of the last frame. A countdown that went *up* is the
+   * only evidence a shot was fired that the renderer needs — cheaper than a bus
+   * subscription, and it cannot drift out of step with the simulation.
+   */
+  private lastCooldownLeft = 0;
+  /** When the battery last fired (ms, frame clock), for the recoil. */
+  private lastShotAt = Number.NEGATIVE_INFINITY;
+  /** Bearing as of the last frame; a change in it means the battery is tracking something. */
+  private lastHeading = 0;
+  /** Until when (ms) the launcher is treated as engaged, so it holds its bearing. */
+  private engagedUntil = 0;
+  /** How much of the idle scan is dialled in, `[0, 1]` — eased, so re-aiming doesn't snap. */
+  private scanWeight = 0;
+  private lastNow = 0;
 
   constructor(base: BaseEntity) {
     this.container = new Container();
@@ -86,9 +105,18 @@ export class BaseView {
 
     // The launcher, above the body: the only thing on screen that says *where*
     // the base's fire is coming from. A shot with no visible source reads as a
-    // bug, so the barrel tracks the current target every tick.
-    this.turret = drawTurret();
-    this.container.addChild(this.turret);
+    // bug, so the barrels track the current target every tick.
+    //
+    // It is parked on the pad rather than at the origin, because the pad in the art
+    // is not the centre of the frame — see `BASE_PAD_OFFSET`. The mount carries the
+    // bearing, the art inside it carries the recoil, so the two never fight over the
+    // same transform.
+    this.launcher = new Container();
+    const pad = base.owner ? BASE_PAD_OFFSET[base.owner] : undefined;
+    if (pad) this.launcher.position.set(pad.x, pad.y);
+    this.launcherArt = launcherArtFor(base);
+    this.launcher.addChild(this.launcherArt);
+    this.container.addChild(this.launcher);
 
     this.healthBar = new HealthBar(size);
     this.healthBar.container.position.set(0, -half - 12);
@@ -126,8 +154,8 @@ export class BaseView {
   update(base: BaseEntity, visible: boolean, selected: boolean, now: number): void {
     this.container.visible = visible;
     this.ring.visible = selected;
-    this.turret.rotation = base.heading;
     this.healthBar.set(base.hp / base.maxHp);
+    this.aimLauncher(base, now);
 
     // Swap only on a cell change: assigning the same texture every frame would ask
     // Pixi to rebind it 60 times a second for nothing (the guard `RobotView` uses).
@@ -139,17 +167,84 @@ export class BaseView {
     }
   }
 
+  /**
+   * Point the launcher, rock it back if it just fired, and dim it while it reloads —
+   * the three cues that separate a working battery from a decal on the roof. All of
+   * it is read off simulation state that is already identical on both peers
+   * (`heading`, `weapon.cooldownLeft`); nothing here is written back.
+   */
+  private aimLauncher(base: BaseEntity, now: number): void {
+    const dt = this.lastNow ? Math.min((now - this.lastNow) / 1000, SCAN_MAX_DT) : 0;
+    this.lastNow = now;
+
+    const { cooldownLeft, cooldown } = base.weapon;
+    // The countdown only ever runs down, so a rise in it is a shot leaving the tube.
+    if (cooldownLeft > this.lastCooldownLeft) this.lastShotAt = now;
+    this.lastCooldownLeft = cooldownLeft;
+
+    // Two independent signs of a live engagement, because either alone has a hole in
+    // it: a battery holding fire on a stationary target keeps swinging (heading), and
+    // one whose target stopped moving is still reloading (countdown).
+    if (cooldownLeft > 0 || base.heading !== this.lastHeading) this.engagedUntil = now + ENGAGED_HOLD_MS;
+    this.lastHeading = base.heading;
+
+    const scanning = now > this.engagedUntil;
+    const target = scanning ? 1 : 0;
+    const step = dt / SCAN_EASE_S;
+    this.scanWeight =
+      target > this.scanWeight ? Math.min(target, this.scanWeight + step) : Math.max(target, this.scanWeight - step);
+
+    // The phase offset is the same hash the idle cycle uses, so two bases neither
+    // blink nor sweep in lockstep.
+    const scan = this.scanWeight > 0 ? idleScan(now / 1000 + this.phase * SCAN_PERIOD_S) * this.scanWeight : 0;
+    this.launcher.rotation = base.heading + scan;
+    this.launcherArt.x = -recoilPx((now - this.lastShotAt) / 1000);
+    this.launcherArt.tint = reloadTint(reloadFill(cooldownLeft, cooldown));
+  }
+
   destroy(): void {
     this.container.destroy({ children: true });
   }
 }
 
 /**
- * The missile battery's launcher: a turntable with a twin barrel pointing along
- * +x, so `rotation = heading` (the `atan2` the resolver stores) aims it. Small
- * on purpose — it marks the base's one weapon without competing with the art.
+ * Seconds the launcher holds its last bearing after the shooting stops, before it
+ * starts searching again. Comfortably longer than the battery's own 1.6 s reload, so
+ * a base trading shots with something never breaks off mid-fight.
  */
-function drawTurret(): Graphics {
+const ENGAGED_HOLD_MS = 3000;
+/** Seconds to dial the idle scan in or out — long enough that re-aiming reads as intent. */
+const SCAN_EASE_S = 0.4;
+/** Frame-time ceiling (s) for that easing, so a stalled tab doesn't jump it (as `RobotView` does). */
+const SCAN_MAX_DT = 0.1;
+
+/**
+ * The launcher on the pad: the faction's art where it exists, the turntable this
+ * view has always drawn where it does not. Same two-step fallback as the building
+ * under it — a base whose art has not loaded still shows where its fire comes from.
+ */
+function launcherArtFor(base: BaseEntity): Container {
+  const art = base.owner ? getBaseWeaponTexture(base.owner) : null;
+  if (!art) return fallbackTurret();
+
+  const { texture, def } = art;
+  const target = def.targetSize ?? BASE_WEAPON_TARGET;
+  const dim = Math.max(texture.width, texture.height) || target;
+  const img = new Sprite(texture);
+  img.anchor.set(0.5);
+  img.scale.set(target / dim);
+  // Authored barrels-up, like every barrelled module; the mount supplies the bearing.
+  img.rotation = def.rotationOffset ?? 0;
+  return img;
+}
+
+/**
+ * The missile battery's launcher as geometry: a turntable with a twin barrel pointing
+ * along +x, so the mount's `rotation = heading` (the `atan2` the resolver stores) aims
+ * it. Small on purpose — it marks the base's one weapon without competing with the
+ * art, and it is drawn at the same ~17 px sweep the art occupies.
+ */
+function fallbackTurret(): Graphics {
   const g = new Graphics();
   g.circle(0, 0, 7).fill({ color: palette.turret.body }).stroke({ width: 1.5, color: palette.turret.edge });
   g.rect(2, -4, 14, 2.5).rect(2, 1.5, 14, 2.5).fill({ color: palette.turret.edge });

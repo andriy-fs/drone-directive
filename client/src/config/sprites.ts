@@ -116,6 +116,57 @@ export const baseSprites: Partial<Record<Owner, SpriteDef>> = {
 };
 
 /**
+ * On-field diameter (px) for the missile launcher on a base's roof.
+ *
+ * Sized against the **pad in the art**, not against the building: the flat disc the
+ * base prompts reserve is ~27 px across on field, so the launcher's turntable (~55%
+ * of its frame) sits inside it and the barrels (~85%) end at its rim. That is also
+ * the sweep the old Graphics turret had — barrels out to x=16 plus stroke — so the
+ * fallback and the art occupy the same circle.
+ */
+export const BASE_WEAPON_TARGET = 34;
+
+/**
+ * The missile launcher drawn on a base's roof, keyed by owner. Authored facing up
+ * like the barrelled robot modules, hence the same `Math.PI / 2` correction: the
+ * battery's `heading` then points the tubes at what it is shooting.
+ *
+ * A missing entry falls back to `fallbackTurret()` in `BaseView` — the turntable
+ * this art replaced.
+ */
+export const baseWeaponSprites: Partial<Record<Owner, SpriteDef>> = {
+  [Owner.Player]: {
+    src: `${PUBLIC_BASE}weapon-missiles-base-player.webp`,
+    rotationOffset: Math.PI / 2,
+    targetSize: BASE_WEAPON_TARGET,
+  },
+  [Owner.AI]: {
+    src: `${PUBLIC_BASE}weapon-missiles-base-ai.webp`,
+    rotationOffset: Math.PI / 2,
+    targetSize: BASE_WEAPON_TARGET,
+  },
+};
+
+/**
+ * Where the launcher pad sits in the base art, as an offset (px, on field) from the
+ * sprite's centre — which is where a `BaseView`'s container origin is.
+ *
+ * **The pad is not in the middle of the frame.** The prompts ask for it there, but
+ * both masters put it ~5% of the frame *above* centre, because the production bay
+ * along the bottom edge pushes the building up. Drawn at the origin, the launcher
+ * therefore sat on the pad's lower rim — visibly off its mount.
+ *
+ * Measured as the centroid of the flat grey disc in `assets-src/sprites/base-*.png`,
+ * in fractions of the frame, times `BASE_TARGET`. **Re-measure on any regeneration of
+ * the base art** (see `.docs/internal/sprites/bases.md`). `GameApp.muzzleOrigin` adds
+ * the same vector, so the muzzle flash stays on the barrels.
+ */
+export const BASE_PAD_OFFSET: Partial<Record<Owner, { x: number; y: number }>> = {
+  [Owner.Player]: { x: 0, y: -4.7 },
+  [Owner.AI]: { x: 1, y: -6 },
+};
+
+/**
  * Seamless **fill textures** for impassable terrain, keyed by `TerrainKind`.
  *
  * Not tiles: `TerrainView` stretches one `TilingSprite` per kind across the whole
@@ -555,7 +606,7 @@ export const gameOverBackdropSrc = {
   abandoned: `${PUBLIC_BASE}game-over-abandoned.webp`,
 } as const;
 
-/** Unique image sources to preload (robots + bases + weapon modules + terrain + decals). */
+/** Unique image sources to preload (robots + bases + their launcher + weapon modules + terrain + decals). */
 export function spriteSources(): string[] {
   const srcs: string[] = [];
   for (const byChassis of Object.values(robotSprites)) {
@@ -568,6 +619,7 @@ export function spriteSources(): string[] {
     for (const defs of Object.values(byChassis)) for (const def of defs) srcs.push(def.src);
   }
   for (const def of Object.values(baseSprites)) if (def) srcs.push(def.src);
+  for (const def of Object.values(baseWeaponSprites)) if (def) srcs.push(def.src);
   // Four defs per sheet, one file — same as the robot gaits above.
   for (const defs of Object.values(baseGaitSprites)) for (const def of defs) srcs.push(def.src);
   for (const byWeapon of Object.values(weaponSprites)) {

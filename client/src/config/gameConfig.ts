@@ -168,8 +168,8 @@ export const gameConfig = {
      * drone on the building however it is pointed. 104 leaves ~16 px of daylight.
      *
      * The number exists because the base's roof is **not** free real estate: its
-     * dead centre is the missile battery's launcher pad (see `bases.weapon` and
-     * `BaseView.drawTurret`), and a drone parked there hides the one thing that
+     * roof carries the missile battery's launcher pad (see `bases.weapon` and
+     * `BaseView.aimLauncher`), and a drone parked there hides the one thing that
      * says where the base's fire comes from.
      */
     spawnOffset: 104,

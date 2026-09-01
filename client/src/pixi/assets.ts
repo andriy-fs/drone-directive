@@ -5,6 +5,7 @@ import { markSoundReady } from './audio/sfx';
 import {
   baseGaitSprites,
   baseSprites,
+  baseWeaponSprites,
   critterSprites,
   droneCycleSprites,
   droneSprite,
@@ -228,6 +229,15 @@ export function getBaseGaitTextures(owner: Owner): ResolvedSprite[] | null {
     frames.push(frame);
   }
   return frames;
+}
+
+/**
+ * The missile launcher on a base's roof for this owner, or null (→ the Graphics
+ * turntable in `BaseView`) if the art is missing or not loaded yet.
+ */
+export function getBaseWeaponTexture(owner: Owner): ResolvedSprite | null {
+  const art = artOwner(owner);
+  return cached(`base:${art}:weapon`, baseWeaponSprites[art]);
 }
 
 /**
