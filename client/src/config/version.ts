@@ -22,8 +22,15 @@ export interface VersionManifest {
   protocol: number;
 }
 
-/** Where the manifest is served from, relative to the page. */
-export const VERSION_MANIFEST_PATH = '/version.json';
+/**
+ * Where the manifest is served from.
+ *
+ * Built off `BASE_URL` rather than hardcoded to `/version.json`: the site is
+ * served from the root of its domain, but the itch.io build is not (see
+ * `scripts/pack-itch.mjs`), and there the root-absolute path asked the CDN's own
+ * root for a file that only exists beside `index.html`.
+ */
+export const VERSION_MANIFEST_PATH = `${import.meta.env.BASE_URL}version.json`;
 
 /**
  * The bundle's own identity, as `vite.config.ts` compiled it in.

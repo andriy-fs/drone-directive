@@ -579,16 +579,33 @@ export const weaponSprites: Partial<Record<Owner, Partial<Record<WeaponType, Spr
 };
 
 /**
+ * Absolute URL for a public file that ends up inside a CSS `url()`.
+ *
+ * Everything else here is fetched by JS, which resolves a relative path against
+ * the document. A CSS custom property does not: the `url()` is resolved against
+ * the stylesheet that consumes it, and that stylesheet is the built bundle under
+ * `assets/`. With `base: '/'` this never showed, because `PUBLIC_BASE` was
+ * already root-absolute; under a relative base (the itch.io build, see
+ * `scripts/pack-itch.mjs`) `./menu-backdrop.webp` became
+ * `assets/menu-backdrop.webp` and 404'd. Resolving here, against the document,
+ * makes the value correct under either base.
+ *
+ * The `document` guard is for the unit tests, which import this module without a
+ * DOM; they only ever compare the strings.
+ */
+const cssUrl = (file: string): string =>
+  typeof document === 'undefined' ? `${PUBLIC_BASE}${file}` : new URL(`${PUBLIC_BASE}${file}`, document.baseURI).href;
+
+/**
  * Title-screen splash art, shown behind the main menu before a match starts (see
  * `.docs/sprites/menu-backdrop.md`). Not a Pixi sprite — the menu draws it as a
  * DOM background, so it is deliberately absent from `spriteSources()` and never
  * enters the texture cache. A missing file degrades to the flat `--bg` fill.
  *
- * Must stay root-absolute, which `PUBLIC_BASE` now is (`base: '/'`). The value is
- * injected into an inline CSS custom property, so a bare `./menu-backdrop.webp`
- * would resolve against the built CSS bundle under `/assets/` and 404.
+ * Absolute via `cssUrl`, because it is injected into a CSS custom property — see
+ * that helper for what goes wrong otherwise.
  */
-export const menuBackdropSrc = `${PUBLIC_BASE}menu-backdrop.webp`;
+export const menuBackdropSrc = cssUrl('menu-backdrop.webp');
 
 /**
  * End-of-match splash art, one image per outcome, shown behind `GameOverModal`
@@ -601,9 +618,9 @@ export const menuBackdropSrc = `${PUBLIC_BASE}menu-backdrop.webp`;
  * for the Technical Loss feature to pick up.
  */
 export const gameOverBackdropSrc = {
-  victory: `${PUBLIC_BASE}game-over-victory.webp`,
-  defeat: `${PUBLIC_BASE}game-over-defeat.webp`,
-  abandoned: `${PUBLIC_BASE}game-over-abandoned.webp`,
+  victory: cssUrl('game-over-victory.webp'),
+  defeat: cssUrl('game-over-defeat.webp'),
+  abandoned: cssUrl('game-over-abandoned.webp'),
 } as const;
 
 /** Unique image sources to preload (robots + bases + their launcher + weapon modules + terrain + decals). */
