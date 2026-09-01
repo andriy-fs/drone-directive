@@ -15,6 +15,9 @@ export default defineConfig([
     '**/dist',
     // Staging tree for `npm run publish:client`; a copy of client/dist plus a manifest.
     'client/.pack',
+    // Staging tree and uploadable archives for `npm run pack:itch`; a build of client/, not source.
+    'client/.itch',
+    'itch.io',
     // Emitted by `npm run codegen -w protocol`; its style is the generator's.
     'protocol/src/generated',
   ]),

@@ -34,3 +34,7 @@ client/screenshots
 
 # staging tree for `npm run publish:client` (scripts/pack-dist.mjs)
 client/.pack
+
+# staging tree and uploadable archives for `npm run pack:itch` (scripts/pack-itch.mjs)
+client/.itch
+itch.io
