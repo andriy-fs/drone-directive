@@ -329,9 +329,9 @@ export const gameConfig = {
         armingTime: 0,
       },
       cannon: {
-        range: 180,
-        damage: 12,
-        cooldown: 0.8,
+        range: 200,
+        damage: 13,
+        cooldown: 0.7,
         explosionRadius: 0,
         sightMultiplier: 1,
         jamRadius: 0,
