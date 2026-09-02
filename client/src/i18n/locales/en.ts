@@ -127,6 +127,8 @@ export const en: Dict = {
     all: 'Select all',
     clear: 'Clear selection',
     byWeapon: 'By weapon',
+    droneHeading: 'Observer drone',
+    drone: 'Select drone',
   },
   programming: {
     selectUnits: 'Select unit(s) to program.',

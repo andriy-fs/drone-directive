@@ -47,6 +47,8 @@ export const initialState: GameStateFields = {
   droneFireRequested: false,
   droneStatus: {
     mode: DroneMode.Flying,
+    // No world yet: the bridge fills this in on its first snapshot.
+    id: null,
     possessedRobotId: null,
     hp: gameConfig.drone.maxHp,
     maxHp: gameConfig.drone.maxHp,

@@ -2,10 +2,17 @@ import type { WeaponType } from '@drone-directive/types/enums';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { ownWeaponCounts, selectAllOwnRobots, selectOwnRobotsByWeapon } from '../../store/selection';
-import { selectLocalSide, selectRobots, selectSelectedIds } from '../../store/selectors';
+import {
+  selectDroneStatus,
+  selectLocalSide,
+  selectRobots,
+  selectSelectedBaseId,
+  selectSelectedIds,
+} from '../../store/selectors';
+import { DroneMode } from '../../store/enums';
 import { Button } from '../common/Button';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
-import { ClearSelectionIcon, SelectAllIcon } from '../common/icons';
+import { ClearSelectionIcon, CrosshairIcon, EyeIcon, SelectAllIcon } from '../common/icons';
 import { PickerGroup } from '../common/Picker';
 import { WEAPON_ICONS, WEAPON_OPTIONS } from './unitOptions';
 
@@ -31,7 +38,17 @@ export function SelectionModal({ onClose }: { onClose: () => void }) {
   const robots = useGameStore(selectRobots);
   const localSide = useGameStore(selectLocalSide);
   const selectedIds = useGameStore(selectSelectedIds);
+  const selectedBaseId = useGameStore(selectSelectedBaseId);
+  const selectedDroneId = useGameStore((s) => s.selectedDroneId);
   const clearSelection = useGameStore((s) => s.clearSelection);
+  const selectDrone = useGameStore((s) => s.selectDrone);
+  const requestShowDrone = useGameStore((s) => s.requestShowDrone);
+  const drone = useGameStore(selectDroneStatus);
+  const droneDown = drone.mode === DroneMode.Down;
+
+  // The three slots are mutually exclusive, so what "clear" would undo is however
+  // many robots are held, or the single base or drone.
+  const selectedCount = selectedIds.length || (selectedBaseId || selectedDroneId ? 1 : 0);
 
   const mine = robots.filter((r) => r.owner === localSide);
   const counts = ownWeaponCounts(robots, localSide);
@@ -62,10 +79,10 @@ export function SelectionModal({ onClose }: { onClose: () => void }) {
               <span>{t('selection', 'all')}</span>
               <span className="tile__count">{mine.length}</span>
             </Button>
-            <Button className="tile" onClick={() => run(clearSelection)} disabled={selectedIds.length === 0}>
+            <Button className="tile" onClick={() => run(clearSelection)} disabled={selectedCount === 0}>
               <ClearSelectionIcon className="tile__icon" size={22} />
               <span>{t('selection', 'clear')}</span>
-              <span className="tile__count">{selectedIds.length}</span>
+              <span className="tile__count">{selectedCount}</span>
             </Button>
           </div>
 
@@ -89,6 +106,28 @@ export function SelectionModal({ onClose }: { onClose: () => void }) {
               </div>
             </PickerGroup>
           )}
+
+          {/* Two buttons, not one, because they are two different things and merging
+              them would make every glance at the scout drop the army: selection is
+              mutually exclusive in the store, the camera jump touches nothing. */}
+          <PickerGroup label={t('selection', 'droneHeading')}>
+            <div className="tile-grid">
+              <Button className="tile" onClick={() => run(requestShowDrone)} disabled={droneDown}>
+                <EyeIcon className="tile__icon" size={22} />
+                <span>{t('hud', 'showDrone')}</span>
+              </Button>
+              <Button
+                className="tile"
+                // `id` is null exactly while it is down, but both are checked: this
+                // is the one control here that needs an entity to name.
+                disabled={droneDown || drone.id === null}
+                onClick={() => drone.id && run(() => selectDrone(drone.id))}
+              >
+                <CrosshairIcon className="tile__icon" size={22} />
+                <span>{t('selection', 'drone')}</span>
+              </Button>
+            </div>
+          </PickerGroup>
 
           <Button className="modal__action" onClick={onClose}>
             {t('mainMenu', 'close')}

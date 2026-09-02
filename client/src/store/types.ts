@@ -32,6 +32,12 @@ import type {
 /** HUD-facing observer-drone status (projected from the ECS world). */
 export interface DroneStatus {
   mode: DroneMode;
+  /**
+   * The drone's entity id, or null while it is down. The HUD needs it to *select*
+   * the drone (`selectDrone`), which is the one thing about the eye the panel
+   * could not do before: everything else here is a readout.
+   */
+  id: string | null;
   /** Id of the robot the drone is controlling, or null when free-flying. */
   possessedRobotId: string | null;
   hp: number;

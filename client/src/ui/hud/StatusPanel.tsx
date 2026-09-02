@@ -16,7 +16,7 @@ import { useGameStore } from '../../store/gameStore';
 import { DroneMode } from '../../store/enums';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
-import { DomeIcon, EyeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
+import { DomeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
 import { BuildRobotModal } from './BuildRobotModal';
 import { SelectionModal } from './SelectionModal';
 import { programLabel } from './programOptions';
@@ -39,7 +39,6 @@ export function StatusPanel() {
   const robots = useGameStore(selectRobots);
   const drone = useGameStore(selectDroneStatus);
   const droneReady = useGameStore(selectDroneReadyNotice) > 0;
-  const requestShowDrone = useGameStore((s) => s.requestShowDrone);
   // The three selection slots are mutually exclusive in the store, so "something
   // is selected" is the union of all of them — a base and the drone count too, not
   // only an army.
@@ -155,24 +154,25 @@ export function StatusPanel() {
         </div>
       )}
 
-      {/* The same tiles as the directive grid: the things a player starts from
-          this section, two of which (select-all and its opposite) are otherwise
-          shortcuts they have to know about before they can use them — and on a
-          touchscreen clearing a selection has no shortcut at all, because a tap on
-          open ground is the move order there (`pixi/input/pointer.ts`). The last
-          two are the dome — dark until an enemy is actually at the door, and dark
-          for good once used, there is exactly one per match — and the drone view
-          toggle. */}
+      {/* The same tiles as the directive grid: the things a player starts from this
+          section. Three of them now, because everything about picking units — all,
+          none, by weapon, and the observer drone — went behind the Selection tile's
+          dialog rather than spreading across the rail. The dome is the third: dark
+          until an enemy is actually at the door, and dark for good once used, there
+          is exactly one per match. */}
       <div className="tile-grid">
         <Button className="tile" onClick={() => setBuildOpen(true)} disabled={!playerBase}>
           <FactoryIcon className="tile__icon" size={22} />
           <span>{t('statusPanel', 'buildProgram')}</span>
         </Button>
         <Button
-          className="tile"
-          // Dead only when it could do nothing at all: no army to pick from and
-          // nothing picked to drop.
-          disabled={myRobotCount === 0 && !hasSelection}
+          // It carries the "your new drone is up" nag as well, because the dialog
+          // behind it is now the only route to the eye: the toast times out after
+          // six seconds and this pulse is what is left (see DroneReadyToast).
+          className={`tile ${droneReady ? 'tile--ready' : ''}`.trim()}
+          // Dead only when it could do nothing at all: no army to pick from,
+          // nothing picked to drop, and no drone to go to.
+          disabled={myRobotCount === 0 && !hasSelection && droneDown}
           onClick={() => setSelectionOpen(true)}
         >
           <SelectAllIcon className="tile__icon" size={22} />
@@ -185,16 +185,6 @@ export function StatusPanel() {
         >
           <DomeIcon className="tile__icon" size={22} />
           <span>{shieldLabel}</span>
-        </Button>
-        <Button
-          className={`tile ${droneReady ? 'tile--ready' : ''}`.trim()}
-          // Nothing to jump to while it is being rebuilt.
-          disabled={droneDown}
-          title={t('hud', 'showDroneHint')}
-          onClick={requestShowDrone}
-        >
-          <EyeIcon className="tile__icon" size={22} />
-          <span>{t('hud', 'showDrone')}</span>
         </Button>
       </div>
 

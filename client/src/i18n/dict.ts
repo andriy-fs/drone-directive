@@ -177,6 +177,13 @@ export interface Dict {
      * fields appear under it, so the group is absent from an empty army.
      */
     byWeapon: string;
+    /** Heading over the observer drone's two buttons. */
+    droneHeading: string;
+    /**
+     * "Take the eye in hand" — the selecting half of the pair, beside
+     * `hud.showDrone`, which is still only a camera jump.
+     */
+    drone: string;
   };
   programming: {
     selectUnits: string;

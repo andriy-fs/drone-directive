@@ -1541,6 +1541,7 @@ function droneStatusOf(drones: DroneEntity[], ctx: GameContext, side: Owner): Dr
     const left = ctx.droneRespawn[side];
     return {
       mode: DroneMode.Down,
+      id: null,
       possessedRobotId: null,
       hp: 0,
       maxHp,
@@ -1551,6 +1552,7 @@ function droneStatusOf(drones: DroneEntity[], ctx: GameContext, side: Owner): Dr
   const possessedRobotId = drone.drone.possessedId ?? null;
   return {
     mode: possessedRobotId ? DroneMode.Possessing : DroneMode.Flying,
+    id: drone.id,
     possessedRobotId,
     hp: drone.hp,
     maxHp: drone.maxHp,

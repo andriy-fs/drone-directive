@@ -126,6 +126,8 @@ export const pl: Dict = {
     all: 'Zaznacz wszystkie',
     clear: 'Wyczyść zaznaczenie',
     byWeapon: 'Wg uzbrojenia',
+    droneHeading: 'Dron obserwacyjny',
+    drone: 'Zaznacz drona',
   },
   programming: {
     selectUnits: 'Wybierz jednostkę/i, aby wydać dyrektywę.',

@@ -126,6 +126,8 @@ export const ru: Dict = {
     all: 'Выделить всех',
     clear: 'Снять выделение',
     byWeapon: 'По вооружению',
+    droneHeading: 'Дрон-наблюдатель',
+    drone: 'Выделить дрона',
   },
   programming: {
     selectUnits: 'Выберите юнит(ы) для директивы.',
