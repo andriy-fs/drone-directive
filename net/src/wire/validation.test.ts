@@ -38,6 +38,7 @@ const valid: Record<Command['kind'], Command> = {
   SetAutoBuild: { kind: 'SetAutoBuild', baseId: 'base_1', order: null },
   SetDefaultTask: { kind: 'SetDefaultTask', baseId: 'base_1', task: TaskType.Guard },
   MoveRobots: { kind: 'MoveRobots', robotIds: ['robot_1', 'robot_2'], point: inBounds },
+  MoveDrone: { kind: 'MoveDrone', droneId: 'drone_1', point: inBounds },
   AttackTarget: { kind: 'AttackTarget', robotIds: ['robot_1'], targetId: 'base_2' },
   SetRallyPoint: { kind: 'SetRallyPoint', baseId: 'base_1', point: inBounds },
   ActivateShield: { kind: 'ActivateShield', baseId: 'base_1' },
@@ -179,6 +180,22 @@ describe('parseCommands', () => {
       point: { x: limits.worldWidth, y: limits.worldHeight },
     };
     expect(parse([corner])).toHaveLength(1);
+  });
+
+  it('holds a drone order to the map, and needs a drone to name', () => {
+    const bad = [
+      { kind: 'MoveDrone', droneId: 'drone_1', point: { x: limits.worldWidth + 1, y: 0 } },
+      { kind: 'MoveDrone', droneId: 'drone_1', point: { x: 0, y: -1 } },
+      { kind: 'MoveDrone', droneId: 'drone_1', point: { x: NaN, y: 0 } },
+      { kind: 'MoveDrone', droneId: '', point: inBounds },
+      { kind: 'MoveDrone', droneId: 'x'.repeat(65), point: inBounds },
+      { kind: 'MoveDrone', point: inBounds },
+    ];
+    expect(parse(bad)).toEqual([]);
+
+    // The map's far corner is a legal destination, as it is for a move order.
+    const corner = { kind: 'MoveDrone', droneId: 'drone_1', point: { x: limits.worldWidth, y: limits.worldHeight } };
+    expect(parse([corner])).toEqual([corner]);
   });
 
   it('holds a rally point to the same map bounds, and lets null through as "clear"', () => {

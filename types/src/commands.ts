@@ -48,6 +48,16 @@ export type Command =
   | { kind: 'SetDefaultTask'; baseId: string; task: TaskType | null }
   /** Move the given robots to `point` in a compact formation (right-click move). */
   | { kind: 'MoveRobots'; robotIds: string[]; point: Vec2 }
+  /**
+   * Send the observer drone to a point — the pointer-driven counterpart to the
+   * per-tick flight stick (`DroneControl.dir`), which stays exactly as it was.
+   *
+   * The goal is a standing order the engine holds on the drone: it is cleared on
+   * arrival, cancelled the moment the pilot touches the stick, and spent when the
+   * drone lands on a hull. Neither channel replaces the other — `droneSystem`
+   * derives a direction from the goal only while the stick is neutral.
+   */
+  | { kind: 'MoveDrone'; droneId: string; point: Vec2 }
   /** Order the given robots to focus-fire a specific target — robot or base (right-click attack). */
   | { kind: 'AttackTarget'; robotIds: string[]; targetId: string }
   /**

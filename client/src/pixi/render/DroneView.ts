@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite } from 'pixi.js';
+import { Circle, Container, Graphics, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import { DRONE_CYCLE_MS } from '../../config/sprites';
@@ -72,6 +72,7 @@ const HOVER_SCALE_MS = 1700;
  */
 export class DroneView {
   readonly container: Container;
+  private readonly ring: Graphics;
   private readonly body: Container;
   private readonly hpBar: HealthBar;
   /** The hover-cycle cells, or null when the sheet has not been drawn. */
@@ -90,12 +91,39 @@ export class DroneView {
   constructor(drone: DroneEntity) {
     this.container = new Container();
     this.container.label = `drone:${drone.id}`;
-    // Visual only: prune from hit-testing so it never swallows clicks meant
-    // for robots in the units layer beneath it.
-    this.container.eventMode = 'none';
 
+    const isLocal = drone.owner === useGameStore.getState().localSide;
     // undefined = leave the art exactly as authored (the local side's own eye).
-    const tint = drone.owner === useGameStore.getState().localSide ? undefined : ownerColor(drone.owner);
+    const tint = isLocal ? undefined : ownerColor(drone.owner);
+
+    // Only your own eye is clickable; an enemy drone stays pruned from
+    // hit-testing entirely, as this whole view used to be.
+    //
+    // The drone is drawn in the `overlay` layer, *above* the units — so a hit area
+    // here does take clicks away from a robot standing under it. That is the trade
+    // being made deliberately: clicking what is on top is what a player expects,
+    // and the area is pinned to the airframe (the same radius anti-air fire uses)
+    // rather than to the container, which the HP bar would otherwise stretch over
+    // open ground.
+    if (isLocal) {
+      this.container.eventMode = 'static';
+      this.container.cursor = 'pointer';
+      this.container.hitArea = new Circle(0, 0, gameConfig.drone.hitRadius);
+      this.container.on('pointerdown', (e) => {
+        if (e.button !== 0) return; // right-click falls to the stage (→ fly there)
+        e.stopPropagation(); // don't let the stage start a marquee under it
+        useGameStore.getState().selectDrone(drone.id);
+      });
+    } else {
+      this.container.eventMode = 'none';
+    }
+
+    // One unique unit per side, so there is no shift-add and no double-click
+    // "select every one of these" — the two branches `RobotView` needs here.
+    this.ring = new Graphics();
+    this.ring.circle(0, 0, gameConfig.drone.hitRadius + 5).stroke({ width: 2, color: palette.selection.ring });
+    this.ring.visible = false;
+    this.container.addChild(this.ring);
 
     this.body = new Container();
     this.frames = getDroneCycleTextures();
@@ -135,13 +163,14 @@ export class DroneView {
     this.lastY = drone.position.y;
     this.lastNow = performance.now();
 
-    this.update(drone, true, this.lastNow);
+    this.update(drone, false, true, this.lastNow);
   }
 
-  update(drone: DroneEntity, visible: boolean, now: number): void {
+  update(drone: DroneEntity, selected: boolean, visible: boolean, now: number): void {
     // The overlay layer draws above the fog, so a drone the local side hasn't
     // detected has to be hidden outright — the fog can't cover it.
     this.container.visible = visible;
+    this.ring.visible = selected;
     if (drone.position) this.container.position.set(drone.position.x, drone.position.y);
     this.body.rotation = drone.heading;
 

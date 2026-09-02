@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { ChassisType } from '@drone-directive/types/enums';
 import { orderChassis, selectionSoundFor, type SelectionSnapshot } from './selectionSound';
 
-const NOTHING: SelectionSnapshot = { robotIds: [], baseId: null };
+const NOTHING: SelectionSnapshot = { robotIds: [], baseId: null, droneId: null };
 
-const robots = (...ids: string[]): SelectionSnapshot => ({ robotIds: ids, baseId: null });
-const base = (id: string): SelectionSnapshot => ({ robotIds: [], baseId: id });
+const robots = (...ids: string[]): SelectionSnapshot => ({ robotIds: ids, baseId: null, droneId: null });
+const base = (id: string): SelectionSnapshot => ({ robotIds: [], baseId: id, droneId: null });
+const drone = (id: string): SelectionSnapshot => ({ robotIds: [], baseId: null, droneId: id });
 
 describe('selectionSoundFor', () => {
   it('announces one robot and a squad differently', () => {
@@ -32,9 +33,20 @@ describe('selectionSoundFor', () => {
     expect(selectionSoundFor(base('base-1'), base('base-2'))).toBe('base');
   });
 
+  it('acknowledges the drone once, on the same terms as a base', () => {
+    expect(selectionSoundFor(NOTHING, drone('drone-1'))).toBe('drone');
+    expect(selectionSoundFor(drone('drone-1'), drone('drone-1'))).toBe('none');
+    expect(selectionSoundFor(drone('drone-1'), NOTHING)).toBe('none');
+    // The replacement after a shot-down eye is a different entity, and worth a cue.
+    expect(selectionSoundFor(drone('drone-1'), drone('drone-2'))).toBe('drone');
+  });
+
   it('answers the field the selection moved to when both change at once', () => {
     expect(selectionSoundFor(base('base-1'), robots('a'))).toBe('single');
     expect(selectionSoundFor(robots('a'), base('base-1'))).toBe('base');
+    expect(selectionSoundFor(drone('drone-1'), robots('a'))).toBe('single');
+    expect(selectionSoundFor(robots('a'), drone('drone-1'))).toBe('drone');
+    expect(selectionSoundFor(base('base-1'), drone('drone-1'))).toBe('drone');
   });
 });
 

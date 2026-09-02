@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Command } from '@drone-directive/types/commands';
 import { ChassisType, FormationType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
-import { spawnBase, spawnRobot } from '../ecs/factory';
+import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
 import { makeGuard } from '../tasks/taskDefinitions';
 import { commandsSystem, isAllowedWhilePaused, isCommandFrom } from './commands';
 import { makeCtx } from './testkit';
@@ -92,6 +92,15 @@ describe('isCommandFrom — a side may only command what it owns', () => {
     const point = { x: 200, y: 200 };
     expect(isCommandFrom(ctx, { kind: 'MoveRobots', robotIds: [mine.id], point }, Owner.Player)).toBe(true);
     expect(isCommandFrom(ctx, { kind: 'MoveRobots', robotIds: [mine.id, theirs.id], point }, Owner.Player)).toBe(false);
+  });
+
+  it('rejects a MoveDrone aimed at the opponent\'s eye', () => {
+    const ctx = makeCtx();
+    const mine = spawnDrone(ctx.world, Owner.Player, { x: 100, y: 100 });
+    const theirs = spawnDrone(ctx.world, Owner.AI, { x: 600, y: 600 });
+    const point = { x: 200, y: 200 };
+    expect(isCommandFrom(ctx, { kind: 'MoveDrone', droneId: mine.id, point }, Owner.Player)).toBe(true);
+    expect(isCommandFrom(ctx, { kind: 'MoveDrone', droneId: theirs.id, point }, Owner.Player)).toBe(false);
   });
 
   it('checks the attackers of AttackTarget, not the target (which is the enemy)', () => {
@@ -296,6 +305,36 @@ describe('commandsSystem — a formation survives the orders that replace a scri
   });
 });
 
+describe('commandsSystem — MoveDrone', () => {
+  it('hangs the goal on the named drone', () => {
+    const ctx = makeCtx();
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 100, y: 100 });
+    ctx.commands.push({ kind: 'MoveDrone', droneId: drone.id, point: { x: 300, y: 400 } });
+    commandsSystem(ctx);
+    expect(drone.drone.goal).toEqual({ x: 300, y: 400 });
+  });
+
+  it('clamps the point to the map', () => {
+    const ctx = makeCtx();
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 100, y: 100 });
+    ctx.commands.push({ kind: 'MoveDrone', droneId: drone.id, point: { x: -50, y: worldPixelSize.height + 500 } });
+    commandsSystem(ctx);
+    // Unclamped this would be a standing order the drone could never complete:
+    // `freeFly` holds it inside the map, so it would press against the edge.
+    expect(drone.drone.goal).toEqual({ x: 0, y: worldPixelSize.height });
+  });
+
+  it('ignores an id that names something other than a living drone', () => {
+    const ctx = makeCtx();
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 100, y: 100 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 100, y: 100 });
+    ctx.commands.push({ kind: 'MoveDrone', droneId: robot.id, point: { x: 300, y: 400 } });
+    ctx.commands.push({ kind: 'MoveDrone', droneId: 'drone_nope', point: { x: 300, y: 400 } });
+    commandsSystem(ctx);
+    expect(drone.drone.goal).toBeUndefined();
+  });
+});
+
 /**
  * The list that decides which orders survive a pause. It is a design decision
  * (`.docs/internal/todo/commands-while-paused.md` §3), not a mechanical rule, so
@@ -315,6 +354,7 @@ describe('isAllowedWhilePaused', () => {
     // Orders to an army, and the dome. Pause is not thinking time.
     ['AssignTask', false],
     ['MoveRobots', false],
+    ['MoveDrone', false],
     ['AttackTarget', false],
     ['SetFormation', false],
     ['ActivateShield', false],

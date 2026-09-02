@@ -2,7 +2,13 @@ import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js'
 import { isAlive } from '../../engine/ecs/guards';
 import { robots } from '../../engine/ecs/queries';
 import type { GameEngine } from '../../engine/game/engine';
-import { baseById, baseFootprintContains, livingRobotById, possessedRobotOf } from '../../engine/systems/targeting';
+import {
+  baseById,
+  baseFootprintContains,
+  livingDroneById,
+  livingRobotById,
+  possessedRobotOf,
+} from '../../engine/systems/targeting';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { useGameStore } from '../../store/gameStore';
 import { GameStatus } from '../../store/enums';
@@ -15,8 +21,8 @@ import { enemyAt, ownBaseAt } from './hitTest';
 /** Below this drag distance (px) a press is treated as a click, not a drag. */
 const CLICK_SLOP = 4;
 
-/** Physical keys (arrows + WASD) that fly the observer drone, mapped to a unit direction. */
-const FLY_KEYS: Record<string, { x: number; y: number }> = {
+/** Physical keys (arrows + WASD) that move something, mapped to a unit direction. */
+const MOVE_KEYS: Record<string, { x: number; y: number }> = {
   ArrowLeft: { x: -1, y: 0 },
   KeyA: { x: -1, y: 0 },
   ArrowRight: { x: 1, y: 0 },
@@ -27,9 +33,9 @@ const FLY_KEYS: Record<string, { x: number; y: number }> = {
   KeyS: { x: 0, y: 1 },
 };
 
-/** True when a keyboard event should drive the observer drone. Modifier combos such as Ctrl+A are reserved for UI shortcuts. */
-export function shouldHandleDroneFlightKey(e: KeyboardEvent): boolean {
-  if (!(e.code in FLY_KEYS)) return false;
+/** True when a keyboard event should move the camera (or the ridden hull). Modifier combos such as Ctrl+A are reserved for UI shortcuts. */
+export function shouldHandleMoveKey(e: KeyboardEvent): boolean {
+  if (!(e.code in MOVE_KEYS)) return false;
   if (e.ctrlKey || e.metaKey || e.altKey) return false;
   return true;
 }
@@ -69,11 +75,14 @@ export interface PointerControls {
  * Playfield input:
  * - Left drag = selection marquee (Shift adds); left click on your own base
  *   selects it, left click on empty ground clears the selection.
- *   (Clicking a robot is handled in RobotView.)
+ *   (Clicking a robot is handled in RobotView, your own drone in DroneView.)
  * - Arrow keys/WASD = fly the observer drone (the camera follows it).
  * - `F` = land on / take off from an idle robot; `E` = fire / detonate it.
  * - Right click with a base selected = set that base's rally point (right click
  *   on the base itself clears it); the robot selection is untouched.
+ * - Right click with your observer drone selected = fly it there. Both of the
+ *   drone's control channels stay live: this one and the flight keys above,
+ *   which are unchanged (see `engine/systems/drone.ts`).
  * - Right click on an enemy (robot or base) = order the selection to attack it;
  *   right click on open ground = move the selection there in a compact formation.
  *
@@ -173,21 +182,23 @@ export function attachPointerControls(
 
   const onContextMenu = (e: MouseEvent) => e.preventDefault();
 
-  // Drone flight: held arrow keys/WASD set the drone's direction on the store;
-  // the bridge samples it on the fixed step so movement stays deterministic.
-  // `F`/`E` are one-shot intents (land-or-take-off / fire). No pointer panning:
-  // the same direction vector doubles as the camera pan while the view is not
-  // synced to the drone (see GameApp.updateCamera / GameApp.localDroneControl).
+  // Held arrow keys/WASD, summed into one vector on the store. This layer does not
+  // decide what that vector *means* — the bridge does, off the one condition that
+  // settles it: free, it pans the camera; riding a hull, it is that machine's
+  // throttle and yaw, sampled on the fixed step so it stays deterministic
+  // (GameApp.updateCamera / GameApp.localDroneControl).
+  //
+  // `F`/`E` are one-shot intents (land-or-take-off / fire).
   const pressedKeys = new Set<string>();
-  const applyDroneDir = () => {
+  const applyStick = () => {
     let dx = 0;
     let dy = 0;
     for (const code of pressedKeys) {
-      dx += FLY_KEYS[code].x;
-      dy += FLY_KEYS[code].y;
+      dx += MOVE_KEYS[code].x;
+      dy += MOVE_KEYS[code].y;
     }
     const len = vecLength(dx, dy);
-    useGameStore.getState().setDroneInput(len > 0 ? { x: dx / len, y: dy / len } : { x: 0, y: 0 });
+    useGameStore.getState().setStickInput(len > 0 ? { x: dx / len, y: dy / len } : { x: 0, y: 0 });
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -195,28 +206,30 @@ export function attachPointerControls(
     // would detonate a possessed robot mid-sentence.
     if (isTypingTarget(e.target)) return;
     if (useGameStore.getState().status !== GameStatus.Playing) return;
-    if (shouldHandleDroneFlightKey(e)) {
+    if (shouldHandleMoveKey(e)) {
       if (e.code.startsWith('Arrow')) e.preventDefault(); // stop the page from scrolling
       if (!pressedKeys.has(e.code)) {
         pressedKeys.add(e.code);
-        applyDroneDir();
+        applyStick();
       }
       return;
     }
     if (e.repeat) return; // one-shot intents ignore auto-repeat
-    // Unsynced, the drone is off screen and these keys belong to nobody: landing
-    // on a robot the player cannot see, or firing from it, is never what they
-    // meant. The flight vector above still runs — it is panning the camera.
-    if (!useGameStore.getState().viewSyncedToDrone) return;
+    // These act on the eye the player has picked up, like every other order in the
+    // game — landing on a robot, or firing from one, is something you do *with* a
+    // drone, and without a selection there is no drone in hand. The old rule asked
+    // whether the camera was glued to it, which was a question about the viewport
+    // standing in for a question about intent.
+    if (useGameStore.getState().selectedDroneId === null) return;
     if (e.code === POSSESS_KEY) useGameStore.getState().requestDronePossess();
     else if (e.code === FIRE_KEY) useGameStore.getState().requestDroneFire();
   };
   const onKeyUp = (e: KeyboardEvent) => {
-    if (pressedKeys.delete(e.code)) applyDroneDir();
+    if (pressedKeys.delete(e.code)) applyStick();
   };
   const onBlur = () => {
-    pressedKeys.clear(); // don't leave the drone drifting after alt-tab
-    useGameStore.getState().setDroneInput({ x: 0, y: 0 });
+    pressedKeys.clear(); // don't leave the camera drifting after alt-tab
+    useGameStore.getState().setStickInput({ x: 0, y: 0 });
   };
 
   const cancelSelection = () => {
@@ -306,8 +319,12 @@ function selectBaseOrClear(camera: Camera, engine: GameEngine, globalX: number, 
 
 /**
  * Right click: with your base selected, plant (or, on the base itself, clear)
- * its rally point. Otherwise attack an enemy under the cursor if any, else move
- * the selection there.
+ * its rally point. With the observer drone selected, send it there. Otherwise
+ * attack an enemy under the cursor if any, else move the selection there.
+ *
+ * The three selections are mutually exclusive in the store, so the branches are
+ * an ordered chain rather than a decision: whichever slot is filled is the one
+ * this click is for.
  *
  * `onOrder` fires only past the empty-selection guard, so a click that ordered
  * nobody leaves no marker on screen. The rally branch returns before it: that
@@ -335,6 +352,20 @@ function issueRightClick(
       return;
     }
     store.selectBase(null); // the base is gone — fall back to ordering robots
+  }
+
+  if (store.selectedDroneId) {
+    const drone = livingDroneById(ctx, store.selectedDroneId);
+    if (drone && drone.owner === side) {
+      const p = camera.screenToWorld(globalX, globalY);
+      // No attack branch, unlike the robot case below: the eye is unarmed, so a
+      // right click on an enemy means "go and look at that", and flying to where
+      // it stands is exactly that order.
+      store.enqueueCommand({ kind: 'MoveDrone', droneId: drone.id, point: p });
+      onOrder(p, 'move');
+      return;
+    }
+    store.selectDrone(null); // shot down between the click and this tick
   }
 
   const robotIds = store.selectedRobotIds

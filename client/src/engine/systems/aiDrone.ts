@@ -6,6 +6,7 @@ import type { BaseEntity, DroneEntity, RobotEntity } from '../ecs/archetypes';
 import { isAlive } from '../ecs/guards';
 import { drones, robots } from '../ecs/queries';
 import type { AiState, GameContext } from '../game/context';
+import { unitToward } from './drone';
 import { isAdvancing, centroidOf } from './task';
 import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from './targeting';
 
@@ -172,13 +173,4 @@ function clampToWorld(x: number, y: number): Vec2 {
     x: clamp(x, 0, worldPixelSize.width),
     y: clamp(y, 0, worldPixelSize.height),
   };
-}
-
-/** Unit vector from `pos` toward `goal`, or zero once it is effectively there. */
-function unitToward(pos: Vec2, goal: Vec2): Vec2 {
-  const dx = goal.x - pos.x;
-  const dy = goal.y - pos.y;
-  const len = vecLength(dx, dy);
-  if (len < 1e-6) return { x: 0, y: 0 };
-  return { x: dx / len, y: dy / len };
 }

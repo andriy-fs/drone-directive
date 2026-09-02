@@ -19,12 +19,13 @@ const VISIBLE_MS = 6000;
  *
  * The toast times out, but the flag behind it does not: once the shouting stops
  * the Drone panel keeps the line and the pulsing toggle, so a player who was
- * looking elsewhere still finds out. Only syncing the view clears it.
+ * looking elsewhere still finds out. Going to look at the drone clears it —
+ * either from here, from the panel's tile, or by simply selecting it on the field.
  */
 export function DroneReadyToast() {
   const t = useT();
   const notice = useGameStore(selectDroneReadyNotice);
-  const setViewSync = useGameStore((s) => s.setViewSync);
+  const requestShowDrone = useGameStore((s) => s.requestShowDrone);
   // Which notice has already had its say. Written only from the timer below —
   // visibility is *derived* from it rather than mirrored into another flag, so
   // nothing here has to write state during a render or an effect.
@@ -41,7 +42,7 @@ export function DroneReadyToast() {
   return (
     <div className="drone-toast" role="status">
       <span className="drone-toast__text">{t('statusPanel', 'droneReadyToast')}</span>
-      <Button className="drone-toast__action" onClick={() => setViewSync(true)}>
+      <Button className="drone-toast__action" onClick={requestShowDrone}>
         {t('statusPanel', 'droneReadyAction')}
       </Button>
     </div>

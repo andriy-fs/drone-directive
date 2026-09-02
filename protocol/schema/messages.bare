@@ -129,6 +129,15 @@ type AttackTarget struct {
     targetId: str
 }
 
+# Send the observer drone to a point. Named by id like every other order, so the
+# receiving peer can check the sender actually owns it (`isCommandFrom`); an
+# implicit "my drone" would be unverifiable. The per-tick flight stick
+# (`DroneControl` below) is untouched and stays the other way to fly it.
+type MoveDrone struct {
+    droneId: str
+    point: Vec2
+}
+
 # A base's gathering point for the robots it produces; absent = none.
 type SetRallyPoint struct {
     baseId: str
@@ -171,7 +180,8 @@ type Command union {
     ActivateShield |
     SetDefaultTask |
     SetFormation |
-    CancelQueued
+    CancelQueued |
+    MoveDrone
 }
 
 # ---------------------------------------------------------------------------

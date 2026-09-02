@@ -51,6 +51,7 @@ describe('command round-trip', () => {
       },
       { kind: 'SetAutoBuild', baseId: 'base_2', order: null },
       { kind: 'MoveRobots', robotIds: ['robot_1', 'robot_2', 'robot_3'], point: { x: 512.25, y: 96.5 } },
+      { kind: 'MoveDrone', droneId: 'drone_1', point: { x: 128.5, y: 704.25 } },
       { kind: 'AttackTarget', robotIds: ['robot_4'], targetId: 'base_1' },
       { kind: 'SetRallyPoint', baseId: 'base_1', point: { x: 640.75, y: 320.5 } },
       { kind: 'SetRallyPoint', baseId: 'base_1', point: null },

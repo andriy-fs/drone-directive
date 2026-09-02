@@ -53,6 +53,80 @@ describe('droneSystem — free flight', () => {
   });
 });
 
+describe('droneSystem — a standing MoveDrone goal', () => {
+  it('flies toward the goal with the stick neutral, and stops on arrival', () => {
+    const ctx = makeCtx(1);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone.goal = { x: 400 + gameConfig.drone.speed, y: 400 };
+    setControl(ctx);
+
+    droneSystem(ctx, 0.5); // half a second: half the way there
+    expect(drone.position.x).toBeCloseTo(400 + gameConfig.drone.speed / 2, 3);
+    expect(drone.drone.goal).toBeDefined(); // not there yet
+
+    droneSystem(ctx, 0.5);
+    expect(drone.position.x).toBeCloseTo(400 + gameConfig.drone.speed, 3);
+
+    // The order is spent on the *next* tick, when the arrival check runs against
+    // where the drone now is. That one tick is not a wait the player can see —
+    // the drone is already parked, and nothing draws the goal — but the drone has
+    // to be somewhere before "am I there?" can be asked about it.
+    const restingX = drone.position.x;
+    droneSystem(ctx, 1);
+    expect(drone.drone.goal).toBeUndefined();
+    expect(drone.position.x).toBeCloseTo(restingX, 3);
+
+    // And it holds station from here rather than buzzing around the point.
+    droneSystem(ctx, 1);
+    expect(drone.position.x).toBeCloseTo(restingX, 3);
+  });
+
+  it('counts anything inside the arrival radius as arrived', () => {
+    const ctx = makeCtx(1);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone.goal = { x: 400 + gameConfig.drone.goalArriveRadius - 1, y: 400 };
+    setControl(ctx);
+
+    droneSystem(ctx, 1);
+
+    expect(drone.drone.goal).toBeUndefined();
+    expect(drone.position.x).toBeCloseTo(400, 3); // never moved: it was already there
+  });
+
+  // The engine's precedence rule. No human produces this collision today — the
+  // client sends no free-flight stick for a player (`GameApp.localDroneControl`) —
+  // but `droneSystem` cannot tell a player from a bot and has to answer it anyway.
+  it('hands the stick priority and cancels the goal outright', () => {
+    const ctx = makeCtx(1);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    drone.drone.goal = { x: 400, y: 800 }; // sent south
+    setControl(ctx, { x: 1, y: 0 }); // pilot pushes east
+
+    droneSystem(ctx, 1);
+
+    expect(drone.position.x).toBeCloseTo(400 + gameConfig.drone.speed, 3);
+    expect(drone.position.y).toBeCloseTo(400, 3);
+    // And the order is gone, not queued: releasing the key must not resume it.
+    expect(drone.drone.goal).toBeUndefined();
+    setControl(ctx);
+    droneSystem(ctx, 1);
+    expect(drone.position.y).toBeCloseTo(400, 3);
+  });
+
+  it('spends the goal when the drone lands on a hull', () => {
+    const ctx = makeCtx(1);
+    const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 405, y: 400 });
+    drone.drone.goal = { x: 400, y: 900 };
+    setControl(ctx, { x: 0, y: 0 }, true);
+
+    droneSystem(ctx, 1);
+
+    expect(drone.drone.possessedId).toBe(robot.id);
+    expect(drone.drone.goal).toBeUndefined();
+  });
+});
+
 describe('droneSystem — possession', () => {
   it('lands on the nearest idle friendly robot within range', () => {
     const ctx = makeCtx(1);

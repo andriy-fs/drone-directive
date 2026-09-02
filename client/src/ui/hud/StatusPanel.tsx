@@ -8,7 +8,6 @@ import {
   selectResources,
   selectRobotLoad,
   selectRobots,
-  selectViewSync,
 } from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
 import { DroneMode } from '../../store/enums';
@@ -36,9 +35,8 @@ export function StatusPanel() {
   const playerBase = useGameStore(selectPlayerBase);
   const robots = useGameStore(selectRobots);
   const drone = useGameStore(selectDroneStatus);
-  const viewSynced = useGameStore(selectViewSync);
   const droneReady = useGameStore(selectDroneReadyNotice) > 0;
-  const setViewSync = useGameStore((s) => s.setViewSync);
+  const requestShowDrone = useGameStore((s) => s.requestShowDrone);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   // Dialog visibility lives in the store so a double-click on the base (canvas
   // side) opens the very same dialog as this panel's button.
@@ -76,12 +74,13 @@ export function StatusPanel() {
   const raiseShield = () => {
     if (playerBase) enqueueCommand({ kind: 'ActivateShield', baseId: playerBase.id });
   };
-  // The view toggle sits with the shield rather than in a section of its own: it
-  // is one of the things the player *does* from here, and the drone's own readout
-  // was the same subject reported twice. A replacement always rolls out over the
-  // base, so the view is cut loose the moment the drone dies and stays loose —
-  // the tile nags until the player decides to go back, instead of hauling them
-  // off the fight they were watching.
+  // "Show me my drone" sits with the shield rather than in a section of its own:
+  // it is one of the things the player *does* from here, and the drone's own
+  // readout was the same subject reported twice.
+  //
+  // A one-shot jump, not a view mode. The camera follows nothing, so a
+  // replacement rolling out over the base cannot haul the player off the fight
+  // they were watching — the tile just nags until they go and collect it.
   const droneDown = drone.mode === DroneMode.Down;
 
   let shieldLabel = t('statusPanel', 'shield');
@@ -166,15 +165,14 @@ export function StatusPanel() {
           <span>{shieldLabel}</span>
         </Button>
         <Button
-          className={`tile tile--view ${droneReady ? 'tile--ready' : ''}`.trim()}
-          // Nothing to sync to while it is being rebuilt; the view is already free.
+          className={`tile ${droneReady ? 'tile--ready' : ''}`.trim()}
+          // Nothing to jump to while it is being rebuilt.
           disabled={droneDown}
-          aria-pressed={viewSynced}
-          title={t('hud', 'viewSyncHint')}
-          onClick={() => setViewSync(!viewSynced)}
+          title={t('hud', 'showDroneHint')}
+          onClick={requestShowDrone}
         >
           <EyeIcon className="tile__icon" size={22} />
-          <span>{viewSynced ? t('hud', 'viewDrone') : t('hud', 'viewFree')}</span>
+          <span>{t('hud', 'showDrone')}</span>
         </Button>
       </div>
 

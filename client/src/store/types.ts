@@ -207,6 +207,13 @@ export interface GameStateFields {
    * with a base selected, right-click sets its rally point instead of moving.
    */
   selectedBaseId: string | null;
+  /**
+   * The selected observer drone, or null. The third mutually exclusive slot: it
+   * is one unique unit per side, so it gets a slot of its own rather than a place
+   * in `selectedRobotIds`, where the marquee, select-all, formations, directives
+   * and attack orders would all have to learn to leave it out again.
+   */
+  selectedDroneId: string | null;
   /** Command queue: UI enqueues, the bridge forwards to the engine each tick. */
   commands: Command[];
   /** One-shot control flags the bridge observes (→ engine.startMatch / toMenu). */
@@ -215,23 +222,33 @@ export interface GameStateFields {
   paused: boolean;
   /** One-shot "flip the shared pause" the bridge puts on the wire (online only). */
   pauseTogglePending: boolean;
-  /** Observer-drone flight direction (unit-ish vector); the bridge forwards it each step. */
-  droneInput: Vec2;
+  /**
+   * The WASD/arrow vector, and what it means depends on one thing only: whether a
+   * hull is being ridden. Free — it pans the camera, and never leaves this client.
+   * Riding — it is that machine's own throttle and yaw, and the bridge forwards it
+   * as `DroneControl.dir`.
+   *
+   * **It no longer flies the observer drone.** The eye is flown by `MoveDrone`
+   * orders (select it, right-click), which is the one control scheme a keyboard is
+   * not required for — and the reason this vector has a single meaning per mode
+   * instead of being switched by a camera setting.
+   */
+  stickInput: Vec2;
   /** One-shot drone intents the bridge forwards then clears (land/take-off, fire/detonate). */
   dronePossessRequested: boolean;
   droneFireRequested: boolean;
   /** HUD-facing drone status pushed from snapshots. */
   droneStatus: DroneStatus;
   /**
-   * Whether the viewport rides the observer drone. Client-local by design: the
-   * camera feeds nothing in the simulation, so this is never a `Command` and
-   * never goes on the wire.
+   * "Put the camera on my drone" — a one-shot request the bridge consumes on its
+   * next frame, not a mode. Client-local by design: the camera feeds nothing in
+   * the simulation, so this never becomes a `Command` and never goes on the wire.
    *
-   * While it is off the drone hovers where it was left (it still lights the fog
-   * around itself) and the flight keys pan the camera instead — the same thing
-   * they already do while the drone is down.
+   * A jump rather than a follow, and that is the whole point: the drone can be
+   * anywhere on an 80x80 map and this is how a player gets back to it, but nothing
+   * about it changes what any other control does afterwards.
    */
-  viewSyncedToDrone: boolean;
+  showDroneRequested: boolean;
   /**
    * A replacement drone has rolled out and the player has not looked at it yet:
    * a counter identifying the current notice, or 0 for none. Raised by the
@@ -307,6 +324,8 @@ export interface GameActions {
   toggleRobot: (id: string) => void;
   /** Select the local side's base (or null to drop it); clears any robot selection. */
   selectBase: (id: string | null) => void;
+  /** Select the local side's observer drone (or null to drop it); clears the other two. */
+  selectDrone: (id: string | null) => void;
   clearSelection: () => void;
   enqueueCommand: (command: Command) => void;
   drainCommands: () => Command[];
@@ -325,19 +344,16 @@ export interface GameActions {
   setPaused: (value: boolean) => void;
   /** Bridge-only: take and clear the pending pause request. */
   consumePauseToggle: () => boolean;
-  setDroneInput: (dir: Vec2) => void;
+  setStickInput: (dir: Vec2) => void;
   requestDronePossess: () => void;
   requestDroneFire: () => void;
   clearDroneRequests: () => void;
   setDroneStatus: (status: DroneStatus) => void;
-  /**
-   * Glue the viewport to the drone, or cut it loose. Unsyncing while the drone
-   * is riding a robot also releases it — a possessed robot takes no orders and
-   * holds no target of its own, so leaving one behind with nobody at the stick
-   * would strand it.
-   */
-  setViewSync: (on: boolean) => void;
-  /** Drop the "new drone ready" notice (synced, dismissed, or timed out). */
+  /** Ask the camera to jump to the local side's drone; also answers the "it is up again" notice. */
+  requestShowDrone: () => void;
+  /** Bridge-side: take the pending jump request, if any. */
+  consumeShowDrone: () => boolean;
+  /** Drop the "new drone ready" notice (looked at, dismissed, or timed out). */
   clearDroneReadyNotice: () => void;
   /** Bridge-only: raise the "new drone ready" notice on a local respawn. */
   noteDroneReady: () => void;

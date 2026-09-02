@@ -35,19 +35,30 @@ export const useGameStore = create<GameState>((set, get) => ({
   setRobots: (robots) => set({ robots }),
   setSides: (sides) => set({ sides }),
   setResources: (resources) => set({ resources }),
-  // Robots and a base are mutually exclusive selections, and that is enforced
-  // here rather than at the call sites: marquee, robot click, select-all and
-  // control groups all write selection, and every one of them gets it for free.
-  selectRobots: (ids) => set({ selectedRobotIds: ids, selectedBaseId: null }),
+  // Robots, a base and the drone are mutually exclusive selections, and that is
+  // enforced here rather than at the call sites: marquee, robot click, drone
+  // click, select-all and control groups all write selection, and every one of
+  // them gets it for free.
+  selectRobots: (ids) => set({ selectedRobotIds: ids, selectedBaseId: null, selectedDroneId: null }),
   toggleRobot: (id) =>
     set((s) => ({
       selectedRobotIds: s.selectedRobotIds.includes(id)
         ? s.selectedRobotIds.filter((x) => x !== id)
         : [...s.selectedRobotIds, id],
       selectedBaseId: null,
+      selectedDroneId: null,
     })),
-  selectBase: (id) => set({ selectedBaseId: id, selectedRobotIds: [] }),
-  clearSelection: () => set({ selectedRobotIds: [], selectedBaseId: null }),
+  selectBase: (id) => set({ selectedBaseId: id, selectedRobotIds: [], selectedDroneId: null }),
+  // Picking the eye up is itself an answer to the "it is up again" notice: the
+  // player has found the replacement, which is all the notice was asking for.
+  selectDrone: (id) =>
+    set((s) => ({
+      selectedDroneId: id,
+      selectedRobotIds: [],
+      selectedBaseId: null,
+      droneReadyNotice: id === null ? s.droneReadyNotice : 0,
+    })),
+  clearSelection: () => set({ selectedRobotIds: [], selectedBaseId: null, selectedDroneId: null }),
   enqueueCommand: (command) => set((s) => ({ commands: [...s.commands, command] })),
   drainCommands: () => {
     const { commands } = get();
@@ -77,22 +88,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (pauseTogglePending) set({ pauseTogglePending: false });
     return pauseTogglePending;
   },
-  setDroneInput: (dir) => set({ droneInput: dir }),
+  setStickInput: (dir) => set({ stickInput: dir }),
   requestDronePossess: () => set({ dronePossessRequested: true }),
   requestDroneFire: () => set({ droneFireRequested: true }),
   clearDroneRequests: () => set({ dronePossessRequested: false, droneFireRequested: false }),
   setDroneStatus: (status) => set({ droneStatus: status }),
-  setViewSync: (on) =>
-    set((s) => ({
-      viewSyncedToDrone: on,
-      // Looking at the drone again is what the notice was asking for.
-      droneReadyNotice: on ? 0 : s.droneReadyNotice,
-      // Cutting the view loose stops forwarding flight input, so a possessed
-      // robot would sit there with its target cleared every tick and nobody
-      // steering it. Bail out of the hull on the way out (one pulse = release).
-      dronePossessRequested:
-        !on && s.droneStatus.possessedRobotId !== null ? true : s.dronePossessRequested,
-    })),
+  // A jump, not a mode — so it has none of the side effects the old view toggle
+  // needed. That one had to eject a pilot from their hull on the way out, because
+  // cutting the view loose also stopped forwarding the stick and would have
+  // stranded the machine with nobody steering it. Nothing here stops forwarding
+  // anything, so nothing here has to compensate.
+  requestShowDrone: () => set({ showDroneRequested: true, droneReadyNotice: 0 }),
+  consumeShowDrone: () => {
+    const { showDroneRequested } = get();
+    if (showDroneRequested) set({ showDroneRequested: false });
+    return showDroneRequested;
+  },
   clearDroneReadyNotice: () => set({ droneReadyNotice: 0 }),
   noteDroneReady: () => set((s) => ({ droneReadyNotice: s.droneReadyNotice + 1 })),
   setBuildDialogOpen: (open) => set({ buildDialogOpen: open }),

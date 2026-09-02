@@ -30,6 +30,7 @@ export type SoundName =
   | 'select-wheels'
   | 'select-legs'
   | 'select-group'
+  | 'select-drone'
   | 'unit-ready'
   | 'bomb-arming'
   | 'shield-up'
@@ -162,6 +163,10 @@ export const soundDefs: Record<SoundName, SoundDef> = {
   'select-wheels': { src: src('digital/phaserUp5'), volume: 0.4, tier: 'match' },
   'select-legs': { src: src('interface/switch_003'), volume: 0.4, tier: 'match' },
   'select-group': { src: src('digital/lowThreeTone'), volume: 0.3, tier: 'match' },
+  // The eye gets a cue of its own rather than borrowing a chassis voice: it is
+  // the one unit that is neither a machine on the ground nor a building, and a
+  // rising airy sweep is the closest thing in the library to "airframe".
+  'select-drone': { src: src('digital/phaserUp7'), volume: 0.38, tier: 'match' },
   'chat-message': { src: src('interface/glass_001'), volume: 0.19, tier: 'menu' },
   'unit-ready': { src: src('interface/confirmation_001'), volume: 0.17, tier: 'match' },
   'button-click': { src: src('interface/click_001'), volume: 0.15, tier: 'menu' },

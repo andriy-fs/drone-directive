@@ -5,7 +5,7 @@ import { distance } from '../../utils/math';
 import type { With } from 'miniplex';
 import type { BaseEntity, DroneEntity, MunitionEntity, Positioned, RobotEntity } from '../ecs/archetypes';
 import type { Entity, WeaponComp } from '../ecs/entity';
-import { isAlive, isBase, isRobot } from '../ecs/guards';
+import { isAlive, isBase, isDrone, isRobot } from '../ecs/guards';
 import { bases, drones, munitions, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { isDisabled } from './status';
@@ -53,6 +53,12 @@ export function baseById(ctx: GameContext, id: string): BaseEntity | undefined {
 export function livingRobotById(ctx: GameContext, id: string): RobotEntity | undefined {
   const e = robotById(ctx, id);
   return e && isAlive(e) ? e : undefined;
+}
+
+/** `findById` narrowed to a living observer drone — undefined for anything else, or a wreck. */
+export function livingDroneById(ctx: GameContext, id: string): DroneEntity | undefined {
+  const e = findById(ctx, id);
+  return e && isDrone(e) && isAlive(e) ? e : undefined;
 }
 
 /**

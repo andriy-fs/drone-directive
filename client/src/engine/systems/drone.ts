@@ -46,11 +46,49 @@ function driveDrone(ctx: GameContext, dt: number, drone: DroneEntity): void {
   } else {
     // The possessed robot is gone (e.g. a kamikaze detonated) — drop to free flight.
     drone.drone.possessedId = undefined;
-    freeFly(ctx, dt, drone, normalize(control.dir), control.possessPulse);
+    freeFly(ctx, dt, drone, steer(drone, control.dir), control.possessPulse);
   }
 
   control.possessPulse = false;
   control.firePulse = false;
+}
+
+/**
+ * The direction a free-flying drone takes this tick — the one place its two
+ * control channels meet, and the only thing that decides between them.
+ *
+ * Which channel a drone is on depends on who is flying it, and this system
+ * deliberately cannot tell: a **bot** free-flies by the stick (`systems/aiDrone.ts`
+ * writes `control.dir` toward its sweep waypoint), a **player** flies by
+ * `MoveDrone` orders, and the client never sends a free-flight stick for a human
+ * at all (`GameApp.localDroneControl`).
+ *
+ * **The stick therefore wins, and cancels the standing order.** No player can
+ * currently produce that collision, but the rule has to exist and has to be this
+ * way round: a stick is a hand on the controls right now, an order is a wish from
+ * a second ago, and the alternative — queuing the order — would fly the machine
+ * back to a stale point the instant the stick went neutral.
+ *
+ * Arrival clears the goal here rather than in `freeFly`, so "am I still under
+ * orders" is answered in one place and a drone that has arrived reports a
+ * neutral direction like any other idle one.
+ */
+function steer(drone: DroneEntity, stick: Vec2): Vec2 {
+  const dir = normalize(stick);
+  if (dir.x !== 0 || dir.y !== 0) {
+    drone.drone.goal = undefined;
+    return dir;
+  }
+
+  const goal = drone.drone.goal;
+  if (!goal) return dir;
+
+  const pos = drone.position;
+  if (distance(pos.x, pos.y, goal.x, goal.y) <= gameConfig.drone.goalArriveRadius) {
+    drone.drone.goal = undefined;
+    return { x: 0, y: 0 };
+  }
+  return unitToward(pos, goal);
 }
 
 /** Free flight: obstacle-free movement, plus landing on an idle robot on demand. */
@@ -83,6 +121,10 @@ function tryPossess(ctx: GameContext, drone: DroneEntity): boolean {
   // survive — so without this the pilot steers while `movementSystem` keeps driving
   // toward the old goal in the same tick, and the machine crabs.
   clearGoal(target);
+  // And the drone's own standing order with it, for the same reason: a pilot who
+  // has taken a hull is no longer flying to where they sent the eye, and leaving
+  // the goal on would fly it there the instant they stepped off.
+  drone.drone.goal = undefined;
   drone.drone.possessedId = target.id;
   return true;
 }
@@ -259,4 +301,13 @@ function normalize(v: Vec2): Vec2 {
   const len = vecLength(v.x, v.y);
   if (len < 1e-6) return { x: 0, y: 0 };
   return { x: v.x / len, y: v.y / len };
+}
+
+/**
+ * Unit vector from `pos` toward `goal`, or zero once it is effectively there.
+ * Shared with `systems/aiDrone.ts`: the bot's pilot flies to a waypoint by
+ * exactly this construction, and two copies of it would be two chances to drift.
+ */
+export function unitToward(pos: Vec2, goal: Vec2): Vec2 {
+  return normalize({ x: goal.x - pos.x, y: goal.y - pos.y });
 }

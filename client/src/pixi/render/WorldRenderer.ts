@@ -123,7 +123,7 @@ export class WorldRenderer {
     for (const e of this.bases) this.baseViews.get(e.id)?.update(e, isVisible(e), selectedIds.has(e.id), now);
     for (const e of this.projectiles) this.projectileViews.get(e.id)?.update(e, now);
     for (const e of this.explosions) this.explosionViews.get(e.id)?.update(e, now);
-    for (const e of this.drones) this.droneViews.get(e.id)?.update(e, isVisible(e), now);
+    for (const e of this.drones) this.droneViews.get(e.id)?.update(e, selectedIds.has(e.id), isVisible(e), now);
     for (const e of this.munitions) this.munitionViews.get(e.id)?.update(e, isVisible(e));
     for (const e of this.domes) this.domeViews.get(e.id)?.update(e, isVisible(e), now);
   }

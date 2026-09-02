@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { shouldHandleDroneFlightKey } from './pointer';
+import { shouldHandleMoveKey } from './pointer';
 
-describe('shouldHandleDroneFlightKey', () => {
-  it('ignores Ctrl/Cmd combinations so select-all does not drive the drone', () => {
+describe('shouldHandleMoveKey', () => {
+  it('ignores Ctrl/Cmd combinations so select-all does not pan the camera', () => {
     expect(
-      shouldHandleDroneFlightKey({
+      shouldHandleMoveKey({
         code: 'KeyA',
         ctrlKey: true,
         metaKey: false,
@@ -12,7 +12,7 @@ describe('shouldHandleDroneFlightKey', () => {
       } as KeyboardEvent),
     ).toBe(false);
     expect(
-      shouldHandleDroneFlightKey({
+      shouldHandleMoveKey({
         code: 'KeyA',
         ctrlKey: false,
         metaKey: true,
@@ -23,7 +23,7 @@ describe('shouldHandleDroneFlightKey', () => {
 
   it('keeps plain WASD/arrow movement enabled', () => {
     expect(
-      shouldHandleDroneFlightKey({
+      shouldHandleMoveKey({
         code: 'KeyW',
         ctrlKey: false,
         metaKey: false,
@@ -31,7 +31,7 @@ describe('shouldHandleDroneFlightKey', () => {
       } as KeyboardEvent),
     ).toBe(true);
     expect(
-      shouldHandleDroneFlightKey({
+      shouldHandleMoveKey({
         code: 'ArrowRight',
         ctrlKey: false,
         metaKey: false,

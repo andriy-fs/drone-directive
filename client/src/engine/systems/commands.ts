@@ -14,7 +14,7 @@ import { formationSlots } from './task/formation';
 import { centroidOf } from './task/roam';
 import { atRobotCap } from './production';
 import { raiseShield } from './shield';
-import { baseById, findById, livingRobotById, robotById } from './targeting';
+import { baseById, findById, livingDroneById, livingRobotById, robotById } from './targeting';
 
 /**
  * True when every entity a command *acts on* belongs to `side`. Commands are
@@ -41,6 +41,8 @@ export function isCommandFrom(ctx: GameContext, command: Command, side: Owner): 
     case 'AttackTarget':
     case 'SetFormation':
       return command.robotIds.every(ownedBySide);
+    case 'MoveDrone':
+      return ownedBySide(command.droneId);
   }
 }
 
@@ -72,6 +74,7 @@ export function isAllowedWhilePaused(kind: Command['kind']): boolean {
       return true;
     case 'AssignTask':
     case 'MoveRobots':
+    case 'MoveDrone':
     case 'AttackTarget':
     case 'SetFormation':
     case 'ActivateShield':
@@ -156,6 +159,21 @@ function applyCommand(ctx: GameContext, command: Command): void {
     case 'MoveRobots': {
       const robots = command.robotIds.map((id) => livingRobotById(ctx, id)).filter((e) => e !== undefined);
       moveInFormation(ctx, robots, command.point);
+      break;
+    }
+    case 'MoveDrone': {
+      const drone = livingDroneById(ctx, command.droneId);
+      if (!drone) break;
+      // Clamped for the same reason as `SetRallyPoint`: only the online path runs
+      // commands through the wire validator, so solo play has no bound on the
+      // point. And an unclamped goal is worse here than there — `freeFly` clamps
+      // the drone's *position* to the map, so a goal outside it is one the drone
+      // can never reach: it would press against the edge under a standing order
+      // that never completes.
+      drone.drone.goal = {
+        x: clamp(command.point.x, 0, worldPixelSize.width),
+        y: clamp(command.point.y, 0, worldPixelSize.height),
+      };
       break;
     }
     case 'AttackTarget': {

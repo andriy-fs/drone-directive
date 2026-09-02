@@ -922,17 +922,8 @@
   padding: 8px 10px;
 }
 
-/* Synced is the resting state and looks like it; the styling is for the view and
-   its drone being *apart*, which is the condition worth spotting at a glance.
-   Scoped to the view tile — the directive tiles are `aria-pressed` too, and there
-   an unpressed tile is just an option nobody picked. */
-.tile--view[aria-pressed='false'] {
-  border-color: var(--border-strong);
-  color: var(--accent);
-}
-
 /* The nag: while a rebuilt drone has not been looked at, the tile that takes you
-   to it keeps asking. Stops the moment the view is synced. */
+   to it keeps asking. Stops the moment the player goes and looks. */
 .tile--ready {
   animation: tile-pulse 1.4s ease-in-out infinite;
 }

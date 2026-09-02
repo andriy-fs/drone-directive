@@ -25,20 +25,23 @@ function commandControls(t: T): { keys: string[]; action: string }[] {
     { keys: ['Right-click'], action: t('mainMenu', 'clearRally') },
     { keys: ['Ctrl + 1-9'], action: t('mainMenu', 'groupAssign') },
     { keys: ['1-9'], action: t('mainMenu', 'groupSelect') },
+    { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'panView') },
   ];
 }
 
 function droneControls(t: T): { keys: string[]; action: string }[] {
   return [
-    { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'flyDrone') },
+    // The eye is flown entirely with the pointer; the keys below are for the hull
+    // it lands on, not for the drone itself.
+    { keys: ['Click'], action: t('mainMenu', 'selectDrone') },
+    { keys: ['Right-click'], action: t('mainMenu', 'sendDrone') },
     { keys: ['F'], action: t('mainMenu', 'landRelease') },
-    // Same keys, third job: on a hull they are that machine's own controls rather
-    // than a compass — throttle along its nose and a turn rate (`drivePossessed`).
+    // The one place the movement keys mean something other than the camera: on a
+    // hull they are that machine's own controls — throttle along its nose and a
+    // turn rate (`drivePossessed`). Worth its own row, but it needs no explaining
+    // which job they are doing: the whole screen changes when you are inside one.
     { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'steerHull') },
     { keys: ['E'], action: t('mainMenu', 'fireWeapon') },
-    // The same keys, doing the other job — worth a row of its own, since which
-    // one they do depends on the Drone panel's toggle rather than on the key.
-    { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'panView') },
   ];
 }
 

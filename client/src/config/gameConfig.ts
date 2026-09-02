@@ -137,6 +137,16 @@ export const gameConfig = {
     /** Max distance (px) to an idle robot to land on / possess it. */
     possessRadius: 40,
     /**
+     * How close (px) to a `MoveDrone` goal counts as arrived — the drone stops and
+     * the order is spent (`systems/drone.ts`).
+     *
+     * Has to stay above one tick's travel, or the drone can never be inside it:
+     * at `speed` 280 a fixed step covers 9.3 px, so it would fly past the point,
+     * turn round, fly past it the other way and buzz there for the rest of the
+     * match. 12 leaves margin without the stop reading as short of the click.
+     */
+    goalArriveRadius: 12,
+    /**
      * How fast the pilot may swing a possessed hull, degrees/second — a 180°
      * reversal in a little over a second.
      *

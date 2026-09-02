@@ -166,6 +166,11 @@ export const sfx = {
     play('select-base');
   },
 
+  /** Selecting the observer drone: the eye reporting in. */
+  droneSelected(): void {
+    play('select-drone');
+  },
+
   /**
    * Selecting one robot, by chassis. The three differ on register, texture and
    * rhythm at once, so they stay apart under gunfire and not merely on a quiet

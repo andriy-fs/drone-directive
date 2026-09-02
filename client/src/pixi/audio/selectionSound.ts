@@ -5,18 +5,19 @@
  */
 import { ChassisType } from '@drone-directive/types/enums';
 
-/** The two mutually exclusive selection fields of the store, as this module sees them. */
+/** The three mutually exclusive selection fields of the store, as this module sees them. */
 export interface SelectionSnapshot {
   robotIds: readonly string[];
   baseId: string | null;
+  droneId: string | null;
 }
 
-export type SelectionSound = 'none' | 'base' | 'single' | 'group';
+export type SelectionSound = 'none' | 'base' | 'drone' | 'single' | 'group';
 
 /**
- * Both fields change in a single `set`, and `selectBase`/`selectRobots` clear
- * the other one, so a base↔robots switch shows up as one transition — the base
- * is answered first, then the robots.
+ * All three fields change in a single `set`, and `selectBase`/`selectDrone`/
+ * `selectRobots` clear the others, so a base↔drone↔robots switch shows up as one
+ * transition — answered in that order.
  *
  * Deselecting is silent by design: the player asked for a sound on *picking*
  * something, and the auto-clears (a selected base dying, the scene going back to
@@ -27,6 +28,9 @@ export function selectionSoundFor(prev: SelectionSnapshot, next: SelectionSnapsh
   // *every* unhandled left click, so clicking your own base twice must not
   // double-fire the acknowledgement.
   if (next.baseId !== null) return next.baseId === prev.baseId ? 'none' : 'base';
+  // Same repeat guard as the base's, and needed for the same reason: clicking the
+  // drone twice is one selection, not two.
+  if (next.droneId !== null) return next.droneId === prev.droneId ? 'none' : 'drone';
 
   if (next.robotIds.length === 0) return 'none';
   // Compare as sets, not arrays: `set({ selectedRobotIds })` always yields a new

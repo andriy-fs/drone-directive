@@ -242,6 +242,16 @@ export interface Shield {
 export interface Drone {
   /** Id of the idle robot the drone is currently controlling, or undefined = free flight. */
   possessedId?: string;
+  /**
+   * Where the player sent it (`MoveDrone`), or undefined = no standing order.
+   *
+   * The drone's second control channel and the one a **human** flies it by; the
+   * per-tick stick is what a *bot* uses. Weaker of the two by rule: it steers only
+   * while the stick is neutral. Cleared on arrival and spent on landing, so a
+   * drone never resumes a leg its pilot has already finished with. See
+   * `systems/drone.ts`.
+   */
+  goal?: Vec2;
 }
 
 /**

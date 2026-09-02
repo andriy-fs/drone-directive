@@ -23,12 +23,15 @@ export interface Dict {
     groupAssign: string;
     groupSelect: string;
     droneHeading: string;
-    flyDrone: string;
+    /** Picking the observer drone with the pointer — the way that needs no keyboard. */
+    selectDrone: string;
+    /** And sending it somewhere: a right click with it selected. */
+    sendDrone: string;
     landRelease: string;
     /** The same flight keys again, once the drone is riding a hull: throttle and turn. */
     steerHull: string;
     fireWeapon: string;
-    /** The same flight keys once the view has been unpinned from the drone. */
+    /** The movement keys' resting job: everything that is not riding a hull. */
     panView: string;
     units: string;
     unitGuide: string;
@@ -67,11 +70,10 @@ export interface Dict {
     units: string;
     directive: string;
     paused: string;
-    /** The Command section's view-sync tile, in its two states (see StatusPanel). */
-    viewDrone: string;
-    viewFree: string;
-    /** What the toggle does, for the tooltip. */
-    viewSyncHint: string;
+    /** The Command section's "jump the camera to my drone" tile (see StatusPanel). */
+    showDrone: string;
+    /** What it does, for the tooltip. */
+    showDroneHint: string;
   };
   /** The HUD titlebar's exit button asks first, because abandoning is final. */
   confirmExit: {

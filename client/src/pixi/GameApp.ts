@@ -448,9 +448,10 @@ export class GameApp {
   /** Render pass: move the camera, sync views, redraw fog, rally flags and order feedback. */
   private render(): void {
     this.updateCamera();
-    const { selectedRobotIds, selectedBaseId } = useGameStore.getState();
+    const { selectedRobotIds, selectedBaseId, selectedDroneId } = useGameStore.getState();
     const selected = new Set(selectedRobotIds);
     if (selectedBaseId) selected.add(selectedBaseId);
+    if (selectedDroneId) selected.add(selectedDroneId);
     // Wall clock, not sim time: none of what it drives is simulation state, and
     // all of it should keep animating while the match is paused. Read once and
     // shared, so every pulse on screen — the dome, the order marker, the hover
@@ -584,26 +585,36 @@ export class GameApp {
   }
 
   /**
-   * Centre the viewport on the local side's observer drone (this player's eye),
-   * as long as the player has the view synced to it. Unsynced — or with the
-   * drone shot down — the same keys pan the camera freely instead of leaving the
-   * view frozen: the player loses the drone's vision, not the ability to look
-   * around. Never falls back to *another* side's drone: online that would hand
-   * this client a live view of the opponent's scout.
+   * The camera, and the two things that move it: a one-shot jump to this player's
+   * own eye, and the keys.
    *
-   * The sync flag is what keeps a rebuilt drone from yanking the player home.
-   * It is dropped when the drone dies (see `wireBus`), so the replacement that
-   * rolls out over the base 30 s later appears without moving the viewport, and
-   * the player decides when to go back to it.
+   * **A jump, never a follow.** The viewport used to be glued to the drone while a
+   * flag said so, which is what forced the flight keys to mean one thing while it
+   * was set and another while it was not. Nothing is glued now: the keys always
+   * pan, the drone is flown by orders, and this is simply how a player gets back
+   * to an eye they sent across the map.
+   *
+   * Never falls back to *another* side's drone: online that would hand this client
+   * a live view of the opponent's scout. A request with no drone to honour (shot
+   * down between the click and the frame) is dropped rather than held, so the
+   * replacement that rolls out over the base 30 s later cannot yank the player
+   * home from wherever they are fighting.
    */
   private updateCamera(): void {
-    const drone = dronesQuery(this.engine.world).entities.find((d) => d.owner === this.localSide);
-    if (drone && useGameStore.getState().viewSyncedToDrone) {
-      this.camera.centerOn(drone.position.x, drone.position.y);
-      return;
+    const store = useGameStore.getState();
+    if (store.consumeShowDrone()) {
+      const drone = dronesQuery(this.engine.world).entities.find((d) => d.owner === this.localSide);
+      if (drone) {
+        this.camera.centerOn(drone.position.x, drone.position.y);
+        return;
+      }
     }
 
-    const dir = useGameStore.getState().droneInput;
+    // Riding a hull hides the top view entirely (see `pixi/render/fpv/`), and the
+    // keys are that machine's controls then — there is no viewport to pan.
+    if (this.ridingHull()) return;
+
+    const dir = store.stickInput;
     if (dir.x === 0 && dir.y === 0) return;
     // Camera-only, so a real frame delta is fine here — nothing about panning
     // feeds the simulation, which keeps running on its own fixed step.
@@ -613,16 +624,33 @@ export class GameApp {
   }
 
   /**
-   * Put the viewport back on the drone for a new match. The sync flag survives
-   * the end of a match (it is plain store state), so without this a player whose
-   * drone was down when the last one finished would open the next one looking at
-   * an empty corner of a world they have not seen yet. The zoom goes back with
-   * it, for the same reason: it is a view setting, not a preference, and a match
-   * should not open at whatever scale the last fight happened to end on.
+   * Whether this side's drone is inside a hull right now — the one condition that
+   * changes what the keys mean, and the only one left.
+   *
+   * Asked of the world rather than of `droneStatus`, which is a throttled snapshot:
+   * a few ticks of a stale answer here would pan the viewport with a pilot's
+   * throttle, or drive a hull with what the player meant as a look around.
+   */
+  private ridingHull(): boolean {
+    const ctx = this.engine.context;
+    return !!ctx && possessedRobotOf(ctx, this.localSide) !== undefined;
+  }
+
+  /**
+   * Put the viewport back on the drone for a new match. The camera is plain client
+   * state that outlives a match, so without this a player whose last one ended in
+   * a far corner would open the next one looking at a world they have not seen
+   * yet. The zoom goes back with it, for the same reason: it is a view setting,
+   * not a preference, and a match should not open at whatever scale the last
+   * fight happened to end on.
+   *
+   * Queues the jump rather than performing it: every caller runs *before*
+   * `startMatch`, so the drone this is aiming at does not exist yet. The first
+   * render after the match is built is what honours it.
    */
   private resetView(store: GameState): void {
     this.camera.resetZoom();
-    store.setViewSync(true);
+    store.requestShowDrone();
     store.clearDroneReadyNotice();
   }
 
@@ -694,10 +722,13 @@ export class GameApp {
     );
     this.busUnsubs.push(bus.on('entityDestroyed', () => sfx.explosion()));
     // A stale base selection would keep aiming rally orders at a corpse instead
-    // of falling back to moving robots.
+    // of falling back to moving robots. A stale drone selection is worse: the
+    // replacement rolls out 30 s later with an id of its own, so the ring would
+    // sit on nothing while right-clicks silently ordered a drone that is gone.
     this.busUnsubs.push(
       bus.on('entityDestroyed', ({ id }) => {
         if (store().selectedBaseId === id) store().selectBase(null);
+        if (store().selectedDroneId === id) store().selectDrone(null);
       }),
     );
     this.busUnsubs.push(bus.on('entitySpawned', () => this.pushSnapshot()));
@@ -711,19 +742,14 @@ export class GameApp {
     );
     // The two halves of "your eye was shot down, and here is the new one".
     //
-    // Dropping the sync on death is what stops the replacement — which always
-    // rolls out over the base — from hauling the player back from wherever they
-    // were fighting. The notice then says a drone is up again, and the player
-    // chooses the moment to fly it. Same filter as the factory pip above: the
+    // A replacement always rolls out over the base, and nothing hauls the player
+    // there: the camera follows nothing, so a respawn cannot move it. The notice
+    // below is the whole of it — a drone is up again, and the player picks the
+    // moment to go and get it. Same filter as the factory pip above: the
     // opponent's eye is not this client's business.
     //
     // The opening drone is spawned straight into the world by `gameScene` with
     // no event, so a `drone` spawn reaching here always means "rebuilt mid-match".
-    this.busUnsubs.push(
-      bus.on('entityDestroyed', ({ kind, owner }) => {
-        if (kind === 'drone' && owner === this.localSide) store().setViewSync(false);
-      }),
-    );
     this.busUnsubs.push(
       bus.on('entitySpawned', ({ kind, owner }) => {
         if (kind === 'drone' && owner === this.localSide) store().noteDroneReady();
@@ -1117,21 +1143,24 @@ export class GameApp {
   /**
    * The local side's stick for one tick, read off the store.
    *
-   * `droneInput` does double duty: with the view synced it flies the drone, and
-   * with it loose the very same vector pans the camera (`updateCamera`). So the
-   * unsynced case has to send a zero stick, or the player would be walking the
-   * drone across the map every time they looked around. Deterministic either
-   * way — the input is authored here and goes on the wire already zeroed, so
-   * both peers step the same world.
+   * **A human has no free-flight channel.** The keys pan the camera, and the eye
+   * is flown by `MoveDrone` orders — so the stick is forwarded only while a hull
+   * is actually being ridden, where the engine reads it as that machine's throttle
+   * and yaw (`drivePossessed`). Free, it goes on the wire as a zero.
    *
-   * The pulses pass through untouched: while unsynced the input layer stops
-   * raising them (see `input/pointer.ts`), which leaves the release queued by
-   * `setViewSync` as the only one that can still arrive.
+   * The engine cannot make this distinction itself, and must not: `droneSystem`
+   * drives every drone from `ctx.droneControl[owner]` and deliberately cannot tell
+   * a player from a bot — the bot's pilot still free-flies its own eye by exactly
+   * this vector (`systems/aiDrone.ts`). "Which of the two ways this side flies"
+   * is a property of the client's input layer, so it is decided here.
+   *
+   * Deterministic either way: the input is authored here and goes on the wire
+   * already zeroed, so both peers step the same world.
    */
   private localDroneControl(store: GameState): DroneControl {
-    const synced = store.viewSyncedToDrone;
+    const riding = this.ridingHull();
     return {
-      dir: synced ? { x: store.droneInput.x, y: store.droneInput.y } : { x: 0, y: 0 },
+      dir: riding ? { x: store.stickInput.x, y: store.stickInput.y } : { x: 0, y: 0 },
       possessPulse: store.dronePossessRequested,
       firePulse: store.droneFireRequested,
     };

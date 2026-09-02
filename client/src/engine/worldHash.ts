@@ -29,6 +29,11 @@ import type { EcsWorld } from './ecs/world';
  * set of entities — and therefore about this hash — on the very next tick. The
  * fields already present catch it.
  *
+ * An observer drone's `MoveDrone` goal is left out on exactly the same grounds. A
+ * drone under a standing order moves every tick until it arrives, so peers that
+ * disagreed about where it was sent would disagree about its `position` on the
+ * very next one. The omission is a decision, not an oversight.
+ *
  * A base's energy dome is the exception that proves that rule: it *prevents* hp
  * from moving, so it is not observable through hp at all and has to be hashed on
  * both its axes — how much of it is left, and how long it still stands, since

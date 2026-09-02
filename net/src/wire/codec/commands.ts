@@ -67,6 +67,8 @@ export function commandToWire(command: Command): wire.Command {
       return { tag: 'MoveRobots', robotIds: command.robotIds, point: { x: command.point.x, y: command.point.y } };
     case 'AttackTarget':
       return { tag: 'AttackTarget', robotIds: command.robotIds, targetId: command.targetId };
+    case 'MoveDrone':
+      return { tag: 'MoveDrone', droneId: command.droneId, point: { x: command.point.x, y: command.point.y } };
     case 'SetRallyPoint':
       return {
         tag: 'SetRallyPoint',
@@ -119,6 +121,10 @@ export function commandFromWire(command: wire.Command): Command {
       return { kind: 'MoveRobots', robotIds: [...command.robotIds], point: { ...command.point } };
     case 'AttackTarget':
       return { kind: 'AttackTarget', robotIds: [...command.robotIds], targetId: command.targetId };
+    // Same reason as `MoveRobots`: the generated point is readonly and the goal
+    // the engine hangs on the drone is its own.
+    case 'MoveDrone':
+      return { kind: 'MoveDrone', droneId: command.droneId, point: { ...command.point } };
     case 'SetRallyPoint':
       // The generated point is readonly; the engine keeps its own, so copy.
       return {

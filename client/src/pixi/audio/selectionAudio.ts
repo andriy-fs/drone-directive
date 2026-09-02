@@ -24,11 +24,15 @@ const MIN_GAP_MS = 70;
  * covers the whole app.
  */
 export function attachSelectionAudio(world: EcsWorld): () => void {
-  let prev: SelectionSnapshot = { robotIds: [], baseId: null };
+  let prev: SelectionSnapshot = { robotIds: [], baseId: null, droneId: null };
   let lastAt = -Infinity;
 
   return useGameStore.subscribe((s) => {
-    const next: SelectionSnapshot = { robotIds: s.selectedRobotIds, baseId: s.selectedBaseId };
+    const next: SelectionSnapshot = {
+      robotIds: s.selectedRobotIds,
+      baseId: s.selectedBaseId,
+      droneId: s.selectedDroneId,
+    };
     const sound = selectionSoundFor(prev, next);
     prev = next;
     if (sound === 'none') return;
@@ -39,6 +43,10 @@ export function attachSelectionAudio(world: EcsWorld): () => void {
 
     if (sound === 'base') {
       sfx.baseSelected();
+      return;
+    }
+    if (sound === 'drone') {
+      sfx.droneSelected();
       return;
     }
 

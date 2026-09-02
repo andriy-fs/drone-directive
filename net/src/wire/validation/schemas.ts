@@ -106,6 +106,13 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
       robotIds: robotIdsSchema,
       targetId: idSchema,
     }),
+    // One drone, named by id: the ownership check downstream (`isCommandFrom`)
+    // resolves it, so the id is as opaque here as every other one.
+    MoveDrone: v.object({
+      kind: v.literal('MoveDrone'),
+      droneId: idSchema,
+      point: worldPointSchema,
+    }),
     SetRallyPoint: v.object({
       kind: v.literal('SetRallyPoint'),
       baseId: idSchema,
@@ -144,6 +151,7 @@ export function commandSchemaFor(limits: CommandLimits): v.GenericSchema<unknown
     commandSchemas.SetAutoBuild,
     commandSchemas.MoveRobots,
     commandSchemas.AttackTarget,
+    commandSchemas.MoveDrone,
     commandSchemas.SetRallyPoint,
     commandSchemas.ActivateShield,
     commandSchemas.SetDefaultTask,

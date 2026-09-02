@@ -554,6 +554,31 @@ export function writeAttackTarget(bc: bare.ByteCursor, x: AttackTarget): void {
     bare.writeString(bc, x.targetId)
 }
 
+/**
+ * Send the observer drone to a point. Named by id like every other order, so the
+ * receiving peer can check the sender actually owns it (`isCommandFrom`); an
+ * implicit "my drone" would be unverifiable. The per-tick flight stick
+ * (`DroneControl` below) is untouched and stays the other way to fly it.
+ */
+export type MoveDrone = {
+    readonly tag: "MoveDrone"
+    readonly droneId: string
+    readonly point: Vec2
+}
+
+export function readMoveDrone(bc: bare.ByteCursor): MoveDrone {
+    return {
+        tag: "MoveDrone",
+        droneId: bare.readString(bc),
+        point: readVec2(bc),
+    }
+}
+
+export function writeMoveDrone(bc: bare.ByteCursor, x: MoveDrone): void {
+    bare.writeString(bc, x.droneId)
+    writeVec2(bc, x.point)
+}
+
 function read2(bc: bare.ByteCursor): Vec2 | null {
     return bare.readBool(bc) ? readVec2(bc) : null
 }
@@ -694,6 +719,7 @@ export type Command =
     | SetDefaultTask
     | SetFormation
     | CancelQueued
+    | MoveDrone
 
 export function readCommand(bc: bare.ByteCursor): Command {
     const offset = bc.offset
@@ -719,6 +745,8 @@ export function readCommand(bc: bare.ByteCursor): Command {
             return readSetFormation(bc)
         case 9:
             return readCancelQueued(bc)
+        case 10:
+            return readMoveDrone(bc)
         default: {
             bc.offset = offset
             throw new bare.BareError(offset, "invalid tag")
@@ -776,6 +804,11 @@ export function writeCommand(bc: bare.ByteCursor, x: Command): void {
         case "CancelQueued": {
             bare.writeU8(bc, 9)
             writeCancelQueued(bc, x)
+            break
+        }
+        case "MoveDrone": {
+            bare.writeU8(bc, 10)
+            writeMoveDrone(bc, x)
             break
         }
     }
