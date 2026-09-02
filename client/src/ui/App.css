@@ -90,7 +90,7 @@
 }
 
 /* A player who asked for less motion keeps the glass and loses the movement —
-   the same trade the drone toast and the ready-tile pulse already make. */
+   the same trade the drone toast already makes. */
 @media (prefers-reduced-motion: reduce) {
   .app-shell--menu::after,
   .app-shell--menu::before {
@@ -942,32 +942,6 @@
   gap: 8px;
   min-height: 0;
   padding: 8px 10px;
-}
-
-/* The nag: while a rebuilt drone has not been looked at, the tile that takes you
-   to it keeps asking. Stops the moment the player goes and looks. */
-.tile--ready {
-  animation: tile-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes tile-pulse {
-  0%,
-  100% {
-    border-color: var(--ready);
-    box-shadow: 0 0 0 0 transparent;
-  }
-  50% {
-    border-color: var(--ready);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ready) 22%, transparent);
-  }
-}
-
-/* A player who has asked for less motion gets the colour without the throb. */
-@media (prefers-reduced-motion: reduce) {
-  .tile--ready {
-    animation: none;
-    border-color: var(--ready);
-  }
 }
 
 /* Doubled with `:hover` so the active tile keeps its blue under the cursor —

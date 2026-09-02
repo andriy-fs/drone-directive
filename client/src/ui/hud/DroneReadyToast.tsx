@@ -4,8 +4,14 @@ import { useGameStore } from '../../store/gameStore';
 import { selectDroneReadyNotice } from '../../store/selectors';
 import { Button } from '../common/Button';
 
-/** How long the toast stays up before it stops shouting (ms). */
-const VISIBLE_MS = 6000;
+/**
+ * How long the toast stays up before it stops shouting (ms).
+ *
+ * Twelve seconds rather than six because it is now the *only* notice: the tile
+ * that used to keep pulsing after it went is gone, so this has to survive a
+ * glance elsewhere on its own.
+ */
+const VISIBLE_MS = 12000;
 
 /**
  * "Your new observer drone is up." The one thing the player has to be told when
@@ -17,10 +23,10 @@ const VISIBLE_MS = 6000;
  * game asking for one, and a generic toast queue would be infrastructure with a
  * single caller. It renders one flag.
  *
- * The toast times out, but the flag behind it does not: once the shouting stops
- * the Drone panel keeps the line and the pulsing toggle, so a player who was
- * looking elsewhere still finds out. Going to look at the drone clears it —
- * either from here, from the panel's tile, or by simply selecting it on the field.
+ * The toast times out and nothing takes over from it — the HUD is deliberately
+ * quiet about the rebuild after that. Going to look at the drone clears the flag
+ * early, either from here, from the selection dialog, or by simply picking the
+ * drone up on the field.
  */
 export function DroneReadyToast() {
   const t = useT();

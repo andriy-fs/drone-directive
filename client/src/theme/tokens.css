@@ -78,7 +78,7 @@
   --success: #22c55e;
   /** A quieter confirmation: the presence dot, a checked box. */
   --success-alt: #4caf7d;
-  /** Something is ready and wants the eye — the rebuilt drone's toast and pulse. */
+  /** Something is ready and wants the eye — the rebuilt drone's toast. */
   --ready: #4ade80;
   /** Neutral information; the local speaker's name in chat. */
   --info: #6fa8dc;

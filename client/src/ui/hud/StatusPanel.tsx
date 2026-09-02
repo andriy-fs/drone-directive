@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { gameConfig } from '../../config/gameConfig';
 import { useT } from '../../i18n';
 import {
-  selectDroneReadyNotice,
   selectDroneStatus,
   selectLocalSide,
   selectPlayerBase,
@@ -38,7 +37,6 @@ export function StatusPanel() {
   const playerBase = useGameStore(selectPlayerBase);
   const robots = useGameStore(selectRobots);
   const drone = useGameStore(selectDroneStatus);
-  const droneReady = useGameStore(selectDroneReadyNotice) > 0;
   // The three selection slots are mutually exclusive in the store, so "something
   // is selected" is the union of all of them — a base and the drone count too, not
   // only an army.
@@ -166,10 +164,7 @@ export function StatusPanel() {
           <span>{t('statusPanel', 'buildProgram')}</span>
         </Button>
         <Button
-          // It carries the "your new drone is up" nag as well, because the dialog
-          // behind it is now the only route to the eye: the toast times out after
-          // six seconds and this pulse is what is left (see DroneReadyToast).
-          className={`tile ${droneReady ? 'tile--ready' : ''}`.trim()}
+          className="tile"
           // Dead only when it could do nothing at all: no army to pick from,
           // nothing picked to drop, and no drone to go to.
           disabled={myRobotCount === 0 && !hasSelection && droneDown}
