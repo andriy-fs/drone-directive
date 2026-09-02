@@ -1,6 +1,7 @@
 import { Graphics, type Application, type FederatedPointerEvent } from 'pixi.js';
 import { isAlive } from '../../engine/ecs/guards';
 import { robots } from '../../engine/ecs/queries';
+import type { GameContext } from '../../engine/game/context';
 import type { GameEngine } from '../../engine/game/engine';
 import {
   baseById,
@@ -18,8 +19,24 @@ import type { Camera } from '../Camera';
 import type { OrderMarkerKind } from '../render/OrderMarkerView';
 import { enemyAt, ownBaseAt } from './hitTest';
 
-/** Below this drag distance (px) a press is treated as a click, not a drag. */
+/** Below this drag distance (px) a mouse press is treated as a click, not a drag. */
 const CLICK_SLOP = 4;
+/**
+ * The same for a finger, and it has to be far bigger: a "tap" wanders several
+ * pixels between touch and lift, so at the mouse's threshold half of them register
+ * as a tiny marquee — which selects nothing, clears the selection, and eats the
+ * order the player was trying to give.
+ */
+const TOUCH_CLICK_SLOP = 12;
+
+/**
+ * Whether a press that began at `(x0, y0)` and is now at `(x1, y1)` has become a
+ * drag. Manhattan distance, which is what the threshold is calibrated against.
+ */
+export function isDrag(x0: number, y0: number, x1: number, y1: number, pointerType: string): boolean {
+  const slop = pointerType === 'touch' ? TOUCH_CLICK_SLOP : CLICK_SLOP;
+  return Math.abs(x1 - x0) + Math.abs(y1 - y0) > slop;
+}
 
 /** Physical keys (arrows + WASD) that move something, mapped to a unit direction. */
 const MOVE_KEYS: Record<string, { x: number; y: number }> = {
@@ -147,7 +164,7 @@ export function attachPointerControls(
       hooks.onPointerMove(null);
       return;
     }
-    if (selecting && Math.abs(e.global.x - startX) + Math.abs(e.global.y - startY) > CLICK_SLOP) moved = true;
+    if (selecting && isDrag(startX, startY, e.global.x, e.global.y, e.pointerType)) moved = true;
     // A marquee is being dragged: the player is picking units, not aiming at one.
     hooks.onPointerMove(selecting && moved ? null : { x: e.global.x, y: e.global.y });
     if (!selecting) return;
@@ -171,7 +188,7 @@ export function attachPointerControls(
         // Base selection lives here rather than in BaseView: a click there would
         // still bubble to this handler and be wiped by the clear below, and
         // stopping propagation would turn the base into dead marquee space.
-        selectBaseOrClear(camera, engine, e.global.x, e.global.y);
+        handleTap(camera, engine, e, hooks.onOrder);
       }
     }
     selecting = false;
@@ -304,17 +321,67 @@ function selectInBox(
   store.selectRobots(additive ? [...new Set([...store.selectedRobotIds, ...inBox])] : inBox);
 }
 
-/** Plain left click: select your own base if it's under the cursor, else deselect. */
-function selectBaseOrClear(camera: Camera, engine: GameEngine, globalX: number, globalY: number): void {
+/**
+ * Send the selected observer drone to `point`, if there is one to send. Returns
+ * whether it took the gesture.
+ *
+ * Shared by the two gestures that can carry the order — a right click on a mouse,
+ * a tap on a touchscreen — so there is one place that decides what "fly there"
+ * means and one place that draws the marker for it.
+ */
+function sendSelectedDrone(ctx: GameContext, point: Vec2, onOrder: PointerHooks['onOrder']): boolean {
+  const store = useGameStore.getState();
+  if (!store.selectedDroneId) return false;
+  const drone = livingDroneById(ctx, store.selectedDroneId);
+  if (!drone || drone.owner !== store.localSide) {
+    store.selectDrone(null); // shot down between the gesture and this tick
+    return false;
+  }
+  // No attack branch: the eye is unarmed, so pointing it at an enemy means "go and
+  // look at that", and flying to where it stands is exactly that order.
+  store.enqueueCommand({ kind: 'MoveDrone', droneId: drone.id, point });
+  onOrder(point, 'move');
+  return true;
+}
+
+/**
+ * A left press that never became a drag.
+ *
+ * With a mouse this is what it has always been: your own base under the cursor
+ * selects it, anything else clears the selection.
+ *
+ * **On a touchscreen it is also the order gesture**, because there is no second
+ * button to put one on. With the observer drone selected, a tap on open ground
+ * sends it there — which is the whole of drone control on a tablet, and the reason
+ * the eye can be flown at all without a keyboard. Deselecting moves to a tap on
+ * the drone itself (see `render/DroneView.ts`), since this gesture is spoken for.
+ *
+ * Gated on `pointerType`, so a mouse cannot reach it by construction — and a
+ * hybrid device's trackpad reports `mouse`, keeping the desktop behaviour.
+ */
+function handleTap(
+  camera: Camera,
+  engine: GameEngine,
+  e: FederatedPointerEvent,
+  onOrder: PointerHooks['onOrder'],
+): void {
   const ctx = engine.context;
   const store = useGameStore.getState();
   if (!ctx) {
     store.clearSelection();
     return;
   }
-  const base = ownBaseAt(ctx, camera.screenToWorld(globalX, globalY), store.localSide);
-  if (base) store.selectBase(base.id);
-  else store.clearSelection();
+  const point = camera.screenToWorld(e.global.x, e.global.y);
+  // A building wins the tap either way: picking your base is not something the
+  // drone's order should swallow, and it is the one thing under a tap here that
+  // has a meaning of its own (robots and the drone stop the event in their views).
+  const base = ownBaseAt(ctx, point, store.localSide);
+  if (base) {
+    store.selectBase(base.id);
+    return;
+  }
+  if (e.pointerType === 'touch' && sendSelectedDrone(ctx, point, onOrder)) return;
+  store.clearSelection();
 }
 
 /**
@@ -354,19 +421,7 @@ function issueRightClick(
     store.selectBase(null); // the base is gone — fall back to ordering robots
   }
 
-  if (store.selectedDroneId) {
-    const drone = livingDroneById(ctx, store.selectedDroneId);
-    if (drone && drone.owner === side) {
-      const p = camera.screenToWorld(globalX, globalY);
-      // No attack branch, unlike the robot case below: the eye is unarmed, so a
-      // right click on an enemy means "go and look at that", and flying to where
-      // it stands is exactly that order.
-      store.enqueueCommand({ kind: 'MoveDrone', droneId: drone.id, point: p });
-      onOrder(p, 'move');
-      return;
-    }
-    store.selectDrone(null); // shot down between the click and this tick
-  }
+  if (sendSelectedDrone(ctx, camera.screenToWorld(globalX, globalY), onOrder)) return;
 
   const robotIds = store.selectedRobotIds
     .map((id) => livingRobotById(ctx, id))

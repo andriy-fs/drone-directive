@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Container } from 'pixi.js';
+import { gameConfig } from '../config/gameConfig';
 import { Camera, anchorShift, clampAxis } from './Camera';
 
 /**
@@ -27,8 +28,13 @@ describe('Camera.zoomAt', () => {
   });
 
   it('stops at the configured range however long the player keeps scrolling', () => {
-    expect(cameraAt(Array<number>(30).fill(1.1)).view.scale.x).toBe(2);
-    expect(cameraAt(Array<number>(30).fill(1 / 1.1)).view.scale.x).toBe(0.5);
+    // Read from the config rather than pinned: the ceiling is a tunable (it went
+    // 2 -> 3 for touch, where reaching a unit with a finger is a question of zoom),
+    // and a copy of the number here would fail the build every time it moves
+    // without saying anything about whether the clamp still works.
+    const { minZoom, maxZoom } = gameConfig.camera;
+    expect(cameraAt(Array<number>(60).fill(1.1)).view.scale.x).toBe(maxZoom);
+    expect(cameraAt(Array<number>(60).fill(1 / 1.1)).view.scale.x).toBe(minZoom);
   });
 
   it('goes back to 1:1 for a new match', () => {

@@ -35,8 +35,19 @@ export const gameConfig = {
     /** Multiplier applied to pointer-drag deltas. */
     dragSpeed: 1,
     minZoom: 0.5,
-    maxZoom: 2,
-    /** Zoom multiplier per notch of the wheel (compounded, so 1.1 takes ~15 notches across the full range). */
+    /**
+     * Raised from 2 for touch: how big a unit is under a finger is a question of
+     * zoom, not of hit areas. At 1x a robot is ~55 screen px and already clears the
+     * 44 px touch-target guideline; at 0.5x it is 27 and nothing helps but zooming
+     * in, which a pinch already does (`input/zoom.ts`). 3x is the headroom that
+     * makes that answer true rather than nearly true.
+     *
+     * Provisional — it may come back to 2.5 once it has been played on a tablet.
+     * The cost of too much is a field of view too narrow to command from, and that
+     * is only judgeable in a real match.
+     */
+    maxZoom: 3,
+    /** Zoom multiplier per notch of the wheel (compounded, so 1.1 takes ~19 notches across the full range). */
     wheelZoomStep: 1.1,
     /**
      * A trackpad pinch arrives as a `wheel` event with `ctrlKey` set, and its

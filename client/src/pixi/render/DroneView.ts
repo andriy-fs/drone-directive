@@ -96,40 +96,22 @@ export class DroneView {
     // undefined = leave the art exactly as authored (the local side's own eye).
     const tint = isLocal ? undefined : ownerColor(drone.owner);
 
-    // Only your own eye is clickable; an enemy drone stays pruned from
-    // hit-testing entirely, as this whole view used to be.
-    //
-    // The drone is drawn in the `overlay` layer, *above* the units — so a hit area
-    // here does take clicks away from a robot standing under it. That is the trade
-    // being made deliberately: clicking what is on top is what a player expects,
-    // and the area is pinned to the airframe (the same radius anti-air fire uses)
-    // rather than to the container, which the HP bar would otherwise stretch over
-    // open ground.
-    if (isLocal) {
-      this.container.eventMode = 'static';
-      this.container.cursor = 'pointer';
-      this.container.hitArea = new Circle(0, 0, gameConfig.drone.hitRadius);
-      this.container.on('pointerdown', (e) => {
-        if (e.button !== 0) return; // right-click falls to the stage (→ fly there)
-        e.stopPropagation(); // don't let the stage start a marquee under it
-        useGameStore.getState().selectDrone(drone.id);
-      });
-    } else {
-      this.container.eventMode = 'none';
-    }
-
-    // One unique unit per side, so there is no shift-add and no double-click
-    // "select every one of these" — the two branches `RobotView` needs here.
-    this.ring = new Graphics();
-    this.ring.circle(0, 0, gameConfig.drone.hitRadius + 5).stroke({ width: 2, color: palette.selection.ring });
-    this.ring.visible = false;
-    this.container.addChild(this.ring);
-
     this.body = new Container();
     this.frames = getDroneCycleTextures();
     // Cell 0 is the rest pose, so it is also what to show on the first frame — and
     // it is what the still sprite is cut from.
     const sprite = this.frames?.[0] ?? getDroneTexture();
+    // The radius of what is actually **on screen**, which is what both the ring and
+    // the hit area below are measured from — the same construction `RobotView` uses
+    // (`outerRadius`), so the two units read and behave alike.
+    //
+    // Deliberately *not* `gameConfig.drone.hitRadius`: that is the anti-air
+    // collision radius from `systems/combat.ts`, and it is smaller than the drone's
+    // own sprite. Pinning the clickable area to it made the eye harder to pick up
+    // than anything else in the game — a target half a robot's size for the one
+    // unit that has no marquee, no select-all and no control group to fall back on.
+    const fallbackRadius = gameConfig.robots.radius * 0.9;
+    let outerRadius = fallbackRadius;
     if (sprite) {
       const { texture, def } = sprite;
       const target = def.targetSize ?? gameConfig.grid.tilePx * 1.25;
@@ -141,8 +123,9 @@ export class DroneView {
       if (tint !== undefined) img.tint = tint;
       this.body.addChild(img);
       this.img = img;
+      outerRadius = target / 2;
     } else {
-      const r = gameConfig.robots.radius * 0.9;
+      const r = fallbackRadius;
       const g = new Graphics();
       g.poly([0, -r, r, 0, 0, r, -r, 0])
         .fill({ color: tint ?? palette.drone.body })
@@ -150,11 +133,45 @@ export class DroneView {
       g.circle(0, 0, 2.5).fill(tint ?? palette.drone.edge);
       this.body.addChild(g);
     }
-    this.container.addChild(this.body);
+    // Only your own eye is clickable; an enemy drone stays pruned from hit-testing
+    // entirely, as this whole view used to be.
+    //
+    // The drone is drawn in the `overlay` layer, *above* the units — so a hit area
+    // here does take clicks away from a robot standing under it. That is the trade
+    // being made deliberately: clicking what is on top is what a player expects.
+    // Pinned to the airframe rather than to the container, which the HP bar would
+    // otherwise stretch over open ground.
+    if (isLocal) {
+      this.container.eventMode = 'static';
+      this.container.cursor = 'pointer';
+      this.container.hitArea = new Circle(0, 0, outerRadius + 5);
+      this.container.on('pointerdown', (e) => {
+        if (e.button !== 0) return; // right-click falls to the stage (→ fly there)
+        e.stopPropagation(); // don't let the stage start a marquee under it
+        const store = useGameStore.getState();
+        // On a touchscreen a tap on open ground is the *order* gesture (there is no
+        // second button to put one on — see `input/pointer.ts`), so it can no longer
+        // double as "put this down". Tapping the drone again is what does that.
+        if (e.pointerType === 'touch' && store.selectedDroneId === drone.id) {
+          store.selectDrone(null);
+          return;
+        }
+        store.selectDrone(drone.id);
+      });
+    } else {
+      this.container.eventMode = 'none';
+    }
+
+    // One unique unit per side, so there is no shift-add and no double-click
+    // "select every one of these" — the two branches `RobotView` needs here.
+    this.ring = new Graphics();
+    this.ring.circle(0, 0, outerRadius + 5).stroke({ width: 2, color: palette.selection.ring });
+    this.ring.visible = false;
 
     this.hpBar = new HealthBar(HP_BAR_WIDTH);
     this.hpBar.container.position.set(0, -HP_BAR_OFFSET);
-    this.container.addChild(this.hpBar.container);
+    // Ring under the airframe, bar over it — the same stacking `RobotView` uses.
+    this.container.addChild(this.ring, this.body, this.hpBar.container);
 
     // Off the id rather than the position: a drone spends the match moving, so a
     // positional hash would re-roll its phase every frame.
