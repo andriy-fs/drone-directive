@@ -77,10 +77,18 @@ export function StatusPanel() {
 
   const shield = playerBase?.shield;
   const shieldOn = shield?.active ?? false;
-  // The gate is the engine's, projected through the snapshot: a known enemy robot
-  // inside the base's own detection radius. The engine does not re-check it when
-  // the command lands — pre-casting merely burns the player's single charge.
-  const canRaiseShield = !!shield && !shield.spent && shield.threatNear;
+  // The one condition that is real: the charge. `spent` is set the moment the dome
+  // goes up, so this also covers the dome currently standing.
+  //
+  // It used to additionally require a known enemy inside the base's sight
+  // (`shield.threatNear`), which is why the tile spent most of a match dark for a
+  // reason nothing on screen explained — and a control that is dead without saying
+  // why is the worse failure. Pre-casting is the player's own mistake to make, and
+  // the engine has always taken that view: `applyCommand` gates on the charge alone
+  // and lets an early press through, because silently swallowing a panic-button
+  // press is indistinguishable from the game having frozen
+  // (see `engine/systems/shield.ts`, `canActivateShield`).
+  const canRaiseShield = !!shield && !shield.spent;
   const raiseShield = () => {
     if (playerBase) enqueueCommand({ kind: 'ActivateShield', baseId: playerBase.id });
   };
@@ -155,9 +163,10 @@ export function StatusPanel() {
       {/* The same tiles as the directive grid: the things a player starts from this
           section. Three of them now, because everything about picking units — all,
           none, by weapon, and the observer drone — went behind the Selection tile's
-          dialog rather than spreading across the rail. The dome is the third: dark
-          until an enemy is actually at the door, and dark for good once used, there
-          is exactly one per match. */}
+          dialog rather than spreading across the rail. The dome is the third, and it
+          is live from the first second: the only thing that ever greys it out is the
+          charge being gone, because there is exactly one per match and its tooltip
+          says so. */}
       <div className="tile-grid">
         <Button className="tile" onClick={() => setBuildOpen(true)} disabled={!playerBase}>
           <FactoryIcon className="tile__icon" size={22} />
@@ -177,6 +186,7 @@ export function StatusPanel() {
           className={`tile ${shieldOn ? 'tile--on' : ''}`.trim()}
           onClick={raiseShield}
           disabled={!canRaiseShield}
+          title={t('statusPanel', 'shieldHint')}
         >
           <DomeIcon className="tile__icon" size={22} />
           <span>{shieldLabel}</span>

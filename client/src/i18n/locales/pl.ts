@@ -118,6 +118,7 @@ export const pl: Dict = {
     droneReadyToast: 'Nowy dron obserwacyjny czeka nad twoją bazą',
     droneReadyAction: 'Do drona',
     shield: 'Tarcza energetyczna',
+    shieldHint: 'Jeden ładunek na mecz — kopułę można wznieść tylko raz',
     shieldUp: 'Kopuła aktywna',
     shieldSpent: 'Tarcza zużyta',
   },

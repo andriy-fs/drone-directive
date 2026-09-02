@@ -119,6 +119,7 @@ export const en: Dict = {
     droneReadyToast: 'A new observer drone is ready over your base',
     droneReadyAction: 'Fly it',
     shield: 'Energy shield',
+    shieldHint: 'One charge per match — the dome can be raised only once',
     shieldUp: 'Dome up',
     shieldSpent: 'Shield spent',
   },

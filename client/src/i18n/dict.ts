@@ -157,6 +157,11 @@ export interface Dict {
     droneReadyAction: string;
     /** The energy-dome tile before the match's single charge has been used. */
     shield: string;
+    /**
+     * Its tooltip, on the tile in every state: the dome is one charge for the whole
+     * match, and that is the only thing that ever greys the tile out.
+     */
+    shieldHint: string;
     /** Same tile, and the readout above it, while the dome is standing. */
     shieldUp: string;
     /** Same tile once the charge is gone: still there, permanently dead. */

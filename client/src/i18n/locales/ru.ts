@@ -118,6 +118,7 @@ export const ru: Dict = {
     droneReadyToast: 'Новый дрон-наблюдатель готов над вашей базой',
     droneReadyAction: 'К дрону',
     shield: 'Энергощит',
+    shieldHint: 'Один заряд на матч — щит можно поднять только один раз',
     shieldUp: 'Купол активен',
     shieldSpent: 'Щит израсходован',
   },
