@@ -59,6 +59,23 @@ export const defaultBuildOrder: BuildOrder = {
   weapon: WeaponType.Cannon,
 };
 
+/**
+ * The settings one networked match is built from: the player's own, with the
+ * room's numbers laid over them.
+ *
+ * A copy, deliberately. The room decides map size and bot count for both peers,
+ * but those are the *host's* choices, not this player's, and writing them into
+ * the store would make them the starting point of the next solo match. A 1v1
+ * room seats no bots, so that used to leave `aiOpponents: 0` behind — and a solo
+ * roster of one side is decided on its first tick (`buildRoster`).
+ */
+export function onlineMatchSettings(
+  settings: GameSettings,
+  room: { mapSize: MapSize; aiOpponents: number },
+): GameSettings {
+  return { ...settings, match: { ...settings.match, ...room, online: true } };
+}
+
 /** Fresh copy of the default settings (never share the object — it's mutated per game). */
 export function createDefaultSettings(): GameSettings {
   return {

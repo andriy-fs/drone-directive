@@ -1,5 +1,6 @@
 import { Application, Container, UPDATE_PRIORITY } from 'pixi.js';
 import { gameConfig } from '../config/gameConfig';
+import { onlineMatchSettings } from '../config/gameSettings';
 import { palette } from '../config/palette';
 import type { BaseEntity, DroneEntity, RobotEntity } from '../engine/ecs/archetypes';
 import type { Entity } from '../engine/ecs/entity';
@@ -954,8 +955,6 @@ export class GameApp {
       this.leaveOnlineIfAny();
       if (toMenu) this.engine.toMenu();
       else {
-        // Clear any lingering online flag so a solo restart runs with the bot AI.
-        store.updateSettings({ match: { online: false } });
         this.resetView(store);
         // `?seed=` pins the battlefield so two runs are comparable; without it the
         // context seeds from the clock, which is what solo play normally wants.
@@ -1250,8 +1249,9 @@ export class GameApp {
   private beginOnlineMatch(seed: number, mapSize: MapSize, aiCount: number): void {
     const store = useGameStore.getState();
     // The host chose the roster; the guest adopts it wholesale, or the two peers
-    // would build different worlds from the same seed.
-    store.updateSettings({ match: { mapSize, aiOpponents: aiCount, online: true } });
+    // would build different worlds from the same seed. Composed for this match
+    // only, never written back into `settings` — see `onlineMatchSettings`.
+    const settings = onlineMatchSettings(store.settings, { mapSize, aiOpponents: aiCount });
     this.netTick = 0;
     this.onlinePaused = false;
     this.stalledSince = 0;
@@ -1261,7 +1261,7 @@ export class GameApp {
     // would freeze this client's world while the peer's kept running.
     store.setPaused(false);
     this.resetView(store);
-    this.engine.startMatch(useGameStore.getState().settings, seed);
+    this.engine.startMatch(settings, seed);
     this.engine.setLocalSide(store.localSide);
     this.applyOnlineBaseSetup(store);
     store.setOnlineInMatch();

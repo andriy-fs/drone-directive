@@ -34,10 +34,17 @@ export type Roster = SideSetup[];
  * Free-for-all seating. Offline: the local human plus `aiOpponents` bots.
  * Online: host (`Player`) and guest (`AI`) are the two humans — matching the
  * lobby's side assignment — and the bots fill the remaining corners.
+ *
+ * A solo match always seats at least one bot: a roster of one side is a world
+ * `checkGameOver` decides on its first tick, so a bad count would open a match
+ * on the outcome screen rather than on a battlefield. Online needs no such
+ * floor — the two humans are opponents enough — and must not have one, or the
+ * two peers could derive different rosters from the same handshake.
  */
 export function buildRoster(match: GameSettings['match']): Roster {
   const humans = match.online ? 2 : 1;
-  const bots = clampAiOpponents(match.aiOpponents, match.online);
+  const clamped = clampAiOpponents(match.aiOpponents, match.online);
+  const bots = match.online ? clamped : Math.max(1, clamped);
   return PLAYABLE_OWNERS.slice(0, humans + bots).map((owner, i) => ({
     owner,
     controller: i < humans ? Controller.Human : Controller.Bot,

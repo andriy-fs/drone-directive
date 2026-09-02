@@ -164,7 +164,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   setOnlineLink: (link) =>
     set((s) => (s.online.status !== OnlineStatus.InMatch || s.online.link === link ? {} : { online: { status: OnlineStatus.InMatch, link } })),
   setOnlineFinished: (error, isError) => set({ online: { status: isError ? OnlineStatus.Error : OnlineStatus.Ended, error } }),
-  setOnlineOffline: () => set({ online: { status: OnlineStatus.Offline } }),
+  // Back to `Player` with the status: a guest sat on `Owner.AI` for the match,
+  // and `localSide` is what every snapshot, the fog and the camera are drawn
+  // from. Leaving it behind pointed the next *solo* match at the bot's side —
+  // the player watched an enemy base through their own fog. `leaveOnline` does
+  // the same for the request it raises; this covers the ways out that don't go
+  // through it (Play Again, Main Menu, a session that ended on its own).
+  setOnlineOffline: () => set({ localSide: Owner.Player, online: { status: OnlineStatus.Offline } }),
   setChat: (patch) => set((s) => ({ chat: { ...s.chat, ...patch } })),
   mergeChatHistory: (entries) =>
     set((s) => {

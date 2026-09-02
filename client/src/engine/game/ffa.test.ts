@@ -46,6 +46,25 @@ describe('free-for-all roster', () => {
     expect(livingBases(engine)).toHaveLength(4);
   });
 
+  it('seats a bot even when none were asked for — a solo roster of one is over at once', () => {
+    // Where the count came from: a 1v1 online room seats no bots, and Play Again
+    // after one used to rebuild the world from that number.
+    const engine = start(0);
+    expect(engine.context!.roster.map((s) => s.owner)).toEqual([Owner.Player, Owner.AI]);
+    let over = 0;
+    engine.bus.on('gameOver', () => over++);
+    engine.tick(DT);
+    expect(over).toBe(0);
+  });
+
+  it('seats no bots online when the room asked for none — and does not float the count', () => {
+    // The floor above is offline-only: both peers derive the roster from the same
+    // handshake, so a client-side minimum here would be a desync.
+    const engine = start(0, true);
+    expect(engine.context!.roster.map((s) => s.owner)).toEqual([Owner.Player, Owner.AI]);
+    expect(engine.context!.roster.filter((s) => s.controller === Controller.Bot)).toHaveLength(0);
+  });
+
   it('seats two humans online, with bots filling the rest', () => {
     const engine = start(2, true);
     const roster = engine.context!.roster;
