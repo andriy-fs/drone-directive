@@ -12,11 +12,13 @@ import {
   selectSelectedIds,
 } from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
+import { commandableRobots } from '../../store/selection';
 import { DroneMode } from '../../store/enums';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
-import { DomeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
+import { DomeIcon, FactoryIcon, FormationIcon, SelectAllIcon } from '../common/icons';
 import { BuildRobotModal } from './BuildRobotModal';
+import { FormationModal } from './FormationModal';
 import { SelectionModal } from './SelectionModal';
 import { programLabel } from './programOptions';
 
@@ -47,6 +49,10 @@ export function StatusPanel() {
   // Local state, unlike the build dialog's: nothing on the canvas opens this one,
   // so it has no second entry point to keep in step.
   const [selectionOpen, setSelectionOpen] = useState(false);
+  const [formationOpen, setFormationOpen] = useState(false);
+  // The same answer the Directive card gets, from the same helper: a shape can
+  // only be given to units that are actually in hand.
+  const commandable = commandableRobots(robots, selectedRobotIds, localSide, selectedBaseId);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   // Dialog visibility lives in the store so a double-click on the base (canvas
   // side) opens the very same dialog as this panel's button.
@@ -191,10 +197,20 @@ export function StatusPanel() {
           <DomeIcon className="tile__icon" size={22} />
           <span>{shieldLabel}</span>
         </Button>
+        <Button
+          className="tile"
+          // Nothing selected, nothing to put in a shape.
+          disabled={commandable.length === 0}
+          onClick={() => setFormationOpen(true)}
+        >
+          <FormationIcon className="tile__icon" size={22} />
+          <span>{t('programming', 'formationHeading')}</span>
+        </Button>
       </div>
 
       {buildOpen && <BuildRobotModal onClose={() => setBuildOpen(false)} />}
       {selectionOpen && <SelectionModal onClose={() => setSelectionOpen(false)} />}
+      {formationOpen && <FormationModal onClose={() => setFormationOpen(false)} />}
     </div>
   );
 }

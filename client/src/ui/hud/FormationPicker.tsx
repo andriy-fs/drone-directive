@@ -26,8 +26,11 @@ import {
  * These tiles do carry tooltips, where the directive tiles deliberately don't:
  * what a shape costs is a decision made at the moment of clicking, not
  * background reading.
+ *
+ * `onPicked` is for the dialog that now hosts them (`FormationModal`) — the grid
+ * itself does not care where it is mounted.
  */
-export function FormationPicker({ robots }: { robots: RobotSnapshot[] }) {
+export function FormationPicker({ robots, onPicked }: { robots: RobotSnapshot[]; onPicked?: () => void }) {
   const t = useT();
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   const labels = formationLabels(t);
@@ -40,6 +43,7 @@ export function FormationPicker({ robots }: { robots: RobotSnapshot[] }) {
 
   const assign = (choice: FormationChoice) => {
     enqueueCommand({ kind: 'SetFormation', robotIds: robots.map((r) => r.id), formation: choice });
+    onPicked?.();
   };
 
   return (

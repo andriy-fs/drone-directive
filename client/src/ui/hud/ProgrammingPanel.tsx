@@ -8,8 +8,8 @@ import {
   selectSelectedBaseId,
   selectSelectedIds,
 } from '../../store/selectors';
+import { commandableRobots } from '../../store/selection';
 import { Bar } from '../common/Bar';
-import { FormationPicker } from './FormationPicker';
 import { programLabel } from './programOptions';
 import { TaskPicker } from './TaskPicker';
 
@@ -44,7 +44,7 @@ export function ProgrammingPanel() {
   const selected = robots.filter((r) => selectedIds.includes(r.id));
   // Commandable = owned by the local side (the online guest plays Owner.AI), so
   // a stray enemy in the selection can never be handed a directive.
-  const mine = base ? [] : selected.filter((r) => r.owner === localSide);
+  const mine = commandableRobots(robots, selectedIds, localSide, selectedBaseId);
   const single = mine.length === 1 ? mine[0] : null;
   // Nothing of ours under the cursor: the bar has no health to report, so it goes
   // inert — grey and full — rather than empty and green, which would read as a
@@ -106,15 +106,12 @@ export function ProgrammingPanel() {
         value={inert ? 1 : maxHp > 0 ? hp / maxHp : 0}
       />
 
-      {/* Two grids of tiles under one card, so they need saying apart: the first
-          is what the units are *for*, the second is how they travel while doing
-          it. Without the sub-headings the twelve tiles read as one grid of
-          twelve unrelated orders. */}
+      {/* One grid now — the shapes moved to a dialog off the Command section
+          (`FormationModal`), which is what this heading used to be here to say
+          apart from them. Kept anyway: it names what the six tiles below *are*,
+          and the card's help button hangs off the same subject. */}
       <h3 className="hud__subheading">{t('programming', 'directiveHeading')}</h3>
       <TaskPicker robots={mine} />
-
-      <h3 className="hud__subheading">{t('programming', 'formationHeading')}</h3>
-      <FormationPicker robots={mine} />
 
       {/* Kept mounted and at a fixed height even when it has nothing to say — it
           holds two rows for a base and one for a robot. */}

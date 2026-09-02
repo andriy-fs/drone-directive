@@ -34,6 +34,25 @@ export function selectOwnRobotsByWeapon(weapon: WeaponType): void {
 }
 
 /**
+ * The robots a panel may actually give orders to: this side's own, out of the
+ * current selection, and none at all while a base is what is selected.
+ *
+ * Shared so the two surfaces that command a selection — the Directive card and the
+ * formation dialog — can never disagree about what is in hand. Owner is checked
+ * because a marquee can sweep up an enemy, and the online guest plays `Owner.AI`,
+ * so matching 'player' would hand orders to the opponent's army.
+ */
+export function commandableRobots(
+  robots: RobotSnapshot[],
+  selectedIds: string[],
+  side: Owner,
+  selectedBaseId: string | null,
+): RobotSnapshot[] {
+  if (selectedBaseId) return [];
+  return robots.filter((r) => selectedIds.includes(r.id) && r.owner === side);
+}
+
+/**
  * How many of each weapon a side is fielding — what the selection dialog builds
  * its per-weapon buttons out of, so it only ever offers a manoeuvre that would
  * select something.

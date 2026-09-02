@@ -43,6 +43,7 @@ import {
   Zap as LucideZap,
   Plane as LucidePlane,
   Columns3 as LucideColumns3,
+  Grid2x2 as LucideGrid2x2,
   Square as LucideSquare,
   Maximize2 as LucideMaximize2,
   Ban as LucideBan,
@@ -144,3 +145,10 @@ export const LineFormationIcon = LucideColumns3;
 export const BoxFormationIcon = LucideSquare;
 export const SpreadFormationIcon = LucideMaximize2;
 export const NoFormationIcon = LucideBan;
+/**
+ * The Command tile that opens the formation dialog — the subject rather than any
+ * one shape. A four-cell grid: none of the four choices owns it, and it collides
+ * with nothing else in the rail (the square below is `BoxFormationIcon`, which
+ * only ever appears inside the dialog now).
+ */
+export const FormationIcon = LucideGrid2x2;
