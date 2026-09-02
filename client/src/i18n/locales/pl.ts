@@ -115,6 +115,7 @@ export const pl: Dict = {
     stop: 'Stop',
     buildProgram: 'Budowa',
     selectAll: 'Zaznacz wszystkie',
+    clearSelection: 'Wyczyść zaznaczenie',
     droneReadyToast: 'Nowy dron obserwacyjny czeka nad twoją bazą',
     droneReadyAction: 'Do drona',
     shield: 'Tarcza energetyczna',

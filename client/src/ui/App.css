@@ -2,7 +2,12 @@
   display: grid;
   grid-template-columns: 300px 1fr;
   width: 100vw;
+  /* `100vh` on a mobile browser is the tallest the viewport ever gets, address bar
+     retracted — so the HUD's bottom edge sits under the chrome until you scroll,
+     and this shell cannot scroll. `100dvh` is the honest number; the `vh` line
+     stays underneath it as the fallback for anything that has not got `dvh`. */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -202,6 +207,23 @@
 .sound-toggle:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* A finger, not a cursor: the five titlebar controls come out ~34px square from
+   `.btn`'s padding around a 16px icon, under both the 44px (Apple) and 48px
+   (Material) guidelines — and `space-between` leaves their hit boxes touching, so
+   a near miss lands on the neighbour rather than on nothing. Written as `min-*`
+   on purpose: `padding` here would lose the specificity tie to `.btn` below.
+   Five 44px targets plus the gaps still fit the 300px rail. */
+@media (pointer: coarse) {
+  .sound-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .hud__controls {
+    gap: 4px;
+  }
 }
 
 /* Paused watermark over the viewport (non-interactive) */
@@ -1231,7 +1253,10 @@
   padding: 28px 32px;
   min-width: 260px;
   max-width: min(92vw, 420px);
+  /* Same `dvh` fallback pair as `.app-shell`: measured against the tall viewport
+     a modal on a phone-sized screen runs past the visible area. */
   max-height: 88vh;
+  max-height: 88dvh;
   overflow-y: auto;
   text-align: center;
   box-shadow: var(--shadow-modal);
@@ -1462,6 +1487,7 @@
   gap: 20px;
   width: min(94vw, 800px);
   max-height: 88vh;
+  max-height: 88dvh;
   overflow-y: auto;
   padding: 28px 32px;
   background: var(--surface-glass);
@@ -2042,6 +2068,7 @@ a.menu-nav__item {
   flex-direction: column;
   width: min(320px, calc(100vw - 40px));
   max-height: min(420px, calc(100vh - 40px));
+  max-height: min(420px, calc(100dvh - 40px));
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);

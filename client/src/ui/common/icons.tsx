@@ -24,6 +24,7 @@ import {
   Crosshair as LucideCrosshair,
   Factory as LucideFactory,
   SquareDashedMousePointer as LucideSquareDashedMousePointer,
+  SquareDashed as LucideSquareDashed,
   Hexagon as LucideHexagon,
   Globe as LucideGlobe,
   Palette as LucidePalette,
@@ -99,6 +100,8 @@ export const CrosshairIcon = LucideCrosshair;
    a force field and is spoken for by nothing. */
 export const FactoryIcon = LucideFactory;
 export const SelectAllIcon = LucideSquareDashedMousePointer;
+/** Its opposite, and drawn as one: the same marquee with the cursor taken out. */
+export const ClearSelectionIcon = LucideSquareDashed;
 export const DomeIcon = LucideHexagon;
 
 /* The title screen: the global settings bar, then one per navigation entry. */

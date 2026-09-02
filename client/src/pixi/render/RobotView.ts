@@ -267,6 +267,16 @@ export class RobotView {
         }
         this.lastClickAt = now;
 
+        // A finger has no way to clear a selection by clicking open ground — that
+        // gesture is the move order now (see `input/pointer.ts`) — so tapping a
+        // robot you already have drops it, the same escape the drone has. After
+        // the double-tap branch on purpose: taking it first would make the second
+        // tap of a "select all of this type" land on an empty selection.
+        if (e.pointerType === 'touch' && store.selectedRobotIds.includes(robot.id)) {
+          store.selectRobots([]);
+          return;
+        }
+
         if (e.shiftKey) store.toggleRobot(robot.id);
         else store.selectRobots([robot.id]);
       });

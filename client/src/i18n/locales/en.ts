@@ -116,6 +116,7 @@ export const en: Dict = {
     stop: 'Stop',
     buildProgram: 'Build',
     selectAll: 'Select all',
+    clearSelection: 'Clear selection',
     droneReadyToast: 'A new observer drone is ready over your base',
     droneReadyAction: 'Fly it',
     shield: 'Energy shield',

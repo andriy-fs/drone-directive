@@ -93,7 +93,10 @@ export interface PointerControls {
  * - Left drag = selection marquee (Shift adds); left click on your own base
  *   selects it, left click on empty ground clears the selection.
  *   (Clicking a robot is handled in RobotView, your own drone in DroneView.)
- * - Arrow keys/WASD = fly the observer drone (the camera follows it).
+ * - Middle drag = pan the camera. The button is otherwise unused everywhere —
+ *   every view's own handler returns on anything but button 0 — so this is the
+ *   one camera control that can be added without taking a verb off another.
+ * - Arrow keys/WASD = pan the camera, or steer a hull the drone is riding.
  * - `F` = land on / take off from an idle robot; `E` = fire / detonate it.
  * - Right click with a base selected = set that base's rally point (right click
  *   on the base itself clears it); the robot selection is untouched.
@@ -102,6 +105,10 @@ export interface PointerControls {
  *   which are unchanged (see `engine/systems/drone.ts`).
  * - Right click on an enemy (robot or base) = order the selection to attack it;
  *   right click on open ground = move the selection there in a compact formation.
+ * - **A tap is the touchscreen's right click.** With the drone or robots selected,
+ *   a tap on open ground orders them there (`handleTap`); a finger has no second
+ *   button, and this is the only gesture left once left-drag is the marquee.
+ *   Gated on `pointerType`, so a mouse keeps clearing the selection instead.
  *
  * **The mouse goes dead while a drone is riding a hull.** The top view is hidden
  * then (see `pixi/render/fpv/`), so a marquee would box units nobody can see and a
@@ -141,10 +148,21 @@ export function attachPointerControls(
   let startX = 0;
   let startY = 0;
 
+  /** Middle-button camera drag: live, and the last screen position it saw. */
+  let panning = false;
+  let panX = 0;
+  let panY = 0;
+
   const onDown = (e: FederatedPointerEvent) => {
     if (possessing()) return;
     if (e.button === 2) {
       issueRightClick(camera, engine, e.global.x, e.global.y, hooks.onOrder);
+      return;
+    }
+    if (e.button === 1) {
+      panning = true;
+      panX = e.global.x;
+      panY = e.global.y;
       return;
     }
     if (e.button !== 0) return;
@@ -164,6 +182,16 @@ export function attachPointerControls(
       hooks.onPointerMove(null);
       return;
     }
+    if (panning) {
+      // `panByScreen` already divides by the zoom and clamps to the map, so this
+      // is a raw screen delta. Reported as `null` so the attack preview does not
+      // chase the cursor across a moving field.
+      camera.panByScreen(e.global.x - panX, e.global.y - panY);
+      panX = e.global.x;
+      panY = e.global.y;
+      hooks.onPointerMove(null);
+      return;
+    }
     if (selecting && isDrag(startX, startY, e.global.x, e.global.y, e.pointerType)) moved = true;
     // A marquee is being dragged: the player is picking units, not aiming at one.
     hooks.onPointerMove(selecting && moved ? null : { x: e.global.x, y: e.global.y });
@@ -179,6 +207,9 @@ export function attachPointerControls(
       hooks.onPointerMove(null);
       return;
     }
+    // Any lift ends the pan, whichever button reports it: `pointerupoutside` is
+    // wired here too, so a drag that leaves the canvas cannot leave it stuck on.
+    panning = false;
     if (selecting) {
       if (moved) {
         selectInBox(camera, engine, startX, startY, e.global.x, e.global.y, additive);
@@ -198,6 +229,20 @@ export function attachPointerControls(
   };
 
   const onContextMenu = (e: MouseEvent) => e.preventDefault();
+
+  /**
+   * The middle button's two native behaviours, both of which would fire over a
+   * camera drag: `mousedown` puts up the scroll-anywhere compass on Windows, and
+   * the `auxclick` that follows opens things in a new tab. Pixi's federated event
+   * cannot cancel either — the browser acts on the native one — so they are killed
+   * on the canvas, next to `contextmenu`, which is there for the same reason.
+   */
+  const onAuxMouseDown = (e: MouseEvent) => {
+    if (e.button === 1) e.preventDefault();
+  };
+  const onAuxClick = (e: MouseEvent) => {
+    if (e.button === 1) e.preventDefault();
+  };
 
   // Held arrow keys/WASD, summed into one vector on the store. This layer does not
   // decide what that vector *means* — the bridge does, off the one condition that
@@ -250,6 +295,9 @@ export function attachPointerControls(
   };
 
   const cancelSelection = () => {
+    // Before the guard: the possessed-state routes come through here, and a camera
+    // drag left running would pan a viewport that is no longer on screen.
+    panning = false;
     if (!selecting) return;
     selecting = false;
     moved = false;
@@ -262,6 +310,8 @@ export function attachPointerControls(
   stage.on('pointerup', onUp);
   stage.on('pointerupoutside', onUp);
   app.canvas.addEventListener('contextmenu', onContextMenu);
+  app.canvas.addEventListener('mousedown', onAuxMouseDown);
+  app.canvas.addEventListener('auxclick', onAuxClick);
   app.canvas.addEventListener('pointerleave', onLeave);
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
@@ -273,6 +323,8 @@ export function attachPointerControls(
     stage.off('pointerup', onUp);
     stage.off('pointerupoutside', onUp);
     app.canvas.removeEventListener('contextmenu', onContextMenu);
+    app.canvas.removeEventListener('mousedown', onAuxMouseDown);
+    app.canvas.removeEventListener('auxclick', onAuxClick);
     app.canvas.removeEventListener('pointerleave', onLeave);
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
@@ -351,10 +403,16 @@ function sendSelectedDrone(ctx: GameContext, point: Vec2, onOrder: PointerHooks[
  * selects it, anything else clears the selection.
  *
  * **On a touchscreen it is also the order gesture**, because there is no second
- * button to put one on. With the observer drone selected, a tap on open ground
- * sends it there — which is the whole of drone control on a tablet, and the reason
- * the eye can be flown at all without a keyboard. Deselecting moves to a tap on
- * the drone itself (see `render/DroneView.ts`), since this gesture is spoken for.
+ * button to put one on: with the drone selected a tap sends it, with robots
+ * selected it moves or attacks with them. That is the whole of unit control on a
+ * tablet, and the reason an army can be commanded at all without a keyboard.
+ * Deselecting moves onto the units themselves — a tap on a selected drone or
+ * robot drops it (see `render/DroneView.ts`, `render/RobotView.ts`) — since this
+ * gesture is spoken for. There is also a HUD tile for it (`hud/StatusPanel.tsx`).
+ *
+ * The base branch above is the exception, and deliberately so: a rally point is
+ * *not* placed by a tap, which leaves "tap open ground" free to be the only way a
+ * finger has of dropping a base selection. Rally stays on the right click.
  *
  * Gated on `pointerType`, so a mouse cannot reach it by construction — and a
  * hybrid device's trackpad reports `mouse`, keeping the desktop behaviour.
@@ -380,7 +438,13 @@ function handleTap(
     store.selectBase(base.id);
     return;
   }
-  if (e.pointerType === 'touch' && sendSelectedDrone(ctx, point, onOrder)) return;
+  if (e.pointerType === 'touch') {
+    // The same ordered chain the right click walks, minus its rally branch: the
+    // selection slots are mutually exclusive in the store, so whichever is filled
+    // is the one this tap is for.
+    if (sendSelectedDrone(ctx, point, onOrder)) return;
+    if (orderSelectedRobots(ctx, point, onOrder)) return;
+  }
   store.clearSelection();
 }
 
@@ -421,16 +485,31 @@ function issueRightClick(
     store.selectBase(null); // the base is gone — fall back to ordering robots
   }
 
-  if (sendSelectedDrone(ctx, camera.screenToWorld(globalX, globalY), onOrder)) return;
+  const point = camera.screenToWorld(globalX, globalY);
+  if (sendSelectedDrone(ctx, point, onOrder)) return;
+  orderSelectedRobots(ctx, point, onOrder);
+}
 
+/**
+ * Send the robot selection to `point` — attacking whatever enemy is standing
+ * there, else moving. Returns whether it had a selection to order, so a caller
+ * chaining it can tell an order from a gesture that meant something else.
+ *
+ * The sibling of `sendSelectedDrone` and shared the same way, by the right click
+ * and by the tap: one place that decides move-versus-attack, and one place that
+ * marks it.
+ */
+function orderSelectedRobots(ctx: GameContext, point: Vec2, onOrder: PointerHooks['onOrder']): boolean {
+  const store = useGameStore.getState();
+  const side = store.localSide;
   const robotIds = store.selectedRobotIds
     .map((id) => livingRobotById(ctx, id))
     .filter((e) => e !== undefined)
     .filter((e) => e.owner === side)
     .map((e) => e.id);
-  if (robotIds.length === 0) return;
+  // No marker for an order nobody received.
+  if (robotIds.length === 0) return false;
 
-  const point = camera.screenToWorld(globalX, globalY);
   const target = enemyAt(ctx, point, side);
   // Route through the command queue (not direct entity mutation) so both peers
   // apply the order on the same tick in networked matches.
@@ -443,4 +522,5 @@ function issueRightClick(
     store.enqueueCommand({ kind: 'MoveRobots', robotIds, point });
     onOrder(point, 'move');
   }
+  return true;
 }

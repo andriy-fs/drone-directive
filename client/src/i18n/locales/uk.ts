@@ -115,6 +115,7 @@ export const uk: Dict = {
     stop: 'Стоп',
     buildProgram: 'Побудова',
     selectAll: 'Виділити всіх',
+    clearSelection: 'Зняти виділення',
     droneReadyToast: 'Новий дрон-спостерігач готовий над вашою базою',
     droneReadyAction: 'До дрона',
     shield: 'Енергощит',

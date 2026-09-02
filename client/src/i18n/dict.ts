@@ -149,6 +149,12 @@ export interface Dict {
     /** The tile that does what Ctrl+A does, for a player who doesn't know Ctrl+A. */
     selectAll: string;
     /**
+     * Its opposite. Chiefly for a touchscreen, where clicking open ground is the
+     * move order rather than a way out of a selection — but it is the only
+     * always-visible route on any device, so it is not gated on the pointer.
+     */
+    clearSelection: string;
+    /**
      * The toast over the canvas announcing that a replacement drone is up, and its
      * action. Shown until the player syncs the view back to it — the camera
      * deliberately does not move on its own (see GameApp.wireBus).

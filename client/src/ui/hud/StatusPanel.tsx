@@ -8,12 +8,14 @@ import {
   selectResources,
   selectRobotLoad,
   selectRobots,
+  selectSelectedBaseId,
+  selectSelectedIds,
 } from '../../store/selectors';
 import { useGameStore } from '../../store/gameStore';
 import { DroneMode } from '../../store/enums';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
-import { DomeIcon, EyeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
+import { ClearSelectionIcon, DomeIcon, EyeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
 import { selectAllOwnRobots } from '../hooks/useSelectAllHotkey';
 import { BuildRobotModal } from './BuildRobotModal';
 import { programLabel } from './programOptions';
@@ -37,6 +39,14 @@ export function StatusPanel() {
   const drone = useGameStore(selectDroneStatus);
   const droneReady = useGameStore(selectDroneReadyNotice) > 0;
   const requestShowDrone = useGameStore((s) => s.requestShowDrone);
+  const clearSelection = useGameStore((s) => s.clearSelection);
+  // The three slots are mutually exclusive in the store, so "something is
+  // selected" is the union of all of them — the tile has to light up for a base
+  // and for the drone too, not only for an army.
+  const selectedRobotIds = useGameStore(selectSelectedIds);
+  const selectedBaseId = useGameStore(selectSelectedBaseId);
+  const selectedDroneId = useGameStore((s) => s.selectedDroneId);
+  const hasSelection = selectedRobotIds.length > 0 || selectedBaseId !== null || selectedDroneId !== null;
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   // Dialog visibility lives in the store so a double-click on the base (canvas
   // side) opens the very same dialog as this panel's button.
@@ -143,10 +153,13 @@ export function StatusPanel() {
       )}
 
       {/* The same tiles as the directive grid: the things a player starts from
-          this section, one of which (select-all) is otherwise a shortcut they have
-          to know about before they can use it. The last two are the dome — dark
-          until an enemy is actually at the door, and dark for good once used,
-          there is exactly one per match — and the drone view toggle. */}
+          this section, two of which (select-all and its opposite) are otherwise
+          shortcuts they have to know about before they can use them — and on a
+          touchscreen clearing a selection has no shortcut at all, because a tap on
+          open ground is the move order there (`pixi/input/pointer.ts`). The last
+          two are the dome — dark until an enemy is actually at the door, and dark
+          for good once used, there is exactly one per match — and the drone view
+          toggle. */}
       <div className="tile-grid">
         <Button className="tile" onClick={() => setBuildOpen(true)} disabled={!playerBase}>
           <FactoryIcon className="tile__icon" size={22} />
@@ -155,6 +168,10 @@ export function StatusPanel() {
         <Button className="tile" onClick={selectAllOwnRobots} disabled={myRobotCount === 0}>
           <SelectAllIcon className="tile__icon" size={22} />
           <span>{t('statusPanel', 'selectAll')}</span>
+        </Button>
+        <Button className="tile" onClick={clearSelection} disabled={!hasSelection}>
+          <ClearSelectionIcon className="tile__icon" size={22} />
+          <span>{t('statusPanel', 'clearSelection')}</span>
         </Button>
         <Button
           className={`tile ${shieldOn ? 'tile--on' : ''}`.trim()}
