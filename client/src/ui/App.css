@@ -984,6 +984,22 @@
   color: var(--icon-on-accent);
 }
 
+/* The headcount behind a tile in the selection dialog — how many units the button
+   would pick. Dim and tabular: it is a reading, not the label, and the column of
+   them has to line up as the army changes. Pulled up against the label rather than
+   sitting a third `gap` below it, which would make these tiles taller than the
+   sidebar's for no reason. */
+.tile__count {
+  margin-top: -4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.tile--on .tile__count {
+  color: var(--text-on-accent);
+}
+
 .modal__buttons {
   display: flex;
   gap: 10px;

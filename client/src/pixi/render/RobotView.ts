@@ -3,6 +3,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { RobotEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
+import { selectOwnRobotsByWeapon } from '../../store/selection';
 import { ChassisType, WeaponType } from '@drone-directive/types/enums';
 import { GAIT_STRIDE_PX, WEAPON_TARGET } from '../../config/sprites';
 import { getRobotGaitTextures, getRobotTexture, getWeaponTexture, type ResolvedSprite } from '../assets';
@@ -260,9 +261,9 @@ export class RobotView {
         // one's weapon type — a quick way to pull together e.g. all cannons.
         if (!e.shiftKey && now - this.lastClickAt < DOUBLE_CLICK_MS) {
           this.lastClickAt = 0; // consume so a third click starts a fresh pair
-          store.selectRobots(
-            store.robots.filter((r) => r.owner === local && r.weapon === robot.weaponType).map((r) => r.id),
-          );
+          // The same manoeuvre the selection dialog offers, and the same function:
+          // see `store/selection.ts` for why it is not written out here.
+          selectOwnRobotsByWeapon(robot.weaponType);
           return;
         }
         this.lastClickAt = now;

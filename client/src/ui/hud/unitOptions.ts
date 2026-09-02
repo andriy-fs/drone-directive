@@ -44,8 +44,14 @@ export const WEAPON_ICONS: Record<WeaponType, LucideIcon> = {
 
 const CHASSIS_OPTIONS: ChassisType[] = [ChassisType.Tracks, ChassisType.Wheels, ChassisType.Legs];
 
-/** Everything but `None` — a robot the player orders always carries a payload. */
-const WEAPON_OPTIONS: WeaponType[] = [
+/**
+ * Everything but `None` — a robot the player orders always carries a payload.
+ *
+ * Exported because it is also the display *order*: the selection dialog lists the
+ * weapons a player is fielding, and reading them off a live snapshot would let the
+ * buttons reshuffle as units are built and lost.
+ */
+export const WEAPON_OPTIONS: WeaponType[] = [
   WeaponType.Cannon,
   WeaponType.Missiles,
   WeaponType.Bomb,

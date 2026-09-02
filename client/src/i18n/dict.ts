@@ -146,14 +146,8 @@ export interface Dict {
     stop: string;
     /** The tile that opens the build dialog (whose own title is `buildRobot.title`). */
     buildProgram: string;
-    /** The tile that does what Ctrl+A does, for a player who doesn't know Ctrl+A. */
-    selectAll: string;
-    /**
-     * Its opposite. Chiefly for a touchscreen, where clicking open ground is the
-     * move order rather than a way out of a selection — but it is the only
-     * always-visible route on any device, so it is not gated on the pointer.
-     */
-    clearSelection: string;
+    /** The tile that opens the selection dialog (whose own strings are `selection`). */
+    selection: string;
     /**
      * The toast over the canvas announcing that a replacement drone is up, and its
      * action. Shown until the player syncs the view back to it — the camera
@@ -167,6 +161,22 @@ export interface Dict {
     shieldUp: string;
     /** Same tile once the charge is gone: still there, permanently dead. */
     shieldSpent: string;
+  };
+  /** The selection dialog — every way of picking an army, behind one HUD tile. */
+  selection: {
+    title: string;
+    /** Does what Ctrl+A does, for a player who has not learned Ctrl+A. */
+    all: string;
+    /**
+     * Its opposite. Chiefly for a touchscreen, where a tap on open ground is the
+     * move order rather than a way out of a selection.
+     */
+    clear: string;
+    /**
+     * Heading over the per-weapon buttons. Only the weapons the player actually
+     * fields appear under it, so the group is absent from an empty army.
+     */
+    byWeapon: string;
   };
   programming: {
     selectUnits: string;

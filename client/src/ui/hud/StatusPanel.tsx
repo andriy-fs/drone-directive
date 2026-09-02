@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { gameConfig } from '../../config/gameConfig';
 import { useT } from '../../i18n';
 import {
@@ -15,9 +16,9 @@ import { useGameStore } from '../../store/gameStore';
 import { DroneMode } from '../../store/enums';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
-import { ClearSelectionIcon, DomeIcon, EyeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
-import { selectAllOwnRobots } from '../hooks/useSelectAllHotkey';
+import { DomeIcon, EyeIcon, FactoryIcon, SelectAllIcon } from '../common/icons';
 import { BuildRobotModal } from './BuildRobotModal';
+import { SelectionModal } from './SelectionModal';
 import { programLabel } from './programOptions';
 
 /**
@@ -39,14 +40,16 @@ export function StatusPanel() {
   const drone = useGameStore(selectDroneStatus);
   const droneReady = useGameStore(selectDroneReadyNotice) > 0;
   const requestShowDrone = useGameStore((s) => s.requestShowDrone);
-  const clearSelection = useGameStore((s) => s.clearSelection);
-  // The three slots are mutually exclusive in the store, so "something is
-  // selected" is the union of all of them — the tile has to light up for a base
-  // and for the drone too, not only for an army.
+  // The three selection slots are mutually exclusive in the store, so "something
+  // is selected" is the union of all of them — a base and the drone count too, not
+  // only an army.
   const selectedRobotIds = useGameStore(selectSelectedIds);
   const selectedBaseId = useGameStore(selectSelectedBaseId);
   const selectedDroneId = useGameStore((s) => s.selectedDroneId);
   const hasSelection = selectedRobotIds.length > 0 || selectedBaseId !== null || selectedDroneId !== null;
+  // Local state, unlike the build dialog's: nothing on the canvas opens this one,
+  // so it has no second entry point to keep in step.
+  const [selectionOpen, setSelectionOpen] = useState(false);
   const enqueueCommand = useGameStore((s) => s.enqueueCommand);
   // Dialog visibility lives in the store so a double-click on the base (canvas
   // side) opens the very same dialog as this panel's button.
@@ -165,13 +168,15 @@ export function StatusPanel() {
           <FactoryIcon className="tile__icon" size={22} />
           <span>{t('statusPanel', 'buildProgram')}</span>
         </Button>
-        <Button className="tile" onClick={selectAllOwnRobots} disabled={myRobotCount === 0}>
+        <Button
+          className="tile"
+          // Dead only when it could do nothing at all: no army to pick from and
+          // nothing picked to drop.
+          disabled={myRobotCount === 0 && !hasSelection}
+          onClick={() => setSelectionOpen(true)}
+        >
           <SelectAllIcon className="tile__icon" size={22} />
-          <span>{t('statusPanel', 'selectAll')}</span>
-        </Button>
-        <Button className="tile" onClick={clearSelection} disabled={!hasSelection}>
-          <ClearSelectionIcon className="tile__icon" size={22} />
-          <span>{t('statusPanel', 'clearSelection')}</span>
+          <span>{t('statusPanel', 'selection')}</span>
         </Button>
         <Button
           className={`tile ${shieldOn ? 'tile--on' : ''}`.trim()}
@@ -194,6 +199,7 @@ export function StatusPanel() {
       </div>
 
       {buildOpen && <BuildRobotModal onClose={() => setBuildOpen(false)} />}
+      {selectionOpen && <SelectionModal onClose={() => setSelectionOpen(false)} />}
     </div>
   );
 }
