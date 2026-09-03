@@ -34,6 +34,7 @@ export const pl: Dict = {
     unitGuide: 'Przewodnik po jednostkach',
     singleplayer: 'Gra jednoosobowa',
     matchSetup: 'Ustawienia rozgrywki',
+    discord: 'Discord',
     desktopApp: 'Wersja na PC',
     quit: 'Zakończ grę',
   },

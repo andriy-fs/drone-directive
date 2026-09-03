@@ -1,8 +1,21 @@
-import { DESKTOP_RELEASES_URL, isDesktopApp, quitDesktopApp } from '../../config/platform';
+import {
+  DESKTOP_RELEASES_URL,
+  DISCORD_INVITE_URL,
+  isDesktopApp,
+  openDiscord,
+  quitDesktopApp,
+} from '../../config/platform';
 import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
 import { Button } from '../common/Button';
-import { BookOpenIcon, DownloadIcon, PowerIcon, UserIcon, UsersIcon } from '../common/icons';
+import {
+  BookOpenIcon,
+  DiscordIcon,
+  DownloadIcon,
+  PowerIcon,
+  UserIcon,
+  UsersIcon,
+} from '../common/icons';
 
 /** Which kind of game the title screen is setting up — one panel per value. */
 export type MenuMode = 'single' | 'online';
@@ -55,9 +68,36 @@ export function MenuNav({
         <span className="menu-nav__label">{t('mainMenu', 'unitGuide')}</span>
       </Button>
 
-      {/* An anchor, not a `Button`: this navigates, and it is the only link in the
-          UI that leaves the app. It carries `btn` by hand because that styling
-          comes from the shared component every other rail entry goes through. */}
+      {/* Anchors, not `Button`s: these navigate, and they are the only links in
+          the UI that leave the app. They carry `btn` by hand because that styling
+          comes from the shared component every other rail entry goes through.
+
+          Discord is offered in both builds — unlike the desktop download below,
+          which the desktop build has no use for.
+
+          Its plain left click is handled rather than followed, because the
+          installed Discord client is the better destination when there is one
+          and only `openDiscord` can find that out. The `href` stays the web
+          invite, so every other way of using a link still works — and so does
+          this one if scripting is having a bad day. */}
+      <a
+        className="btn menu-nav__item menu-nav__item--tertiary"
+        href={DISCORD_INVITE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          sfx.buttonClick();
+          // A modified click means the player asked for something specific
+          // (new tab, new window, download) — leave the browser to it.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+          e.preventDefault();
+          openDiscord();
+        }}
+      >
+        <DiscordIcon size={16} aria-hidden />
+        <span className="menu-nav__label">{t('mainMenu', 'discord')}</span>
+      </a>
+
       {!isDesktopApp && (
         <a
           className="btn menu-nav__item menu-nav__item--tertiary"

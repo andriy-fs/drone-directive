@@ -1,3 +1,4 @@
+import type { SVGProps } from 'react';
 import {
   Pause as LucidePause,
   Play as LucidePlay,
@@ -119,6 +120,27 @@ export const DownloadIcon = LucideDownload;
 /* Its mirror: the entry that quits the desktop app, shown only there. A power
    symbol, because this ends the process rather than navigating anywhere. */
 export const PowerIcon = LucidePower;
+
+/* The rail's link out to the game's Discord. Hand-drawn rather than imported:
+   Lucide ships no brand marks, and a generic speech bubble is already spoken for
+   by `MessageSquare` (= in-match chat). Kept on Lucide's own geometry — a 24-unit
+   box, `currentColor`, sized by the same `size` prop — so it sits in a row of
+   Lucide icons without looking like a guest. Filled, because the mark is a
+   silhouette and a stroked outline of it reads as noise at 16px. */
+export function DiscordIcon({ size = 24, ...props }: { size?: number } & SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      {...props}
+    >
+      <path d="M19.27 5.33A16.4 16.4 0 0 0 15.16 4l-.28.55a12 12 0 0 1 3.4 1.4 15.6 15.6 0 0 0-12.56 0 12 12 0 0 1 3.4-1.4L8.84 4a16.4 16.4 0 0 0-4.11 1.33C2.1 9.28 1.39 13.13 1.74 16.92a16.6 16.6 0 0 0 5.07 2.58l1.1-1.53a10.8 10.8 0 0 1-1.71-.83l.42-.33a11.9 11.9 0 0 0 10.76 0l.42.33c-.54.33-1.11.6-1.71.83l1.1 1.53a16.6 16.6 0 0 0 5.07-2.58c.42-4.39-.71-8.2-2.99-11.59ZM8.52 14.65c-.99 0-1.8-.91-1.8-2.03s.79-2.03 1.8-2.03 1.82.92 1.8 2.03c0 1.12-.8 2.03-1.8 2.03Zm6.96 0c-.99 0-1.8-.91-1.8-2.03s.79-2.03 1.8-2.03 1.82.92 1.8 2.03c0 1.12-.79 2.03-1.8 2.03Z" />
+    </svg>
+  );
+}
 
 /* The build modal's chassis cards (see CHASSIS_ICONS); legs reuse BotIcon above. */
 export const TruckIcon = LucideTruck;

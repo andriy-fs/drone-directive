@@ -35,6 +35,7 @@ export const en: Dict = {
     unitGuide: 'Unit Guide',
     singleplayer: 'Singleplayer',
     matchSetup: 'Match setup',
+    discord: 'Discord',
     desktopApp: 'Desktop app',
     quit: 'Quit game',
   },

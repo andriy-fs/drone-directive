@@ -34,6 +34,7 @@ export const uk: Dict = {
     unitGuide: 'Довідник юнітів',
     singleplayer: 'Одиночна гра',
     matchSetup: 'Налаштування матчу',
+    discord: 'Discord',
     desktopApp: 'Версія для ПК',
     quit: 'Вийти з гри',
   },

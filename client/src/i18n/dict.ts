@@ -44,6 +44,12 @@ export interface Dict {
      * breaks the alignment of the whole tertiary block.
      */
     desktopApp: string;
+    /**
+     * The rail's link to the game's Discord. A proper noun — every language
+     * keeps it as "Discord"; the key exists so the entry goes through the same
+     * dictionary as its neighbours rather than hard-coding a string in the rail.
+     */
+    discord: string;
     /** Its mirror, shown only under the desktop shell: this one ends the process. */
     quit: string;
   };
