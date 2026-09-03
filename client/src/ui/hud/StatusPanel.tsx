@@ -23,10 +23,18 @@ import { SelectionModal } from './SelectionModal';
 import { programLabel } from './programOptions';
 
 /**
- * Everything the local side has and can spend: its bank, its base, its army's
- * size, what the base is currently building, and the actions that start from here. The base and unit tallies used to be sections of their own listing every
- * side in the match — with the opponents' rows gone they were one number each,
- * and belong next to the resources they compete for.
+ * Everything the local side has and can spend: its bank, its army's size, what
+ * the base is currently building, and the actions that start from here. The unit
+ * tally used to be a section of its own listing every side in the match — with
+ * the opponents' rows gone it was one number, and belongs next to the resources
+ * it competes for.
+ *
+ * The base's hull is deliberately **not** among them, though it was once the row
+ * below the bank. It is already on the field: `HealthBar` hangs over the base
+ * itself and never hides, colouring green through amber to red — so the number
+ * here was a second, worse telling of something the player reads without
+ * looking away from the fight. Selecting the base still spells it out, in the
+ * Directive card that reports whatever is selected.
  *
  * Deliberately says nothing about anyone else: an opponent's bank is intelligence
  * the map never gives up, and reading it off the HUD — against an AI or against a
@@ -116,13 +124,6 @@ export function StatusPanel() {
       <div className="hud__row">
         <span className="hud__row-label">{t('statusPanel', 'resources')}</span>
         <span className="hud__row-value">{Math.floor(resources[localSide] ?? 0)}</span>
-      </div>
-
-      <div className="hud__row">
-        <span className="hud__row-label">{t('programming', 'baseSelected')}</span>
-        <span className="hud__row-value">
-          {playerBase ? `${Math.ceil(playerBase.hp)}/${playerBase.maxHp}` : '—'}
-        </span>
       </div>
 
       <div className="hud__row">
