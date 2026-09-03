@@ -307,4 +307,11 @@ export const pl: Dict = {
     baseNote:
       'Wbudowana wyrzutnia rakiet, jedna: baza broni się sama. Priorytet mają cele powietrzne — dron obserwacyjny w zasięgu dostaje ogień przed wszystkim, co jest na ziemi.',
   },
+  device: {
+    rotateTitle: 'Obróć urządzenie',
+    rotateBody: 'W Drone Directive gra się w orientacji poziomej — pole bitwy potrzebuje szerokości.',
+    tooSmallTitle: 'Mały ekran',
+    tooSmallBody: 'Gra jest przystosowana do tabletu lub większego — część elementów może się nie zmieścić.',
+    playAnyway: 'Zagraj i tak',
+  },
 };

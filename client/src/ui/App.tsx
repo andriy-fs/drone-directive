@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { DeviceNotice } from './features/device/DeviceNotice';
 import { GameCanvas } from './GameCanvas';
 import { ClipboardCheckIcon, HourglassIcon, PauseIcon } from './common/icons';
 import { HudCard } from './common/HudCard';
@@ -147,6 +148,10 @@ function App() {
           the match, so the panel has to survive the return to the menu. It renders
           nothing until there is a conversation to show. */}
       <ChatPanel />
+      {/* Last, and outside the match guard too: a player arriving on a phone meets
+          the title screen first, and a tablet turned upright mid-match is owed the
+          same word. Renders nothing on a screen the game fits. */}
+      <DeviceNotice />
     </div>
   );
 }

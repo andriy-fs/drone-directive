@@ -53,6 +53,8 @@ import {
   LogOut as LucideLogOut,
   Keyboard as LucideKeyboard,
   Power as LucidePower,
+  RotateCwSquare as LucideRotateCwSquare,
+  TabletSmartphone as LucideTabletSmartphone,
 } from 'lucide-react';
 
 /** The shape every icon here has — so callers can take one as a prop without importing lucide. */
@@ -120,6 +122,13 @@ export const DownloadIcon = LucideDownload;
 /* Its mirror: the entry that quits the desktop app, shown only there. A power
    symbol, because this ends the process rather than navigating anywhere. */
 export const PowerIcon = LucidePower;
+
+/* The two device notices (`ui/features/device/`). The rotation arrow turns
+   clockwise because that is the direction a right-handed player turns a tablet,
+   and the pair of screens says "small" without naming a phone — the same notice
+   covers an iPad in Split View and a dragged-down desktop window. */
+export const RotateDeviceIcon = LucideRotateCwSquare;
+export const SmallScreenIcon = LucideTabletSmartphone;
 
 /* The rail's link out to the game's Discord. Hand-drawn rather than imported:
    Lucide ships no brand marks, and a generic speech bubble is already spoken for

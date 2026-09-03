@@ -406,4 +406,22 @@ export interface Dict {
     baseHeading: string;
     baseNote: string;
   };
+  /**
+   * The two things a screen can be wrong about (`ui/features/device/`). Kept
+   * apart because they ask for different things: a turn, or a decision.
+   */
+  device: {
+    /** Big enough, stood on its end. One motion fixes it, so this screen blocks. */
+    rotateTitle: string;
+    rotateBody: string;
+    /**
+     * Too small in any orientation — a phone, an iPad in Split View, a dragged-down
+     * desktop window. Deliberately worded as a warning rather than a refusal: the
+     * player is let through either way.
+     */
+    tooSmallTitle: string;
+    tooSmallBody: string;
+    /** Dismisses the warning above, and is remembered for next time. */
+    playAnyway: string;
+  };
 }

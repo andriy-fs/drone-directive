@@ -2294,3 +2294,104 @@ a.menu-nav__item {
   opacity: 1;
   stroke-width: 1.4;
 }
+
+/* The two device notices (`ui/features/device/DeviceNotice.tsx`). Neither is themed by hand:
+   both read the same roles as every other panel, so a new scheme carries them
+   without knowing they exist. */
+
+/* Portrait, on a device that would be fine turned: the whole screen, because
+   there is no decision here to leave room for — one motion undoes it. Opaque
+   `--bg` rather than a scrim: a half-visible battlefield underneath invites the
+   player to try to play through it. Under the CRT glass (100), over everything
+   else including the chat (40) and the dialogs (11) — a dialog left open behind
+   it must not be what the player is looking at. */
+.device-notice--rotate {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+  background: var(--bg);
+  text-align: center;
+}
+
+/* Too small in any orientation: a bar along the bottom, never a cover. It clears
+   the field rather than the HUD side, and it sits above the dialogs so the way
+   past it is reachable whatever else is open — the one thing this notice must
+   never do is trap the player behind itself. */
+.device-notice--small {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* Wraps rather than squeezes: on the narrowest screens this is for — a phone
+     at ~390px — the button drops onto its own line instead of crushing the text
+     it belongs to. */
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface-toast);
+  border-top: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-card);
+}
+
+.device-notice__mark {
+  flex: none;
+  color: var(--warn);
+}
+
+.device-notice--rotate .device-notice__mark {
+  color: var(--accent);
+}
+
+/* The one growing part, so the button keeps its own width and the wrap above
+   happens to the text first. */
+.device-notice__text {
+  flex: 1 1 12em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.device-notice__title {
+  margin: 0;
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.device-notice--rotate .device-notice__title {
+  font-family: var(--display);
+  font-size: 24px;
+  text-shadow: var(--glow-title);
+}
+
+.device-notice__body {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.device-notice--rotate .device-notice__body {
+  max-width: 32em;
+  font-size: 15px;
+}
+
+/* Accented, because it is the only thing on the bar to press — but not
+   `.btn--primary`, which is a full-width dialog button and would take the whole
+   line here. `min-height` for the same reason the HUD titlebar has one: this
+   notice is shown almost exclusively to fingers. */
+.device-notice__accept {
+  flex: none;
+  min-height: 44px;
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  color: var(--text-on-accent);
+}

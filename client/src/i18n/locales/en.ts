@@ -307,4 +307,11 @@ export const en: Dict = {
     baseNote:
       'Built-in missile battery, one launcher: it defends itself. Air targets first — an observer drone in reach is fired on before anything on the ground.',
   },
+  device: {
+    rotateTitle: 'Turn your device',
+    rotateBody: 'Drone Directive is played in landscape — a battlefield needs the width.',
+    tooSmallTitle: 'Small screen',
+    tooSmallBody: 'Built for a tablet or larger — some controls may not fit here.',
+    playAnyway: 'Play anyway',
+  },
 };
