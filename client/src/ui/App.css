@@ -224,6 +224,35 @@
   .hud__controls {
     gap: 4px;
   }
+
+  /* Two of the five go away on a touch device, and neither is lost by it — both
+     open the very same dialog from the title screen's settings bar. The controls
+     reference is the stronger case: every row of it is `Ctrl+A`, right-click,
+     `1-9`, `WASD`, `F`/`E` — a list of things a finger cannot do, so in a match
+     it is not merely idle but misleading (the second, touch table it needs is
+     § 5 of the tablet notes). Sound follows it for room, and because a tablet
+     has hardware volume keys that a desktop monitor does not.
+
+     What stays is what only the match has: pause, the way out, and fullscreen —
+     which hides itself anyway where the API is missing (`useFullscreen`), and is
+     worth most exactly where it survives, since on Android it buys back the
+     60-90px of browser chrome this layout is short of.
+
+     Two classes, like the growth rule below: a lone `.hud__control--in-menu`
+     would tie `.btn` on specificity and lose to it for sitting higher up the
+     file, which is the same trap `.sound-toggle` documents above. */
+  .hud__controls .hud__control--in-menu {
+    display: none;
+  }
+
+  /* Three buttons (two, where fullscreen is unsupported) cannot end flush with
+     both edges of the panel at 44px apiece, and `space-between` would answer that
+     by pushing them 36px apart — losing the touching hit boxes that make a near
+     miss land on a neighbour rather than on nothing. Growing them keeps both
+     properties at any count, and keeps every target well over 44px. */
+  .hud__controls .sound-toggle {
+    flex: 1 1 auto;
+  }
 }
 
 /* Paused watermark over the viewport (non-interactive) */

@@ -28,7 +28,7 @@ export function SoundButton() {
   return (
     <>
       <Button
-        className="sound-toggle"
+        className="sound-toggle hud__control--in-menu"
         onClick={() => setOpen(true)}
         aria-label={t('aria', 'soundSettings')}
         title={t('aria', 'soundSettings')}

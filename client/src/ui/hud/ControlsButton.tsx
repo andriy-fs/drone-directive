@@ -19,7 +19,7 @@ export function ControlsButton() {
   return (
     <>
       <Button
-        className="sound-toggle"
+        className="sound-toggle hud__control--in-menu"
         onClick={() => setOpen(true)}
         aria-label={t('mainMenu', 'controls')}
         title={t('mainMenu', 'controls')}
