@@ -84,6 +84,9 @@ export function attachZoomControls(app: Application, camera: Camera, hooks: Zoom
   // second contact, and counting it would let a pen drag pass for a gesture.
   const touches = new Map<number, { x: number; y: number }>();
   let pinchDistance = 0;
+  // Screen-space (post-`toScreen`) midpoint, so the pan delta isn't off by the
+  // CSS-px-to-render-px ratio a `devicePixelRatio` > 1 introduces.
+  let pinchMidpoint: { x: number; y: number } | null = null;
 
   const twoTouches = (): [{ x: number; y: number }, { x: number; y: number }] | null => {
     if (touches.size !== 2) return null;
@@ -100,6 +103,8 @@ export function attachZoomControls(app: Application, camera: Camera, hooks: Zoom
     const pair = twoTouches();
     if (!pair) return;
     pinchDistance = distanceOf(pair[0], pair[1]);
+    const mid = toScreen((pair[0].x + pair[1].x) / 2, (pair[0].y + pair[1].y) / 2);
+    pinchMidpoint = { x: mid.x, y: mid.y };
     // The first finger already opened a marquee; this one says it was a pinch.
     hooks.onPinchStart();
   };
@@ -112,16 +117,24 @@ export function attachZoomControls(app: Application, camera: Camera, hooks: Zoom
     const next = distanceOf(pair[0], pair[1]);
     const factor = pinchFactor(pinchDistance, next);
     pinchDistance = next;
+    const mid = toScreen((pair[0].x + pair[1].x) / 2, (pair[0].y + pair[1].y) / 2);
+    const nextMidScreen = { x: mid.x, y: mid.y };
+    // Pan first, so the point under the fingers stays glued to them; then zoom
+    // around that same (now post-pan) midpoint.
+    if (pinchMidpoint) camera.panByScreen(nextMidScreen.x - pinchMidpoint.x, nextMidScreen.y - pinchMidpoint.y);
+    pinchMidpoint = nextMidScreen;
     if (factor === 1) return;
-    const p = toScreen((pair[0].x + pair[1].x) / 2, (pair[0].y + pair[1].y) / 2);
-    camera.zoomAt(factor, p.x, p.y);
+    camera.zoomAt(factor, nextMidScreen.x, nextMidScreen.y);
   };
 
   const onPointerEnd = (e: PointerEvent) => {
     if (!touches.delete(e.pointerId)) return;
     // A pinch that loses a finger is over: the distance it left behind must not
     // be measured against whatever the next gesture starts at.
-    if (touches.size < 2) pinchDistance = 0;
+    if (touches.size < 2) {
+      pinchDistance = 0;
+      pinchMidpoint = null;
+    }
   };
 
   const canvas = app.canvas;
