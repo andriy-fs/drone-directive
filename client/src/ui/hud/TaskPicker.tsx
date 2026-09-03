@@ -59,6 +59,7 @@ export function TaskPicker({ robots }: { robots: RobotSnapshot[] }) {
             key={task}
             className={`tile ${task === current ? 'tile--on' : ''} ${wide ? 'tile--wide' : ''}`.trim()}
             aria-pressed={task === current}
+            aria-label={labels[task]}
             disabled={idle}
             onClick={() => assign(task)}
           >

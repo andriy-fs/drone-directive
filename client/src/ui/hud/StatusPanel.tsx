@@ -174,7 +174,12 @@ export function StatusPanel() {
           charge being gone, because there is exactly one per match and its tooltip
           says so. */}
       <div className="tile-grid">
-        <Button className="tile" onClick={() => setBuildOpen(true)} disabled={!playerBase}>
+        <Button
+          className="tile"
+          onClick={() => setBuildOpen(true)}
+          disabled={!playerBase}
+          aria-label={t('statusPanel', 'buildProgram')}
+        >
           <FactoryIcon className="tile__icon" size={22} />
           <span>{t('statusPanel', 'buildProgram')}</span>
         </Button>
@@ -184,6 +189,7 @@ export function StatusPanel() {
           // nothing picked to drop, and no drone to go to.
           disabled={myRobotCount === 0 && !hasSelection && droneDown}
           onClick={() => setSelectionOpen(true)}
+          aria-label={t('statusPanel', 'selection')}
         >
           <SelectAllIcon className="tile__icon" size={22} />
           <span>{t('statusPanel', 'selection')}</span>
@@ -193,6 +199,7 @@ export function StatusPanel() {
           onClick={raiseShield}
           disabled={!canRaiseShield}
           title={t('statusPanel', 'shieldHint')}
+          aria-label={shieldLabel}
         >
           <DomeIcon className="tile__icon" size={22} />
           <span>{shieldLabel}</span>
@@ -202,6 +209,7 @@ export function StatusPanel() {
           // Nothing selected, nothing to put in a shape.
           disabled={commandable.length === 0}
           onClick={() => setFormationOpen(true)}
+          aria-label={t('programming', 'formationHeading')}
         >
           <FormationIcon className="tile__icon" size={22} />
           <span>{t('programming', 'formationHeading')}</span>

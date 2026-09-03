@@ -11,6 +11,16 @@
   overflow: hidden;
 }
 
+/* iPad mini/10/Air land at 1133-1194px landscape, Galaxy Tab S9 at 1280 — a
+   300px rail eats a quarter of the screen there (versus ~15% on a 1920
+   desktop). `.hud .tile` below sheds its label at the same breakpoint so the
+   narrower rail still has room for the Command/directive tiles. */
+@media (max-width: 1280px) {
+  .app-shell {
+    grid-template-columns: 240px 1fr;
+  }
+}
+
 /* The CRT glass, when a theme asks for one: one fixed overlay over everything on
    the title screen — a scanline pattern that stopped at the sidebar's edge would
    read as a texture on the panel rather than as the screen you are looking
@@ -971,6 +981,32 @@
   gap: 8px;
   min-height: 0;
   padding: 8px 10px;
+}
+
+/* Same breakpoint as `.app-shell`'s narrower rail: the label is what a two-line
+   tile was sized for, and the icon alone reads fine at this size everywhere it's
+   used (`.tile-grid`'s own doc comment already calls the label a confirmation,
+   not the meaning). Scoped to `.hud` so it can't reach the same classes inside
+   `SelectionModal`/`FormationModal`/`BuildRobotModal` — those are Headless UI
+   dialogs portalled to `document.body`, outside the sidebar's DOM and sized on
+   their own, so they keep their labels regardless of viewport width. */
+@media (max-width: 1280px) {
+  .hud .tile {
+    min-height: 48px;
+  }
+
+  .hud .tile > span {
+    display: none;
+  }
+
+  /* `.tile--wide` only exists to give an odd-count directive tile room for an
+     icon *and* a label side by side — with no label there's nothing to make
+     room for, so it falls back to the plain centered-icon tile. */
+  .hud .tile--wide {
+    grid-column: auto;
+    flex-direction: column;
+    padding: 10px 6px;
+  }
 }
 
 /* Doubled with `:hover` so the active tile keeps its blue under the cursor —
