@@ -5,6 +5,7 @@ import { BASE_CYCLE_MS, BASE_PAD_OFFSET, BASE_WEAPON_TARGET } from '../../config
 import type { BaseEntity } from '../../engine/ecs/archetypes';
 import { useGameStore } from '../../store/gameStore';
 import { getBaseGaitTextures, getBaseTexture, getBaseWeaponTexture, type ResolvedSprite } from '../assets';
+import { runAfterTouch } from '../input/afterTouch';
 import { DOUBLE_CLICK_MS } from '../input/doubleClick';
 import { HealthBar } from './HealthBar';
 import { cellAt } from './cycle';
@@ -17,8 +18,9 @@ import { hashUnit } from './terrain/hash';
  * placeholder if no art is loaded), the built-in missile battery's launcher, an
  * HP bar above it and a selection outline, positioned at the base's world-space
  * centre. Double-clicking your own base opens the build & program dialog (same
- * one as the HUD button); selecting it is handled by the stage handler in
- * `input/pointer.ts`, not here.
+ * one as the HUD button) — with a finger, a second tap on a base you already have
+ * selected does it; selecting it in the first place is handled by the stage
+ * handler in `input/pointer.ts`, not here.
  *
  * The sprite is a **four-cell idle cycle** where the art exists (`baseGaitSprites`)
  * — running lights, a turning radar dish, chevrons marching out of the production
@@ -135,6 +137,26 @@ export class BaseView {
       this.container.hitArea = new Rectangle(-half, -half, size, size);
       this.container.on('pointerdown', (e) => {
         if (e.button !== 0) return; // right-click falls through to the stage (move order)
+
+        // A finger gets no double-tap. It gets the idiom the robot and the drone
+        // already use — tap what you are already holding — which is free here
+        // because a base selection is dropped by tapping open ground, not by
+        // tapping the base again (see `input/pointer.ts`, `handleTap`). The
+        // browser's own double-tap gesture then has nothing to race, and the
+        // 350 ms window stops being something a player has to hit.
+        //
+        // The open waits for the lift, or Headless UI would read this very tap's
+        // `touchend` as a tap outside the dialog and close it — see
+        // `runAfterTouch`, which also drops it if the press turns into a drag.
+        if (e.pointerType === 'touch') {
+          if (useGameStore.getState().selectedBaseId !== base.id) return; // first tap: the stage selects
+          runAfterTouch(e, () => useGameStore.getState().setBuildDialogOpen(true));
+          // Deliberately bubbles all the same: the stage still owns the marquee a
+          // drag from here opens, and re-selecting an already-selected base is a
+          // no-op.
+          return;
+        }
+
         const now = performance.now();
         if (now - this.lastClickAt < DOUBLE_CLICK_MS) {
           this.lastClickAt = 0; // consume so a third click starts a fresh pair
