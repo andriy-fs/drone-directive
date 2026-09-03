@@ -16,7 +16,7 @@ import { commandableRobots } from '../../store/selection';
 import { DroneMode } from '../../store/enums';
 import { Bar } from '../common/Bar';
 import { Button } from '../common/Button';
-import { DomeIcon, FactoryIcon, FormationIcon, SelectAllIcon } from '../common/icons';
+import { DomeIcon, FactoryIcon, FormationIcon, SelectAllIcon, XIcon } from '../common/icons';
 import { BuildRobotModal } from './BuildRobotModal';
 import { FormationModal } from './FormationModal';
 import { SelectionModal } from './SelectionModal';
@@ -77,13 +77,23 @@ export function StatusPanel() {
   //
   // The tally is living units, but the *cap* counts what is queued too (see
   // `sideRobotLoad`), so the colour is driven by the load and not by the number
-  // on screen: at 10 built + 2 queued the row reads `10/12` and is already red,
+  // on screen: at 10 built + 2 queued the cell reads `10/12` and is already red,
   // which is exactly the state the player needs explained.
   const maxRobots = gameConfig.production.maxRobots;
   const robotLoad = useGameStore(selectRobotLoad);
   let capClass = '';
-  if (robotLoad >= maxRobots) capClass = 'hud__row-value--cap';
-  else if (robotLoad >= maxRobots - 1) capClass = 'hud__row-value--near-cap';
+  if (robotLoad >= maxRobots) capClass = 'stat__value--cap';
+  else if (robotLoad >= maxRobots - 1) capClass = 'stat__value--near-cap';
+
+  /**
+   * The factory's legend: three states over the same number. Empty queue is the
+   * word for the thing itself, a queue that is moving says so, and a queue that
+   * cannot pay says *that* — the one state a player has to act on, and the reason
+   * the label is not simply a fixed caption.
+   */
+  let queueLabel = t('statusPanel', 'queue');
+  if (waiting) queueLabel = t('statusPanel', 'waiting');
+  else if (queueLength > 0) queueLabel = t('statusPanel', 'building');
   const auto = playerBase?.autoBuild ?? null;
   const stopAuto = () => {
     if (playerBase) enqueueCommand({ kind: 'SetAutoBuild', baseId: playerBase.id, order: null });
@@ -121,37 +131,54 @@ export function StatusPanel() {
 
   return (
     <div className="status-panel">
-      <div className="hud__row">
-        <span className="hud__row-label">{t('statusPanel', 'resources')}</span>
-        <span className="hud__row-value">{Math.floor(resources[localSide] ?? 0)}</span>
+      {/* One instrument strip rather than three labelled rows: the bank, the army
+          against its cap, and the factory — the three numbers a player checks
+          between glances at the field, read across in one line instead of down a
+          list. The legend sits over the number, which is what lets the factory's
+          state be the label (see `queueLabel`) at no extra height. */}
+      <div className="stat-strip">
+        <div className="stat">
+          <span className="stat__label">{t('statusPanel', 'resources')}</span>
+          <span className="stat__value">{Math.floor(resources[localSide] ?? 0)}</span>
+        </div>
+        <div className="stat">
+          <span className="stat__label">{t('hud', 'units')}</span>
+          <span className={`stat__value ${capClass}`.trim()}>
+            {myRobotCount}/{maxRobots}
+          </span>
+        </div>
+        <div className="stat">
+          <span className={`stat__label ${waiting ? 'stat__label--warn' : ''}`.trim()}>{queueLabel}</span>
+          <span className={`stat__value ${waiting ? 'stat__value--warn' : ''}`.trim()}>{queueLength}</span>
+        </div>
       </div>
 
-      <div className="hud__row">
-        <span className="hud__row-label">{t('hud', 'units')}</span>
-        <span className={`hud__row-value ${capClass}`.trim()}>
-          {myRobotCount}/{maxRobots}
-        </span>
-      </div>
+      {/* The factory's progress, always on screen so nothing under it moves when a
+          build starts — an empty gauge under the readouts rather than a bar that
+          appears and disappears. It has nothing to show while the queue is stalled
+          (an order is paid for the moment it starts, so an unfunded queue sits at
+          zero): *that* state is the strip's own legend, in amber, above it. */}
+      <Bar value={playerBase?.buildProgress ?? 0} className="bar--gauge" />
 
-      <div className={`build-progress ${!queueLength ? 'build-progress--idle' : ''}`.trim()}>
-        <span className="hud__muted">
-          {queueLength === 0
-            ? t('statusPanel', 'idle')
-            : waiting
-              ? `${t('statusPanel', 'waiting')} · ${queueLength} ${t('statusPanel', 'queued')}`
-              : `${t('statusPanel', 'building')} · ${queueLength} ${t('statusPanel', 'queued')}`}
-        </span>
-        <Bar value={playerBase?.buildProgress ?? 0} />
-      </div>
-
+      {/* A chip rather than a row: what the base repeats is a setting the player
+          left running, not a reading they take — so it names itself, spells the
+          configuration out (wrapping onto a second line on a narrow rail rather
+          than truncating the directive), and carries the one thing they might
+          want from it: off. */}
       {auto && (
         <div className="auto-build">
-          <span className="hud__muted">
-            {t('statusPanel', 'auto')}: {t('chassis', auto.chassis)}/{t('weapons', auto.weapon)}
+          <span className="auto-build__label">{t('statusPanel', 'auto')}</span>
+          <span className="auto-build__spec">
+            {t('chassis', auto.chassis)}/{t('weapons', auto.weapon)}
             {auto.task !== undefined ? ` · ${programLabel(auto.task, t)}` : ''}
           </span>
-          <Button className="auto-build__stop" onClick={stopAuto}>
-            {t('statusPanel', 'stop')}
+          <Button
+            className="auto-build__stop"
+            onClick={stopAuto}
+            aria-label={t('statusPanel', 'stop')}
+            title={t('statusPanel', 'stop')}
+          >
+            <XIcon size={12} aria-hidden />
           </Button>
         </div>
       )}

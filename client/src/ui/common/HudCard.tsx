@@ -3,9 +3,9 @@ import type { LucideIcon } from './icons';
 
 /**
  * A titled panel in the HUD sidebar: an icon + uppercase caption over a hairline,
- * then the section's content. The sidebar's sections are being moved onto this
- * one at a time, so `hud__section`'s plain top-border heading still exists
- * alongside it — expect the column to look mixed until the last one is converted.
+ * then the section's content. Every section in the sidebar is one of these — the
+ * plain top-border heading they were converted from (`hud__section`) is gone, so
+ * a new section goes here rather than inventing chrome of its own.
  */
 export function HudCard({
   icon: Icon,

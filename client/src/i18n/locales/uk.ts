@@ -108,10 +108,9 @@ export const uk: Dict = {
   },
   statusPanel: {
     resources: 'Ресурси',
+    queue: 'Черга',
     building: 'Будівництво',
-    waiting: 'Чекаємо ресурси',
-    queued: 'у черзі',
-    idle: 'Черга порожня',
+    waiting: 'Нема коштів',
     auto: 'Авто',
     stop: 'Стоп',
     buildProgram: 'Побудова',

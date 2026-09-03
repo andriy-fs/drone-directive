@@ -55,6 +55,7 @@ import {
   Power as LucidePower,
   RotateCwSquare as LucideRotateCwSquare,
   TabletSmartphone as LucideTabletSmartphone,
+  Terminal as LucideTerminal,
 } from 'lucide-react';
 
 /** The shape every icon here has — so callers can take one as a prop without importing lucide. */
@@ -87,6 +88,11 @@ export const LogOutIcon = LucideLogOut;
    in the sidebar that glyph is the Directives card's own help button one card
    below, and the same symbol must not mean two things there. */
 export const KeyboardIcon = LucideKeyboard;
+
+/** The HUD's Command card: its header. A terminal prompt — the sidebar's other
+ * candidates all mean something else in it already (a factory is the build tile,
+ * a shield is a directive), and this is the section the player gives orders from. */
+export const TerminalIcon = LucideTerminal;
 
 /* The HUD's Directives card: its header, then one icon per program (see TASK_ICONS). */
 export const ClipboardCheckIcon = LucideClipboardCheck;

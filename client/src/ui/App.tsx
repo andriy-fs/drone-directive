@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { DeviceNotice } from './features/device/DeviceNotice';
 import { GameCanvas } from './GameCanvas';
-import { ClipboardCheckIcon, HourglassIcon, PauseIcon } from './common/icons';
+import { ClipboardCheckIcon, HourglassIcon, PauseIcon, TerminalIcon } from './common/icons';
 import { HudCard } from './common/HudCard';
 import { ChatPanel } from './hud/ChatPanel';
 import { ControlsButton } from './hud/ControlsButton';
@@ -87,12 +87,10 @@ function App() {
               <ExitToMenuButton />
             </div>
           </div>
-          <div className="hud__section">
-            <h2 className="hud__heading">{t('hud', 'command')}</h2>
+          <HudCard icon={TerminalIcon} title={t('hud', 'command')}>
             <StatusPanel />
-          </div>
+          </HudCard>
 
-          {/* The first section on the new card chrome; the rest follow one by one. */}
           <HudCard
             icon={ClipboardCheckIcon}
             title={t('hud', 'directive')}

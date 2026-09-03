@@ -143,11 +143,15 @@ export interface Dict {
   };
   statusPanel: {
     resources: string;
+    /**
+     * The three legends the Command card's factory cell takes, in place of a fixed
+     * caption — so the state costs no line of its own. Short: they sit in a third
+     * of a 240px rail (see `.stat__label`).
+     */
+    queue: string;
     building: string;
     /** The queue has something in it but cannot pay for it yet, so nothing is moving. */
     waiting: string;
-    queued: string;
-    idle: string;
     auto: string;
     stop: string;
     /** The tile that opens the build dialog (whose own title is `buildRobot.title`). */

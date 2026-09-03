@@ -109,10 +109,9 @@ export const en: Dict = {
   },
   statusPanel: {
     resources: 'Resources',
+    queue: 'Queue',
     building: 'Building',
-    waiting: 'Waiting for resources',
-    queued: 'queued',
-    idle: 'Nothing in queue',
+    waiting: 'No funds',
     auto: 'Auto',
     stop: 'Stop',
     buildProgram: 'Build',

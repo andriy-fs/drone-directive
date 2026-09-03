@@ -311,19 +311,6 @@
   text-transform: capitalize;
 }
 
-.hud__section {
-  border-top: 1px solid var(--panel-border);
-  padding-top: 12px;
-}
-
-.hud__heading {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-dim);
-  margin: 0 0 8px;
-}
-
 /* Names a grid of tiles inside a card, one step quieter than the card's own
    heading: two grids of orders share the Directive card, and without a label
    each they read as one long grid of unrelated buttons. The top margin is what
@@ -401,32 +388,63 @@
   min-height: 232px;
 }
 
-.hud__row {
+/* The Command card's readouts, read across rather than down: legend over number,
+   the outer two cells pinned to the card's edges. `space-between` rather than
+   equal columns because the legends are words of very different lengths once
+   translated ("Units" against "Budivnytstvo"), and a column grid would either
+   clip the long one or waste the width the short one does not need. */
+.stat-strip {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
 }
 
-.hud__row-label {
-  text-transform: capitalize;
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
-.hud__row-value {
-  margin-left: auto;
-  font-family: var(--mono);
-  font-size: 13px;
+/* The last cell reports the factory, which is also the one whose legend changes
+   (Queue → Building → No funds); right-aligned so the strip has a straight edge
+   on both sides however long that word turns out to be. */
+.stat:last-child {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.stat__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.stat__value {
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.1;
+  color: var(--text);
 }
 
 /* The unit tally against its cap. Amber one slot out, red once production has
    actually stopped — the same red/green pair the drone panel already uses. */
-.hud__row-value--near-cap {
+.stat__value--near-cap {
   color: var(--warn);
 }
 
-.hud__row-value--cap {
+.stat__value--cap {
   color: var(--danger-soft);
+}
+
+/* A factory that has stopped for want of money — the same amber as one slot from
+   the cap, since both are "this will stop being buildable in a moment". */
+.stat__label--warn,
+.stat__value--warn {
+  color: var(--warn);
 }
 
 .hud__muted {
@@ -615,18 +633,6 @@
   gap: 10px;
 }
 
-.build-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/* Nothing queued: keep the row's height reserved (no layout shift below it),
-   just grey it out instead of unmounting it. */
-.build-progress--idle {
-  opacity: 0.45;
-}
-
 /* "Your new drone is up" over the world. Top-centre, clear of the HUD sidebar
    on the left and of the chat panel in the bottom-right; the toast itself takes
    clicks (its action is the point), the strip around it does not. */
@@ -783,22 +789,49 @@
   }
 }
 
+/* What the base is repeating, as a chip: one line, its own inset ground so it
+   reads as a setting sitting on the card rather than as another readout. */
 .auto-build {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  /* Top-aligned, so the × stays beside the first line when the spec takes two. */
+  align-items: flex-start;
+  gap: 6px;
+  padding: 3px 4px 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  /* The same hairline the gauge above it wears, and for the same reason: in a
+     theme whose inset colour equals its surface (the CRT one) a filled chip is
+     invisible, and the setting reads as a stray line of text on the card. */
+  box-shadow: inset 0 0 0 1px var(--panel-border);
+  font-size: 11px;
+  line-height: 1.2;
 }
 
-.auto-build .hud__muted {
+.auto-build__label {
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+/* The configuration itself, and the part that gives when the rail narrows: the
+   chassis/weapon/directive triple wraps onto a second line rather than being cut,
+   because the directive is the half a player would be checking — an "Auto:
+   tracks/cannon ·…" that hides which order the new machines leave with answers
+   nothing. One line where it fits, two where it does not. */
+.auto-build__spec {
+  min-width: 0;
   text-transform: capitalize;
+  color: var(--text);
 }
 
 .auto-build__stop {
   margin-left: auto;
+  min-width: 0;
+  padding: 2px 4px;
+  border-color: transparent;
+  background: none;
   color: var(--danger);
-  font: inherit;
-  font-size: 12px;
-  padding: 3px 8px;
 }
 
 /* The energy dome's readout, shown only while it stands: seconds on the label,
@@ -839,6 +872,15 @@
    "this control has no subject" instead of "your units are dead". */
 .bar--idle .bar__fill {
   background: var(--neutral-fill);
+}
+
+/* The Command card's production gauge. Unlike every other bar in the HUD it is
+   usually *empty* — a base spends most of a match building nothing — and an empty
+   track in the sunken colour is invisible against the card, which left a gap in
+   the middle of the section. The hairline is what makes it read as an instrument
+   with nothing in it. Inset rather than a border, so the 6px height is unchanged. */
+.bar--gauge {
+  box-shadow: inset 0 0 0 1px var(--panel-border);
 }
 
 .bar--segments::after {
@@ -993,6 +1035,17 @@
 @media (max-width: 1280px) {
   .hud .tile {
     min-height: 48px;
+  }
+
+  /* With no labels to fit, the Command card's four actions go across in one row
+     instead of two — 54px of a tablet's rail back, which is the section's whole
+     margin once auto-build and the dome readout are both showing. Scoped to the
+     Command card: the directive grids in the card below are five and six tiles
+     and are sized against a body whose height is reserved (`.hud-card--directives`),
+     so a fourth column there would only stretch them. */
+  .status-panel .tile-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
   }
 
   .hud .tile > span {
