@@ -1,13 +1,98 @@
-# Cloudflare's "Managed robots.txt" is on for this zone, so what a crawler
-# actually receives is its block *prepended* to this file: `Content-Signal:
-# search=yes,ai-train=no,use=reference`, `User-agent: * / Allow: /`, and a
-# `Disallow: /` for the named AI crawlers (GPTBot, ClaudeBot, CCBot, Bytespider,
-# Google-Extended and friends). Curl the live URL to see the whole thing.
+# This file is now the whole answer a crawler gets. Cloudflare's "Managed
+# robots.txt" for this zone is OFF — nothing is prepended any more, so every
+# group a crawler needs has to be here. If that setting is ever switched back on,
+# its block lands *above* this text and duplicates the `*` and AI-bot groups
+# below; drop them then and keep only what Cloudflare does not write.
 #
-# That already allows search engines everything, so this file deliberately carries
-# only the one directive Cloudflare does not add. An `Allow: /` group here would
-# just be a second `User-agent: *` group saying what the first one said.
+# Three things live here: the content signals, one group that lets search engines
+# in (minus what is not worth crawling), and one group that keeps AI crawlers out.
+
+# ─── Content signals ────────────────────────────────────────────────────────────
+# As a condition of accessing this website, you agree to abide by the following
+# content signals:
 #
-# `Sitemap` is a global directive — it applies regardless of position or of which
+# (a)  If a Content-Signal = yes, you may collect content for the corresponding
+#      use.
+# (b)  If a Content-Signal = no, you may not collect content for the
+#      corresponding use.
+# (c)  If the website operator does not include a Content-Signal for a
+#      corresponding use, the website operator neither grants nor restricts
+#      permission via Content-Signal with respect to the corresponding use.
+#
+# The content signals and their meanings are:
+#
+# search:   building a search index and providing search results (e.g., returning
+#           hyperlinks and short excerpts from your website's contents). Search
+#           does not include providing AI-generated search summaries.
+# ai-input: inputting content into one or more AI models (e.g., retrieval
+#           augmented generation, grounding, or other real-time taking of content
+#           for generative AI search answers).
+# ai-train: training or fine-tuning AI models.
+# use:      how AI systems may consume the content (immediate, reference, or full).
+#
+# ANY RESTRICTIONS EXPRESSED VIA CONTENT SIGNALS ARE EXPRESS RESERVATIONS OF
+# RIGHTS UNDER ARTICLE 4 OF THE EUROPEAN UNION DIRECTIVE 2019/790 ON COPYRIGHT
+# AND RELATED RIGHTS IN THE DIGITAL SINGLE MARKET.
+
+# `Sitemap` is a global directive: it applies regardless of position or of which
 # user-agent group precedes it.
 Sitemap: https://drone-directive.space/sitemap.xml
+
+# ─── Search engines: everything that is worth indexing ──────────────────────────
+User-agent: *
+Content-Signal: search=yes,ai-train=no,use=reference
+Allow: /
+# The cue library and the music: 270-odd files, several megabytes, and nothing a
+# search result could ever point at. Crawling them is pure bandwidth.
+Disallow: /sounds/
+Disallow: /music/
+# The sprites. They are the game's art, not illustrations of it — a lone robot
+# hull on a transparent background is worth nothing in image search, and there are
+# about fifty of them. `social-card.jpg` and the icons are deliberately left out
+# of this: those are what an unfurler and a browser tab actually ask for.
+Disallow: /*.webp$
+# The update check's answer, emitted by the build. A machine-readable file about
+# which deploy is current, with no reader but the game itself.
+Disallow: /version.json
+#
+# Deliberately still crawlable: `/assets/*`. It looks like the biggest thing to
+# shut out, but it is the JS and CSS bundles, and Googlebot renders the page
+# before indexing it — block them and the crawler sees the boot placeholder
+# instead of the game. `/` and `/news/` are what we want indexed, and both are in
+# the sitemap; neither needs its own `Allow`, since `Allow: /` above covers them.
+
+# ─── AI crawlers: out ───────────────────────────────────────────────────────────
+# Training, dataset-building and RAG-grounding fetchers. Each needs its own group:
+# a bare `Disallow` line belongs to the nearest `User-agent` above it, and there is
+# no wildcard for "everything AI". The `*` group above does NOT reach these — a
+# crawler obeys the most specific group naming it, and ignores `*` entirely once
+# one exists.
+#
+# This list is the set Cloudflare's managed block used to write, plus the ones it
+# does not name. Tokens are matched case-insensitively on a prefix of the crawler's
+# product token; unknown tokens are simply ignored, so a stale name costs nothing.
+
+User-agent: AI2Bot
+User-agent: Amazonbot
+User-agent: anthropic-ai
+User-agent: Applebot-Extended
+User-agent: Bytespider
+User-agent: CCBot
+User-agent: ChatGPT-User
+User-agent: Claude-Web
+User-agent: ClaudeBot
+User-agent: cohere-ai
+User-agent: Diffbot
+User-agent: FacebookBot
+User-agent: Google-Extended
+User-agent: GPTBot
+User-agent: ImagesiftBot
+User-agent: meta-externalagent
+User-agent: Meta-ExternalFetcher
+User-agent: OAI-SearchBot
+User-agent: Omgilibot
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Timpibot
+User-agent: YouBot
+Disallow: /
