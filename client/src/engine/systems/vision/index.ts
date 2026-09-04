@@ -1,15 +1,15 @@
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import type { Owner } from '@drone-directive/types/enums';
-import { distance, vecLength } from '../../utils/math';
+import { distance, vecLength } from '../../../utils/math';
 import type { With } from 'miniplex';
-import type { BaseEntity, RobotEntity } from '../ecs/archetypes';
-import type { Entity, EntityKind } from '../ecs/entity';
-import { isAlive } from '../ecs/guards';
-import { bases, drones, robots } from '../ecs/queries';
-import type { GameContext, TeamIntel } from '../game/context';
-import { isDisabled } from '../status';
-import { distanceToBase, enemyAirTargets, enemyBases, enemyRobots, isEnemy, possessedRobotOf } from '../targeting';
+import type { BaseEntity, RobotEntity } from '../../ecs/archetypes';
+import type { Entity, EntityKind } from '../../ecs/entity';
+import { isAlive } from '../../ecs/guards';
+import { bases, drones, robots } from '../../ecs/queries';
+import type { GameContext, TeamIntel } from '../../game/context';
+import { isDisabled } from '../../status';
+import { distanceToBase, enemyAirTargets, enemyBases, enemyRobots, isEnemy, possessedRobotOf } from '../../targeting';
 
 /**
  * Anything that can see for a side: a robot, a base or the observer drone. All

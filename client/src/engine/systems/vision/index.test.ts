@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { spawnBase, spawnDrone, spawnMunition, spawnRobot } from '../ecs/factory';
-import { makeCtx } from './testkit';
-import { jamPressure, visionSystem } from './vision';
+import { spawnBase, spawnDrone, spawnMunition, spawnRobot } from '../../ecs/factory';
+import { makeCtx } from '../testkit';
+import { jamPressure, visionSystem } from './index';
 
 describe('visionSystem — detection (no omniscience)', () => {
   it('does not know a distant enemy robot', () => {

@@ -12,7 +12,7 @@ import { droneSystem } from '../../systems/drone';
 import { droneRespawnSystem } from '../../systems/droneRespawn';
 import { economySystem } from '../../systems/economy';
 import { explosionSystem } from '../../systems/explosion';
-import { fogSystem } from '../../systems/fog';
+import { fogSystem } from '../../systems/vision/fog';
 import { movementSystem } from '../../systems/movement';
 import { munitionSystem } from '../../systems/combat/munition';
 import { refreshNavObstacles } from '../../navGrid';

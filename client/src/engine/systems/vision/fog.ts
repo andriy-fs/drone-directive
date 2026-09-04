@@ -1,9 +1,9 @@
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import type { With } from 'miniplex';
-import type { Entity } from '../ecs/entity';
-import { bases, drones, robots } from '../ecs/queries';
-import type { GameContext } from '../game/context';
-import { sightlinesFor, withinSight } from './vision';
+import type { Entity } from '../../ecs/entity';
+import { bases, drones, robots } from '../../ecs/queries';
+import type { GameContext } from '../../game/context';
+import { sightlinesFor, withinSight } from './index';
 
 /** A robot, base or drone seen only as "something with eyes" — see `vision.ts`. */
 type Scout = With<Entity, 'position' | 'owner' | 'hp' | 'sightRange'>;

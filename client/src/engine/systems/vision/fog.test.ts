@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { spawnDrone, spawnRobot } from '../ecs/factory';
-import type { GameContext } from '../game/context';
+import { spawnDrone, spawnRobot } from '../../ecs/factory';
+import type { GameContext } from '../../game/context';
 import { fogSystem } from './fog';
-import { makeCtx } from './testkit';
+import { makeCtx } from '../testkit';
 
 const { tilePx } = gameConfig.grid;
 
