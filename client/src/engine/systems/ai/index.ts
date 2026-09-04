@@ -1,5 +1,5 @@
-import { getBuildPreset } from '../../config/buildPresets';
-import { gameConfig } from '../../config/gameConfig';
+import { getBuildPreset } from '../../../config/buildPresets';
+import { gameConfig } from '../../../config/gameConfig';
 import {
   BuildPresetType,
   ChassisType,
@@ -8,11 +8,11 @@ import {
   WeaponType,
   type Owner,
 } from '@drone-directive/types/enums';
-import { distance } from '../../utils/math';
-import type { BaseEntity, RobotEntity } from '../ecs/archetypes';
-import { isAlive } from '../ecs/guards';
-import { bases, robots } from '../ecs/queries';
-import type { AiState, GameContext } from '../game/context';
+import { distance } from '../../../utils/math';
+import type { BaseEntity, RobotEntity } from '../../ecs/archetypes';
+import { isAlive } from '../../ecs/guards';
+import { bases, robots } from '../../ecs/queries';
+import type { AiState, GameContext } from '../../game/context';
 import {
   makeAttackBase,
   makeAttackRobots,
@@ -21,13 +21,13 @@ import {
   makeGuard,
   makeGroupAttack,
   scriptForTask,
-} from '../tasks/taskDefinitions';
-import { pilotDrone } from './aiDrone';
-import { canRaiseShield, raiseShield } from './combat/shield';
-import { isDisabled } from '../status';
-import { isAdvancing } from './task';
-import { isEnemy, knownEnemyRobots } from '../targeting';
-import { atRobotCap } from './production';
+} from '../../tasks/taskDefinitions';
+import { pilotDrone } from './pilot';
+import { canRaiseShield, raiseShield } from '../combat/shield';
+import { isDisabled } from '../../status';
+import { isAdvancing } from '../task';
+import { isEnemy, knownEnemyRobots } from '../../targeting';
+import { atRobotCap } from '../production';
 
 /** The AI's production series (every 10th unit is a kamikaze, sent at a cluster or the base). */
 const AI_BUILD_PRESET = BuildPresetType.AiAssault;

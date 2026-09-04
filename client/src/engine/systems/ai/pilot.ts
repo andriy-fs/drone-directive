@@ -1,14 +1,14 @@
-import { gameConfig, worldPixelSize } from '../../config/gameConfig';
+import { gameConfig, worldPixelSize } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import type { Owner } from '@drone-directive/types/enums';
-import { clamp, distance, vecLength } from '../../utils/math';
-import type { BaseEntity, DroneEntity, RobotEntity } from '../ecs/archetypes';
-import { isAlive } from '../ecs/guards';
-import { drones, robots } from '../ecs/queries';
-import type { AiState, GameContext } from '../game/context';
-import { unitToward } from './drone';
-import { isAdvancing, centroidOf } from './task';
-import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from '../targeting';
+import { clamp, distance, vecLength } from '../../../utils/math';
+import type { BaseEntity, DroneEntity, RobotEntity } from '../../ecs/archetypes';
+import { isAlive } from '../../ecs/guards';
+import { drones, robots } from '../../ecs/queries';
+import type { AiState, GameContext } from '../../game/context';
+import { unitToward } from '../drone';
+import { isAdvancing, centroidOf } from '../task';
+import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from '../../targeting';
 
 /**
  * The bot's observer-drone pilot — the counterweight to the player's own eye.

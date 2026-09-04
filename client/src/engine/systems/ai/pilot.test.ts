@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import { distance } from '../../utils/math';
+import { distance } from '../../../utils/math';
 import type { Vec2 } from '@drone-directive/types/entities';
-import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
-import type { GameContext } from '../game/context';
-import { makeAttackBase } from '../tasks/taskDefinitions';
-import { pilotDrone } from './aiDrone';
-import { droneSystem } from './drone';
-import { makeCtx } from './testkit';
+import { spawnBase, spawnDrone, spawnRobot } from '../../ecs/factory';
+import type { GameContext } from '../../game/context';
+import { makeAttackBase } from '../../tasks/taskDefinitions';
+import { pilotDrone } from './pilot';
+import { droneSystem } from '../drone';
+import { makeCtx } from '../testkit';
 
 const DT = gameConfig.fixedDt;
 const BOT = Owner.AI;

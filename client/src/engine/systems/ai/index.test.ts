@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import { spawnBase, spawnRobot } from '../ecs/factory';
-import { createRng } from '../../utils/rng';
-import { aiSystem } from './ai';
-import { productionSystem } from './production';
-import { makeCtx } from './testkit';
+import { spawnBase, spawnRobot } from '../../ecs/factory';
+import { createRng } from '../../../utils/rng';
+import { aiSystem } from './index';
+import { productionSystem } from '../production';
+import { makeCtx } from '../testkit';
 
 const aiRobots = (ctx: ReturnType<typeof makeCtx>) =>
   ctx.world.with('robot', 'script').entities.filter((e) => e.owner === Owner.AI);
