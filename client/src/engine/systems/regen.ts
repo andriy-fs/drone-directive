@@ -11,7 +11,7 @@ import { canRegen, decayRegenLock } from '../status';
  * a damaged unit out of the line eventually pays off, not that anything survives
  * a fight it was losing. Repair stops for `gameConfig.combat.regenDelay` seconds
  * after every hit, which is what keeps it out of the firefight itself (the lock
- * is set by `applyDamage` in `systems/combat.ts`).
+ * is set by `applyDamage` in `systems/combat/index.ts`).
  *
  * Runs right after `reapSystem`, so anything at hp<=0 is already gone and no
  * amount of regeneration can pull a corpse back over the line.

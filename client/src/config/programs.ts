@@ -8,7 +8,7 @@ import type { Program } from '@drone-directive/types/tasks';
  * behaviour but a small program that prioritises *known* (detected) robots,
  * falls back to a *known* base once none remain, searches the map when nothing
  * is known yet, dodges fire, and returns fire when hit. "Known" is per-team
- * and computed by `systems/vision.ts` — see `targeting.ts`'s `knownEnemyRobots`
+ * and computed by `systems/vision/index.ts` — see `targeting.ts`'s `knownEnemyRobots`
  * / `knownEnemyBases`.
  *
  * Extend behaviour by inserting directives; add a program by adding a key. The

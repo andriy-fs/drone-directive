@@ -4,7 +4,7 @@
  *
  * Five files: `types.ts` (the `Outcome`/`MoveIntent` vocabulary directives
  * resolve to), `advancing.ts` (what counts as an advancing "vanguard", shared
- * with `systems/ai.ts`), `roam.ts` (the random-walk/patrol-ring helpers used by
+ * with `systems/ai/index.ts`), `roam.ts` (the random-walk/patrol-ring helpers used by
  * several directives), `outcomes.ts` (one function per directive `do` action),
  * `resolver.ts` (`taskSystem` itself: the per-tick program walk, conditions,
  * and the base turret's own target pick).

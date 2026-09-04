@@ -3,7 +3,7 @@ import type { Entity } from '../../ecs/entity';
 
 /**
  * Directives that count as an advancing "vanguard" — what Overwatch trails
- * behind, and what `systems/ai.ts` counts to decide whether a push is under way
+ * behind, and what `systems/ai/index.ts` counts to decide whether a push is under way
  * for a support unit to join.
  */
 export const ADVANCING_TASKS = new Set<TaskType>([TaskType.AttackBase, TaskType.AttackRobots, TaskType.AttackTarget]);

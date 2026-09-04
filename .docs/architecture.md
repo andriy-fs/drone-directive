@@ -95,10 +95,11 @@ client/           # @drone-directive/client — the game (app code, configs, ind
   src/
     engine/     # game core (no React/Pixi/store)
       ecs/      #   entities (components), archetypes, queries, guards, world, factory
-      systems/  #   commands, economy, ai, production, task/, movement, orca/, combat,
-                #   vision, fog, shield, munition, reap, explosion
+      systems/  #   ai/, combat/ (+munition, shield), movement/ (+avoidance, orca/),
+                #   vision/ (+fog), task/, commands, production, drone, separation,
+                #   economy, reap, regen, droneRespawn, explosion
       game/     #   engine (facade), scene + scenes/, eventBus, events, context
-      (helpers) #   pathfinding, obstacles, economy, tasks/
+      (helpers) #   pathfinding, obstacles, economy, tasks/, targeting, threat, status
     pixi/       # GameApp (bridge), GameLoop, Camera, layers, assets, input/, render/
     ui/         # React: App, GameCanvas, hud/, screens/, common/, hooks/
     store/      # gameStore (Zustand) + selectors (shared with the Pixi bridge)

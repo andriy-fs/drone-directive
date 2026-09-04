@@ -24,7 +24,7 @@ import type { EcsWorld } from './world';
  * components a given system reads.** An entity's component set is fixed at
  * spawn: `factory.ts` is the only caller of `world.add`, and the only components
  * ever attached or detached afterwards are `shield`/`shieldSpent`, in
- * `systems/shield.ts`. So `with('robot', 'position', 'movement')` and
+ * `systems/combat/shield.ts`. So `with('robot', 'position', 'movement')` and
  * `with(...ROBOT_KEYS)` select the *same entities* — no robot has ever lacked
  * `weapon` or `script`. Widening is therefore behaviour-neutral by construction,
  * and it buys the thing narrower tuples can't: the return type below is

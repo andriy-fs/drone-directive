@@ -29,7 +29,7 @@ import { FEED_FRAGMENT, FEED_VERTEX } from './shader';
  * Not decoration. Three of them are the only channel two simulation states have:
  *
  * - **Interference** is `uJam`, straight from `jamPressure` in
- *   `engine/systems/vision.ts`. `gameConfig.combat.jamMultiplier` has until now
+ *   `engine/systems/vision/index.ts`. `gameConfig.combat.jamMultiplier` has until now
  *   been a smaller number inside two systems and nothing at all on screen — a
  *   player driving into an `ew` aura had no way to know it. Here it tears the
  *   picture apart, and the closer to the jammer the worse it gets.

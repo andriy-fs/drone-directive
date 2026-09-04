@@ -24,7 +24,7 @@ as "this side's eye" (`droneRespawnSystem`, `DroneView`, `store.droneStatus`,
 robot possession), and five munitions would have looked to them like five lost
 eyes. So it got a tag of its own, `munition`, and what the two flyers genuinely
 share was lifted into a *predicate* instead: `isAirTarget` in
-`systems/targeting.ts` is what "air" means to vision, to the base battery and to
+`targeting.ts` is what "air" means to vision, to the base battery and to
 `hitsAimedAir`. Component identity says what a thing **is**; a predicate over
 components says what it **counts as** — and a third flyer is now one line in
 `targeting.ts` rather than a hunt through three systems.
@@ -54,7 +54,7 @@ position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
   component + a system, not touching a class hierarchy. A **temporary** state is
   a component too, and its absence is the "off" state: a robot knocked out by a
   directed-energy hit carries `disabled: {left}` until it expires, at which point
-  the component is dropped rather than zeroed (see `systems/status.ts`, which
+  the component is dropped rather than zeroed (see `status.ts`, which
   owns every read and write of it, and decays it in `taskSystem`). `regenLock:
   {left}` — the pause on passive repair after a hit — works the same way, but is
   carried by bases as well as robots and decays in `regenSystem`. So does
@@ -65,11 +65,11 @@ position, velocity, damage, ttl, ... }`. Adding new behaviour means adding a
   the base in and out of `world.with('base','position','shield')` and the Pixi
   view is created and destroyed by that membership change alone. That is also
   the one rule about it — miniplex only re-evaluates a query through
-  `world.addComponent`/`world.removeComponent`, so `systems/shield.ts` is the
+  `world.addComponent`/`world.removeComponent`, so `systems/combat/shield.ts` is the
   sole owner of both calls, and a direct `base.shield = {...}` would be invisible
   to every query in the game. Its companion `shieldSpent` is *not* transient: it
   has to outlive the dome, because there is only one per match.
-- **Systems** are plain functions over the world (`client/src/engine/systems/*.ts`,
+- **Systems** are plain functions over the world (`client/src/engine/systems/**/*.ts`,
   each one `fooSystem(ctx, dt)`), run in a fixed order each tick by
   `GameScene.update` (`client/src/engine/game/scenes/gameScene.ts`). Order encodes
   real dependencies — e.g. `droneSystem` runs after `taskSystem` so it can
@@ -177,7 +177,7 @@ spawner sets, which selects exactly the same entities:
 
 1. `factory.ts` is the only caller of `world.add`.
 2. The only components ever attached or detached afterwards are `shield` and
-   `shieldSpent`, in `systems/shield.ts`.
+   `shieldSpent`, in `systems/combat/shield.ts`.
 
 So an entity's component set is fixed at spawn, no robot has ever lacked
 `weapon` or `script`, and widening is behaviour-neutral **by construction**.

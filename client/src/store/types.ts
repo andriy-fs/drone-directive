@@ -59,7 +59,7 @@ export interface RobotSnapshot {
   formation: FormationType | null;
 }
 
-/** HUD-facing view of a base's one-shot energy dome (see `engine/systems/shield.ts`). */
+/** HUD-facing view of a base's one-shot energy dome (see `engine/systems/combat/shield.ts`). */
 export interface BaseShieldSnapshot {
   /** The dome is up right now — flips what the readout and the tile mean. */
   active: boolean;

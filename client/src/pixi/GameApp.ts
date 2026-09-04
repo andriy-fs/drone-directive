@@ -1285,7 +1285,7 @@ export class GameApp {
    * The engine cannot make this distinction itself, and must not: `droneSystem`
    * drives every drone from `ctx.droneControl[owner]` and deliberately cannot tell
    * a player from a bot — the bot's pilot still free-flies its own eye by exactly
-   * this vector (`systems/aiDrone.ts`). "Which of the two ways this side flies"
+   * this vector (`systems/ai/pilot.ts`). "Which of the two ways this side flies"
    * is a property of the client's input layer, so it is decided here.
    *
    * Deterministic either way: the input is authored here and goes on the wire

@@ -53,7 +53,7 @@ For a persistent setting rather than a one-off measurement, the title screen's
 
 Rendering is not the only thing that can be measured; the engine is pure and
 runs headless, so simulation costs are measured in tests rather than in the
-browser. `client/src/engine/systems/orca/__perf.test.ts` asserts the avoidance
+browser. `client/src/engine/systems/movement/orca/__perf.test.ts` asserts the avoidance
 solver allocates nothing per tick, and the `__ab` harness runs full matches
 across seeds to compare movement layers on arrivals, overlap, and jam counts.
 That is also how the flow-field alternative to per-unit A\* was rejected: the

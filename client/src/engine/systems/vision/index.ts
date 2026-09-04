@@ -52,7 +52,7 @@ function updateSideVision(ctx: GameContext, owner: Owner): void {
     ...bases(ctx.world).entities.filter(isMine),
     // The observer drone spots enemies too (additive) — it isn't a robot, so it
     // needs its own pass. Every side has one, bots included (a bot's is flown by
-    // `systems/aiDrone.ts`), so this is where a drone's reach becomes intel.
+    // `systems/ai/pilot.ts`), so this is where a drone's reach becomes intel.
     // A drone riding a hull has stopped being an eye — see `sightlinesFor`.
     ...drones(ctx.world).entities.filter((d) => isMine(d) && !d.drone.possessedId),
   ];

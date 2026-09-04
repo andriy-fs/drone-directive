@@ -11,7 +11,7 @@ import { distanceToBase, findById, isEnemy } from '../../targeting';
 
 /**
  * Flight, interception and impact of single-use FPV strike drones — everything a
- * munition does between leaving its carrier (`launchSalvo`, `systems/combat.ts`)
+ * munition does between leaving its carrier (`launchSalvo`, `systems/combat/index.ts`)
  * and ceasing to exist. Nothing else in the engine knows they are alive.
  *
  * **Runs immediately after `combatSystem`, before `shieldSystem`.** After combat,

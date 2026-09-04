@@ -63,7 +63,7 @@ export class GameScene implements Scene {
     }
 
     // Every side gets an observer drone — a human pilots theirs by hand (online,
-    // through the lockstep channel), a bot flies its own from `systems/aiDrone.ts`.
+    // through the lockstep channel), a bot flies its own from `systems/ai/pilot.ts`.
     // The drone is the same entity either way; only who writes its `DroneControl`
     // differs, which is what keeps the eye a symmetric advantage.
     for (const side of this.ctx.roster) {

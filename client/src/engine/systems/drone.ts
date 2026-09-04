@@ -24,7 +24,7 @@ import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from '..
  * keeping a possessed robot's fire strictly manual. Every side has a drone, and
  * each is driven by its owner's slot in `ctx.droneControl`: the app bridge fills
  * a human's from local input (and, online, the peer's networked input), while a
- * bot's is filled by `systems/aiDrone.ts` earlier in the same tick. This system
+ * bot's is filled by `systems/ai/pilot.ts` earlier in the same tick. This system
  * cannot tell the difference, which is the point — possession and manual fire
  * work identically for whoever is on the stick.
  */
@@ -58,7 +58,7 @@ function driveDrone(ctx: GameContext, dt: number, drone: DroneEntity): void {
  * control channels meet, and the only thing that decides between them.
  *
  * Which channel a drone is on depends on who is flying it, and this system
- * deliberately cannot tell: a **bot** free-flies by the stick (`systems/aiDrone.ts`
+ * deliberately cannot tell: a **bot** free-flies by the stick (`systems/ai/pilot.ts`
  * writes `control.dir` toward its sweep waypoint), a **player** flies by
  * `MoveDrone` orders, and the client never sends a free-flight stick for a human
  * at all (`GameApp.localDroneControl`).
@@ -305,7 +305,7 @@ function normalize(v: Vec2): Vec2 {
 
 /**
  * Unit vector from `pos` toward `goal`, or zero once it is effectively there.
- * Shared with `systems/aiDrone.ts`: the bot's pilot flies to a waypoint by
+ * Shared with `systems/ai/pilot.ts`: the bot's pilot flies to a waypoint by
  * exactly this construction, and two copies of it would be two chances to drift.
  */
 export function unitToward(pos: Vec2, goal: Vec2): Vec2 {

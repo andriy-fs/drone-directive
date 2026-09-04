@@ -64,7 +64,7 @@ export interface AiState {
   buildStep: number;
   /**
    * Observer-drone pilot: the sweep point it is flying to, re-picked on arrival
-   * (see `systems/aiDrone.ts`). Undefined = pick one on the next tick, which is
+   * (see `systems/ai/pilot.ts`). Undefined = pick one on the next tick, which is
    * also how a shot-down drone's replacement starts fresh.
    */
   droneWaypoint?: Vec2;

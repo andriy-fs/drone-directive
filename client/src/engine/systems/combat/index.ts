@@ -29,7 +29,7 @@ import { alreadyDoomed } from '../../threat';
  * robot it hits out for `freezeDuration` seconds instead (see `canEngage`); an
  * `fpv` weapon (`salvo > 0`) releases a swarm of flying munitions instead of a
  * round, over terrain and without a line of sight, and everything that happens
- * to them afterwards belongs to `systems/munition.ts`. Air is hit only by a
+ * to them afterwards belongs to `systems/combat/munition.ts`. Air is hit only by a
  * deliberate surface-to-air shot — see `hitsAimedAir`.
  *
  * **Two passes, one rule.** Bases carry a built-in battery
@@ -137,7 +137,7 @@ function fireWeapon(ctx: GameContext, e: Shooter, dt: number): void {
 
 /**
  * Whether a salvo fired from `from` could actually arrive. Measured the same way
- * the munition itself decides it has arrived (`reached` in `systems/munition.ts`)
+ * the munition itself decides it has arrived (`reached` in `systems/combat/munition.ts`)
  * — footprint edge for a base, body centre for anything else — so the launcher
  * and the drone can never disagree about whether the trip was possible.
  *

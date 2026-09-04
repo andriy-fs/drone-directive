@@ -14,7 +14,7 @@ import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from '../.
  * The bot's observer-drone pilot — the counterweight to the player's own eye.
  *
  * It flies the *same* entity the player does (`systems/drone.ts` drives every
- * drone from `ctx.droneControl[owner]`, and `systems/vision.ts` already counts
+ * drone from `ctx.droneControl[owner]`, and `systems/vision/index.ts` already counts
  * one as a scout for whichever side owns it), so nothing here duplicates flight,
  * detection or damage. All this module decides is a direction.
  *
@@ -25,7 +25,7 @@ import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from '../.
  * drone riding a hull, so a bot's drone is *always* exposed to anti-air fire.
  * Shooting it down is the player's answer to it.
  *
- * Called from `runBot` (`systems/ai.ts`), which runs before `droneSystem` in the
+ * Called from `runBot` (`systems/ai/index.ts`), which runs before `droneSystem` in the
  * same tick, so the control written here is consumed immediately — no new place
  * in the pipeline. Randomness comes from `ctx.rng` and only when a waypoint is
  * actually re-picked, so the shared rng stream stays identical across peers.

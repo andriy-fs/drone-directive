@@ -134,7 +134,7 @@ export type Shooter = RobotEntity | BaseEntity;
  * A base whose energy dome is up **right now**. An intersection rather than a
  * widened key list, because `shield` is the one component attached and detached
  * mid-match — and only ever through `world.addComponent`/`removeComponent` in
- * `systems/shield.ts`. This type does not license `base.shield = {...}`; see the
+ * `systems/combat/shield.ts`. This type does not license `base.shield = {...}`; see the
  * doc comment on `Shield` in `entity.ts` for why that would compile and still
  * be invisible to every query.
  */

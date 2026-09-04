@@ -96,12 +96,12 @@ export interface WeaponComp {
   /**
    * How many single-use strike drones one pull of the trigger releases (fpv);
    * 0 = an ordinary weapon that fires a projectile. Each munition carries this
-   * weapon's own `damage` — see `systems/munition.ts`.
+   * weapon's own `damage` — see `systems/combat/munition.ts`.
    */
   salvo: number;
   /**
    * Seconds a kamikaze stands still arming before it goes off (bomb); 0 = a
-   * weapon with no fuse to burn. See `Arming` and `systems/status.ts`.
+   * weapon with no fuse to burn. See `Arming` and `status.ts`.
    */
   armingTime: number;
 }
@@ -175,7 +175,7 @@ export interface Threat {
 /**
  * Temporary knock-out from a directed-energy hit: while `left > 0` the robot does
  * nothing at all — no movement, no fire, no reloading, no spotting, and the drone
- * can't land on it. Only ever created/advanced through `systems/status.ts`.
+ * can't land on it. Only ever created/advanced through `status.ts`.
  */
 export interface Disabled {
   /** Seconds left of the knock-out (decays each tick in `taskSystem`). */
@@ -188,7 +188,7 @@ export interface Disabled {
  * it has already spent itself, and the seconds are the window a defender gets to
  * shoot it before it lands. Committed, not conditional: whatever happens to the
  * target meanwhile, the detonation comes. Only ever created/advanced through
- * `systems/status.ts`, and detonated by `systems/combat.ts`.
+ * `status.ts`, and detonated by `systems/combat/index.ts`.
  */
 export interface Arming {
   /** Seconds left on the fuse (decays each tick in `combatSystem`). */
@@ -199,7 +199,7 @@ export interface Arming {
  * Suspended passive repair: while `left > 0` the entity does not regenerate hp.
  * Stamped on *anything* that takes damage — bases have no `threat`, but they
  * must stop repairing under assault just as robots do. Only ever created/
- * advanced through `systems/status.ts`.
+ * advanced through `status.ts`.
  */
 export interface RegenLock {
   /** Seconds left before repair resumes (decays each tick in `regenSystem`). */
@@ -214,12 +214,12 @@ export interface RegenLock {
  *
  * Being a query tag is also the one rule about it: it must be attached and
  * detached through `world.addComponent`/`world.removeComponent` and nothing
- * else, which is why `systems/shield.ts` is the only file allowed to do either.
+ * else, which is why `systems/combat/shield.ts` is the only file allowed to do either.
  * A plain `base.shield = {...}` compiles and even absorbs damage correctly, but
  * no query ever sees it — the dome would never tick and never be drawn.
  */
 export interface Shield {
-  /** Dome strength left. Reaching 0 shatters it (`systems/shield.ts` clears the component). */
+  /** Dome strength left. Reaching 0 shatters it (`systems/combat/shield.ts` clears the component). */
   hp: number;
   /** Seconds of dome left; decays exactly once per tick in `shieldSystem`. */
   left: number;
@@ -231,7 +231,7 @@ export interface Shield {
  * flies free of obstacles, and while `possessedId` is set it is steering that robot.
  *
  * Every side has one. A human pilots theirs by hand; a bot's is flown by
- * `systems/aiDrone.ts`, which deliberately never possesses or fires — so a bot's
+ * `systems/ai/pilot.ts`, which deliberately never possesses or fires — so a bot's
  * drone is the one that is *always* exposed.
  *
  * A drone carries `hp` and can be shot down by surface-to-air fire — but only in
@@ -275,7 +275,7 @@ export interface Entity {
    * game's second flying entity. Carries no components of its own: it reuses
    * `position`/`heading`, `hp`, `targetId` (locked at launch, never re-picked),
    * `sourceId` (the **launcher**, so a victim's return fire finds something that
-   * still exists), `damage`, `ttl` and `weaponType`. See `systems/munition.ts`.
+   * still exists), `damage`, `ttl` and `weaponType`. See `systems/combat/munition.ts`.
    *
    * **Deliberately not a `drone`.** That component means "this side's eye", and
    * four things read it that way: `droneRespawnSystem` ("the side has no drone →
@@ -295,7 +295,7 @@ export interface Entity {
   // Health
   hp?: number;
   maxHp?: number;
-  /** Present only while passive repair is suspended by a recent hit — see `systems/status.ts`. */
+  /** Present only while passive repair is suspended by a recent hit — see `status.ts`. */
   regenLock?: RegenLock;
 
   // Robot build identity (render + production)
@@ -311,15 +311,15 @@ export interface Entity {
   script?: RobotScript;
   targetId?: string;
   threat?: Threat;
-  /** Present only while knocked out by a directed-energy hit — see `systems/status.ts`. */
+  /** Present only while knocked out by a directed-energy hit — see `status.ts`. */
   disabled?: Disabled;
-  /** Present only while a kamikaze's fuse is burning — see `systems/status.ts`. */
+  /** Present only while a kamikaze's fuse is burning — see `status.ts`. */
   arming?: Arming;
 
   // Base
   production?: Production;
   footprint?: number;
-  /** Present only while the energy dome is up — see `systems/shield.ts`. */
+  /** Present only while the energy dome is up — see `systems/combat/shield.ts`. */
   shield?: Shield;
   /**
    * The dome's single charge is gone — raised at some point this match, whether
@@ -343,6 +343,6 @@ export interface Entity {
 /**
  * The kinds `entitySpawned`/`entityDestroyed` can announce. Deliberately without
  * `munition`: a strike drone never reaches `reapSystem` — it lives and dies
- * entirely inside `systems/munition.ts` — so nothing ever needs to name one here.
+ * entirely inside `systems/combat/munition.ts` — so nothing ever needs to name one here.
  */
 export type EntityKind = 'base' | 'robot' | 'projectile' | 'explosion' | 'drone';

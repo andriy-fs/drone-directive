@@ -111,7 +111,7 @@ export function StatusPanel() {
   // the engine has always taken that view: `applyCommand` gates on the charge alone
   // and lets an early press through, because silently swallowing a panic-button
   // press is indistinguishable from the game having frozen
-  // (see `engine/systems/shield.ts`, `canActivateShield`).
+  // (see `engine/systems/combat/shield.ts`, `canActivateShield`).
   const canRaiseShield = !!shield && !shield.spent;
   const raiseShield = () => {
     if (playerBase) enqueueCommand({ kind: 'ActivateShield', baseId: playerBase.id });

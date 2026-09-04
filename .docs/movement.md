@@ -49,7 +49,7 @@ A robot inside a blocked tile needs no special case: `hasClearance` samples its
 own anchor first, so from inside rock it fails for every candidate and the escape
 hop above always survives — only the tail is straightened.
 
-`setGoal` (`client/src/engine/systems/movement.ts`) calls `findPath` only when the
+`setGoal` (`client/src/engine/systems/movement/index.ts`) calls `findPath` only when the
 new goal lands in a different tile than the previous one, since tasks re-issue a
 goal every tick — this avoids recomputing A* every frame for a stationary order.
 The cache matches on **a goal tile _and_ an existing destination**: a robot whose
@@ -59,7 +59,7 @@ return every tick, for the rest of the match.
 
 ## Motion: continuous interpolation toward waypoints
 
-`movementSystem` → `moveEntity` (`client/src/engine/systems/movement.ts`) runs every
+`movementSystem` → `moveEntity` (`client/src/engine/systems/movement/index.ts`) runs every
 fixed step for each entity with `robot`, `position`, `movement`:
 
 - Computes the vector to `movement.destination` (the current waypoint).
@@ -90,7 +90,7 @@ preventive.
 
 The shipped layer is **ORCA** — Optimal Reciprocal Collision Avoidance, van den
 Berg et al., transcribed from the RVO2 reference implementation
-(`client/src/engine/systems/orca/`). Every unit hands the solver the velocity it
+(`client/src/engine/systems/movement/orca/`). Every unit hands the solver the velocity it
 _wants_ (straight at its next A\* waypoint) and gets back the nearest velocity
 that no neighbour and no wall forbids, with each pair of movers splitting the
 correction 50/50 over a short anticipation horizon. A\* is untouched: this bends
@@ -133,7 +133,7 @@ Three lessons are worth keeping, because none of them was in the algorithm:
   sense — always the same rotation, roundabout-style — is _always_ opposite world
   sides.
 
-The previous layer, `steerAround` (`systems/avoidance.ts`), is still in the tree
+The previous layer, `steerAround` (`systems/movement/avoidance.ts`), is still in the tree
 behind a config flag and still passes its tests: it tries a fixed fan of
 deflections (π/8 … π/2) against the proposed step, one-sided and one step ahead.
 Keeping it is what makes the A/B harness (`orca/__ab.test.ts`) possible, and the

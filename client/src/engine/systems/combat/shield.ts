@@ -18,10 +18,10 @@ import { knownEnemyRobots } from '../../targeting';
  * does is take the damage aimed at the *building* — from any source, at any
  * position — until it runs out, and the overkill on the hit that breaks it
  * spills through to the base. That single unconditional rule is why the
- * absorption lives in `applyDamage` (`systems/combat.ts`) rather than in each
+ * absorption lives in `applyDamage` (`systems/combat/index.ts`) rather than in each
  * collision test: there is no such state as "inside the dome" to special-case.
  *
- * Like `systems/status.ts`, the component is only ever touched through the
+ * Like `status.ts`, the component is only ever touched through the
  * functions here, and for a stronger reason than tidiness: `shield` is an
  * archetype tag. `world.with('base', 'position', 'shield')` means "domes
  * standing right now", which is what ticks them and what gives the renderer its
@@ -56,7 +56,7 @@ export function canRaiseShield(base: BaseEntity): boolean {
  * scout hovering past should not invite the player to burn their single charge.
  *
  * Emergent consequence worth knowing before it is reported as a bug: a base is
- * itself a scout (`systems/vision.ts`), so an enemy `ew` robot nearby halves its
+ * itself a scout (`systems/vision/index.ts`), so an enemy `ew` robot nearby halves its
  * effective sight (260 → 130) and really does darken this button while an
  * assault is visibly forming. That is working counter-play, not a fault.
  */
@@ -131,7 +131,7 @@ export function shieldSystem(ctx: GameContext, dt: number): void {
       endDome(ctx, base, true);
       continue;
     }
-    s.left -= dt; // exactly once per tick — the `systems/status.ts` invariant
+    s.left -= dt; // exactly once per tick — the `status.ts` invariant
     if (s.left <= 0) {
       endDome(ctx, base, false);
       continue;

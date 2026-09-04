@@ -13,7 +13,7 @@ import { BuildPresetType, ChassisType, TaskType, WeaponType } from '@drone-direc
  * *override* the program for that specific unit (see `MixedSquad` / `AiAssault`).
  *
  * Player presets are currently AI-facing plumbing (no player UI selects them);
- * `AiAssault` is the AI's actual production series — see `systems/ai.ts`.
+ * `AiAssault` is the AI's actual production series — see `systems/ai/index.ts`.
  */
 export interface BuildPreset {
   id: BuildPresetType;
@@ -52,19 +52,19 @@ export const buildPresets: Record<BuildPresetType, BuildPreset> = {
   /**
    * The AI's production series. Steps 1–9 are a durable/ranged combat mix with
    * no forced program (they're sorted into the defence line or an attack group
-   * by `systems/ai.ts`) — one of them a directed-energy hull on the cheap fast
+   * by `systems/ai/index.ts`) — one of them a directed-energy hull on the cheap fast
    * chassis, so the player meets the knock-out from the other side too, and one
    * an FPV carrier on the toughest cheap chassis, since it never advances and
    * only ever has to survive whatever reaches its own base (`positionFpvUnits`
    * keeps it home on `Guard`, out of the wave logic entirely); the 10th
    * is a tracked kamikaze bomb, also left without a `task` override (unlike the
-   * old fixed base-rush) so `systems/ai.ts`'s `assignKamikaze` picks its target
+   * old fixed base-rush) so `systems/ai/index.ts`'s `assignKamikaze` picks its target
    * once it exists — a fat cluster of known enemy robots, or the base if nothing
    * juicier is around.
    *
    * "No forced program" means the base's `defaultTask` applies, which for a bot
    * base is `DefendBase` — pinned every tick by `ensureFactoryDefault` in
-   * `systems/ai.ts`, not by the scene — so never Idle.
+   * `systems/ai/index.ts`, not by the scene — so never Idle.
    */
   [BuildPresetType.AiAssault]: {
     id: BuildPresetType.AiAssault,

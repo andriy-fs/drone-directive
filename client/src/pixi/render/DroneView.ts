@@ -106,7 +106,7 @@ export class DroneView {
     // (`outerRadius`), so the two units read and behave alike.
     //
     // Deliberately *not* `gameConfig.drone.hitRadius`: that is the anti-air
-    // collision radius from `systems/combat.ts`, and it is smaller than the drone's
+    // collision radius from `systems/combat/index.ts`, and it is smaller than the drone's
     // own sprite. Pinning the clickable area to it made the eye harder to pick up
     // than anything else in the game — a target half a robot's size for the one
     // unit that has no marquee, no select-all and no control group to fall back on.

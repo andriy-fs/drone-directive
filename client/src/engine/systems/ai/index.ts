@@ -211,7 +211,7 @@ function ensureEwRobot(ctx: GameContext, owner: Owner, base: BaseEntity): void {
  * `wheels` hull, so it does not kill one outright — two volleys nine seconds apart,
  * or one volley and anything else that fires. That is the honest ceiling on this:
  * it thins a wave, it does not stop one. And an enemy `ew` escort deletes the
- * munitions outright (`systems/munition.ts`), which is why a *second* carrier is
+ * munitions outright (`systems/combat/munition.ts`), which is why a *second* carrier is
  * never queued — against a jammer the first one already buys nothing, and the
  * answer to that is a `dew` hit on the escort, not more tubes.
  *

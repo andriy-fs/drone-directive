@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
  * different numbers.
  *
  * Prose did not hold. When this test was added the engine had **three** live
- * violations — two in `systems/avoidance.ts` and one in `obstacles.ts`'s
+ * violations — two in `systems/movement/avoidance.ts` and one in `obstacles.ts`'s
  * `hasClearance` — all in the movement path, the most desync-sensitive code there
  * is. A rule worth writing down twice is worth a test.
  *

@@ -26,7 +26,7 @@ Run from the repo root:
 
 - `npm run dev` — Vite dev server (the game only; online play also needs `npm run dev:relay`).
 - `npm run dev:relay` — the multiplayer relay Worker on `ws://localhost:8787`, which the client defaults to.
-- `npm test` — Vitest: the `net` suite, then `chat`, then the engine suite (all must pass). Engine tests sit next to the systems (`client/src/engine/systems/*.test.ts`), net's and chat's under their `src/wire/`. `npm run test:watch` (inside `client/`) to iterate.
+- `npm test` — Vitest: the `net` suite, then `chat`, then the engine suite (all must pass). Engine tests sit next to the code they cover (`client/src/engine/**/*.test.ts` — a grouped system keeps its tests inside its folder), net's and chat's under their `src/wire/`. `npm run test:watch` (inside `client/`) to iterate.
 - `npm run build` — production build (`tsc -b && vite build`, emits `client/dist`). Type-checks `types`/`net`/`chat` transitively, since the client imports their sources.
 - `npm run lint` — one root ESLint pass over **every** workspace.
 - `npm run type-check` — `tsc --noEmit` for `types`, `net`, `chat`, `server`. The server is **not** reached by `npm run build`, so this is the only thing that checks it.

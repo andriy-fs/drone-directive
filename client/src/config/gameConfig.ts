@@ -99,7 +99,7 @@ export const gameConfig = {
      * about pathing, line of sight or collision changes; every point of damage
      * aimed at the *building* comes off the dome first, from any source and any
      * position, and the overkill on the hit that breaks it spills through. See
-     * `systems/shield.ts`.
+     * `systems/combat/shield.ts`.
      *
      * The numbers, against a 15 dps chassis: a raid of four is denied outright,
      * seven crack the dome at ~12 s (base survives 17.5 s instead of 5.7 s),
@@ -175,7 +175,7 @@ export const gameConfig = {
     possessTurnRateDeg: 160,
     /** Hull strength. At `missiles` damage (22) that's three hits to bring one down. */
     maxHp: 60,
-    /** Collision radius (px) for anti-air fire — see `systems/combat.ts`. */
+    /** Collision radius (px) for anti-air fire — see `systems/combat/index.ts`. */
     hitRadius: 14,
     /** Seconds a side spends without an eye after losing one, before a fresh drone rolls out. */
     respawnTime: 30,
@@ -237,7 +237,7 @@ export const gameConfig = {
       near: 14,
       /**
        * Half the sector a **possessed** hull can see in, in degrees — the one number
-       * in this block the simulation reads (`systems/vision.ts`).
+       * in this block the simulation reads (`systems/vision/index.ts`).
        *
        * It exists because the monitor and detection have to agree. Riding a hull
        * hides the whole battlefield behind one forward view, and leaving that side's
@@ -262,7 +262,7 @@ export const gameConfig = {
 
   /**
    * The single-use FPV strike drone — the body a `salvo` weapon launches, and the
-   * game's second flying entity (see `systems/munition.ts`). Stats live here rather
+   * game's second flying entity (see `systems/combat/munition.ts`). Stats live here rather
    * than on the weapon because they describe the *munition*, not the launcher: a
    * second salvo weapon would reuse this body and differ only in `salvo`/`damage`.
    *
@@ -320,20 +320,20 @@ export const gameConfig = {
      * weapon would just be another entry with the flag on.
      * `freezeDuration` (seconds) only matters for `dew` — how long a hit leaves
      * the target disabled; it is also what makes a zero-damage weapon count as
-     * armed at all (see `canEngage` in `systems/combat.ts`).
+     * armed at all (see `canEngage` in `systems/combat/index.ts`).
      * `range` is reach alone, never sight: a weapon that outranges its hull's own
      * `sight` (today `missiles`, at 255 against the widest chassis's 230) can only
      * use the surplus against a target some ally is watching *right now* — see
-     * `isKnownTo` in `systems/targeting.ts`, applied to every weapon in
+     * `isKnownTo` in `targeting.ts`, applied to every weapon in
      * `fireWeapon`. Raising a range past a chassis `sight` therefore buys
      * dependence on a spotter, not free blind fire.
      * `salvo` (>0) turns the weapon into a **launcher**: instead of one round it
      * releases that many single-use flying munitions, each carrying this weapon's
-     * own `damage` (see the `munition` block above and `systems/munition.ts`).
+     * own `damage` (see the `munition` block above and `systems/combat/munition.ts`).
      * Only `fpv` has it, and it is what exempts the weapon from the line-of-sight
-     * check — drones fly over mountains (`needsLineOfSight` in `systems/combat.ts`).
+     * check — drones fly over mountains (`needsLineOfSight` in `systems/combat/index.ts`).
      * `armingTime` (seconds, >0) only matters for `bomb`: the fuse it burns
-     * standing still before it goes off — see `systems/status.ts` and the note on
+     * standing still before it goes off — see `status.ts` and the note on
      * `bomb` below.
      */
     weapons: {
@@ -391,7 +391,7 @@ export const gameConfig = {
       // 135 px/s hull crosses in 1.4 s, in which a cannon lands ~24 damage against 70 hp.
       // A fuse burned *stationary* is what turns that into a real window: the base's own
       // battery plus one defender now finish a light chassis inside the second. It is a
-      // delay, never a cancellation (see `systems/combat.ts`) — a kamikaze that started
+      // delay, never a cancellation (see `systems/combat/index.ts`) — a kamikaze that started
       // still trades itself for whatever it is standing next to, so its job against a
       // cluster or a dome is untouched. Raising it much past a second stops being a
       // window and starts being "escort or don't bother"; dropping it below one puts the
@@ -426,7 +426,7 @@ export const gameConfig = {
        * effective sight range of enemy scouts standing inside it (see
        * `combat.jamMultiplier`), and it drops enemy FPV strike drones that fly into
        * it outright — a munition inside the bubble falls without dealing damage
-       * (`systems/munition.ts`). The second job is what makes this the hard counter
+       * (`systems/combat/munition.ts`). The second job is what makes this the hard counter
        * to `fpv`, the way `missiles` is the soft one.
        */
       ew: {
@@ -459,7 +459,7 @@ export const gameConfig = {
       /**
        * FPV carrier: one pull of the trigger releases `salvo` single-use strike
        * drones, each carrying this weapon's own `damage` (5 × 12 = 60 a volley) and
-       * living `munition.flightTime` seconds. See `systems/munition.ts`.
+       * living `munition.flightTime` seconds. See `systems/combat/munition.ts`.
        *
        * **`range` here is not a reach — it is "anywhere".** 4000 clears the diagonal
        * of the largest map (80 tiles ≈ 3620 px), so the number that actually bounds
@@ -562,7 +562,7 @@ export const gameConfig = {
     stuckAfter: 0.4,
     retreatSeconds: 0.5,
     /**
-     * ORCA local manoeuvring — see `engine/systems/orca/`. Every unit hands the
+     * ORCA local manoeuvring — see `engine/systems/movement/orca/`. Every unit hands the
      * solver the velocity it *wants* (straight at its next A* waypoint) and gets
      * back the nearest one that no neighbour and no wall forbids, with each pair
      * of movers splitting the correction 50/50. A* is untouched: this bends a
@@ -1058,7 +1058,7 @@ export const gameConfig = {
     /**
      * Base hp fraction below which a bot spends its one energy dome. Bot *policy*,
      * so it lives here rather than in `bases.shield`, which holds the dome's own
-     * stats — see `systems/ai.ts`.
+     * stats — see `systems/ai/index.ts`.
      *
      * One of **three** triggers, and the slowest of them: a fraction of max hp is
      * coarser than a single hit, which is exactly how the kamikaze opening used to
@@ -1085,7 +1085,7 @@ export const gameConfig = {
     dewEscortMin: 2,
 
     /**
-     * Bot observer-drone pilot (`systems/aiDrone.ts`). The bot flies the same
+     * Bot observer-drone pilot (`systems/ai/pilot.ts`). The bot flies the same
      * drone the player does — it just never lands on a robot and never fires.
      *
      * `droneDangerRange`: an enemy surface-to-air robot or an enemy base this

@@ -28,7 +28,7 @@ export interface GameEvents {
   entityDestroyed: { id: string; kind: EntityKind; owner?: Owner; pos: Vec2; killerId?: string };
   /**
    * `owner` **spotted** something it could not see last tick — the rising edge of
-   * `systems/vision.ts`'s per-tick sets, which are otherwise rebuilt wholesale and
+   * `systems/vision/index.ts`'s per-tick sets, which are otherwise rebuilt wholesale and
    * expose no such moment. Fires once per contact, again if it is lost and refound.
    * Nothing in the simulation consumes it: detection already works off the sets,
    * and this exists so the app layer can narrate.
@@ -57,7 +57,7 @@ export interface GameEvents {
   projectileHit: { owner: Owner; pos: Vec2; dir: Vec2; weapon: WeaponType; target: HitTarget };
   /**
    * A kamikaze lit its fuse and stopped moving — `gameConfig.robots.weapons.bomb`'s
-   * `armingTime` seconds before the blast (see `systems/combat.ts`).
+   * `armingTime` seconds before the blast (see `systems/combat/index.ts`).
    *
    * Nothing in the simulation consumes it. It exists because the whole point of the
    * fuse is that both sides get to *notice* it: the attacker sees the machine commit,
@@ -65,7 +65,7 @@ export interface GameEvents {
    * warning can be hung on the hull rather than on a spot it is standing near.
    */
   bombArming: { owner: Owner; id: string; pos: Vec2 };
-  /** A base spent its one-shot energy dome (see `systems/shield.ts`). */
+  /** A base spent its one-shot energy dome (see `systems/combat/shield.ts`). */
   shieldRaised: { owner: Owner; baseId: string; pos: Vec2 };
   /**
    * That dome is gone for the match. `shattered` separates the two endings —
