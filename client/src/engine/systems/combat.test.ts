@@ -8,7 +8,7 @@ import { tileOf } from '../obstacles';
 import { combatSystem } from './combat';
 import { visionSystem } from './vision';
 import { raiseShield } from './shield';
-import { applyDisable } from './status';
+import { applyDisable } from '../status';
 import { makeCtx } from './testkit';
 
 const DT = gameConfig.fixedDt;

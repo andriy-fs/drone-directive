@@ -24,7 +24,7 @@ import {
 } from '../tasks/taskDefinitions';
 import { pilotDrone } from './aiDrone';
 import { canRaiseShield, raiseShield } from './shield';
-import { isDisabled } from './status';
+import { isDisabled } from '../status';
 import { isAdvancing } from './task';
 import { isEnemy, knownEnemyRobots } from './targeting';
 import { atRobotCap } from './production';

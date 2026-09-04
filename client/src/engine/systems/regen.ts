@@ -2,7 +2,7 @@ import { gameConfig } from '../../config/gameConfig';
 import type { Living } from '../ecs/archetypes';
 import { bases, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
-import { canRegen, decayRegenLock } from './status';
+import { canRegen, decayRegenLock } from '../status';
 
 /**
  * Passive repair: robots and bases slowly claw hp back on their own, at

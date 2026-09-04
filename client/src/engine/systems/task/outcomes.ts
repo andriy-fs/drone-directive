@@ -7,7 +7,7 @@ import { robots } from '../../ecs/queries';
 import type { GameContext } from '../../game/context';
 import { hasLineOfSight } from '../../obstacles';
 import { needsLineOfSight } from '../combat';
-import { isDisabled } from '../status';
+import { isDisabled } from '../../status';
 import {
   findById,
   isEnemy,

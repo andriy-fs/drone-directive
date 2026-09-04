@@ -6,7 +6,7 @@ import { isAlive, isBase, isPositioned } from '../ecs/guards';
 import { munitions, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { applyDamage } from './combat';
-import { isDisabled } from './status';
+import { isDisabled } from '../status';
 import { distanceToBase, findById, isEnemy } from './targeting';
 
 /**

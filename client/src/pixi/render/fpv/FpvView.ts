@@ -6,7 +6,7 @@ import type { EcsWorld } from '../../../engine/ecs/world';
 import type { RobotEntity } from '../../../engine/ecs/archetypes';
 import { bases, drones, munitions, projectiles, robots } from '../../../engine/ecs/queries';
 import { isAlive } from '../../../engine/ecs/guards';
-import { isDisabled } from '../../../engine/systems/status';
+import { isDisabled } from '../../../engine/status';
 import { jamPressure } from '../../../engine/systems/vision';
 import { manualFireTarget } from '../../../engine/systems/drone';
 import { ownBase } from '../../../engine/systems/targeting';

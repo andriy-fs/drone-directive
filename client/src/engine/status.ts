@@ -1,5 +1,5 @@
 import type { With } from 'miniplex';
-import type { Entity } from '../ecs/entity';
+import type { Entity } from './ecs/entity';
 
 /**
  * Temporary status effects. Three today:

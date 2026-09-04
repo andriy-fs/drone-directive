@@ -8,7 +8,7 @@ import type { Entity, WeaponComp } from '../ecs/entity';
 import { isAlive, isBase, isDrone, isRobot } from '../ecs/guards';
 import { bases, drones, munitions, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
-import { isDisabled } from './status';
+import { isDisabled } from '../status';
 
 /**
  * Whether `p` falls inside a base's footprint — the base hit-test, shared by

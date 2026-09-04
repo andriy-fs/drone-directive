@@ -9,7 +9,7 @@ import type { GameContext } from '../game/context';
 import { isBlockedGrid, tileOf } from '../obstacles';
 import { findPath, smoothPath } from '../pathfinding';
 import { steerAround } from './avoidance';
-import { isArming, isDisabled } from './status';
+import { isArming, isDisabled } from '../status';
 import { baseFootprintContains, pilotedHullIds } from './targeting';
 
 /**

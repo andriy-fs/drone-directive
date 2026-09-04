@@ -5,7 +5,7 @@ import { spawnBase, spawnDrone, spawnProjectile, spawnRobot } from '../ecs/facto
 import type { GameContext } from '../game/context';
 import { combatSystem, detonateBomb } from './combat';
 import { regenSystem } from './regen';
-import { applyDisable } from './status';
+import { applyDisable } from '../status';
 import { makeCtx } from './testkit';
 
 const DT = gameConfig.fixedDt;

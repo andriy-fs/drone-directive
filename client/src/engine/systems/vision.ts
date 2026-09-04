@@ -8,7 +8,7 @@ import type { Entity, EntityKind } from '../ecs/entity';
 import { isAlive } from '../ecs/guards';
 import { bases, drones, robots } from '../ecs/queries';
 import type { GameContext, TeamIntel } from '../game/context';
-import { isDisabled } from './status';
+import { isDisabled } from '../status';
 import { distanceToBase, enemyAirTargets, enemyBases, enemyRobots, isEnemy, possessedRobotOf } from './targeting';
 
 /**

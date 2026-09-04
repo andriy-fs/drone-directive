@@ -6,7 +6,7 @@ import type { Entity } from '../ecs/entity';
 import type { GameContext } from '../game/context';
 import { munitionSystem } from './munition';
 import { raiseShield } from './shield';
-import { applyDisable } from './status';
+import { applyDisable } from '../status';
 import { makeCtx } from './testkit';
 
 const DT = gameConfig.fixedDt;
