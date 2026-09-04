@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../../config/gameConfig';
-import type { ObstacleGrid } from '../../obstacles';
+import { gameConfig } from '../../../../config/gameConfig';
+import type { ObstacleGrid } from '../../../obstacles';
 import { createOrcaSolver } from './solver';
 import { collectWalls } from './walls';
 

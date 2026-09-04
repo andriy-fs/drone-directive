@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import { spawnBase, spawnDrone, spawnRobot } from '../ecs/factory';
-import { refreshNavObstacles } from '../navGrid';
-import { isBlockedGrid, tileOf } from '../obstacles';
-import { findPath } from '../pathfinding';
-import { makeAttackBase } from '../tasks/taskDefinitions';
-import { makeCtx } from './testkit';
-import { movementSystem, setGoal } from './movement';
+import { spawnBase, spawnDrone, spawnRobot } from '../../ecs/factory';
+import { refreshNavObstacles } from '../../navGrid';
+import { isBlockedGrid, tileOf } from '../../obstacles';
+import { findPath } from '../../pathfinding';
+import { makeAttackBase } from '../../tasks/taskDefinitions';
+import { makeCtx } from '../testkit';
+import { movementSystem, setGoal } from './index';
 
 
 describe('base as a movement obstacle', () => {

@@ -1,6 +1,6 @@
-import { gameConfig } from '../../../config/gameConfig';
-import type { ObstacleGrid } from '../../obstacles';
-import type { RobotEntity } from '../../ecs/archetypes';
+import { gameConfig } from '../../../../config/gameConfig';
+import type { ObstacleGrid } from '../../../obstacles';
+import type { RobotEntity } from '../../../ecs/archetypes';
 import { createOrcaSolver, type OrcaSolver } from './solver';
 import { collectWalls } from './walls';
 

@@ -1,17 +1,17 @@
 import { describe, it, vi } from 'vitest';
 import { Controller, Difficulty, MapSize } from '@drone-directive/types/enums';
-import { gameConfig } from '../../../config/gameConfig';
-import { createDefaultSettings } from '../../../config/gameSettings';
-import { GameEngine } from '../../game/engine';
-import { bases, projectiles, robots } from '../../ecs/queries';
-import { isAlive } from '../../ecs/guards';
+import { gameConfig } from '../../../../config/gameConfig';
+import { createDefaultSettings } from '../../../../config/gameSettings';
+import { GameEngine } from '../../../game/engine';
+import { bases, projectiles, robots } from '../../../ecs/queries';
+import { isAlive } from '../../../ecs/guards';
 
 /** Temporary: do bot-vs-bot matches still resolve with the new avoidance layer? */
 
 const P = vi.hoisted(() => ({ calls: 0, ms: 0, empty: 0, emptyMs: 0, samples: [] as string[] }));
 
-vi.mock('../../pathfinding', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../pathfinding')>();
+vi.mock('../../../pathfinding', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../pathfinding')>();
   return {
     ...actual,
     findPath(...args: Parameters<typeof actual.findPath>) {

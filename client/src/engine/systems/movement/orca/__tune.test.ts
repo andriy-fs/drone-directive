@@ -1,18 +1,18 @@
 import { describe, it } from 'vitest';
 import { ChassisType, FormationType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import { applyMapSize, gameConfig } from '../../../config/gameConfig';
-import type { BaseEntity, RobotEntity } from '../../ecs/archetypes';
-import { spawnBase, spawnRobot } from '../../ecs/factory';
-import { resetIds } from '../../../utils/id';
-import { refreshNavObstacles } from '../../navGrid';
-import { isBlockedGrid, tileCentre, tileOf } from '../../obstacles';
-import { distance } from '../../../utils/math';
-import { makeCtx } from '../testkit';
-import { commandsSystem } from '../commands';
-import { movementSystem } from '../movement';
-import { separationSystem } from '../separation';
-import { visionSystem } from '../vision';
-import { taskSystem } from '../task';
+import { applyMapSize, gameConfig } from '../../../../config/gameConfig';
+import type { BaseEntity, RobotEntity } from '../../../ecs/archetypes';
+import { spawnBase, spawnRobot } from '../../../ecs/factory';
+import { resetIds } from '../../../../utils/id';
+import { refreshNavObstacles } from '../../../navGrid';
+import { isBlockedGrid, tileCentre, tileOf } from '../../../obstacles';
+import { distance } from '../../../../utils/math';
+import { makeCtx } from '../../testkit';
+import { commandsSystem } from '../../commands';
+import { movementSystem } from '..';
+import { separationSystem } from '../../separation';
+import { visionSystem } from '../../vision';
+import { taskSystem } from '../../task';
 
 /**
  * Temporary: tunes the ORCA horizons on the regime that actually hurts — real

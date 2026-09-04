@@ -1,8 +1,8 @@
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
-import { vecLength } from '../../utils/math';
-import type { RobotEntity } from '../ecs/archetypes';
-import { isAlive } from '../ecs/guards';
+import { vecLength } from '../../../utils/math';
+import type { RobotEntity } from '../../ecs/archetypes';
+import { isAlive } from '../../ecs/guards';
 
 /**
  * Preventive avoidance between robots — the step the pipeline never had.

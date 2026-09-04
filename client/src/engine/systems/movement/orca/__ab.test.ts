@@ -1,19 +1,19 @@
 import { describe, it, vi } from 'vitest';
 import { ChassisType, FormationType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
-import { applyMapSize, gameConfig } from '../../../config/gameConfig';
-import type { BaseEntity, RobotEntity } from '../../ecs/archetypes';
-import { spawnBase, spawnRobot } from '../../ecs/factory';
-import { resetIds } from '../../../utils/id';
-import { refreshNavObstacles } from '../../navGrid';
-import { isBlockedGrid, tileCentre, tileOf } from '../../obstacles';
-import { distance } from '../../../utils/math';
-import { makeCtx } from '../testkit';
-import { commandsSystem } from '../commands';
-import { movementSystem } from '../movement';
-import { separationSystem } from '../separation';
-import { baseFootprintContains } from '../../targeting';
-import { visionSystem } from '../vision';
-import { taskSystem } from '../task';
+import { applyMapSize, gameConfig } from '../../../../config/gameConfig';
+import type { BaseEntity, RobotEntity } from '../../../ecs/archetypes';
+import { spawnBase, spawnRobot } from '../../../ecs/factory';
+import { resetIds } from '../../../../utils/id';
+import { refreshNavObstacles } from '../../../navGrid';
+import { isBlockedGrid, tileCentre, tileOf } from '../../../obstacles';
+import { distance } from '../../../../utils/math';
+import { makeCtx } from '../../testkit';
+import { commandsSystem } from '../../commands';
+import { movementSystem } from '..';
+import { separationSystem } from '../../separation';
+import { baseFootprintContains } from '../../../targeting';
+import { visionSystem } from '../../vision';
+import { taskSystem } from '../../task';
 
 /**
  * A/B harness for the local-avoidance layer — NOT a test. Nothing is asserted; it
@@ -43,8 +43,8 @@ const H = vi.hoisted(() => ({ pathCalls: 0 }));
  * avoidance layer make units re-path more?" is one of the gate's questions and
  * nothing else can answer it.
  */
-vi.mock('../../pathfinding', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../pathfinding')>();
+vi.mock('../../../pathfinding', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../pathfinding')>();
   return {
     ...actual,
     findPath(...args: Parameters<typeof actual.findPath>) {

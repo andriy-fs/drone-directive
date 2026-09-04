@@ -1,5 +1,5 @@
-import { gameConfig } from '../../../config/gameConfig';
-import { inBounds, isBlockedGrid, type ObstacleGrid } from '../../obstacles';
+import { gameConfig } from '../../../../config/gameConfig';
+import { inBounds, isBlockedGrid, type ObstacleGrid } from '../../../obstacles';
 import type { OrcaSolver } from './solver';
 
 /**

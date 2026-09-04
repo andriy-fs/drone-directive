@@ -5,7 +5,7 @@ import type { DroneControl, ResourcePool, Vec2 } from '@drone-directive/types/en
 import { Controller, Difficulty, Owner, PLAYABLE_OWNERS } from '@drone-directive/types/enums';
 import { generateObstacles, movementGrid, sightGrid, type ObstacleGrid, type TerrainGrid } from '../obstacles';
 import type { EcsWorld } from '../ecs/world';
-import { createOrcaSteering, type OrcaSteering } from '../systems/orca';
+import { createOrcaSteering, type OrcaSteering } from '../systems/movement/orca';
 import type { GameBus } from './eventBus';
 import { createRng, type Rng } from '../../utils/rng';
 

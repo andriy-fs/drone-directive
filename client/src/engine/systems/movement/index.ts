@@ -1,16 +1,16 @@
-import { gameConfig, worldPixelSize } from '../../config/gameConfig';
+import { gameConfig, worldPixelSize } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { RobotState, TaskType } from '@drone-directive/types/enums';
-import { clamp, distance, vecLength } from '../../utils/math';
-import type { BaseEntity, Navigable, RobotEntity } from '../ecs/archetypes';
-import { isAlive } from '../ecs/guards';
-import { bases, robots } from '../ecs/queries';
-import type { GameContext } from '../game/context';
-import { isBlockedGrid, tileOf } from '../obstacles';
-import { findPath, smoothPath } from '../pathfinding';
+import { clamp, distance, vecLength } from '../../../utils/math';
+import type { BaseEntity, Navigable, RobotEntity } from '../../ecs/archetypes';
+import { isAlive } from '../../ecs/guards';
+import { bases, robots } from '../../ecs/queries';
+import type { GameContext } from '../../game/context';
+import { isBlockedGrid, tileOf } from '../../obstacles';
+import { findPath, smoothPath } from '../../pathfinding';
 import { steerAround } from './avoidance';
-import { isArming, isDisabled } from '../status';
-import { baseFootprintContains, pilotedHullIds } from '../targeting';
+import { isArming, isDisabled } from '../../status';
+import { baseFootprintContains, pilotedHullIds } from '../../targeting';
 
 /**
  * Sets a robot's navigation goal, pathfinding around obstacles. Skips the A*

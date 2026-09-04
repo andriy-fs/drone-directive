@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { gameConfig } from '../../config/gameConfig';
-import type { RobotEntity } from '../ecs/archetypes';
-import { spawnRobot } from '../ecs/factory';
-import { makeCtx } from './testkit';
+import { gameConfig } from '../../../config/gameConfig';
+import type { RobotEntity } from '../../ecs/archetypes';
+import { spawnRobot } from '../../ecs/factory';
+import { makeCtx } from '../testkit';
 import { steerAround } from './avoidance';
 
 /**

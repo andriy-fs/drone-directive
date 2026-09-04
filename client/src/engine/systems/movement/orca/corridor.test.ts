@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { ChassisType, MapSize, Owner, WeaponType } from '@drone-directive/types/enums';
-import { applyMapSize, gameConfig } from '../../../config/gameConfig';
-import type { RobotEntity } from '../../ecs/archetypes';
-import { spawnRobot } from '../../ecs/factory';
-import { resetIds } from '../../../utils/id';
-import { isBlockedGrid, tileCentre, tileOf, type ObstacleGrid } from '../../obstacles';
-import { distance } from '../../../utils/math';
-import { makeCtx } from '../testkit';
-import { setGoal, movementSystem } from '../movement';
-import { separationSystem } from '../separation';
+import { applyMapSize, gameConfig } from '../../../../config/gameConfig';
+import type { RobotEntity } from '../../../ecs/archetypes';
+import { spawnRobot } from '../../../ecs/factory';
+import { resetIds } from '../../../../utils/id';
+import { isBlockedGrid, tileCentre, tileOf, type ObstacleGrid } from '../../../obstacles';
+import { distance } from '../../../../utils/math';
+import { makeCtx } from '../../testkit';
+import { setGoal, movementSystem } from '..';
+import { separationSystem } from '../../separation';
 
 /**
  * Corridor throughput — the one thing the existing harnesses cannot see.
