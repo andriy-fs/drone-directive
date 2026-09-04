@@ -43,7 +43,7 @@ new_sqlite_classes = ["Chat"]
 # `.docs/internal/release/README.md`. A var rather than a call to GitHub's API:
 # one string, no external dependency, no rate limit.
 [vars]
-DESKTOP_LATEST = "0.2.8"
+DESKTOP_LATEST = "0.2.9"
 
 # One row per desktop launch: version, OS, architecture, country. No identifier is
 # sent or stored, so this counts launches rather than people — see `src/desktop.ts`
