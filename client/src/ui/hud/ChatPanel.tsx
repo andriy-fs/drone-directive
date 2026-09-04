@@ -3,7 +3,7 @@ import type { ChatMessage } from '@drone-directive/chat';
 import { closeChat, dismissChat, openChat, sendChat, setChatSound } from '../../chat/chatBridge';
 import { useT, type T } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
-import { selectChat } from '../../store/selectors';
+import { selectChat, selectInOnlineMatch } from '../../store/selectors';
 import { Button } from '../common/Button';
 import { BellIcon, BellOffIcon, MessageSquareIcon, SendIcon, XIcon } from '../common/icons';
 
@@ -11,11 +11,26 @@ import { BellIcon, BellOffIcon, MessageSquareIcon, SendIcon, XIcon } from '../co
  * Chat with the online opponent: a floating panel over the canvas, collapsed to a
  * button with an unread badge.
  *
- * **Mounted outside `App`'s `inMatch` guard, on purpose.** The conversation
- * outlives the match — it survives the opponent leaving, the return to the menu,
- * and (through `chatStorage` + `restoreChat`) a reload or a visit days later. A
- * panel that only existed while a match ran would take the chat down with it at
- * the exact moment the players want to talk.
+ * **Shown during a live online match and nowhere else.** Not in a solo match,
+ * where there is nobody on the other end and the launcher would be a control that
+ * cannot do anything; and not on the title screen, which is a menu rather than a
+ * place to hold a conversation.
+ *
+ * That is a deliberate narrowing of what the chat *is*, and it costs something
+ * worth writing down. The machinery underneath still assumes a conversation that
+ * outlives its match — `chatStorage` remembers the room, `restoreChat` reconnects
+ * to it on the next visit, and the `Chat` Durable Object keeps the log for seven
+ * days (see `.docs/chat.md`). All of that now happens without a way to see it: a
+ * restored conversation is invisible on the menu where it is restored, and the
+ * next online match replaces it (`attachChat` swaps the store's chat whenever the
+ * id differs). In practice the log is readable only inside the match it belongs
+ * to. If the retention is ever meant to be visible again, this guard is where to
+ * loosen it — the obvious first step being to let the collapsed launcher through
+ * on the menu while `unread > 0`.
+ *
+ * Hidden, never shut down: `chatBridge` owns the socket and knows nothing about
+ * any of this, so messages keep arriving and the unread badge is already counted
+ * when the panel comes back.
  *
  * Everything it does goes through `chat/chatBridge`, never the store directly:
  * opening the panel may also have to open a socket, and the store has no business
@@ -24,8 +39,9 @@ import { BellIcon, BellOffIcon, MessageSquareIcon, SendIcon, XIcon } from '../co
 export function ChatPanel() {
   const t = useT();
   const chat = useGameStore(selectChat);
+  const inOnlineMatch = useGameStore(selectInOnlineMatch);
 
-  if (!chat.chatId) return null;
+  if (!chat.chatId || !inOnlineMatch) return null;
 
   return chat.open ? <ExpandedChat t={t} /> : <CollapsedChat t={t} unread={chat.unread} />;
 }

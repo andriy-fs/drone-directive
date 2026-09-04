@@ -190,6 +190,26 @@ export interface SideSnapshot {
 }
 
 /**
+ * What the loading screen has to announce, composed by the bridge the moment a
+ * match is asked for.
+ *
+ * Not derived in the UI from `settings.match`, and not read off `sides` either,
+ * because neither is true at the moment the loader goes up. `settings` is the
+ * *local* player's, so an online guest would announce its own map size and bot
+ * count rather than the host's, which are what the handshake actually decided;
+ * and `sides` is a projection of a world that does not exist yet — during the
+ * sprite wait it still holds the previous match's roster. The bridge is the one
+ * place that knows the real answer on both routes into a match, so it says it
+ * once, here.
+ */
+export interface MatchBrief {
+  mapSize: MapSize;
+  online: boolean;
+  /** Every side that will be seated, in roster order (`buildRoster`). */
+  sides: { owner: Owner; bot: boolean }[];
+}
+
+/**
  * What the store *holds* — the half `initialState` has to fill in and the half
  * every selector reads. Split from the actions so the starting values can be
  * annotated with it (see `./initialState`): as a bare object literal they needed
@@ -201,6 +221,12 @@ export interface GameStateFields {
   status: GameStatus;
   /** How far the end-of-match reveal has got. Bridge-only; see `OutcomePhase`. */
   outcomePhase: OutcomePhase;
+  /**
+   * What the loading screen announces, or null outside `GameStatus.Loading`.
+   * Bridge-only, and cleared with the loader so nothing can render a stale
+   * briefing over the next match.
+   */
+  matchBrief: MatchBrief | null;
   bases: BaseSnapshot[];
   robots: RobotSnapshot[];
   /** Who's playing, in seating order — drives the per-side HUD rows. */
@@ -322,6 +348,12 @@ export interface RadioLine {
 export interface GameActions {
   setStatus: (status: GameStatus) => void;
   setOutcomePhase: (phase: OutcomePhase) => void;
+  /**
+   * Raise the loading screen with what it should announce (bridge-only). There is
+   * no matching clear: `setStatus` drops the briefing on the way out of
+   * `Loading`, so no caller can strand one over the next match.
+   */
+  beginLoading: (brief: MatchBrief) => void;
   setBases: (bases: BaseSnapshot[]) => void;
   setRobots: (robots: RobotSnapshot[]) => void;
   setSides: (sides: SideSnapshot[]) => void;

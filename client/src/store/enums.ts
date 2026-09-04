@@ -22,16 +22,34 @@ export const DroneMode = {
 } as const;
 export type DroneMode = (typeof DroneMode)[keyof typeof DroneMode];
 
-/** Which screen the game is on. Driven by engine scene events via the bridge. */
-export const GameStatus = { Menu: 'menu', Playing: 'playing', Won: 'won', Lost: 'lost' } as const;
+/**
+ * Which screen the game is on. Driven by engine scene events via the bridge.
+ *
+ * `Loading` is a screen like `Menu`, not a phase running alongside one — that is
+ * why it belongs here rather than in a field of its own the way `OutcomePhase`
+ * does. The two are mutually exclusive with `Playing`: a world is either being
+ * built or being played, never both. Everything gated on `=== Playing` (hotkeys,
+ * pointer, zoom, selection) therefore stays shut for free while the loader is up,
+ * which is exactly what a screen with no battlefield under it wants.
+ */
+export const GameStatus = {
+  Menu: 'menu',
+  /** A match has been asked for; the world (and its sprites) are being built. */
+  Loading: 'loading',
+  Playing: 'playing',
+  Won: 'won',
+  Lost: 'lost',
+} as const;
 export type GameStatus = (typeof GameStatus)[keyof typeof GameStatus];
 
 /**
  * How far the end-of-match transition has got — and deliberately *not* part of
- * `GameStatus`, which is the engine's truth about who won and is set the instant
- * the last base falls. This is about what the player is being *shown*: the field
- * held on the burning wreck, then a fade to black, then the outcome card. Only
- * `GameApp` writes it (`.docs/tasks/outcome-transition.md`).
+ * `GameStatus`, for a reason that is worth stating precisely, since `Loading`
+ * *is* part of it: this phase runs **alongside** a status rather than instead of
+ * one. `Won` is set the instant the last base falls and stays set through the
+ * hold, the veil and the reveal, so both facts are true at once and need two
+ * fields. A state that merely replaces another one belongs in the enum. Only
+ * `GameApp` writes this (`.docs/tasks/outcome-transition.md`).
  */
 export const OutcomePhase = {
   /** A match is running, or none is. */

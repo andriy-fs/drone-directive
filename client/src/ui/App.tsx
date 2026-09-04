@@ -15,6 +15,7 @@ import { SoundButton } from './hud/SoundButton';
 import { StatusPanel } from './hud/StatusPanel';
 import { ProgrammingPanel } from './hud/ProgrammingPanel';
 import { GameOverModal } from './screens/GameOverModal';
+import { LoadingScreen } from './screens/LoadingScreen';
 import { MainMenu } from './screens/MainMenu';
 import { useControlGroupHotkeys } from './hooks/useControlGroupHotkeys';
 import { usePauseHotkey } from './hooks/usePauseHotkey';
@@ -24,7 +25,7 @@ import { gameOverBackdropSrc } from '../config/sprites';
 import { useT } from '../i18n';
 import { useGameStore } from '../store/gameStore';
 import { GameStatus, OnlineLink, OutcomePhase } from '../store/enums';
-import { selectOnlineLink, selectOutcomePhase, selectStatus } from '../store/selectors';
+import { selectInMatch, selectOnlineLink, selectOutcomePhase, selectStatus } from '../store/selectors';
 
 import './App.css';
 
@@ -59,9 +60,10 @@ function App() {
     for (const src of [gameOverBackdropSrc.victory, gameOverBackdropSrc.defeat]) new Image().src = src;
   }, [status]);
 
-  // `won`/`lost` still count as in-match: the world (and the HUD) stay on screen
-  // behind the game-over modal.
-  const inMatch = status !== GameStatus.Menu;
+  // A selector rather than a line here: `ChatPanel` needs the same question
+  // answered (it stands down in a solo match), and two copies of "which statuses
+  // have a world" is exactly the kind of pair that drifts.
+  const inMatch = useGameStore(selectInMatch);
   // Lockstep froze the world waiting for input — the peer's, or our own once the
   // socket comes back. Not a pause, and not a crash either. Only a running match
   // has a link at all, so anything but `ok` already means there is one.
@@ -139,12 +141,19 @@ function App() {
       )}
       {/* Mounted only on the title screen, so its dialog state (Base Setup, the
           online lobby, …) starts fresh every time — rendering it always and
-          returning null inside would keep that state alive across a whole match. */}
+          returning null inside would keep that state alive across a whole match.
+          It survives `loading` and is torn down at `playing`, exactly as before:
+          the loading screen covers it, so there is nothing to be gained by
+          dropping it a second earlier. */}
       {!inMatch && <MainMenu />}
+      {/* Over the menu and over the canvas both — the world is being built behind
+          it either way, and `GameApp` holds the simulation still until this comes
+          down (see `revealMatch`). */}
+      <LoadingScreen />
       <GameOverModal />
-      {/* Outside the `inMatch` guard, unlike everything above it: the chat outlives
-          the match, so the panel has to survive the return to the menu. It renders
-          nothing until there is a conversation to show. */}
+      {/* Outside the `inMatch` guard, unlike everything above it — but that is now
+          only structural: the panel decides for itself, and it shows in a live
+          online match and nowhere else (see its own note on what that costs). */}
       <ChatPanel />
       {/* Last, and outside the match guard too: a player arriving on a phone meets
           the title screen first, and a tablet turned upright mid-match is owed the

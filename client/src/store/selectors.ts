@@ -1,4 +1,4 @@
-import { OnlineLink, OnlineStatus } from './enums';
+import { GameStatus, OnlineLink, OnlineStatus } from './enums';
 import type { GameState } from './types';
 
 /**
@@ -8,6 +8,26 @@ import type { GameState } from './types';
  */
 export const selectStatus = (s: GameState) => s.status;
 export const selectOutcomePhase = (s: GameState) => s.outcomePhase;
+/** What the loading screen announces, or null when it is not up. */
+export const selectMatchBrief = (s: GameState) => s.matchBrief;
+/**
+ * Whether there is a world on screen. The statuses that *have* one rather than
+ * "not the menu": `loading` is not the menu either, and a HUD over a field that
+ * does not exist yet is what that shorter form used to produce. `won`/`lost`
+ * count — the world (and the HUD) stay up behind the outcome card.
+ */
+export const selectInMatch = (s: GameState) =>
+  s.status === GameStatus.Playing || s.status === GameStatus.Won || s.status === GameStatus.Lost;
+/**
+ * A live online match — a world on screen with a peer on the other end of it.
+ *
+ * The whole of the chat's visibility: the panel is up here and nowhere else.
+ * True through the outcome card as well, since a finished online match keeps its
+ * session (`endOnline` is what drops it, and that returns to the menu), which is
+ * what leaves the players their "gg".
+ */
+export const selectInOnlineMatch = (s: GameState) =>
+  selectInMatch(s) && s.online.status === OnlineStatus.InMatch;
 export const selectBases = (s: GameState) => s.bases;
 export const selectRobots = (s: GameState) => s.robots;
 export const selectResources = (s: GameState) => s.resources;

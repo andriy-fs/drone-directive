@@ -346,6 +346,35 @@ export interface Dict {
     /** Shown only once a pick has changed something that needs the page reloaded. */
     reload: string;
   };
+  /**
+   * The screen between the title and the battlefield, while the world is built
+   * and its sprites decoded. Held for a floor of `LOADING_MIN_MS` even when the
+   * work finishes sooner, so it reads as a briefing rather than a flicker — which
+   * is what the tips are for: they are the reason the floor is not an annoyance.
+   */
+  loading: {
+    title: string;
+    /** Heading over the side list. */
+    sides: string;
+    /** The three ways a row in that list can be labelled. */
+    you: string;
+    opponent: string;
+    bot: string;
+    /** Heading over the rotating tip. */
+    tipLabel: string;
+    /**
+     * The tips themselves. Numbered keys rather than an array because `useT()`
+     * resolves `dict[section][key]` to a string — one entry per tip keeps every
+     * language checked key-for-key by `dictionaries.test.ts`. `LOADING_TIPS` in
+     * `ui/screens/LoadingScreen.tsx` is the list that has to grow with them.
+     */
+    tip1: string;
+    tip2: string;
+    tip3: string;
+    tip4: string;
+    tip5: string;
+    tip6: string;
+  };
   online: {
     multiplayer: string;
     online2p: string;

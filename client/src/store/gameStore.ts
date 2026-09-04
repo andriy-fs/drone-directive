@@ -4,7 +4,7 @@ import { loadDict } from '../i18n/dictionaries';
 import { saveLocale, type Locale } from '../i18n/locale';
 import { saveTheme, type Theme } from '../theme/theme';
 import { Owner } from '@drone-directive/types/enums';
-import { ClientVersion, OnlineLink, OnlineRequest, OnlineStatus } from './enums';
+import { ClientVersion, GameStatus, OnlineLink, OnlineRequest, OnlineStatus } from './enums';
 import { initialState } from './initialState';
 import type { GameState } from './types';
 
@@ -29,8 +29,13 @@ const CLIENT_VERSION_RANK: Record<ClientVersion, number> = {
 
 export const useGameStore = create<GameState>((set, get) => ({
   ...initialState,
-  setStatus: (status) => set({ status }),
+  // The briefing is dropped here rather than by whoever leaves the loading
+  // screen: every route out of it goes through a `setStatus`, and one that
+  // forgot would put the last match's roster over the next one's loader.
+  setStatus: (status) =>
+    set(() => (status === GameStatus.Loading ? { status } : { status, matchBrief: null })),
   setOutcomePhase: (outcomePhase) => set({ outcomePhase }),
+  beginLoading: (matchBrief) => set({ status: GameStatus.Loading, matchBrief }),
   setBases: (bases) => set({ bases }),
   setRobots: (robots) => set({ robots }),
   setSides: (sides) => set({ sides }),

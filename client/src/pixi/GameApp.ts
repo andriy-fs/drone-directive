@@ -1,6 +1,6 @@
 import { Application, Container, UPDATE_PRIORITY } from 'pixi.js';
 import { gameConfig } from '../config/gameConfig';
-import { onlineMatchSettings } from '../config/gameSettings';
+import { onlineMatchSettings, type GameSettings } from '../config/gameSettings';
 import { palette } from '../config/palette';
 import type { BaseEntity, DroneEntity, RobotEntity } from '../engine/ecs/archetypes';
 import type { Entity } from '../engine/ecs/entity';
@@ -31,6 +31,7 @@ import type {
 import { selectOnlineLink } from '../store/selectors';
 import type { Command } from '@drone-directive/types/commands';
 import { Controller, Owner, WeaponType, type MapSize } from '@drone-directive/types/enums';
+import { buildRoster } from '../engine/game/context';
 import type { DroneControl, GameContext } from '../engine/game/context';
 import { loadGameAssets, loadSoundAssets, warmGameAssets } from './assets';
 import { DESYNC_CHECK_EVERY } from '@drone-directive/protocol';
@@ -76,6 +77,26 @@ import { WorldRenderer } from './render/WorldRenderer';
  */
 const OUTCOME_HOLD_MS = 1400;
 const OUTCOME_VEIL_MS = 900;
+
+/**
+ * How long the loading screen stays up at minimum, in milliseconds.
+ *
+ * Building a world costs a few tens of milliseconds on the largest map, so
+ * without a floor the screen would appear and vanish inside three frames — a
+ * flash, which reads worse than the silent pause it replaced. With one, the wait
+ * is `max(this, the real work)`: the work starts immediately and only the
+ * *reveal* is held back, so nothing is made slower than the floor itself.
+ *
+ * 1200 ms is the shortest interval that still reads as a screen rather than a
+ * blink, and short enough that a player restarting repeatedly does not start
+ * resenting it. It is also comfortably inside the 4 s settle
+ * `scripts/lib/game.mjs` waits out before a screenshot.
+ *
+ * The one wait it does not govern is the sprite atlas on a cold cache: that is a
+ * network fetch and takes as long as it takes. The floor is a minimum, never a
+ * cap.
+ */
+const LOADING_MIN_MS = 1200;
 
 /**
  * The single boundary object React touches (via useGameApp). Owns the Pixi
@@ -128,6 +149,14 @@ export class GameApp {
   private readonly busUnsubs: (() => void)[] = [];
   /** Pending steps of the end-of-match reveal, so a restart can cancel them. */
   private readonly outcomeTimers: number[] = [];
+  /**
+   * When the loading screen went up (`performance.now()`), or 0 when it is not up.
+   * The clock starts at the *request*, not at `startMatch`, so a cold-cache sprite
+   * fetch counts towards the floor instead of being added to it.
+   */
+  private loadingSince = 0;
+  /** The pending reveal, so leaving to the menu can cancel it. */
+  private loadingTimer = 0;
   private destroyed = false;
   private snapshotTick = 0;
   /** Networked-match state (null when solo). */
@@ -800,6 +829,11 @@ export class GameApp {
           music.stop('victory');
           music.stop('defeat');
           this.clearOutcome();
+          // A match can be abandoned before it was ever handed over — Leave from
+          // the lobby, or a peer that dropped during the handshake. Without this
+          // the pending reveal would fire on the title screen and put the HUD up
+          // over an empty world.
+          this.clearLoading();
           this.clearObstacles();
           this.clearGround();
           this.fpvView?.setTerrain(null);
@@ -809,7 +843,11 @@ export class GameApp {
           // match would otherwise stay frozen on screen.
           this.flush();
         } else {
-          store().setStatus(GameStatus.Playing);
+          // `setStatus(Playing)` used to be here. It is now the last thing this
+          // handler does, by way of `revealMatch`: the world is built inside this
+          // very callback, and the loading screen has to stay up across the build
+          // rather than be taken down at the start of it.
+          //
           // The one place both routes into a match pass through, solo and online
           // alike. Deliberately not awaited and not part of the start gate the way
           // the sprites are: `sfx.play` re-checks readiness on every call, so a cue
@@ -840,6 +878,10 @@ export class GameApp {
           this.rebuildObstacles();
           this.attachScorch();
           this.rebuildFpvTerrain();
+          // Everything the match needs is now on screen behind the loader. Hand
+          // it over — immediately if the player has already waited out the floor,
+          // otherwise when they have.
+          this.revealMatch();
         }
         this.pushSnapshot();
       }),
@@ -906,6 +948,87 @@ export class GameApp {
     );
   }
 
+  /**
+   * The settings the match now being asked for will actually run with.
+   *
+   * Not simply `store.settings`: an online guest's local map size and bot count
+   * are whatever it last picked in the lobby, while the match runs on what the
+   * *host* put in the handshake. Composed the same way `beginOnlineMatch` does it
+   * (and thrown away just as readily — it is never written back into settings),
+   * so the loading screen announces the match the player is about to be in rather
+   * than the one this client would have hosted.
+   */
+  private startingSettings(store: GameState): GameSettings {
+    const start = this.pendingOnlineStart;
+    if (!start) return store.settings;
+    return onlineMatchSettings(store.settings, { mapSize: start.mapSize, aiOpponents: start.aiCount });
+  }
+
+  /**
+   * Raise the loading screen for a match that has been asked for.
+   *
+   * Called from every route into one, more than once per match: the clock is
+   * stamped only the first time — so the sprite fetch a cold cache adds counts
+   * *towards* the floor rather than being tacked onto it — but the briefing is
+   * rewritten each time, which is how a guest's screen corrects itself the moment
+   * the handshake's real map size and bot count arrive.
+   *
+   * The roster comes from `buildRoster`, the same function the engine will seat
+   * the match with, so the sides listed here cannot drift from the sides that
+   * turn up on the field.
+   */
+  private beginLoading(settings: GameSettings): void {
+    if (this.loadingSince === 0) this.loadingSince = performance.now();
+    useGameStore.getState().beginLoading({
+      mapSize: settings.match.mapSize,
+      online: settings.match.online,
+      sides: buildRoster(settings.match).map((side) => ({
+        owner: side.owner,
+        bot: side.controller === Controller.Bot,
+      })),
+    });
+  }
+
+  /**
+   * The world is built; hand it over once the loading screen has had its floor.
+   *
+   * Only the *reveal* waits — the expensive work is already done by the time this
+   * runs — so the player waits `max(LOADING_MIN_MS, the build)` rather than the
+   * sum of the two. `step` holds the simulation still for the remainder (see the
+   * gate there), because a match that spent its first second advancing behind the
+   * screen would be handed over already in progress.
+   */
+  private revealMatch(): void {
+    const waited = this.loadingSince === 0 ? LOADING_MIN_MS : performance.now() - this.loadingSince;
+    const remaining = Math.max(0, LOADING_MIN_MS - waited);
+    if (remaining === 0) {
+      this.finishLoading();
+      return;
+    }
+    this.loadingTimer = window.setTimeout(() => this.finishLoading(), remaining);
+  }
+
+  /** Take the loading screen down and let the world move. */
+  private finishLoading(): void {
+    this.loadingTimer = 0;
+    this.loadingSince = 0;
+    useGameStore.getState().setStatus(GameStatus.Playing);
+    // The loop has been costing steps without advancing anything; nothing else
+    // changed a store flag, so nothing else would wake it to notice.
+    this.wake();
+  }
+
+  /**
+   * Abandon a load in progress (leaving to the menu, a peer that dropped before
+   * the match began, teardown). Leaves `status` alone — every caller is already
+   * setting one of its own, and the store clears the briefing with it.
+   */
+  private clearLoading(): void {
+    if (this.loadingTimer !== 0) window.clearTimeout(this.loadingTimer);
+    this.loadingTimer = 0;
+    this.loadingSince = 0;
+  }
+
   /** Drop the reveal and any step of it still pending (restart, menu, teardown). */
   private clearOutcome(): void {
     for (const timer of this.outcomeTimers) window.clearTimeout(timer);
@@ -937,6 +1060,10 @@ export class GameApp {
     // nor `pendingOnlineStart` is consumed here, so the request simply waits for
     // a later step — and `idle` knows not to park the loop while it does.
     if (this.startHeld) {
+      // The loading screen covers this wait as well — on a cold cache it is by
+      // far the longer of the two, and it used to show nothing at all, which is
+      // what made Start look like a button that had not worked.
+      this.beginLoading(this.startingSettings(store));
       this.requestAssets();
       return true;
     }
@@ -955,6 +1082,7 @@ export class GameApp {
       this.leaveOnlineIfAny();
       if (toMenu) this.engine.toMenu();
       else {
+        this.beginLoading(useGameStore.getState().settings);
         this.resetView(store);
         // `?seed=` pins the battlefield so two runs are comparable; without it the
         // context seeds from the clock, which is what solo play normally wants.
@@ -963,6 +1091,13 @@ export class GameApp {
       }
       return true;
     }
+
+    // The world is built and the loading screen is still up. Nothing may advance
+    // behind it — neither the solo loop below nor the lockstep one, which would
+    // spend the interval exchanging inputs and hand the player a match already a
+    // second old. Costs the step (only a lockstep stall may return `false`), and
+    // `finishLoading` wakes the loop when the screen comes down.
+    if (this.loadingSince !== 0) return true;
 
     // Networked match: advance under lockstep instead of ticking directly.
     // The session is read into a local so the guard below narrows it for
@@ -1252,6 +1387,9 @@ export class GameApp {
     // would build different worlds from the same seed. Composed for this match
     // only, never written back into `settings` — see `onlineMatchSettings`.
     const settings = onlineMatchSettings(store.settings, { mapSize, aiOpponents: aiCount });
+    // Raised (or, if the sprite gate got here first, corrected) with what the host
+    // actually chose — see `startingSettings`.
+    this.beginLoading(settings);
     this.netTick = 0;
     this.onlinePaused = false;
     this.stalledSince = 0;
@@ -1509,8 +1647,10 @@ export class GameApp {
     this.qualityUnsub?.();
     this.qualityUnsub = null;
     // Before the bus goes: a pending reveal step would otherwise fire into a
-    // store whose app no longer exists.
+    // store whose app no longer exists. Same for a pending match reveal, which
+    // would additionally flip the store to `playing` with nothing behind it.
     this.clearOutcome();
+    this.clearLoading();
     for (const unsub of this.busUnsubs) unsub();
     this.storeUnsub?.();
     this.storeUnsub = null;

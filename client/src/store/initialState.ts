@@ -26,6 +26,7 @@ import type { GameStateFields } from './types';
 export const initialState: GameStateFields = {
   status: GameStatus.Menu,
   outcomePhase: OutcomePhase.None,
+  matchBrief: null,
   bases: [],
   robots: [],
   sides: [],

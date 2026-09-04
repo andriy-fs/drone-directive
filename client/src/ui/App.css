@@ -682,6 +682,167 @@
   }
 }
 
+/* The loading screen — everything between pressing Start and the battlefield.
+   Fixed and above every other layer: it covers the title screen on the way in and
+   the freshly built (but still) world behind it, and neither may show through.
+
+   Opaque rather than a scrim: what is behind it during a solo restart is the last
+   frame of the previous match, and a half-visible dead battlefield under a
+   briefing for the next one reads as a bug.
+
+   Above everything the game itself puts on screen — the dialogs (11) and the chat
+   (40) — but deliberately under both device notices (50 and 60): those say the
+   window is the wrong shape and carry the only way past themselves, and a screen
+   that lasts a second must not be what covers them. */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.loading-screen__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(94vw, 560px);
+  padding: 32px;
+  text-align: center;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Turned with `transform`, and that is the point rather than a detail: a
+   composited transform animation keeps running on the compositor thread while the
+   main thread is blocked building the world. Animate this with anything the main
+   thread has to touch each frame — a rotating glyph, a stepped background — and
+   the spinner freezes for exactly the interval it exists to cover. */
+.loading-screen__spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--surface-raised);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  will-change: transform;
+  animation: loading-spin 900ms linear infinite;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-screen__title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: var(--text-h);
+  text-shadow: var(--glow-title);
+}
+
+.loading-screen__map {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.loading-screen__map strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.loading-screen__heading {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.loading-screen__sides {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loading-screen__side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface-inset);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+}
+
+/* The seat this client plays, marked the way a switched-on tile is elsewhere. */
+.loading-screen__side--you {
+  color: var(--text-on-accent);
+  background: var(--surface-accent);
+  border-color: var(--border-strong);
+}
+
+/* The reason the minimum hold is not an annoyance: something worth the seconds
+   it takes. Separated by a rule rather than a gap — it is a different kind of
+   thing from the briefing above it. */
+.loading-screen__tip {
+  margin-top: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.loading-screen__tip-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.loading-screen__tip-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* The spinner is the only thing moving here, so it does not simply stop: with no
+   motion at all the screen is indistinguishable from a frozen one, which is the
+   impression the whole screen exists to dispel. It pulses in place instead —
+   `opacity` is composited too, so it survives a blocked main thread just as the
+   rotation does. */
+@media (prefers-reduced-motion: reduce) {
+  .loading-screen__spinner {
+    animation: loading-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes loading-pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
 /* The radio feed: unit chatter straight onto the scene, top-right. The one free
    corner — sidebar left, drone toast top-centre, chat bottom-right.
 
