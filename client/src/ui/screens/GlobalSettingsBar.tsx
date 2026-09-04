@@ -13,11 +13,12 @@ import {
   VolumeXIcon,
 } from '../common/icons';
 import { Menu, MenuButton, MenuItem, MenuItems } from '../common/Menu';
+import { FullscreenButton } from '../hud/FullscreenButton';
 import { LANGUAGE_OPTIONS, themeOptions } from './menuOptions';
 
 /**
- * The title screen's global settings — language, theme, sound, controls — as one
- * compact row of icon buttons in the header.
+ * The title screen's global settings — language, theme, sound, controls, full
+ * screen — as one compact row of icon buttons in the header.
  *
  * These are app-wide preferences that outlive any match, so grouping them apart
  * from the match rules is the point: previously they sat in the same vertical
@@ -132,6 +133,11 @@ export function GlobalSettingsBar({
       >
         <KeyboardIcon size={16} aria-hidden />
       </Button>
+
+      {/* Last, as in the HUD titlebar: it changes the frame around the game
+          rather than anything in it. Hides itself where the embedder forbids
+          fullscreen, which is why the row must not depend on its width. */}
+      <FullscreenButton className="menu-bar__btn" />
     </div>
   );
 }

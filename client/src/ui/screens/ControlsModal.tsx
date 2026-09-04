@@ -1,4 +1,4 @@
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { useT, type T } from '../../i18n';
 import { Button } from '../common/Button';
 
@@ -51,7 +51,7 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onClose={onClose}>
       <DialogBackdrop className="dialog-backdrop" />
-      <div className="dialog-frame">
+      <DialogFrame>
         <DialogPanel className="modal">
           <DialogTitle className="modal__title">{t('mainMenu', 'controlsTitle')}</DialogTitle>
           <div className="modal__body">
@@ -72,7 +72,7 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
             {t('mainMenu', 'close')}
           </Button>
         </DialogPanel>
-      </div>
+      </DialogFrame>
     </Dialog>
   );
 }

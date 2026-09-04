@@ -5,8 +5,6 @@ export interface Dict {
     difficulty: string;
     opponents: string;
     opponentsHint: string;
-    baseSetup: string;
-    autoProduceProgram: string;
     help: string;
     controls: string;
     start: string;
@@ -95,17 +93,6 @@ export interface Dict {
     defeatBody: string;
     mainMenu: string;
     playAgain: string;
-  };
-  baseSetup: {
-    title: string;
-    /** The title screen's switch — the dialog only labels the model behind it. */
-    autoProduce: string;
-    chassis: string;
-    weapon: string;
-    newRobotProgram: string;
-    /** Commits the dialog's draft; also what turns auto-production on. */
-    apply: string;
-    cancel: string;
   };
   buildRobot: {
     title: string;
@@ -313,7 +300,6 @@ export interface Dict {
    */
   theme: {
     command: string;
-    field: string;
     crt: string;
   };
   /**

@@ -5,8 +5,7 @@ The UI's colours, fonts and corner radii, as one set of CSS custom properties.
 ```
 theme/
   tokens.css        the base look — every token, defined once, on :root
-  themes/field.css  one theme = one file of overrides under [data-theme='…']
-  themes/crt.css    …and another
+  themes/crt.css    one theme = one file of overrides under [data-theme='…']
   index.css         load order: tokens first, then every theme
   theme.ts          the id union, storage, and the <html data-theme> write
 ```

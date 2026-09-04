@@ -11,7 +11,7 @@ import {
 } from '../../store/selectors';
 import { DroneMode } from '../../store/enums';
 import { Button } from '../common/Button';
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { ClearSelectionIcon, CrosshairIcon, EyeIcon, SelectAllIcon } from '../common/icons';
 import { PickerGroup } from '../common/Picker';
 import { WEAPON_ICONS, WEAPON_OPTIONS } from './unitOptions';
@@ -69,7 +69,7 @@ export function SelectionModal({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onClose={onClose}>
       <DialogBackdrop className="dialog-backdrop" />
-      <div className="dialog-frame">
+      <DialogFrame>
         <DialogPanel className="modal modal--selection">
           <DialogTitle className="modal__title">{t('selection', 'title')}</DialogTitle>
 
@@ -133,7 +133,7 @@ export function SelectionModal({ onClose }: { onClose: () => void }) {
             {t('mainMenu', 'close')}
           </Button>
         </DialogPanel>
-      </div>
+      </DialogFrame>
     </Dialog>
   );
 }

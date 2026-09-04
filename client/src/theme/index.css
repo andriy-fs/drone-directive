@@ -7,5 +7,4 @@
  * One line per theme, matching one entry in `theme.ts`.
  */
 @import './tokens.css';
-@import './themes/field.css';
 @import './themes/crt.css';

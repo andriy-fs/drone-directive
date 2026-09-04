@@ -48,6 +48,10 @@
   /* The brief's #1c7a32 lands near 3.4:1 on this background — too dim to be a
      label you are expected to read. Lifted just past 4.5:1 and left there. */
   --text-dim: #2f9e4a;
+  /* The dim phosphor the brief wanted, kept for the one place it costs nothing:
+     the wordmark is never read, only recognised, so the same 3.4:1 that rules it
+     out for labels is fine on a large glowing title. */
+  --hud-title: #1c7a32;
   --text-on-accent: #051a0a;
   --icon-on-accent: #051a0a;
   --on-danger: #051a0a;

@@ -79,7 +79,11 @@ export function onlineMatchSettings(
 /** Fresh copy of the default settings (never share the object — it's mutated per game). */
 export function createDefaultSettings(): GameSettings {
   return {
-    match: { difficulty: Difficulty.Normal, mapSize: MapSize.Medium, aiOpponents: 1, online: false },
+    // Easy, not Normal: a first match is where the game is learned, and the one
+    // the player has not chosen should be the forgiving one. The picker is right
+    // there for anyone who wants otherwise. (Online ignores this — `context.ts`
+    // forces Normal for both peers.)
+    match: { difficulty: Difficulty.Easy, mapSize: MapSize.Medium, aiOpponents: 1, online: false },
     // Auto-production is OFF by default: a side gets `production.maxRobots` slots
     // for the whole match, and they belong to the player's plan, not to a default
     // model queued before the first shot. The directive still stands by, so a base

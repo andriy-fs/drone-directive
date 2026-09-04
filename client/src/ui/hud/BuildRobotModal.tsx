@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { buildCost } from '../../engine/economy';
 import { gameConfig } from '../../config/gameConfig';
 import { ROBOT_MODELS } from '../../models';
@@ -125,7 +125,7 @@ export function BuildRobotModal({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open={true} onClose={onClose}>
       <DialogBackdrop className="dialog-backdrop" />
-      <div className="dialog-frame">
+      <DialogFrame>
         <DialogPanel
           className="modal modal--build"
           onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
@@ -256,7 +256,7 @@ export function BuildRobotModal({ onClose }: { onClose: () => void }) {
             </Button>
           </div>
         </DialogPanel>
-      </div>
+      </DialogFrame>
     </Dialog>
   );
 }

@@ -10,8 +10,13 @@ import { useFullscreen } from '../hooks/useFullscreen';
  * but they are the *window's* fullscreen and this is the page's — see
  * `useFullscreen` for why the two cannot be merged from here, and why the icon
  * follows the DOM rather than the last click.
+ *
+ * Also in two places: the HUD titlebar during a match and the title screen's
+ * settings row. They style their buttons differently and neither owns the other,
+ * so the caller passes the class; the default is the titlebar's, which is where
+ * this button started.
  */
-export function FullscreenButton() {
+export function FullscreenButton({ className = 'sound-toggle' }: { className?: string }) {
   const t = useT();
   const { active, supported, toggle } = useFullscreen();
 
@@ -21,7 +26,7 @@ export function FullscreenButton() {
 
   return (
     <Button
-      className="sound-toggle"
+      className={className}
       onClick={toggle}
       aria-label={active ? t('aria', 'exitFullscreen') : t('aria', 'enterFullscreen')}
       title={active ? t('aria', 'exitFullscreen') : t('aria', 'enterFullscreen')}

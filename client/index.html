@@ -9,7 +9,13 @@
          black, which would eat this mark's dark outline. -->
     <link rel="icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` is here for one symptom: on a tablet with a display
+         cutout, Chrome *letterboxes* a fullscreen page away from it, and the game
+         gets a black strip along the camera edge — in landscape, across the top.
+         The letterbox is the default precisely because a page that has not opted
+         in may put a button under the camera; `cover` is that opt-in, and `.hud`
+         below pays for it with `env(safe-area-inset-*)` padding. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#050a06" />
     <!-- The title-screen splash is the first thing the player sees, but its URL is
          built in JS and handed to CSS as a custom property (config/sprites.ts →

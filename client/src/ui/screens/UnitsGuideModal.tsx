@@ -1,4 +1,4 @@
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { useT } from '../../i18n';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
@@ -68,7 +68,7 @@ export function UnitsGuideModal({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onClose={onClose}>
       <DialogBackdrop className="dialog-backdrop" />
-      <div className="dialog-frame">
+      <DialogFrame>
         <DialogPanel className="modal">
           <DialogTitle className="modal__title">{t('unitsGuide', 'title')}</DialogTitle>
           <p className="modal__body">{t('unitsGuide', 'intro')}</p>
@@ -119,7 +119,7 @@ export function UnitsGuideModal({ onClose }: { onClose: () => void }) {
             {t('mainMenu', 'close')}
           </Button>
         </DialogPanel>
-      </div>
+      </DialogFrame>
     </Dialog>
   );
 }

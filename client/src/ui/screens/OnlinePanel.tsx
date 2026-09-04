@@ -10,7 +10,6 @@ import { MapSize } from '@drone-directive/types/enums';
 import { Button } from '../common/Button';
 import { CheckIcon, CopyIcon } from '../common/icons';
 import { ChipPicker, PickerGroup, type ChipOption } from '../common/Picker';
-import { BaseSetupRow } from './BaseSetupRow';
 
 const MAP_SIZES: { value: MapSize; label: 'small' | 'medium' | 'large' }[] = [
   { value: MapSize.Small, label: 'small' },
@@ -75,7 +74,7 @@ function RoomCode({ code }: { code: string }) {
  * store setting, and it reaches the world as a lockstep command rather than as
  * part of the handshake (see `GameApp.beginOnlineMatch`).
  */
-export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }) {
+export function OnlinePanel() {
   const t = useT();
   const online = useGameStore(selectOnline);
   const clientVersion = useGameStore(selectClientVersion);
@@ -153,28 +152,33 @@ export function OnlinePanel({ onOpenBaseSetup }: { onOpenBaseSetup: () => void }
             <ChipPicker className="picker--segmented" options={mapSizeOptions} value={mapSize} onChange={setMapSize} />
           </PickerGroup>
 
-          <BaseSetupRow onOpenBaseSetup={onOpenBaseSetup} />
+          {/* The two ways into a match, as one block pinned to the foot of the
+              panel — where the solo tab's Start already is, so switching tabs
+              does not move the thing you came to press. The gap it opens above
+              itself is the point: the rows above are settings, these are the
+              actions, and they had been reading as one list of five. */}
+          <div className="online-actions">
+            <Button className="btn--primary" onClick={host}>
+              {t('online', 'createRoom')}
+            </Button>
 
-          <Button className="btn--primary" onClick={host}>
-            {t('online', 'createRoom')}
-          </Button>
-
-          {/* Joining is the alternative to hosting, not a step after it — ruled
-              off so the two don't read as one form with two buttons. */}
-          <PickerGroup label={t('online', 'joinGame')}>
-            <div className="join-row">
-              <input
-                className="join-row__code"
-                value={code}
-                maxLength={8}
-                placeholder={t('online', 'roomCodePlaceholder')}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-              />
-              <Button onClick={join} disabled={code.trim().length === 0}>
-                {t('online', 'joinRoom')}
-              </Button>
-            </div>
-          </PickerGroup>
+            {/* Joining is the alternative to hosting, not a step after it — ruled
+                off so the two don't read as one form with two buttons. */}
+            <PickerGroup label={t('online', 'joinGame')}>
+              <div className="join-row">
+                <input
+                  className="join-row__code"
+                  value={code}
+                  maxLength={8}
+                  placeholder={t('online', 'roomCodePlaceholder')}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                />
+                <Button onClick={join} disabled={code.trim().length === 0}>
+                  {t('online', 'joinRoom')}
+                </Button>
+              </div>
+            </PickerGroup>
+          </div>
         </>
       )}
 

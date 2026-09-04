@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { useT } from '../../i18n';
 import { sfx } from '../../pixi/audio/sfx';
 import { music } from '../../pixi/audio/music';
@@ -55,7 +55,7 @@ export function SoundSettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onClose={onClose}>
       <DialogBackdrop className="dialog-backdrop" />
-      <div className="dialog-frame">
+      <DialogFrame>
         <DialogPanel className="modal">
           <DialogTitle className="modal__title">{t('sound', 'title')}</DialogTitle>
 
@@ -117,7 +117,7 @@ export function SoundSettingsModal({ onClose }: { onClose: () => void }) {
             {t('mainMenu', 'close')}
           </Button>
         </DialogPanel>
-      </div>
+      </DialogFrame>
     </Dialog>
   );
 }

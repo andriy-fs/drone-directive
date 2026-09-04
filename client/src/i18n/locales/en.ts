@@ -7,8 +7,6 @@ export const en: Dict = {
     difficulty: 'Difficulty',
     opponents: 'Opponents',
     opponentsHint: 'Every side fights every other',
-    baseSetup: 'Base setup',
-    autoProduceProgram: 'Auto-produce & program',
     help: 'Help',
     controls: 'Controls',
     start: 'Start',
@@ -78,15 +76,6 @@ export const en: Dict = {
     defeatBody: 'All your bases were destroyed.',
     mainMenu: 'Main Menu',
     playAgain: 'Play Again',
-  },
-  baseSetup: {
-    title: 'Auto-Production Setup',
-    autoProduce: 'Auto-produce robots',
-    chassis: 'Chassis',
-    weapon: 'Weapon',
-    newRobotProgram: 'New robot program',
-    apply: 'Apply',
-    cancel: 'Cancel',
   },
   buildRobot: {
     title: 'Build & Program',
@@ -232,7 +221,6 @@ export const en: Dict = {
   },
   theme: {
     command: 'Command',
-    field: 'Field',
     crt: 'CRT Terminal',
   },
   sound: {

@@ -116,7 +116,14 @@
 .hud {
   background: var(--panel-bg);
   border-right: 1px solid var(--panel-border);
-  padding: 20px 18px;
+  /* The insets are the rent for `viewport-fit=cover` (see `index.html`): the page
+     now paints into the display cutout, so the rail keeps its own controls out of
+     it. `max()` rather than a sum — on every screen without a cutout every inset
+     is 0 and the padding is exactly what it always was. Only the two edges the
+     rail actually touches; the battlefield beside it is scenery and may run under
+     the camera. */
+  padding: max(20px, env(safe-area-inset-top)) 18px max(20px, env(safe-area-inset-bottom))
+    max(18px, env(safe-area-inset-left));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -138,7 +145,7 @@
 }
 
 /* Its own full-width line under the title, never squeezed beside it: four tiles
-   do not fit next to a 22px display heading in a 300px rail. `space-between`
+   do not fit next to the display heading in a 300px rail. `space-between`
    rather than a fixed gap so the row always ends flush with both edges of the
    panel — the last tile lines up with the cards below it whatever the tile count
    or the language. */
@@ -151,10 +158,15 @@
 .hud__title {
   font-family: var(--display);
   text-shadow: var(--glow-title);
-  font-size: 22px;
+  /* Fluid rather than fixed: the rail drops to 240px at 1280 (see the top of this
+     file), and a 22px monospaced "Drone Directive" is ~206px — one pixel over the
+     content box, so a tablet got the wordmark on two lines. The ramp reaches the
+     full 22px only once the rail is back to 300px, and bottoms out well above the
+     1000px viewport the device gate accepts. */
+  font-size: clamp(0.95rem, 1.5vw, 1.375rem);
   letter-spacing: 0.5px;
   margin: 0;
-  color: var(--text-h);
+  color: var(--hud-title);
 }
 
 /* The volume row inside the sound dialog — the slider's only home now that the
@@ -1973,6 +1985,17 @@ a.menu-nav__item {
   margin-top: auto;
 }
 
+/* Host and join, at the foot of the online panel — `margin-top: auto` does the
+   same job as `.menu-panel__cta` above, for a pair that has to travel together.
+   It carries the panel's own `gap` so the two halves stay spaced as they were
+   when they were siblings. */
+.online-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: auto;
+}
+
 /* Joining a room: the code and the button that uses it, on one line — the code
    is useless on its own, so splitting them over two rows only made the panel
    taller. */
@@ -2026,24 +2049,6 @@ a.menu-nav__item {
 .picker--segmented .chip--on {
   position: relative;
   z-index: 1;
-}
-
-/* The auto-production row: a label, its switch, and the gear to everything else
-   the base setup dialog holds. */
-.setup-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.setup-row__label {
-  flex: 1;
-  font-size: 14px;
-  color: var(--text);
-}
-
-.setup-row__gear {
-  padding: 8px;
 }
 
 /* Headless UI stamps `data-checked` on the rendered button, which is the only
@@ -2103,14 +2108,6 @@ a.menu-nav__item {
     padding-top: 10px;
     border-top: none;
   }
-}
-
-/* Wider variant: for modals whose content needs more than one row of chips to fit (see
-   BaseSetupModal). Fixed `width` (not just `max-width`) so the modal doesn't change size
-   as the active language's chip labels grow or shrink. */
-.modal--wide {
-  width: min(92vw, 620px);
-  max-width: min(92vw, 620px);
 }
 
 .modal__title {

@@ -85,8 +85,9 @@ see [architecture.md](architecture.md).
 - **Random obstacles** — each match generates terrain that blocks movement and
   shots; units **pathfind around** it (A\*), and a route is always guaranteed.
 - **Difficulty levels** — Easy / Normal / Hard change the starting unit counts.
-- **Base setup from the menu** — pre-configure continuous auto-production and
-  the initial directive given to every new robot.
+- **Auto-production** — a base can be told to keep building one model on repeat,
+  from the in-match build dialog. Every match starts with it off: the production
+  slots are the player's to spend.
 - **4 languages** — English, Russian, Ukrainian, Polish.
 - **Interface themes** — the HUD reads its colours from tokens, so alternative
   schemes ship as one override file each.

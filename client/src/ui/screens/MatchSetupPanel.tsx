@@ -2,7 +2,6 @@ import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { Button } from '../common/Button';
 import { ChipPicker, PickerGroup } from '../common/Picker';
-import { BaseSetupRow } from './BaseSetupRow';
 import { difficultyOptions, mapSizeOptions, opponentOptions } from './menuOptions';
 
 /**
@@ -13,7 +12,7 @@ import { difficultyOptions, mapSizeOptions, opponentOptions } from './menuOption
  * the single source of truth and `GameApp` reads whatever is current when the
  * restart flag is consumed. Nothing here is local state.
  */
-export function MatchSetupPanel({ onOpenBaseSetup, onStart }: { onOpenBaseSetup: () => void; onStart: () => void }) {
+export function MatchSetupPanel({ onStart }: { onStart: () => void }) {
   const t = useT();
   const difficulty = useGameStore((s) => s.settings.match.difficulty);
   const mapSize = useGameStore((s) => s.settings.match.mapSize);
@@ -50,8 +49,6 @@ export function MatchSetupPanel({ onOpenBaseSetup, onStart }: { onOpenBaseSetup:
           onChange={(value) => updateSettings({ match: { mapSize: value } })}
         />
       </PickerGroup>
-
-      <BaseSetupRow onOpenBaseSetup={onOpenBaseSetup} />
 
       <Button className="btn--primary menu-panel__cta" onClick={onStart}>
         {t('mainMenu', 'start')}

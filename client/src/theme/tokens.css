@@ -54,6 +54,11 @@
   --text-h: #eef2f7;
   /** Labels, units, timestamps — present but not competing. */
   --text-dim: #6b7686;
+  /** The HUD's wordmark in the sidebar. Its own role rather than `--text-h`
+      because it is the one heading that is *decoration*: nothing is read off it,
+      so a theme may paint it a shade it would never give a label you have to
+      read. By default it is simply the heading colour. */
+  --hud-title: var(--text-h);
   /** Text laid on a solid `--danger-solid` fill. */
   --on-danger: #fff;
 
@@ -139,7 +144,7 @@
 
   /* ---- Hooks -----------------------------------------------------------
      Roles the default look does not use at all. Each one's default is the
-     *absence* of the effect, so `command` and `field` render exactly as they did
+     *absence* of the effect, so `command` renders exactly as it did
      before these existed — and a theme that wants glowing monospaced text under
      scanlines can have it without a single component selector of its own.
 

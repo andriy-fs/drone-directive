@@ -21,14 +21,13 @@ export const LANGUAGE_OPTIONS: ChipOption<Locale>[] = [
 
 /**
  * UI schemes, in the order the menu offers them. Labels are translated — unlike
- * the language codes above, "Command" and "Field" mean nothing as bare strings.
+ * the language codes above, "Command" means nothing as a bare string.
  * A new theme adds a line here and a line in `theme/index.css`; see
  * `theme/README.md`.
  */
 export function themeOptions(t: T): ChipOption<Theme>[] {
   return [
     { value: Theme.Command, label: t('theme', 'command') },
-    { value: Theme.Field, label: t('theme', 'field') },
     { value: Theme.Crt, label: t('theme', 'crt') },
   ];
 }

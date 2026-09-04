@@ -1,4 +1,4 @@
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { useT } from '../../i18n';
 import { Button } from '../common/Button';
 import { ASSIGNABLE_TASKS, TASK_ICONS, taskHint, taskLabels } from '../hud/programOptions';
@@ -17,7 +17,7 @@ export function DirectivesModal({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onClose={onClose}>
       <DialogBackdrop className="dialog-backdrop" />
-      <div className="dialog-frame">
+      <DialogFrame>
         <DialogPanel className="modal">
           <DialogTitle className="modal__title">{t('hud', 'directive')}</DialogTitle>
           <p className="modal__body">{t('programs', 'intro')}</p>
@@ -41,7 +41,7 @@ export function DirectivesModal({ onClose }: { onClose: () => void }) {
             {t('mainMenu', 'close')}
           </Button>
         </DialogPanel>
-      </div>
+      </DialogFrame>
     </Dialog>
   );
 }

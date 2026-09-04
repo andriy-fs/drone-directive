@@ -6,8 +6,6 @@ export const uk: Dict = {
     difficulty: 'Складність',
     opponents: 'Суперники',
     opponentsHint: 'Кожен сам за себе',
-    baseSetup: 'Налаштування бази',
-    autoProduceProgram: 'Автовиробництво і директива',
     help: 'Допомога',
     controls: 'Керування',
     start: 'Почати',
@@ -77,15 +75,6 @@ export const uk: Dict = {
     defeatBody: 'Усі ваші бази знищено.',
     mainMenu: 'Головне меню',
     playAgain: 'Грати знову',
-  },
-  baseSetup: {
-    title: 'Налаштування автовиробництва',
-    autoProduce: 'Автовиробництво роботів',
-    chassis: 'Шасі',
-    weapon: 'Зброя',
-    newRobotProgram: 'Директива для нових роботів',
-    apply: 'Застосувати',
-    cancel: 'Скасувати',
   },
   buildRobot: {
     title: 'Побудова і директива',
@@ -232,7 +221,6 @@ export const uk: Dict = {
   },
   theme: {
     command: 'Командна',
-    field: 'Польова',
     crt: 'CRT-термінал',
   },
   sound: {

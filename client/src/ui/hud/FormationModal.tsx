@@ -3,7 +3,7 @@ import { useGameStore } from '../../store/gameStore';
 import { commandableRobots } from '../../store/selection';
 import { selectLocalSide, selectRobots, selectSelectedBaseId, selectSelectedIds } from '../../store/selectors';
 import { Button } from '../common/Button';
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { FormationPicker } from './FormationPicker';
 
 /**
@@ -31,7 +31,7 @@ export function FormationModal({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onClose={onClose}>
       <DialogBackdrop className="dialog-backdrop" />
-      <div className="dialog-frame">
+      <DialogFrame>
         <DialogPanel className="modal modal--formation">
           <DialogTitle className="modal__title">{t('programming', 'formationHeading')}</DialogTitle>
 
@@ -44,7 +44,7 @@ export function FormationModal({ onClose }: { onClose: () => void }) {
             {t('mainMenu', 'close')}
           </Button>
         </DialogPanel>
-      </div>
+      </DialogFrame>
     </Dialog>
   );
 }

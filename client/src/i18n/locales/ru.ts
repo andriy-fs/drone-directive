@@ -6,8 +6,6 @@ export const ru: Dict = {
     difficulty: 'Сложность',
     opponents: 'Противники',
     opponentsHint: 'Каждый сам за себя',
-    baseSetup: 'Настройка базы',
-    autoProduceProgram: 'Автопроизводство и директива',
     help: 'Помощь',
     controls: 'Управление',
     start: 'Начать',
@@ -77,15 +75,6 @@ export const ru: Dict = {
     defeatBody: 'Все ваши базы уничтожены.',
     mainMenu: 'Главное меню',
     playAgain: 'Играть снова',
-  },
-  baseSetup: {
-    title: 'Настройка автопроизводства',
-    autoProduce: 'Автопроизводство роботов',
-    chassis: 'Шасси',
-    weapon: 'Оружие',
-    newRobotProgram: 'Директива для новых роботов',
-    apply: 'Применить',
-    cancel: 'Отмена',
   },
   buildRobot: {
     title: 'Постройка и директива',
@@ -232,7 +221,6 @@ export const ru: Dict = {
   },
   theme: {
     command: 'Командная',
-    field: 'Полевая',
     crt: 'CRT-терминал',
   },
   sound: {

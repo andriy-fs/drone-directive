@@ -6,8 +6,6 @@ export const pl: Dict = {
     difficulty: 'Poziom trudności',
     opponents: 'Przeciwnicy',
     opponentsHint: 'Każdy walczy z każdym',
-    baseSetup: 'Ustawienia bazy',
-    autoProduceProgram: 'Autoprodukcja i dyrektywa',
     help: 'Pomoc',
     controls: 'Sterowanie',
     start: 'Start',
@@ -77,15 +75,6 @@ export const pl: Dict = {
     defeatBody: 'Wszystkie twoje bazy zostały zniszczone.',
     mainMenu: 'Menu główne',
     playAgain: 'Zagraj ponownie',
-  },
-  baseSetup: {
-    title: 'Ustawienia autoprodukcji',
-    autoProduce: 'Autoprodukcja robotów',
-    chassis: 'Podwozie',
-    weapon: 'Broń',
-    newRobotProgram: 'Dyrektywa dla nowych robotów',
-    apply: 'Zastosuj',
-    cancel: 'Anuluj',
   },
   buildRobot: {
     title: 'Budowa i dyrektywa',
@@ -232,7 +221,6 @@ export const pl: Dict = {
   },
   theme: {
     command: 'Dowodzenie',
-    field: 'Polowy',
     crt: 'Terminal CRT',
   },
   sound: {

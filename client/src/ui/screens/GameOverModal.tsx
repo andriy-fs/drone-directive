@@ -3,7 +3,7 @@ import { gameOverBackdropSrc } from '../../config/sprites';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { GameStatus, OutcomePhase } from '../../store/enums';
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { Button } from '../common/Button';
 
 /**
@@ -40,7 +40,7 @@ export function GameOverModal() {
           } as CSSProperties
         }
       />
-      <div className="dialog-frame">
+      <DialogFrame>
         <DialogPanel className="modal modal--outcome">
           <DialogTitle className={`modal__title modal__title--${won ? 'win' : 'lose'}`}>
             {won ? t('gameOver', 'victory') : t('gameOver', 'defeat')}
@@ -51,7 +51,7 @@ export function GameOverModal() {
             <Button onClick={() => requestRestart()}>{t('gameOver', 'playAgain')}</Button>
           </div>
         </DialogPanel>
-      </div>
+      </DialogFrame>
     </Dialog>
   );
 }

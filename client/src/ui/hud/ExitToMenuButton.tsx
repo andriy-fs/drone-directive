@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useT } from '../../i18n';
 import { useGameStore } from '../../store/gameStore';
 import { Button } from '../common/Button';
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '../common/Dialog';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, DialogFrame } from '../common/Dialog';
 import { LogOutIcon } from '../common/icons';
 
 /**
@@ -32,7 +32,7 @@ export function ExitToMenuButton() {
       {confirming && (
         <Dialog open onClose={() => setConfirming(false)}>
           <DialogBackdrop className="dialog-backdrop" />
-          <div className="dialog-frame">
+          <DialogFrame>
             <DialogPanel className="modal">
               <DialogTitle className="modal__title">{t('confirmExit', 'title')}</DialogTitle>
               <p className="modal__body">{t('confirmExit', 'body')}</p>
@@ -43,7 +43,7 @@ export function ExitToMenuButton() {
                 <Button onClick={requestMenu}>{t('confirmExit', 'confirm')}</Button>
               </div>
             </DialogPanel>
-          </div>
+          </DialogFrame>
         </Dialog>
       )}
     </>

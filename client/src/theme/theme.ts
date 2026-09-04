@@ -18,8 +18,6 @@ export const Theme = {
    * stylesheet matches, which is exactly right — bare `:root` is its look.
    */
   Command: 'command',
-  /** Amber field terminal — warm, monospaced, no blue. */
-  Field: 'field',
   /** Green phosphor CRT — monochrome, glowing, under scanlines. */
   Crt: 'crt',
 } as const;

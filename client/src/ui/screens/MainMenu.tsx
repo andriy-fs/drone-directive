@@ -6,7 +6,6 @@ import { useGameStore } from '../../store/gameStore';
 import { OnlineStatus } from '../../store/enums';
 import { selectOnline } from '../../store/selectors';
 import { menuBackdropSrc } from '../../config/sprites';
-import { BaseSetupModal } from './BaseSetupModal';
 import { ControlsModal } from './ControlsModal';
 import { GlobalSettingsBar } from './GlobalSettingsBar';
 import { MatchSetupPanel } from './MatchSetupPanel';
@@ -19,7 +18,7 @@ import { UpdateNotice } from './UpdateNotice';
 import { useUpdateCheck } from '../hooks/useUpdateCheck';
 
 /** Which overlay the title screen is showing, or `null` for the menu itself. */
-type MenuModal = 'setup' | 'controls' | 'units' | 'sound' | 'graphics' | null;
+type MenuModal = 'controls' | 'units' | 'sound' | 'graphics' | null;
 
 /**
  * Title screen. Three zones rather than one list: global preferences (language,
@@ -113,18 +112,16 @@ export function MainMenu() {
           <div className="menu-shell__body">
             <MenuNav mode={mode} onSelectMode={selectMode} onOpenUnits={() => setModal('units')} />
             {mode === 'online' ? (
-              <OnlinePanel onOpenBaseSetup={() => setModal('setup')} />
+              <OnlinePanel />
             ) : (
-              <MatchSetupPanel onOpenBaseSetup={() => setModal('setup')} onStart={start} />
+              <MatchSetupPanel onStart={start} />
             )}
           </div>
         </div>
       </div>
 
       {/* Exactly one of these, ever — see `modal` above. */}
-      {modal === 'setup' ? (
-        <BaseSetupModal onClose={closeModal} />
-      ) : modal === 'units' ? (
+      {modal === 'units' ? (
         <UnitsGuideModal onClose={closeModal} />
       ) : modal === 'controls' ? (
         <ControlsModal onClose={closeModal} />
