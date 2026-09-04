@@ -26,7 +26,7 @@ import { pilotDrone } from './aiDrone';
 import { canRaiseShield, raiseShield } from './shield';
 import { isDisabled } from '../status';
 import { isAdvancing } from './task';
-import { isEnemy, knownEnemyRobots } from './targeting';
+import { isEnemy, knownEnemyRobots } from '../targeting';
 import { atRobotCap } from './production';
 
 /** The AI's production series (every 10th unit is a kamikaze, sent at a cluster or the base). */

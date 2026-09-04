@@ -11,7 +11,7 @@ import { isBlockedGrid, tileOf } from '../obstacles';
 import { canEngage, detonateBomb, launchSalvo, withinMunitionReach } from './combat';
 import { clearGoal } from './movement';
 import { isDisabled } from '../status';
-import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from './targeting';
+import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from '../targeting';
 
 /**
  * Observer-drone flight. A drone free-flies ignoring obstacles (it never

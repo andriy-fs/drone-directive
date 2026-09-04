@@ -11,7 +11,7 @@ import { makeCtx } from '../testkit';
 import { commandsSystem } from '../commands';
 import { movementSystem } from '../movement';
 import { separationSystem } from '../separation';
-import { baseFootprintContains } from '../targeting';
+import { baseFootprintContains } from '../../targeting';
 import { visionSystem } from '../vision';
 import { taskSystem } from '../task';
 

@@ -11,7 +11,8 @@ import type { HitTarget } from '../game/events';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
 import { absorbShieldDamage, isShielded } from './shield';
 import { applyDisable, beginArming, blockRegen, decayArming, isArming, isDisabled } from '../status';
-import { alreadyDoomed, distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from './targeting';
+import { distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from '../targeting';
+import { alreadyDoomed } from '../threat';
 
 /**
  * Firing + projectile flight/collision. Runs after movement so shots use

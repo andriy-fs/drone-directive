@@ -16,8 +16,8 @@ import {
   knownEnemyRobots,
   nearest,
   ownBase,
-  worthShooting,
-} from '../targeting';
+} from '../../targeting';
+import { worthShooting } from '../../threat';
 import { isAdvancing } from './advancing';
 import { centroidOf, randomPointNear, roamOutcome, searchOutcome } from './roam';
 import type { Outcome } from './types';

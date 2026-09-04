@@ -10,7 +10,8 @@ import { hasLineOfSight } from '../../obstacles';
 import { canEngage } from '../combat';
 import { clearGoal, setGoal } from '../movement';
 import { decayDisabled, isArming, isDisabled } from '../../status';
-import { findById, knownEnemyAir, knownEnemyBases, knownEnemyRobots, nearest, worthShooting } from '../targeting';
+import { findById, knownEnemyAir, knownEnemyBases, knownEnemyRobots, nearest } from '../../targeting';
+import { worthShooting } from '../../threat';
 import {
   attackAttackerOutcome,
   attackTargetOutcome,

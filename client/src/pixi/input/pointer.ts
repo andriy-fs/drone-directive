@@ -9,7 +9,7 @@ import {
   livingDroneById,
   livingRobotById,
   possessedRobotOf,
-} from '../../engine/systems/targeting';
+} from '../../engine/targeting';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { useGameStore } from '../../store/gameStore';
 import { GameStatus } from '../../store/enums';

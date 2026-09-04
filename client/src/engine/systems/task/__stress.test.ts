@@ -10,7 +10,7 @@ import { makeCtx } from '../testkit';
 import { commandsSystem } from '../commands';
 import { movementSystem } from '../movement';
 import { separationSystem } from '../separation';
-import { baseFootprintContains } from '../targeting';
+import { baseFootprintContains } from '../../targeting';
 import { findPath } from '../../pathfinding';
 import { visionSystem } from '../vision';
 import { findPathViaField, fieldStats, resetFieldCache, resetFieldStats } from './__flowField';

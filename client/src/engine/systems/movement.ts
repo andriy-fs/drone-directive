@@ -10,7 +10,7 @@ import { isBlockedGrid, tileOf } from '../obstacles';
 import { findPath, smoothPath } from '../pathfinding';
 import { steerAround } from './avoidance';
 import { isArming, isDisabled } from '../status';
-import { baseFootprintContains, pilotedHullIds } from './targeting';
+import { baseFootprintContains, pilotedHullIds } from '../targeting';
 
 /**
  * Sets a robot's navigation goal, pathfinding around obstacles. Skips the A*

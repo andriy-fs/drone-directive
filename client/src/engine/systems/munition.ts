@@ -7,7 +7,7 @@ import { munitions, robots } from '../ecs/queries';
 import type { GameContext } from '../game/context';
 import { applyDamage } from './combat';
 import { isDisabled } from '../status';
-import { distanceToBase, findById, isEnemy } from './targeting';
+import { distanceToBase, findById, isEnemy } from '../targeting';
 
 /**
  * Flight, interception and impact of single-use FPV strike drones — everything a

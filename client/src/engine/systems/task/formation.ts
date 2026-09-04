@@ -9,7 +9,7 @@ import type { GameContext } from '../../game/context';
 import { isBlockedGrid, tileOf } from '../../obstacles';
 import { findPath, smoothPath } from '../../pathfinding';
 import { isArming, isDisabled } from '../../status';
-import { findById, knownEnemyBases, knownEnemyRobots } from '../targeting';
+import { findById, knownEnemyBases, knownEnemyRobots } from '../../targeting';
 import { centroidOf } from './roam';
 import type { MoveIntent, Outcome } from './types';
 

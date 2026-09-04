@@ -9,7 +9,7 @@ import { isAlive } from '../../../engine/ecs/guards';
 import { isDisabled } from '../../../engine/status';
 import { jamPressure } from '../../../engine/systems/vision';
 import { manualFireTarget } from '../../../engine/systems/drone';
-import { ownBase } from '../../../engine/systems/targeting';
+import { ownBase } from '../../../engine/targeting';
 import { perfFlags } from '../../perf/perfFlags';
 import type { FogState, GameContext } from '../../../engine/game/context';
 import type { TerrainGrid } from '../../../engine/obstacles';

@@ -4,7 +4,7 @@ import { droneSpawnPose, spawnDrone } from '../ecs/factory';
 import { isAlive } from '../ecs/guards';
 import { drones } from '../ecs/queries';
 import type { GameContext } from '../game/context';
-import { ownBase } from './targeting';
+import { ownBase } from '../targeting';
 
 /**
  * Replaces a shot-down observer drone after `gameConfig.drone.respawnTime`.

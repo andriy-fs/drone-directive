@@ -6,7 +6,7 @@ import { spawnShieldEnd } from '../ecs/factory';
 import type { Entity } from '../ecs/entity';
 import { shieldedBases } from '../ecs/queries';
 import type { GameContext } from '../game/context';
-import { knownEnemyRobots } from './targeting';
+import { knownEnemyRobots } from '../targeting';
 
 /**
  * The base's one-shot energy dome — "last hope". One per base per match, for

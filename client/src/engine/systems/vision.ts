@@ -9,7 +9,7 @@ import { isAlive } from '../ecs/guards';
 import { bases, drones, robots } from '../ecs/queries';
 import type { GameContext, TeamIntel } from '../game/context';
 import { isDisabled } from '../status';
-import { distanceToBase, enemyAirTargets, enemyBases, enemyRobots, isEnemy, possessedRobotOf } from './targeting';
+import { distanceToBase, enemyAirTargets, enemyBases, enemyRobots, isEnemy, possessedRobotOf } from '../targeting';
 
 /**
  * Anything that can see for a side: a robot, a base or the observer drone. All

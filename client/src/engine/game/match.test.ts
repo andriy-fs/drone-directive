@@ -4,7 +4,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { createDefaultSettings } from '../../config/gameSettings';
 import { isAlive } from '../ecs/guards';
 import { bases, robots } from '../ecs/queries';
-import { baseFootprintContains } from '../systems/targeting';
+import { baseFootprintContains } from '../targeting';
 import { GameEngine } from './engine';
 
 /**

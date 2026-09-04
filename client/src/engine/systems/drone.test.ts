@@ -6,7 +6,7 @@ import type { GameContext } from '../game/context';
 import { droneSystem, manualFireTarget } from './drone';
 import { movementSystem, setGoal } from './movement';
 import { reapSystem } from './reap';
-import { isTargetableDrone } from './targeting';
+import { isTargetableDrone } from '../targeting';
 import { makeCtx } from './testkit';
 
 function fillNav(ctx: GameContext, blocked: boolean): void {

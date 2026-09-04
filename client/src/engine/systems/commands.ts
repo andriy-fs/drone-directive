@@ -14,7 +14,7 @@ import { formationSlots } from './task/formation';
 import { centroidOf } from './task/roam';
 import { atRobotCap } from './production';
 import { raiseShield } from './shield';
-import { baseById, findById, livingDroneById, livingRobotById, robotById } from './targeting';
+import { baseById, findById, livingDroneById, livingRobotById, robotById } from '../targeting';
 
 /**
  * True when every entity a command *acts on* belongs to `side`. Commands are

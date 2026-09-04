@@ -4,7 +4,7 @@ import { isAlive } from '../../engine/ecs/guards';
 import { bases, robots } from '../../engine/ecs/queries';
 import type { GameContext } from '../../engine/game/context';
 import { canEngage } from '../../engine/systems/combat';
-import { baseFootprintContains, isEnemy, livingRobotById } from '../../engine/systems/targeting';
+import { baseFootprintContains, isEnemy, livingRobotById } from '../../engine/targeting';
 import { isTaskBlockedForWeapon } from '../../engine/tasks/taskDefinitions';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { TaskType, type Owner } from '@drone-directive/types/enums';

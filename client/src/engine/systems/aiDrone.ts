@@ -8,7 +8,7 @@ import { drones, robots } from '../ecs/queries';
 import type { AiState, GameContext } from '../game/context';
 import { unitToward } from './drone';
 import { isAdvancing, centroidOf } from './task';
-import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from './targeting';
+import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from '../targeting';
 
 /**
  * The bot's observer-drone pilot — the counterweight to the player's own eye.

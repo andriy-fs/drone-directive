@@ -9,7 +9,7 @@ import { bases as basesQuery, drones as dronesQuery, robots as robotsQuery } fro
 import { GameEngine } from '../engine/game/engine';
 import { isAllowedWhilePaused, isCommandFrom } from '../engine/systems/commands';
 import { canActivateShield, isShielded } from '../engine/systems/shield';
-import { possessedRobotOf } from '../engine/systems/targeting';
+import { possessedRobotOf } from '../engine/targeting';
 import { useGameStore } from '../store/gameStore';
 import {
   ClientVersion,
