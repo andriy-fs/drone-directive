@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { EffectKind } from '../ecs/entity';
-import { spawnBase, spawnProjectile, spawnRobot } from '../ecs/factory';
-import type { BaseEntity } from '../ecs/archetypes';
-import type { GameContext } from '../game/context';
-import { applyDamage, combatSystem } from './combat';
-import { regenSystem } from './regen';
+import { EffectKind } from '../../ecs/entity';
+import { spawnBase, spawnProjectile, spawnRobot } from '../../ecs/factory';
+import type { BaseEntity } from '../../ecs/archetypes';
+import type { GameContext } from '../../game/context';
+import { applyDamage, combatSystem } from './index';
+import { regenSystem } from '../regen';
 import { canActivateShield, canRaiseShield, isShielded, raiseShield, shieldSystem } from './shield';
-import { makeCtx } from './testkit';
-import { visionSystem } from './vision';
+import { makeCtx } from '../testkit';
+import { visionSystem } from '../vision';
 
 const DT = gameConfig.fixedDt;
 const DOME = gameConfig.bases.shield;

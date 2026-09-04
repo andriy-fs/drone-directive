@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig } from '../../config/gameConfig';
+import { gameConfig } from '../../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { spawnBase, spawnMunition, spawnRobot } from '../ecs/factory';
-import type { Entity } from '../ecs/entity';
-import type { GameContext } from '../game/context';
+import { spawnBase, spawnMunition, spawnRobot } from '../../ecs/factory';
+import type { Entity } from '../../ecs/entity';
+import type { GameContext } from '../../game/context';
 import { munitionSystem } from './munition';
 import { raiseShield } from './shield';
-import { applyDisable } from '../status';
-import { makeCtx } from './testkit';
+import { applyDisable } from '../../status';
+import { makeCtx } from '../testkit';
 
 const DT = gameConfig.fixedDt;
 const { damage } = gameConfig.robots.weapons.fpv;

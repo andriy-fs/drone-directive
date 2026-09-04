@@ -13,7 +13,7 @@ import { setGoal } from './movement';
 import { formationSlots } from './task/formation';
 import { centroidOf } from './task/roam';
 import { atRobotCap } from './production';
-import { raiseShield } from './shield';
+import { raiseShield } from './combat/shield';
 import { baseById, findById, livingDroneById, livingRobotById, robotById } from '../targeting';
 
 /**

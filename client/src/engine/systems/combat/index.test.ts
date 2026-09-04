@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { gameConfig, munitionReach } from '../../config/gameConfig';
+import { gameConfig, munitionReach } from '../../../config/gameConfig';
 import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
-import { EffectKind } from '../ecs/entity';
-import { spawnBase, spawnDrone, spawnProjectile, spawnRobot } from '../ecs/factory';
-import type { GameContext } from '../game/context';
-import { tileOf } from '../obstacles';
-import { combatSystem } from './combat';
-import { visionSystem } from './vision';
+import { EffectKind } from '../../ecs/entity';
+import { spawnBase, spawnDrone, spawnProjectile, spawnRobot } from '../../ecs/factory';
+import type { GameContext } from '../../game/context';
+import { tileOf } from '../../obstacles';
+import { combatSystem } from './index';
+import { visionSystem } from '../vision';
 import { raiseShield } from './shield';
-import { applyDisable } from '../status';
-import { makeCtx } from './testkit';
+import { applyDisable } from '../../status';
+import { makeCtx } from '../testkit';
 
 const DT = gameConfig.fixedDt;
 /**

@@ -23,7 +23,7 @@ import {
   scriptForTask,
 } from '../tasks/taskDefinitions';
 import { pilotDrone } from './aiDrone';
-import { canRaiseShield, raiseShield } from './shield';
+import { canRaiseShield, raiseShield } from './combat/shield';
 import { isDisabled } from '../status';
 import { isAdvancing } from './task';
 import { isEnemy, knownEnemyRobots } from '../targeting';

@@ -1,12 +1,12 @@
 import type { With } from 'miniplex';
-import { gameConfig } from '../../config/gameConfig';
-import { distance } from '../../utils/math';
-import type { BaseEntity, ShieldedBase } from '../ecs/archetypes';
-import { spawnShieldEnd } from '../ecs/factory';
-import type { Entity } from '../ecs/entity';
-import { shieldedBases } from '../ecs/queries';
-import type { GameContext } from '../game/context';
-import { knownEnemyRobots } from '../targeting';
+import { gameConfig } from '../../../config/gameConfig';
+import { distance } from '../../../utils/math';
+import type { BaseEntity, ShieldedBase } from '../../ecs/archetypes';
+import { spawnShieldEnd } from '../../ecs/factory';
+import type { Entity } from '../../ecs/entity';
+import { shieldedBases } from '../../ecs/queries';
+import type { GameContext } from '../../game/context';
+import { knownEnemyRobots } from '../../targeting';
 
 /**
  * The base's one-shot energy dome — "last hope". One per base per match, for

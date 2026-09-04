@@ -1,18 +1,18 @@
-import { gameConfig, munitionReach } from '../../config/gameConfig';
+import { gameConfig, munitionReach } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
-import { distance, vecLength } from '../../utils/math';
-import type { BaseEntity, Positioned, ProjectileEntity, Shooter } from '../ecs/archetypes';
-import { spawnEmpBurst, spawnExplosion, spawnMunition, spawnProjectile } from '../ecs/factory';
-import type { Entity, WeaponComp } from '../ecs/entity';
-import { isAlive, isBase, isPositioned } from '../ecs/guards';
-import { bases, projectiles, robots } from '../ecs/queries';
-import type { GameContext } from '../game/context';
-import type { HitTarget } from '../game/events';
-import { hasLineOfSight, isBlockedGrid, tileOf } from '../obstacles';
+import { distance, vecLength } from '../../../utils/math';
+import type { BaseEntity, Positioned, ProjectileEntity, Shooter } from '../../ecs/archetypes';
+import { spawnEmpBurst, spawnExplosion, spawnMunition, spawnProjectile } from '../../ecs/factory';
+import type { Entity, WeaponComp } from '../../ecs/entity';
+import { isAlive, isBase, isPositioned } from '../../ecs/guards';
+import { bases, projectiles, robots } from '../../ecs/queries';
+import type { GameContext } from '../../game/context';
+import type { HitTarget } from '../../game/events';
+import { hasLineOfSight, isBlockedGrid, tileOf } from '../../obstacles';
 import { absorbShieldDamage, isShielded } from './shield';
-import { applyDisable, beginArming, blockRegen, decayArming, isArming, isDisabled } from '../status';
-import { distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from '../targeting';
-import { alreadyDoomed } from '../threat';
+import { applyDisable, beginArming, blockRegen, decayArming, isArming, isDisabled } from '../../status';
+import { distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from '../../targeting';
+import { alreadyDoomed } from '../../threat';
 
 /**
  * Firing + projectile flight/collision. Runs after movement so shots use
