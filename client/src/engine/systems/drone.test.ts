@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameConfig } from '../../config/gameConfig';
-import { ChassisType, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, OverrideKind, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { spawnDrone, spawnRobot } from '../ecs/factory';
 import type { GameContext } from '../game/context';
 import { droneSystem, manualFireTarget } from './drone';
@@ -14,8 +14,14 @@ function fillNav(ctx: GameContext, blocked: boolean): void {
   ctx.navObstacles = Array.from({ length: height }, () => new Array<boolean>(width).fill(blocked));
 }
 
-function setControl(ctx: GameContext, dir = { x: 0, y: 0 }, possessPulse = false, firePulse = false): void {
-  ctx.droneControl[Owner.Player] = { dir, possessPulse, firePulse };
+function setControl(
+  ctx: GameContext,
+  dir = { x: 0, y: 0 },
+  possessPulse = false,
+  firePulse = false,
+  overridePulse: OverrideKind = OverrideKind.None,
+): void {
+  ctx.droneControl[Owner.Player] = { dir, possessPulse, firePulse, overridePulse };
 }
 
 /** `W`: screen y grows downward, so full ahead on a ridden hull is y = -1. */

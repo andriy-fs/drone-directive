@@ -1,4 +1,4 @@
-import type { ChassisType, Owner, TaskType, WeaponType } from './enums';
+import type { ChassisType, OverrideKind, Owner, TaskType, WeaponType } from './enums';
 
 /** A point in continuous world space (pixels). */
 export interface Vec2 {
@@ -22,8 +22,8 @@ export interface BuildOrder {
 }
 
 /**
- * The observer drone's input for one tick: two continuous axes plus two one-shot
- * pulses. Lives here rather than in the engine because it crosses the network —
+ * The observer drone's input for one tick: two continuous axes plus three
+ * one-shot pulses. Lives here rather than in the engine because it crosses the network —
  * both the engine and `@drone-directive/net` need it, and neither may depend on
  * the other.
  */
@@ -46,6 +46,19 @@ export interface DroneControl {
   possessPulse: boolean;
   /** One-shot: fire / detonate the possessed robot this tick. */
   firePulse: boolean;
+  /**
+   * One-shot: arm this experimental mode on the possessed hull this tick.
+   * `None` = nothing was asked for, and is what the field reads as on every tick
+   * the pilot is not pressing anything.
+   *
+   * One field for the whole feature rather than one per mode, deliberately: a
+   * fourth mode then costs nothing on the wire, and the engine is the only thing
+   * that has to learn about it. Whether the machine may actually do this is *not*
+   * settled here — `net/` checks only that the value is in the enum, and
+   * `systems/override.ts` recomputes eligibility identically on both peers, or a
+   * doctored client would raise a shield on someone else's hull.
+   */
+  overridePulse: OverrideKind;
 }
 
 /**

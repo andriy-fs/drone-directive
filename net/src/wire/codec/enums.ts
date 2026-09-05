@@ -1,6 +1,6 @@
 import type { WireMapSize } from '@drone-directive/protocol';
 import * as wire from '@drone-directive/protocol/codec';
-import { ChassisType, FormationType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, FormationType, MapSize, OverrideKind, TaskType, WeaponType } from '@drone-directive/types/enums';
 
 /**
  * `Record<DomainValue, WireValue>` in one direction and its inverse in the other.
@@ -66,6 +66,16 @@ export const MAP_SIZE_TO_WIRE: Record<MapSize, wire.MapSize> = {
   [MapSize.Large]: wire.MapSize.Large,
 };
 
+/**
+ * `None` is a value like any other here, not an absence: the field is a pulse
+ * that is present on every tick frame, and the resting state has to travel.
+ */
+export const OVERRIDE_TO_WIRE: Record<OverrideKind, wire.OverrideKind> = {
+  [OverrideKind.None]: wire.OverrideKind.None,
+  [OverrideKind.Shield]: wire.OverrideKind.Shield,
+  [OverrideKind.Overload]: wire.OverrideKind.Overload,
+};
+
 /** Inverts an exhaustive domain→wire record; both sides are unique, so this is total. */
 function invert<D extends string, W extends string>(table: Record<D, W>): Record<W, D> {
   const inverted = {} as Record<W, D>;
@@ -79,6 +89,7 @@ export const TASK_FROM_WIRE = invert(TASK_TO_WIRE);
 export const MAP_SIZE_FROM_WIRE = invert(MAP_SIZE_TO_WIRE);
 export const TASK_FROM_BUILD_TASK = invert(TASK_TO_BUILD_TASK);
 export const FORMATION_FROM_WIRE = invert(FORMATION_TO_WIRE);
+export const OVERRIDE_FROM_WIRE = invert(OVERRIDE_TO_WIRE);
 
 /** The `mapSize` query param is still text (it precedes any message) — map it here too. */
 const WIRE_MAP_SIZE_STRINGS: Record<MapSize, WireMapSize> = {

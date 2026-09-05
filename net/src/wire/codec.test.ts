@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import type { DroneControl } from '@drone-directive/types/entities';
 import type { Command } from '@drone-directive/types/commands';
-import { ChassisType, FormationType, MapSize, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, FormationType, MapSize, OverrideKind, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { decodeServerMessage, encodeTick, ErrorCode, mapSizeToQueryParam } from './codec';
 
 /**
@@ -19,7 +19,12 @@ import { decodeServerMessage, encodeTick, ErrorCode, mapSizeToQueryParam } from 
  * layer is as much under test as the encoding.
  */
 
-const IDLE_DRONE: DroneControl = { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false };
+const IDLE_DRONE: DroneControl = {
+  dir: { x: 0, y: 0 },
+  possessPulse: false,
+  firePulse: false,
+  overridePulse: OverrideKind.None,
+};
 
 /** Round-trips one tick's worth of input the way the two peers actually do. */
 function roundTrip(commands: Command[], drone: DroneControl = IDLE_DRONE, tick = 7, pauseToggle = false) {
@@ -151,7 +156,14 @@ describe('command round-trip', () => {
 
 describe('tick frame round-trip', () => {
   it('carries the tick number and drone input', () => {
-    const drone: DroneControl = { dir: { x: -0.6, y: 0.8 }, possessPulse: true, firePulse: false };
+    const drone: DroneControl = {
+      dir: { x: -0.6, y: 0.8 },
+      possessPulse: true,
+      firePulse: false,
+      // A mode rather than the resting value: `None` would pass even if the
+      // field were dropped on the floor in one direction.
+      overridePulse: OverrideKind.Overload,
+    };
     const decoded = roundTrip([], drone, 4242);
     expect(decoded.tick).toBe(4242);
     expect(decoded.drone).toEqual(drone);

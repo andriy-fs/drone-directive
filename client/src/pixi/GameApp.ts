@@ -30,7 +30,7 @@ import type {
 } from '../store/types';
 import { selectOnlineLink } from '../store/selectors';
 import type { Command } from '@drone-directive/types/commands';
-import { Controller, Owner, WeaponType, type MapSize } from '@drone-directive/types/enums';
+import { Controller, OverrideKind, Owner, WeaponType, type MapSize } from '@drone-directive/types/enums';
 import { buildRoster } from '../engine/game/context';
 import type { DroneControl, GameContext } from '../engine/game/context';
 import { loadGameAssets, loadSoundAssets, warmGameAssets } from './assets';
@@ -1264,7 +1264,7 @@ export class GameApp {
       store.clearDroneRequests();
       return {
         commands: paused,
-        drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false },
+        drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false, overridePulse: OverrideKind.None },
         pauseToggle,
       };
     }
@@ -1297,6 +1297,7 @@ export class GameApp {
       dir: riding ? { x: store.stickInput.x, y: store.stickInput.y } : { x: 0, y: 0 },
       possessPulse: store.dronePossessRequested,
       firePulse: store.droneFireRequested,
+      overridePulse: OverrideKind.None,
     };
   }
 

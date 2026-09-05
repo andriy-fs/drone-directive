@@ -1,3 +1,4 @@
+import { OverrideKind } from '@drone-directive/types/enums';
 import type { DecodedMessage } from '../wire/codec';
 import { parseCommands, parseDroneControl, type CommandLimits } from '../wire/validation';
 import type { TickInput } from './types';
@@ -5,7 +6,11 @@ import type { TickInput } from './types';
 /** Turning a decoded frame — or nothing at all — into one tick's `TickInput`. */
 
 export function emptyInput(): TickInput {
-  return { commands: [], drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false }, pauseToggle: false };
+  return {
+    commands: [],
+    drone: { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false, overridePulse: OverrideKind.None },
+    pauseToggle: false,
+  };
 }
 
 /**

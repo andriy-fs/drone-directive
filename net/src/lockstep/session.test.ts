@@ -1,4 +1,5 @@
 import { frame, MessageTag } from '@drone-directive/protocol';
+import { OverrideKind } from '@drone-directive/types/enums';
 import { encodeStartMessage, MapSize as WireMapSize } from '@drone-directive/protocol/codec';
 import type { DroneControl } from '@drone-directive/types/entities';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,7 +15,12 @@ import type { LockstepHandlers, TickInput } from './types';
  * every unacknowledged tick back on the wire, or the peer stalls for good.
  */
 
-const IDLE_DRONE: DroneControl = { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false };
+const IDLE_DRONE: DroneControl = {
+  dir: { x: 0, y: 0 },
+  possessPulse: false,
+  firePulse: false,
+  overridePulse: OverrideKind.None,
+};
 const RESUME_TOKEN = 'f'.repeat(32);
 
 /** Just enough WebSocket for the session: the events it listens for, and what it sent. */

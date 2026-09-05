@@ -1,5 +1,5 @@
 import type { Command } from '@drone-directive/types/commands';
-import { ChassisType, FormationType, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, FormationType, OverrideKind, TaskType, WeaponType } from '@drone-directive/types/enums';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setNetDebug } from '../debug';
 import { parseCommands, parseDroneControl, type CommandLimits } from './validation';
@@ -244,7 +244,12 @@ describe('parseCommands', () => {
 });
 
 describe('parseDroneControl', () => {
-  const input = { dir: { x: 0.6, y: -0.8 }, possessPulse: true, firePulse: false };
+  const input = {
+    dir: { x: 0.6, y: -0.8 },
+    possessPulse: true,
+    firePulse: false,
+    overridePulse: OverrideKind.Shield,
+  };
 
   it('passes a well-formed input through', () => {
     expect(parseDroneControl(input, 'peer')).toEqual(input);
@@ -257,6 +262,10 @@ describe('parseDroneControl', () => {
     // `dir` is a unit vector or zero — nothing a correct client sends exceeds 1.
     expect(parseDroneControl({ ...input, dir: { x: 40, y: 0 } }, 'peer')).toBeNull();
     expect(parseDroneControl({ ...input, possessPulse: 'yes' }, 'peer')).toBeNull();
+    // A mode this build has no name for is refused here rather than reaching
+    // `startOverride` as a string nothing switches on.
+    expect(parseDroneControl({ ...input, overridePulse: 'emcon' }, 'peer')).toBeNull();
+    expect(parseDroneControl({ ...input, overridePulse: 7 }, 'peer')).toBeNull();
     expect(parseDroneControl(null, 'peer')).toBeNull();
   });
 });

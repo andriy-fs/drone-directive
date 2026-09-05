@@ -2,7 +2,7 @@ import { applySidePlacements, gameConfig } from '../../config/gameConfig';
 import { clampAiOpponents, type GameSettings } from '../../config/gameSettings';
 import type { Command } from '@drone-directive/types/commands';
 import type { DroneControl, ResourcePool, Vec2 } from '@drone-directive/types/entities';
-import { Controller, Difficulty, Owner, PLAYABLE_OWNERS } from '@drone-directive/types/enums';
+import { Controller, Difficulty, OverrideKind, Owner, PLAYABLE_OWNERS } from '@drone-directive/types/enums';
 import { generateObstacles, movementGrid, sightGrid, type ObstacleGrid, type TerrainGrid } from '../obstacles';
 import type { EcsWorld } from '../ecs/world';
 import { createOrcaSteering, type OrcaSteering } from '../systems/movement/orca';
@@ -108,7 +108,7 @@ function emptyIntel(): TeamIntel {
 }
 
 function emptyDroneControl(): DroneControl {
-  return { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false };
+  return { dir: { x: 0, y: 0 }, possessPulse: false, firePulse: false, overridePulse: OverrideKind.None };
 }
 
 function emptyAiState(): AiState {

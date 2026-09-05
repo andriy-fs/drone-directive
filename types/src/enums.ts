@@ -110,6 +110,29 @@ export const FormationType = {
 } as const;
 export type FormationType = (typeof FormationType)[keyof typeof FormationType];
 
+/**
+ * A hull's experimental modes — the "service menu" a pilot reaches from inside a
+ * possessed machine (`client/src/engine/systems/override.ts`).
+ *
+ * **Every one of them ends with the hull destroyed.** That is the whole design,
+ * not a drawback: it is why there is no charge counter, no cooldown and no
+ * per-mode resource anywhere in the codebase, why activating one is a decision
+ * rather than a reflex, and why all of them are explained by one fiction — the
+ * battery overheats once the limiters come off. What differs between them is only
+ * how long the machine lives afterwards and what that time buys.
+ *
+ * `None` is the resting value of the wire pulse, not a mode: it means "nothing
+ * was asked for this tick", the same way `possessPulse: false` does.
+ */
+export const OverrideKind = {
+  None: 'none',
+  /** Five seconds of absolute immunity — long enough to cover a kamikaze's fuse. */
+  Shield: 'shield',
+  /** Two seconds of arming, then an EMP that knocks out everything hostile in radius. */
+  Overload: 'overload',
+} as const;
+export type OverrideKind = (typeof OverrideKind)[keyof typeof OverrideKind];
+
 export const RobotState = {
   Idle: 'idle',
   Moving: 'moving',

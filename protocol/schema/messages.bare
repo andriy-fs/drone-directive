@@ -89,6 +89,18 @@ type Formation enum {
     SPREAD = 2
 }
 
+# A hull's experimental mode, armed by the pilot from inside a possessed machine.
+# Every one of them ends with the hull destroyed, so there is no charge count to
+# carry. NONE is the resting value of the pulse, not a mode.
+#
+# A fourth mode is a member appended here: the field below already exists, so the
+# frame layout does not move and nothing else on the wire has to change.
+type OverrideKind enum {
+    NONE = 0
+    SHIELD = 1
+    OVERLOAD = 2
+}
+
 type AssignTask struct {
     robotId: str
     task: TaskType
@@ -188,12 +200,13 @@ type Command union {
 # Client -> relay -> peer
 # ---------------------------------------------------------------------------
 
-# The observer drone's input for one tick: a continuous flight direction plus two
-# one-shot pulses.
+# The observer drone's input for one tick: a continuous flight direction plus
+# three one-shot pulses.
 type DroneControl struct {
     dir: Vec2
     possess: bool
     fire: bool
+    override: OverrideKind
 }
 
 # "My world looked like this at tick N" — the desync probe. Both fields are u32

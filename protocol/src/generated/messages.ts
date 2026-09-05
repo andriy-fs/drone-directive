@@ -392,6 +392,50 @@ export function writeFormation(bc: bare.ByteCursor, x: Formation): void {
     }
 }
 
+/**
+ * A fourth mode is a member appended here: the field below already exists, so the
+ * frame layout does not move and nothing else on the wire has to change.
+ */
+export enum OverrideKind {
+    None = "None",
+    Shield = "Shield",
+    Overload = "Overload",
+}
+
+export function readOverrideKind(bc: bare.ByteCursor): OverrideKind {
+    const offset = bc.offset
+    const tag = bare.readU8(bc)
+    switch (tag) {
+        case 0:
+            return OverrideKind.None
+        case 1:
+            return OverrideKind.Shield
+        case 2:
+            return OverrideKind.Overload
+        default: {
+            bc.offset = offset
+            throw new bare.BareError(offset, "invalid tag")
+        }
+    }
+}
+
+export function writeOverrideKind(bc: bare.ByteCursor, x: OverrideKind): void {
+    switch (x) {
+        case OverrideKind.None: {
+            bare.writeU8(bc, 0)
+            break
+        }
+        case OverrideKind.Shield: {
+            bare.writeU8(bc, 1)
+            break
+        }
+        case OverrideKind.Overload: {
+            bare.writeU8(bc, 2)
+            break
+        }
+    }
+}
+
 export type AssignTask = {
     readonly tag: "AssignTask"
     readonly robotId: string
@@ -815,13 +859,14 @@ export function writeCommand(bc: bare.ByteCursor, x: Command): void {
 }
 
 /**
- * The observer drone's input for one tick: a continuous flight direction plus two
- * one-shot pulses.
+ * The observer drone's input for one tick: a continuous flight direction plus
+ * three one-shot pulses.
  */
 export type DroneControl = {
     readonly dir: Vec2
     readonly possess: boolean
     readonly fire: boolean
+    readonly override: OverrideKind
 }
 
 export function readDroneControl(bc: bare.ByteCursor): DroneControl {
@@ -829,6 +874,7 @@ export function readDroneControl(bc: bare.ByteCursor): DroneControl {
         dir: readVec2(bc),
         possess: bare.readBool(bc),
         fire: bare.readBool(bc),
+        override: readOverrideKind(bc),
     }
 }
 
@@ -836,6 +882,7 @@ export function writeDroneControl(bc: bare.ByteCursor, x: DroneControl): void {
     writeVec2(bc, x.dir)
     bare.writeBool(bc, x.possess)
     bare.writeBool(bc, x.fire)
+    writeOverrideKind(bc, x.override)
 }
 
 /**

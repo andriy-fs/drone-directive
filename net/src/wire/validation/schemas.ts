@@ -1,6 +1,6 @@
 import type { Command } from '@drone-directive/types/commands';
 import type { DroneControl } from '@drone-directive/types/entities';
-import { ChassisType, FormationType, TaskType, WeaponType } from '@drone-directive/types/enums';
+import { ChassisType, FormationType, OverrideKind, TaskType, WeaponType } from '@drone-directive/types/enums';
 import * as v from 'valibot';
 
 /**
@@ -179,4 +179,9 @@ export const droneControlSchema: v.GenericSchema<unknown, DroneControl> = v.obje
   dir: v.object({ x: droneAxisSchema, y: droneAxisSchema }),
   possessPulse: v.boolean(),
   firePulse: v.boolean(),
+  // Shape only, as everywhere in this file: that the value names a mode this
+  // build knows. Whether the hull may actually arm it — right side, right
+  // weapon, nothing already running — is recomputed by `systems/override.ts` on
+  // both peers, because a check only the sender performs is not a check.
+  overridePulse: v.picklist(Object.values(OverrideKind)),
 });

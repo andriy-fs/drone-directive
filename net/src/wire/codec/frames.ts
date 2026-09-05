@@ -2,9 +2,9 @@ import { frame, MAX_AI_OPPONENTS, MessageTag, payloadOf, tagOf } from '@drone-di
 import * as wire from '@drone-directive/protocol/codec';
 import type { Command } from '@drone-directive/types/commands';
 import type { DroneControl } from '@drone-directive/types/entities';
-import type { MapSize } from '@drone-directive/types/enums';
+import { OverrideKind, type MapSize } from '@drone-directive/types/enums';
 import { commandFromWire, commandToWire } from './commands';
-import { MAP_SIZE_FROM_WIRE } from './enums';
+import { MAP_SIZE_FROM_WIRE, OVERRIDE_FROM_WIRE, OVERRIDE_TO_WIRE } from './enums';
 
 /** A relay frame, decoded and translated into terms the game already speaks. */
 export type DecodedMessage =
@@ -44,7 +44,12 @@ export function encodeTick(
   const payload = wire.encodeTickMessage({
     tick,
     commands: input.commands.map(commandToWire),
-    drone: { dir: { x: drone.dir.x, y: drone.dir.y }, possess: drone.possessPulse, fire: drone.firePulse },
+    drone: {
+      dir: { x: drone.dir.x, y: drone.dir.y },
+      possess: drone.possessPulse,
+      fire: drone.firePulse,
+      override: OVERRIDE_TO_WIRE[drone.overridePulse],
+    },
     check,
     pauseToggle: input.pauseToggle,
   });
@@ -90,7 +95,16 @@ function decodePayload(tag: MessageTag, payload: Uint8Array): DecodedMessage {
         type: 'tick',
         tick: msg.tick,
         commands: msg.commands.map(commandFromWire),
-        drone: { dir: { ...msg.drone.dir }, possessPulse: msg.drone.possess, firePulse: msg.drone.fire },
+        drone: {
+          dir: { ...msg.drone.dir },
+          possessPulse: msg.drone.possess,
+          firePulse: msg.drone.fire,
+          // A value this build has no name for reads as "nothing asked" rather
+          // than as a hole: the frame is still a valid tick, and a peer one
+          // version ahead must not be able to stall the match with a mode we
+          // cannot run.
+          overridePulse: OVERRIDE_FROM_WIRE[msg.drone.override] ?? OverrideKind.None,
+        },
         check: msg.check,
         pauseToggle: msg.pauseToggle,
       };
