@@ -214,6 +214,16 @@ answer different questions:
    match must not die over one bad order — with a dev-only warning naming the
    origin.
 
+**Where validation deliberately stops.** The drone's `overridePulse` — the
+hull's service menu, added in protocol v17 — is checked here only for being a
+member of `OverrideKind`. Whether that hull may actually arm the mode (right
+side, right weapon, nothing already burning) is recomputed from the world by
+`engine/systems/override.ts`, identically on both peers. It has to be: `net` sees
+a frame, not a match, and a gate only the sender applies is not a gate — a
+doctored client would otherwise raise a shield on a machine it is not flying.
+That is the general shape of the rule, not a special case for this feature: this
+layer proves what a message *is*, the engine decides what it *means*.
+
 All of this lives in its own workspace, `@drone-directive/net`, and not in any of
 the game's layers. Not `protocol/`, which is shared with the relay and must stay
 ignorant of what a robot is; not the engine, which must not learn about the wire
