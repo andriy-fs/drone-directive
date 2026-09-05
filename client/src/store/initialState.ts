@@ -46,6 +46,7 @@ export const initialState: GameStateFields = {
   stickInput: { x: 0, y: 0 },
   dronePossessRequested: false,
   droneFireRequested: false,
+  overrideRequested: null,
   droneStatus: {
     mode: DroneMode.Flying,
     // No world yet: the bridge fills this in on its first snapshot.
@@ -54,6 +55,8 @@ export const initialState: GameStateFields = {
     hp: gameConfig.drone.maxHp,
     maxHp: gameConfig.drone.maxHp,
     respawnProgress: 0,
+    // Nothing is being ridden yet, so there is no menu to describe.
+    overrides: { available: [], running: null },
   },
   showDroneRequested: false,
   droneReadyNotice: 0,

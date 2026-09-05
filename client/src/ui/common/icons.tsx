@@ -16,8 +16,10 @@ import {
   BellOff as LucideBellOff,
   Hourglass as LucideHourglass,
   ClipboardCheck as LucideClipboardCheck,
+  Radiation as LucideRadiation,
   Shield as LucideShield,
   ShieldCheck as LucideShieldCheck,
+  ShieldHalf as LucideShieldHalf,
   Castle as LucideCastle,
   Swords as LucideSwords,
   Radar as LucideRadar,
@@ -172,6 +174,16 @@ export const SatelliteDishIcon = LucideSatelliteDish;
 export const EarIcon = LucideEar;
 export const ZapIcon = LucideZap;
 export const PlaneIcon = LucidePlane;
+
+/* The hull's service menu (`ui/hud/ServiceMenu.tsx`). Neither glyph is one the
+   sidebar is already using while the panel is on screen: ShieldIcon and
+   ShieldCheckIcon are the Guard and Defend Base directives one card away, and the
+   hexagon is the base's dome. A half shield still reads "shield" at a glance —
+   which is the mode's name — without being either of those, and the radiation
+   burst says "everything in this circle stops" better than the lightning bolt
+   does, that one being the `dew` weapon in the build dialog. */
+export const ShieldHalfIcon = LucideShieldHalf;
+export const RadiationIcon = LucideRadiation;
 
 /**
  * Formation shapes. Each glyph is read as the plan view of the shape itself:

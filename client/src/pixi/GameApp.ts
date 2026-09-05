@@ -9,7 +9,9 @@ import { bases as basesQuery, drones as dronesQuery, robots as robotsQuery } fro
 import { GameEngine } from '../engine/game/engine';
 import { isAllowedWhilePaused, isCommandFrom } from '../engine/systems/commands';
 import { canActivateShield, isShielded } from '../engine/systems/combat/shield';
-import { possessedRobotOf } from '../engine/targeting';
+import { livingRobotById, possessedRobotOf } from '../engine/targeting';
+import { overrideKind } from '../engine/status';
+import { availableOverrides } from '../engine/systems/override';
 import { useGameStore } from '../store/gameStore';
 import {
   ClientVersion,
@@ -795,6 +797,23 @@ export class GameApp {
         if (this.hearsRobot(owner, id)) sfx.bombArming();
       }),
     );
+    // The service menu's two moments, on the same "can this side see the hull"
+    // gate as the fuse above — a mode is something both sides get to notice, and
+    // the machine wearing one is visible or it is not.
+    //
+    // Both borrow existing samples rather than introducing new ones: the dome's
+    // rising note for a mode coming up, and the directed-energy discharge for the
+    // pulse, which is literally the same effect delivered all at once. If they
+    // turn out not to sit right by ear, that is a brief for
+    // `.docs/internal/sfx/README.md`, not a reason to hold the feature.
+    this.busUnsubs.push(
+      bus.on('overrideArmed', ({ owner, id }) => {
+        if (this.hearsRobot(owner, id)) sfx.shieldUp();
+      }),
+      bus.on('overrideFired', ({ owner, id }) => {
+        if (this.hearsRobot(owner, id)) sfx.dewShot();
+      }),
+    );
     // The dome's three moments. Gated on *knowledge* rather than ownership,
     // unlike the factory pip above: a dome is a large thing happening on screen,
     // so once its base has been found, hearing it come up and hearing it fail is
@@ -1297,7 +1316,10 @@ export class GameApp {
       dir: riding ? { x: store.stickInput.x, y: store.stickInput.y } : { x: 0, y: 0 },
       possessPulse: store.dronePossessRequested,
       firePulse: store.droneFireRequested,
-      overridePulse: OverrideKind.None,
+      // Forwarded whatever the drone is doing, unlike the stick: the engine gates
+      // it (`startOverride`), and gating it a second time here would be a rule
+      // only this client applies.
+      overridePulse: store.overrideRequested ?? OverrideKind.None,
     };
   }
 
@@ -1687,10 +1709,15 @@ function droneStatusOf(drones: DroneEntity[], ctx: GameContext, side: Owner): Dr
       hp: 0,
       maxHp,
       respawnProgress: respawnTime > 0 ? 1 - left / respawnTime : 1,
+      overrides: NO_OVERRIDES,
     };
   }
 
   const possessedRobotId = drone.drone.possessedId ?? null;
+  // Read off the hull itself, from the same functions the simulation gates on —
+  // `availableOverrides` is pure and `overrideKind` is one field, so the panel and
+  // `startOverride` can never disagree about what is on offer.
+  const hull = possessedRobotId ? livingRobotById(ctx, possessedRobotId) : undefined;
   return {
     mode: possessedRobotId ? DroneMode.Possessing : DroneMode.Flying,
     id: drone.id,
@@ -1698,8 +1725,14 @@ function droneStatusOf(drones: DroneEntity[], ctx: GameContext, side: Owner): Dr
     hp: drone.hp,
     maxHp: drone.maxHp,
     respawnProgress: 0,
+    overrides: hull
+      ? { available: availableOverrides(hull), running: overrideKind(hull) }
+      : NO_OVERRIDES,
   };
 }
+
+/** Nothing is being ridden — shared so the two branches above allocate no array. */
+const NO_OVERRIDES: DroneStatus['overrides'] = { available: [], running: null };
 
 function toBaseSnapshot(e: BaseEntity, ctx: GameContext, localSide: Owner): BaseSnapshot {
   return {

@@ -96,7 +96,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   setStickInput: (dir) => set({ stickInput: dir }),
   requestDronePossess: () => set({ dronePossessRequested: true }),
   requestDroneFire: () => set({ droneFireRequested: true }),
-  clearDroneRequests: () => set({ dronePossessRequested: false, droneFireRequested: false }),
+  requestOverride: (kind) => set({ overrideRequested: kind }),
+  clearDroneRequests: () =>
+    set({ dronePossessRequested: false, droneFireRequested: false, overrideRequested: null }),
   setDroneStatus: (status) => set({ droneStatus: status }),
   // A jump, not a mode — so it has none of the side effects the old view toggle
   // needed. That one had to eject a pilot from their hull on the way out, because

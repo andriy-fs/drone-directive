@@ -34,6 +34,7 @@ import {
   screenBoundsOf,
   type Model,
 } from '../../../models';
+import { overrideKind } from '../../../engine/status';
 import { COLD, baseHeat, drawTargetMark, drawUnit, robotHeat, type Heat } from './units';
 import { drawInstruments } from './instruments';
 
@@ -410,7 +411,15 @@ export class FpvView {
     for (const r of robots(world)) {
       if (!isAlive(r) || !isVisible(r)) continue;
       const model = ROBOT_MODELS[r.chassis][r.weaponType];
-      this.drawModel(view, model, r.position, r.heading, this.roleColor(r, possessed), robotHeat(r));
+      // A hull with the limiters off is drawn in `heat` rather than in its side's
+      // colour — the one thing on this screen that overrides the friend/foe read,
+      // because a machine on a countdown to its own destruction is not really
+      // either any more. Deliberately shown to the *enemy* pilot too: every mode
+      // is meant to be noticed, the same way a lit kamikaze fuse is, and it is
+      // what gives the other side the seconds to answer it.
+      const armed = overrideKind(r) !== null;
+      const color = armed ? palette.fpv.heat : this.roleColor(r, possessed);
+      this.drawModel(view, model, r.position, r.heading, color, robotHeat(r));
     }
     // Rounds in flight. Untinted by owner and drawn with the heat pass — see
     // `PROJECTILE_MODEL`. Not gated on `isVisible`: a projectile carries no owner

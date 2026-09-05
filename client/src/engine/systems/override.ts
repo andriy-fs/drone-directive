@@ -51,8 +51,12 @@ import { detonateBomb } from './combat';
  * system that imports `applyDamage`.
  */
 
-/** Seconds a mode runs before it takes the hull with it. */
-function durationOf(kind: OverrideKind): number {
+/**
+ * Seconds a mode runs before it takes the hull with it. Exported because the
+ * instruments draw the countdown as a fraction and must divide by the same
+ * number this file counted down from.
+ */
+export function overrideDuration(kind: OverrideKind): number {
   const { shield, overload } = gameConfig.drone.overrides;
   return kind === OverrideKind.Shield ? shield.duration : overload.charge;
 }
@@ -103,7 +107,7 @@ export function startOverride(ctx: GameContext, robot: RobotEntity, kind: Overri
   // doctored client arming a mode on a machine it is not flying.
   if (possessedRobotOf(ctx, robot.owner)?.id !== robot.id) return false;
 
-  beginOverride(robot, kind, durationOf(kind));
+  beginOverride(robot, kind, overrideDuration(kind));
   ctx.bus.emit('overrideArmed', {
     owner: robot.owner,
     id: robot.id,

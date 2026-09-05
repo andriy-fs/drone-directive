@@ -26,6 +26,8 @@ export interface Dict {
     /** And sending it somewhere: a right click with it selected. */
     sendDrone: string;
     landRelease: string;
+    /** Holding a row of the hull's service menu — the one control with no key. */
+    serviceMenu: string;
     /** The same flight keys again, once the drone is riding a hull: throttle and turn. */
     steerHull: string;
     fireWeapon: string;
@@ -200,6 +202,34 @@ export interface Dict {
     /** Sub-headings above the two tile grids in the Directive card. */
     directiveHeading: string;
     formationHeading: string;
+  };
+  /**
+   * The hull's service menu — the experimental modes a pilot reaches from inside
+   * a possessed machine (`ui/hud/ServiceMenu.tsx`).
+   *
+   * Every string here has one job the rest of the HUD does not: making sure the
+   * player understands, before they hold the button down, that they are spending
+   * the machine. `warning` says it once at the top of the panel, and every row's
+   * note repeats what that particular mode buys for it.
+   */
+  serviceMenu: {
+    /** Panel heading. */
+    title: string;
+    /** The rule the whole menu runs on, stated once above the rows. */
+    warning: string;
+    /** Row labels. */
+    shield: string;
+    overload: string;
+    /** What each mode buys for the machine it costs. */
+    shieldNote: string;
+    overloadNote: string;
+    /** Why a row is dark: this hull has no such hardware, or a mode is already burning. */
+    unavailable: string;
+    running: string;
+    /** The hold-to-arm affordance, shown on every enabled row. */
+    holdToArm: string;
+    /** Seconds a mode runs, e.g. "5 s" — the row's right-hand column. */
+    seconds: string;
   };
   /**
    * Formation shapes. `none` is a tile like the others — "fall out" is a choice

@@ -10,6 +10,7 @@ import { DroneReadyToast } from './hud/DroneReadyToast';
 import { ExitToMenuButton } from './hud/ExitToMenuButton';
 import { FullscreenButton } from './hud/FullscreenButton';
 import { RadioLog } from './hud/RadioLog';
+import { ServiceMenu } from './hud/ServiceMenu';
 import { PauseButton } from './hud/PauseButton';
 import { SoundButton } from './hud/SoundButton';
 import { StatusPanel } from './hud/StatusPanel';
@@ -113,6 +114,8 @@ function App() {
             Mounted with the match and gone with it: unlike the chat, there is
             nothing here worth keeping once the fighting stops. */}
         {inMatch && <RadioLog />}
+        {/* Shows itself only while a hull is being ridden — see `ServiceMenu`. */}
+        {inMatch && <ServiceMenu />}
         {/* Three ways for the world to be standing still, and the player is owed
             the difference: a pause someone asked for, versus a lockstep step that
             cannot run yet. The link takes precedence — it is the one that might

@@ -3,6 +3,8 @@ import { palette } from '../../../config/palette';
 import type { Vec2 } from '@drone-directive/types/entities';
 import type { RobotEntity } from '../../../engine/ecs/archetypes';
 import { project } from '../../../models';
+import { overrideKind } from '../../../engine/status';
+import { overrideDuration } from '../../../engine/systems/override';
 import type { FpvProjection } from './camera';
 import { robotHeat } from './units';
 
@@ -220,6 +222,15 @@ export interface Gauges {
   reload: number;
   /** How hard the machine is driving. */
   drive: number;
+  /**
+   * How much of the armed mode is left, 0..1 — or null when none is running.
+   *
+   * Here rather than in the React HUD for the reason the whole file exists: the
+   * store snapshot arrives five times a second, and this is the bar a pilot times
+   * a detonation by. `droneStatus.overrides` carries *which* mode is running, at
+   * whatever rate the HUD likes; the clock is drawn per frame, from the world.
+   */
+  override: number | null;
 }
 
 /**
@@ -234,7 +245,10 @@ export interface Gauges {
 export function gauges(robot: RobotEntity): Gauges {
   const heat = robotHeat(robot);
   const integrity = robot.maxHp > 0 ? Math.min(1, Math.max(0, robot.hp / robot.maxHp)) : 0;
-  return { integrity, reload: 1 - heat.barrel, drive: heat.drive };
+  const kind = overrideKind(robot);
+  const total = kind ? overrideDuration(kind) : 0;
+  const override = kind && total > 0 ? Math.min(1, Math.max(0, (robot.override?.left ?? 0) / total)) : null;
+  return { integrity, reload: 1 - heat.barrel, drive: heat.drive, override };
 }
 
 /** Strokes one cardinal, centred on `cx`, hanging with its top at `top`. */
@@ -318,6 +332,18 @@ export function drawInstruments(g: Graphics, frame: InstrumentFrame): void {
     { fill: read.reload, color: palette.fpv.heat },
     { fill: read.drive, color: palette.fpv.self },
   ];
-  const first = screenH - GAUGE.bottom - rows.length * (GAUGE.height + GAUGE.gap);
-  rows.forEach((row, i) => drawBar(g, first + i * (GAUGE.height + GAUGE.gap), row.fill, row.color));
+  const pitch = GAUGE.height + GAUGE.gap;
+  const first = screenH - GAUGE.bottom - rows.length * pitch;
+  rows.forEach((row, i) => drawBar(g, first + i * pitch, row.fill, row.color));
+
+  // The armed mode's countdown, *above* the stack rather than appended to it.
+  // Appending would have grown `rows` and moved the other three 12 px up the
+  // instant a mode was armed — a jump in the one part of the screen the pilot is
+  // reading at exactly that moment. Growing upward into empty space costs the
+  // three permanent gauges nothing and keeps their position absolute.
+  //
+  // Drawn in `heat`, the colour this view already uses for "this part is running
+  // hot", because that is precisely what the bar is counting: the battery on its
+  // way to taking the machine with it.
+  if (read.override !== null) drawBar(g, first - pitch, read.override, palette.fpv.heat);
 }

@@ -2,6 +2,7 @@ import { Circle, Container, Graphics, Sprite } from 'pixi.js';
 import { gameConfig } from '../../config/gameConfig';
 import { palette } from '../../config/palette';
 import type { RobotEntity } from '../../engine/ecs/archetypes';
+import { overrideDuration } from '../../engine/systems/override';
 import { useGameStore } from '../../store/gameStore';
 import { selectOwnRobotsByWeapon } from '../../store/selection';
 import { ChassisType, WeaponType } from '@drone-directive/types/enums';
@@ -109,6 +110,8 @@ export class RobotView {
   /** The countdown drawn over a kamikaze whose fuse is burning; repainted every frame. */
   private readonly fuse: Graphics;
   private readonly fuseRadius: number;
+  /** The same countdown for an armed service-menu mode; its own layer, its own colour. */
+  private readonly overrideMark: Graphics;
   private readonly healthBar: HealthBar;
   private readonly isEnemy: boolean;
   private lastClickAt = 0;
@@ -228,6 +231,8 @@ export class RobotView {
     this.fuseRadius = outerRadius + 7;
     this.fuse = new Graphics();
     this.fuse.visible = false;
+    this.overrideMark = new Graphics();
+    this.overrideMark.visible = false;
 
     this.healthBar = new HealthBar(2 * outerRadius + 6, 4);
     this.healthBar.container.position.set(0, -(outerRadius + 10));
@@ -243,6 +248,7 @@ export class RobotView {
       this.body,
       this.stunned,
       this.fuse,
+      this.overrideMark,
       this.healthBar.container,
     );
 
@@ -312,6 +318,15 @@ export class RobotView {
     if (this.blastZone) {
       this.blastZone.alpha = fuseLeft > 0 ? FUSE_ZONE_REST + (1 - FUSE_ZONE_REST) * blink(fuseLeft) : FUSE_ZONE_REST;
     }
+
+    // The limiters are off: the same countdown idiom as the fuse, because it is
+    // the same kind of fact — a machine that has committed, with seconds left.
+    // Its own layer and its own colour so the two can never be read as each
+    // other, and shown to the enemy as well as the owner: a mode the other side
+    // cannot see is a mode they cannot answer.
+    const armedFor = robot.override?.left ?? 0;
+    this.overrideMark.visible = armedFor > 0;
+    if (armedFor > 0) this.drawOverrideMark(robot, armedFor);
 
     // After `body.rotation`, which the sway adds to rather than replaces.
     this.move(robot, visible && !off, now);
@@ -436,6 +451,31 @@ export class RobotView {
     // A full ring under it, faint, so the arc reads as a *fraction* of something
     // rather than as an arbitrary scratch on one side of the hull.
     g.circle(0, 0, r).stroke({ width: 1, color: palette.blast.zone, alpha: 0.2 + 0.2 * b });
+  }
+
+  /**
+   * The armed mode's countdown: an arc unwinding over the hull in the heat
+   * colour, plus a faint full ring under it so the arc reads as a fraction.
+   *
+   * Clocked off `override.left` and divided by the mode's own duration — never by
+   * wall time — so both peers see the same sweep at the same moment, and a
+   * two-second `Overload` does not look like a nearly-spent five-second `Shield`.
+   */
+  private drawOverrideMark(robot: RobotEntity, left: number): void {
+    const kind = robot.override?.kind;
+    if (!kind) return;
+    const total = overrideDuration(kind) || left;
+    const r = this.fuseRadius;
+    const g = this.overrideMark;
+    const b = blink(left);
+    g.clear();
+
+    const span = Math.PI * 2 * Math.max(0, Math.min(1, left / total));
+    const from = -Math.PI / 2;
+    g.moveTo(Math.cos(from) * r, Math.sin(from) * r)
+      .arc(0, 0, r, from, from - span, true)
+      .stroke({ width: 3, color: palette.fpv.heat, alpha: 0.55 + 0.45 * b });
+    g.circle(0, 0, r).stroke({ width: 1, color: palette.fpv.heat, alpha: 0.2 + 0.2 * b });
   }
 
   /** The crackling cage over a knocked-out hull; re-rolled every frame. */

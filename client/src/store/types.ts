@@ -18,7 +18,15 @@ import type { RadioKey, RadioParams } from '../radio/types';
 import type { Theme } from '../theme/theme';
 import type { Command } from '@drone-directive/types/commands';
 import type { BuildOrder, ResourcePool, Vec2 } from '@drone-directive/types/entities';
-import type { ChassisType, FormationType, MapSize, Owner, TaskType, WeaponType } from '@drone-directive/types/enums';
+import type {
+  ChassisType,
+  FormationType,
+  MapSize,
+  OverrideKind,
+  Owner,
+  TaskType,
+  WeaponType,
+} from '@drone-directive/types/enums';
 import type {
   ClientVersion,
   DroneMode,
@@ -44,6 +52,19 @@ export interface DroneStatus {
   maxHp: number;
   /** Readiness of the replacement drone, 0..1. Only meaningful while `down`. */
   respawnProgress: number;
+  /**
+   * The possessed hull's service menu — what it *could* run, and what it *is*
+   * running (see `engine/systems/override.ts`). Empty and null whenever no hull
+   * is being ridden.
+   *
+   * `available` is the engine's own `availableOverrides`, not a second list kept
+   * in step by hand: a row the panel offers and the simulation then refuses would
+   * read as the game ignoring the player. The countdown is deliberately **not**
+   * here — this snapshot arrives five times a second, which is a staircase for a
+   * bar the pilot is timing a detonation by. That one is drawn per frame from the
+   * world in `pixi/render/fpv/instruments.ts`.
+   */
+  overrides: { available: OverrideKind[]; running: OverrideKind | null };
 }
 
 /** HUD-facing view of a robot (projected from the ECS world by the app bridge). */
@@ -269,6 +290,13 @@ export interface GameStateFields {
   /** One-shot drone intents the bridge forwards then clears (land/take-off, fire/detonate). */
   dronePossessRequested: boolean;
   droneFireRequested: boolean;
+  /**
+   * The mode the pilot just asked for, or null — the third one-shot intent,
+   * cleared with the other two. No "menu is open" flag sits beside it: the panel
+   * is on screen for exactly as long as a hull is being ridden, so there is
+   * nothing to open or close.
+   */
+  overrideRequested: OverrideKind | null;
   /** HUD-facing drone status pushed from snapshots. */
   droneStatus: DroneStatus;
   /**
@@ -385,6 +413,7 @@ export interface GameActions {
   setStickInput: (dir: Vec2) => void;
   requestDronePossess: () => void;
   requestDroneFire: () => void;
+  requestOverride: (kind: OverrideKind) => void;
   clearDroneRequests: () => void;
   setDroneStatus: (status: DroneStatus) => void;
   /** Ask the camera to jump to the local side's drone; also answers the "it is up again" notice. */

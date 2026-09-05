@@ -42,6 +42,11 @@ function droneControls(t: T): { keys: string[]; action: string }[] {
     // which job they are doing: the whole screen changes when you are inside one.
     { keys: ['W A S D', '↑ ← ↓ →'], action: t('mainMenu', 'steerHull') },
     { keys: ['E'], action: t('mainMenu', 'fireWeapon') },
+    // The service menu is the one control with no key at all — deliberately, see
+    // `ui/hud/ServiceMenu.tsx`. Listed anyway: a panel that appears by itself and
+    // responds to nothing on the keyboard is otherwise something the player has to
+    // discover by leaning on it.
+    { keys: ['Hold'], action: t('mainMenu', 'serviceMenu') },
   ];
 }
 

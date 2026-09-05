@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ChassisType, Owner, WeaponType } from '@drone-directive/types/enums';
+import { gameConfig } from '../../../config/gameConfig';
+import { ChassisType, OverrideKind, Owner, WeaponType } from '@drone-directive/types/enums';
 import { createEcsWorld } from '../../../engine/ecs/world';
 import { spawnRobot } from '../../../engine/ecs/factory';
 import { viewProjection } from './camera';
@@ -132,6 +133,24 @@ describe('the gauges', () => {
     const g = gauges(robot);
     expect(g.drive).toBe(1);
     expect(g.integrity).toBe(0);
+  });
+
+  it('reads no countdown when no mode is armed', () => {
+    expect(gauges(hull()).override).toBeNull();
+  });
+
+  it('counts the armed mode down as a fraction of its own duration', () => {
+    const robot = hull();
+    robot.override = { kind: OverrideKind.Shield, left: gameConfig.drone.overrides.shield.duration / 4 };
+    expect(gauges(robot).override).toBeCloseTo(0.25, 6);
+  });
+
+  it('divides each mode by its own clock, not by a shared one', () => {
+    // `Overload` is two seconds and `Shield` is five: one constant here would read
+    // the pulse as nearly spent from the moment it was armed.
+    const robot = hull();
+    robot.override = { kind: OverrideKind.Overload, left: gameConfig.drone.overrides.overload.charge };
+    expect(gauges(robot).override).toBeCloseTo(1, 6);
   });
 
   it('does not light a permanent reload bar on a weapon that never fires', () => {
