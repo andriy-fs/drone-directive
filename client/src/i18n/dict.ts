@@ -215,7 +215,15 @@ export interface Dict {
   serviceMenu: {
     /** Panel heading. */
     title: string;
-    /** The rule the whole menu runs on, stated once above the rows. */
+    /**
+     * The rule the whole menu runs on, stated once above the rows.
+     *
+     * Says **destroyed**, and says it of the *robot* rather than of its hull:
+     * "burns out the hull" reads as damage the machine survives, which is the one
+     * misunderstanding this string exists to prevent. It also names *when* — the
+     * end of the mode, not the moment it is armed — because the seconds in
+     * between are the whole thing the player is buying.
+     */
     warning: string;
     /** Row labels. */
     shield: string;
