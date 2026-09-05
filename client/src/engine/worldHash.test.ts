@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultSettings, type GameSettings } from '../config/gameSettings';
 import { GameEngine } from './game/engine';
-import { FormationType, MapSize, Owner } from '@drone-directive/types/enums';
+import { FormationType, MapSize, OverrideKind, Owner } from '@drone-directive/types/enums';
 import { worldHash } from './worldHash';
 
 /**
@@ -86,6 +86,35 @@ describe('worldHash', () => {
     const base = a.world.with('base', 'position').entities[0];
     a.world.addComponent(base, 'shieldSpent', true);
     expect(worldHash(a.world)).not.toBe(before);
+  });
+
+  it('notices a mode armed on one peer and not the other', () => {
+    // The one piece of state that is *not* observable through hp, for exactly the
+    // dome's reason: while `Shield` runs, stopping hp from moving is its whole job.
+    // 300 ticks, like the formation case below: nothing has been produced yet at
+    // 120, and a world with no robots would pass this test for the wrong reason.
+    const a = peer(Owner.Player, 1, 300);
+    const before = worldHash(a.world);
+    const robot = a.world.with('robot', 'position').entities[0];
+    robot.override = { kind: OverrideKind.Shield, left: 5 };
+    expect(worldHash(a.world)).not.toBe(before);
+  });
+
+  it('notices a mode a thousandth of a second older, or of a different kind', () => {
+    const a = peer(Owner.Player, 1, 300);
+    const robot = a.world.with('robot', 'position').entities[0];
+    robot.override = { kind: OverrideKind.Shield, left: 5 };
+    const before = worldHash(a.world);
+
+    robot.override.left -= 0.001;
+    const older = worldHash(a.world);
+    expect(older).not.toBe(before);
+
+    // The kind matters as much as the clock: the two modes end the hull in
+    // different ways, so peers disagreeing about which is running diverge at the
+    // end of it, not during.
+    robot.override.kind = OverrideKind.Overload;
+    expect(worldHash(a.world)).not.toBe(older);
   });
 
   it('notices a formation one peer knows about and the other does not', () => {

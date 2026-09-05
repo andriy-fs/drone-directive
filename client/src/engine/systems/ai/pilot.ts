@@ -1,6 +1,6 @@
 import { gameConfig, worldPixelSize } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
-import type { Owner } from '@drone-directive/types/enums';
+import { OverrideKind, type Owner } from '@drone-directive/types/enums';
 import { clamp, distance, vecLength } from '../../../utils/math';
 import type { BaseEntity, DroneEntity, RobotEntity } from '../../ecs/archetypes';
 import { isAlive } from '../../ecs/guards';
@@ -18,9 +18,10 @@ import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from '../.
  * one as a scout for whichever side owns it), so nothing here duplicates flight,
  * detection or damage. All this module decides is a direction.
  *
- * **Two restrictions, enforced structurally.** The pilot never writes
- * `possessPulse` or `firePulse`, so a bot drone can neither land on a robot nor
- * shoot — the possession mechanic and manual fire stay the player's alone. That
+ * **The restrictions are enforced structurally.** The pilot never writes
+ * `possessPulse`, `firePulse` or `overridePulse`, so a bot drone can neither land
+ * on a robot, nor shoot, nor arm a service-menu mode — possession, manual fire
+ * and the whole cockpit stay the player's alone. That
  * has a price the bot pays every second: `isTargetableDrone` only exempts a
  * drone riding a hull, so a bot's drone is *always* exposed to anti-air fire.
  * Shooting it down is the player's answer to it.
@@ -32,9 +33,10 @@ import { enemyBases, enemyRobots, knownEnemyBases, nearest, ownBase } from '../.
  */
 export function pilotDrone(ctx: GameContext, owner: Owner, state: AiState): void {
   const control = ctx.droneControl[owner];
-  // The bot's two restrictions live here and nowhere else.
+  // The bot's restrictions live here and nowhere else.
   control.possessPulse = false;
   control.firePulse = false;
+  control.overridePulse = OverrideKind.None;
 
   const drone = drones(ctx.world).entities.find((d) => d.owner === owner && isAlive(d));
   if (!drone) {

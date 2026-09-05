@@ -258,6 +258,53 @@ export const gameConfig = {
        */
       sightHalfAngleDeg: 45,
     },
+
+    /**
+     * The hull's experimental modes — the service menu a pilot reaches from
+     * inside a possessed machine (`systems/override.ts`).
+     *
+     * **Every one of them ends with the hull destroyed**, which is what keeps
+     * this block down to durations: there is no charge count, no cooldown and no
+     * cost, because the machine is the cost. Tuning here is therefore only ever
+     * "how long does the pilot get, and how far does it reach" — nothing in this
+     * block can make a mode repeatable.
+     */
+    overrides: {
+      shield: {
+        /**
+         * Five seconds of absolute immunity.
+         *
+         * Sized off the one window the game already has that is worth paying a
+         * hull for: a kamikaze closes to `weapons.bomb.range`, then stands still
+         * for `weapons.bomb.armingTime` (1 s) while the fuse burns — the single
+         * moment a bomb is reliably shot off its mark. Five seconds covers the
+         * last stretch of the approach *and* that fuse with room to be wrong
+         * about the timing. Much shorter and the pilot has to arm it inside the
+         * defender's range, which is a reflex rather than a decision; much longer
+         * and the approach stops being a run at all.
+         */
+        duration: 5,
+      },
+      overload: {
+        /** Seconds between arming and the burst — the window a defender gets to react. */
+        charge: 2,
+        /**
+         * Blast radius of the pulse. Above `weapons.ew.jamRadius` (150) on
+         * purpose: the machine that carries this is the jammer, and a pilot who
+         * has driven it into a formation should reach past the bubble it was
+         * already projecting, or the mode buys nothing the hull was not doing by
+         * standing there.
+         */
+        radius: 180,
+        /**
+         * How long everything caught in the pulse stays out. The same number as
+         * `weapons.dew.freezeDuration`, so the burst reads as what it is — the
+         * whole battery dumped into the effect a `dew` shot delivers one hull at
+         * a time.
+         */
+        disableSeconds: 8,
+      },
+    },
   },
 
   /**

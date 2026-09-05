@@ -1,5 +1,6 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
-import type { Vec2 } from '@drone-directive/types/entities';
+import type { DroneControl, Vec2 } from '@drone-directive/types/entities';
+import { OverrideKind } from '@drone-directive/types/enums';
 import { clamp, distance, vecLength } from '../../utils/math';
 import type { BaseEntity, DroneEntity, Positioned, RobotEntity } from '../ecs/archetypes';
 import { spawnProjectile } from '../ecs/factory';
@@ -9,6 +10,7 @@ import type { GameContext } from '../game/context';
 import { isBlockedGrid, tileOf } from '../obstacles';
 import { canEngage, detonateBomb, launchSalvo, withinMunitionReach } from './combat';
 import { clearGoal } from './movement';
+import { startOverride } from './override';
 import { isDisabled } from '../status';
 import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from '../targeting';
 
@@ -42,7 +44,7 @@ function driveDrone(ctx: GameContext, dt: number, drone: DroneEntity): void {
     // Raw, deliberately: while a hull is being ridden the two components are
     // *axes*, not a direction, and normalising them would rescale a half-pushed
     // throttle back up to full.
-    drivePossessed(ctx, dt, drone, robot, control.dir, control.possessPulse, control.firePulse);
+    drivePossessed(ctx, dt, drone, robot, control);
   } else {
     // The possessed robot is gone (e.g. a kamikaze detonated) — drop to free flight.
     drone.drone.possessedId = undefined;
@@ -51,6 +53,7 @@ function driveDrone(ctx: GameContext, dt: number, drone: DroneEntity): void {
 
   control.possessPulse = false;
   control.firePulse = false;
+  control.overridePulse = OverrideKind.None;
 }
 
 /**
@@ -167,22 +170,28 @@ function tryPossess(ctx: GameContext, drone: DroneEntity): boolean {
  * inside the yaw feedback loop, which wobbles. Possession is a fact both peers read
  * from the same world, so both read the stick the same way.
  */
-function drivePossessed(
-  ctx: GameContext,
-  dt: number,
-  drone: DroneEntity,
-  robot: RobotEntity,
-  dir: Vec2,
-  release: boolean,
-  fire: boolean,
-): void {
+function drivePossessed(ctx: GameContext, dt: number, drone: DroneEntity, robot: RobotEntity, control: DroneControl): void {
+  const { dir, possessPulse: release, firePulse: fire } = control;
   const rpos = robot.position;
+
+  // Before everything else, including the release below: arming a mode and
+  // stepping off are two different presses, and a pilot who does both in one tick
+  // meant to arm *then* leave — which is the whole shape of an `Overload` play.
+  // The gate is `startOverride`'s, not this one's; a refusal is silent and costs
+  // the pilot nothing.
+  if (control.overridePulse !== OverrideKind.None) startOverride(ctx, robot, control.overridePulse);
 
   if (release) {
     drone.drone.possessedId = undefined;
   } else if (isDisabled(robot)) {
     // Knocked out under the pilot: the drone keeps riding (and can still bail
     // out with `release`), but the hull answers neither the stick nor the trigger.
+    //
+    // A running mode is deliberately not affected — the countdown belongs to the
+    // machine, not to whether it can still drive. A `dew` hit on a shielded
+    // kamikaze therefore *moves* the blast to wherever it was stopped rather than
+    // cancelling it, which is the counter-play: the defender chooses where it goes
+    // off, not whether.
     robot.targetId = undefined;
   } else {
     // Manual-only fire. `taskSystem` already stands a piloted hull's program down,

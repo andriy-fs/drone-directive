@@ -1,5 +1,5 @@
 import type { Vec2 } from '@drone-directive/types/entities';
-import type { Owner, WeaponType } from '@drone-directive/types/enums';
+import type { OverrideKind, Owner, WeaponType } from '@drone-directive/types/enums';
 import type { EntityKind } from '../ecs/entity';
 
 export type SceneName = 'menu' | 'game';
@@ -65,6 +65,22 @@ export interface GameEvents {
    * warning can be hung on the hull rather than on a spot it is standing near.
    */
   bombArming: { owner: Owner; id: string; pos: Vec2 };
+  /**
+   * A pilot armed an experimental mode on the hull they are riding
+   * (`systems/override.ts`). From this moment the machine is spent — every mode
+   * ends by destroying it.
+   *
+   * Like `bombArming`, nothing in the simulation consumes this, and for the same
+   * reason: the point of a mode is that both sides get to notice it. `id` is the
+   * hull, so the mark hangs on the machine rather than on a patch of ground.
+   */
+  overrideArmed: { owner: Owner; id: string; kind: OverrideKind; pos: Vec2 };
+  /**
+   * A mode that does something on its way out actually did it — today only
+   * `Overload`, whose EMP goes off a beat before the hull does. Separate from
+   * `overrideArmed` because the two are seconds apart and sound nothing alike.
+   */
+  overrideFired: { owner: Owner; id: string; kind: OverrideKind; pos: Vec2 };
   /** A base spent its one-shot energy dome (see `systems/combat/shield.ts`). */
   shieldRaised: { owner: Owner; baseId: string; pos: Vec2 };
   /**

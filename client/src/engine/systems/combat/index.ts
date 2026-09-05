@@ -10,7 +10,7 @@ import type { GameContext } from '../../game/context';
 import type { HitTarget } from '../../game/events';
 import { hasLineOfSight, isBlockedGrid, tileOf } from '../../obstacles';
 import { absorbShieldDamage, isShielded } from './shield';
-import { applyDisable, beginArming, blockRegen, decayArming, isArming, isDisabled } from '../../status';
+import { absorbsAllDamage, applyDisable, beginArming, blockRegen, decayArming, isArming, isDisabled } from '../../status';
 import { distanceToBase, enemyAirTargets, findById, isEnemy, isKnownTo } from '../../targeting';
 import { alreadyDoomed } from '../../threat';
 
@@ -203,6 +203,15 @@ export function needsLineOfSight(w: WeaponComp): boolean {
  * narrows nothing. The `?? 0` below is the honest handling of that.
  */
 export function applyDamage(e: Entity, amount: number, sourceId?: string): void {
+  // A hull running the pilot's `Shield` mode takes nothing at all. Beside the
+  // dome, because this is the same funnel and the same "whatever route the damage
+  // took" argument — but it is the *opposite* kind of protection and must not be
+  // confused with it. The dome is armor: a finite pool that absorbs, spills its
+  // overkill through, and can be broken by concentrating fire. This is immunity:
+  // absolute, unbreakable, and ended only by its own clock, which then destroys
+  // the machine anyway. Nothing is absorbed, so nothing spills, and there is
+  // deliberately no `blockRegen` or `threat` below either — the hull was not hit.
+  if (absorbsAllDamage(e)) return;
   // A base's energy dome is armor, not a wall: whatever route the damage took to
   // get here — a round on the footprint, a kamikaze that drove underneath — the
   // dome eats it first. Doing it in this one place rather than in each collision

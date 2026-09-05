@@ -58,6 +58,11 @@ export function worldHash(world: EcsWorld): number {
     // distinguishable from "at zero".
     const dome = e.shield ? `${Math.round(e.shield.hp * 1000)}/${Math.round(e.shield.left * 1000)}` : '-';
     const spent = e.shieldSpent ? '1' : '0';
+    // In for the same reason the dome is: while `Shield` runs it *stops* hp from
+    // moving, so hp cannot be the thing that reveals a disagreement about it —
+    // and the kind matters as much as the clock, since the two modes end the hull
+    // in different ways. `'-'` keeps "no mode" apart from "a mode at zero".
+    const ovr = e.override ? `${e.override.kind}/${Math.round(e.override.left * 1000)}` : '-';
     // Which formation, and which group of it. Membership is what decides where a
     // robot is told to stand next tick, so peers that disagree about it diverge
     // in position immediately afterwards — the divergence would be caught either
@@ -67,7 +72,7 @@ export function worldHash(world: EcsWorld): number {
     const form = e.script?.blackboard.formation;
     const line = form ? `${form.gid}/${form.type}` : '-';
     parts.push(
-      `${e.id}:${e.owner ?? '-'}:${x}:${y}:${hp}:${e.script?.programId ?? '-'}:${off}:${dome}:${spent}:${line}`,
+      `${e.id}:${e.owner ?? '-'}:${x}:${y}:${hp}:${e.script?.programId ?? '-'}:${off}:${dome}:${spent}:${line}:${ovr}`,
     );
   }
   // Entity order comes from the ECS store and should already match, but sorting

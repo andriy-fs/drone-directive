@@ -1,8 +1,9 @@
 import type { With } from 'miniplex';
+import { OverrideKind } from '@drone-directive/types/enums';
 import type { Entity } from './ecs/entity';
 
 /**
- * Temporary status effects. Three today:
+ * Temporary status effects. Four today:
  *
  * - the directed-energy knock-out (`dew`), respected by every system that could
  *   let a robot act (`task`, `movement`, `combat`, `vision`, `drone`, `ai`);
@@ -10,11 +11,21 @@ import type { Entity } from './ecs/entity';
  *   (`combat` sets it, `regen` reads it);
  * - the kamikaze's fuse, which holds a bomb still for a beat before it goes off
  *   (`combat` both starts and spends it, `movement` and `task` stand out of its
- *   way).
+ *   way);
+ * - the pilot's experimental mode, a countdown to the hull's own destruction
+ *   (`systems/override.ts` decides who may start one and what its end does;
+ *   `combat` only asks whether the machine is currently immune).
  *
- * All three are only ever touched through the functions here rather than by poking
- * `entity.disabled` / `entity.regenLock` / `entity.arming` directly, so each rule
- * stays in one place and a fourth effect has somewhere obvious to land.
+ * All four are only ever touched through the functions here rather than by poking
+ * `entity.disabled` / `entity.regenLock` / `entity.arming` / `entity.override`
+ * directly, so each rule stays in one place and a fifth effect has somewhere
+ * obvious to land.
+ *
+ * The split between this file and `systems/override.ts` is the same one the fuse
+ * already has with `combat`: the timer and its accessors live here, where a leaf
+ * module with no engine imports can be read by anything, and the *policy* — who
+ * may arm one, and what happens when it runs out — lives with the system. That
+ * is also what keeps `combat` from importing a system that imports `combat`.
  *
  * The remaining time is simulation state, advanced exactly once per tick — the
  * knock-out in `taskSystem` (next to `threat.underFireLeft`), the repair lock in
@@ -105,4 +116,61 @@ export function decayArming(e: Entity, dt: number): boolean {
   if (e.arming.left > 0) return false;
   e.arming = undefined;
   return true;
+}
+
+/**
+ * Whether an experimental mode is running on `e` right now. Narrows, like
+ * `isDisabled` and `isArming`.
+ *
+ * `left > 0` rather than "has the component": `overrideSystem` clears the field
+ * on the tick it expires, and nothing should read a mode already spent.
+ */
+export function isOverrideRunning(e: Entity): e is With<Entity, 'override'> {
+  return (e.override?.left ?? 0) > 0;
+}
+
+/** The mode running on `e`, or null — what the HUD snapshot and the views read. */
+export function overrideKind(e: Entity): OverrideKind | null {
+  return isOverrideRunning(e) ? e.override.kind : null;
+}
+
+/**
+ * Whether `e` is immune to damage right now — the one question `applyDamage` asks
+ * about this effect.
+ *
+ * Only `Shield` answers yes, and it is **immunity, not armour**: absolute,
+ * unbreakable, bounded only by its clock. That is the opposite of the base's dome
+ * (`systems/combat/shield.ts`), which is a finite pool that spills its overkill
+ * through and can be broken by concentrating fire. `Overload` buys reach rather
+ * than survival — a hull charging a pulse can be killed before it goes off, and
+ * that is the whole of the counter-play against it.
+ */
+export function absorbsAllDamage(e: Entity): boolean {
+  return overrideKind(e) === OverrideKind.Shield;
+}
+
+/**
+ * Starts a mode. Unlike `applyDisable` this does **not** extend an existing one:
+ * a machine runs one mode, once, and then it is gone. A second call while one is
+ * already burning is a no-op, exactly as `beginArming` refuses to push a lit fuse
+ * further away.
+ */
+export function beginOverride(e: Entity, kind: OverrideKind, seconds: number): void {
+  if (seconds <= 0 || isOverrideRunning(e)) return;
+  e.override = { kind, left: seconds };
+}
+
+/**
+ * Advances the mode by one step. Returns the mode on the single tick it runs out
+ * — the caller's cue to spend the hull — and clears the field so the cue can
+ * never be read twice. Shaped like `decayArming` for the same reason: this is a
+ * countdown worth acting on rather than merely observing.
+ */
+export function decayOverride(e: Entity, dt: number): OverrideKind | null {
+  if (!e.override) return null;
+  e.override.left -= dt;
+  if (e.override.left > 0) return null;
+  const kind = e.override.kind;
+  e.override = undefined;
+  return kind;
 }

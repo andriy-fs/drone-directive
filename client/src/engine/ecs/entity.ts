@@ -1,12 +1,5 @@
 import type { BuildOrder, Vec2 } from '@drone-directive/types/entities';
-import type {
-  BuildPresetType,
-  ChassisType,
-  Owner,
-  RobotState,
-  TaskType,
-  WeaponType,
-} from '@drone-directive/types/enums';
+import type { BuildPresetType, ChassisType, OverrideKind, Owner, RobotState, TaskType, WeaponType } from '@drone-directive/types/enums';
 import type { RobotScript } from '@drone-directive/types/tasks';
 
 /** Robot navigation component. */
@@ -207,6 +200,27 @@ export interface RegenLock {
 }
 
 /**
+ * A hull running one of the pilot's experimental modes — present only while the
+ * mode is running, and never on anything a drone is not riding.
+ *
+ * **It is a countdown to the machine's own destruction, not a buff.** Whatever
+ * the mode buys, `left` reaching zero destroys the hull; that is the rule the
+ * whole feature is built on, and the reason nothing here counts charges.
+ *
+ * Deliberately a plain field in the `status.ts` mould rather than an
+ * `addComponent` tag like `shield`: nothing queries it. The two views that draw
+ * it (`pixi/render/fpv/instruments.ts` and `RobotView`) read it off the entity
+ * per frame, exactly as they read `arming`, so a reactive query would buy a
+ * lifecycle nobody needs. Only ever created and advanced through
+ * `systems/override.ts`.
+ */
+export interface Override {
+  kind: OverrideKind;
+  /** Seconds left; decays exactly once per tick in `overrideSystem`, which then ends the hull. */
+  left: number;
+}
+
+/**
  * A base's "last hope" energy dome, present **only while the dome is up** — its
  * presence is the archetype tag, so `world.with('base', 'position', 'shield')`
  * reads as "domes standing right now" and hands the renderer a view lifecycle
@@ -315,6 +329,8 @@ export interface Entity {
   disabled?: Disabled;
   /** Present only while a kamikaze's fuse is burning — see `status.ts`. */
   arming?: Arming;
+  /** Present only while an experimental mode runs — see `systems/override.ts`. */
+  override?: Override;
 
   // Base
   production?: Production;

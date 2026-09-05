@@ -15,6 +15,7 @@ import { explosionSystem } from '../../systems/explosion';
 import { fogSystem } from '../../systems/vision/fog';
 import { movementSystem } from '../../systems/movement';
 import { munitionSystem } from '../../systems/combat/munition';
+import { overrideSystem } from '../../systems/override';
 import { refreshNavObstacles } from '../../navGrid';
 import { productionSystem } from '../../systems/production';
 import { reapSystem } from '../../systems/reap';
@@ -122,6 +123,12 @@ export class GameScene implements Scene {
     // taken the hp off, so a strike drone shot down on approach is removed before
     // it can cover its last few pixels and land its damage anyway.
     munitionSystem(ctx, dt);
+    // After combat, so a `Shield` that was up this tick covers the hits that
+    // landed during it rather than the ones after; before `reapSystem`, so a hull
+    // spent by its own mode — a kamikaze detonating on the last frame of its
+    // countdown — leaves in the same tick it went, instead of standing dead for
+    // one more. The neighbours its blast kills are reaped in that tick too.
+    overrideSystem(ctx, dt);
     // Between combat and reap, deliberately: combat has already handed this
     // tick's damage to the domes, so one beaten to zero shatters on the very
     // tick it was broken — and doing it *before* reap means a base finished off
