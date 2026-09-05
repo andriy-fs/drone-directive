@@ -144,8 +144,13 @@ function sequentialPass(ctx: GameContext, dt: number): void {
     // The anti-jam bookkeeping is deliberately left frozen rather than kept
     // current the way `parkStationary` keeps it: a pilot leaning on a wall is not
     // jammed, and the retreat is not a thing to do to someone holding the stick.
-    // Harmless on release, because possession cleared the goal — an Idle hull
-    // without one zeroes `stuckTime` at the first gate of `maybeStartRetreat`.
+    //
+    // Frozen is also what makes it harmless on release, now that a hull can be
+    // taken mid-march and hand back a live goal: `prevX/prevY` still hold the
+    // position from before the drone landed, so the first tick back measures the
+    // whole distance the pilot drove and `maybeStartRetreat` reads it as movement
+    // and zeroes `stuckTime`. A pilot who parked exactly where they boarded hands
+    // the counter back untouched, which is the honest answer either way.
     if (piloted.has(e.id)) continue;
 
     // Net progress is measured over a *full* tick: compare the start-of-tick
@@ -242,7 +247,7 @@ function orcaPass(ctx: GameContext, dt: number): void {
     // Snapshotted one step (~2 px at 30 Hz) further on than everyone else, since
     // `droneSystem` has already moved it. That is where the hull actually is this
     // tick; the alternative is running `droneSystem` after this pass, and it sits
-    // where it does so it can override the target the Idle resolver set.
+    // where it does so it can clear the target and keep the hull's fire manual.
     if (piloted.has(e.id)) {
       planEntity[n] = e;
       planKind[n] = PLAN_PILOTED;

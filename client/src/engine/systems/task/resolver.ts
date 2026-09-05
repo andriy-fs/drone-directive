@@ -10,7 +10,14 @@ import { hasLineOfSight } from '../../obstacles';
 import { canEngage } from '../combat';
 import { clearGoal, setGoal } from '../movement';
 import { decayDisabled, isArming, isDisabled } from '../../status';
-import { findById, knownEnemyAir, knownEnemyBases, knownEnemyRobots, nearest } from '../../targeting';
+import {
+  findById,
+  knownEnemyAir,
+  knownEnemyBases,
+  knownEnemyRobots,
+  nearest,
+  pilotedHullIds,
+} from '../../targeting';
 import { worthShooting } from '../../threat';
 import {
   attackAttackerOutcome,
@@ -51,6 +58,9 @@ export function taskSystem(ctx: GameContext, dt: number): void {
   // stand depends on where its group is going, and that is not knowable while
   // the group is still being resolved one robot at a time.
   const resolved = new Map<string, Outcome>();
+  // Resolved once for the whole side rather than per robot — the answer is fixed
+  // for the tick, and `droneSystem` (which is the only writer) runs later.
+  const piloted = pilotedHullIds(ctx);
 
   for (const e of robots(ctx.world)) {
     // Decay first, so the tick a robot recovers on is the tick it acts again —
@@ -66,6 +76,26 @@ export function taskSystem(ctx: GameContext, dt: number): void {
     if (e.threat && e.threat.underFireLeft > 0) {
       e.threat.underFireLeft = Math.max(0, e.threat.underFireLeft - dt);
     }
+
+    // Under a pilot: the program stands down for as long as someone is holding
+    // the stick, and picks up again on release — the same deal `isDisabled` gets
+    // above, and for the same reason, since nothing here overwrites the script.
+    //
+    // **This is what makes possessing a hull mid-march safe.** Two of the three
+    // things a program does would fight the pilot rather than merely idle beside
+    // them: a goal it keeps re-issuing every tick (harmless in itself, because
+    // `movementSystem` skips a piloted hull, but it makes the machine walk off on
+    // release toward a target the pilot never chose) and, on a kamikaze, the
+    // engage outcome lighting its own fuse. That last one is the real hazard —
+    // `beginArming` is committed and irreversible, `movement` parks the hull on
+    // `isArming`, and the pilot loses the wheel *and* the choice of when to go up
+    // at the exact moment they were driving somewhere better.
+    //
+    // Placed after the `underFireLeft` decay on purpose: the hull is still being
+    // shot at while it is ridden, so the window has to keep ticking down, or a
+    // pilot who steps off hands back a machine that thinks the fight is still on.
+    if (piloted.has(e.id)) continue;
+
     resolved.set(e.id, runProgram(ctx, e));
   }
 

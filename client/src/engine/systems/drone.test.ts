@@ -128,7 +128,7 @@ describe('droneSystem — a standing MoveDrone goal', () => {
 });
 
 describe('droneSystem — possession', () => {
-  it('lands on the nearest idle friendly robot within range', () => {
+  it('lands on the nearest friendly robot within range', () => {
     const ctx = makeCtx(1);
     const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
     const drone = spawnDrone(ctx.world, Owner.Player, { x: 405, y: 400 });
@@ -167,7 +167,12 @@ describe('droneSystem — possession', () => {
     expect(drone.drone!.possessedId).toBe(robot.id); // still riding it
   });
 
-  it('will not possess a non-idle robot', () => {
+  it('lands on a hull that is already under orders', () => {
+    // The gate used to be `Idle`, which sounds mild and priced the cockpit out of
+    // the game: a player cannot assign `Idle`, so the only hulls wearing it are
+    // the ones fresh off the factory floor, and every sortie began with a long
+    // manual drive from home. `taskSystem` standing the program down is what makes
+    // taking a machine mid-march safe — see `task/resolver.ts`.
     const ctx = makeCtx(1);
     const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
     robot.script!.programId = TaskType.Guard;
@@ -176,10 +181,10 @@ describe('droneSystem — possession', () => {
 
     droneSystem(ctx, 1);
 
-    expect(drone.drone!.possessedId).toBeUndefined();
+    expect(drone.drone!.possessedId).toBe(robot.id);
   });
 
-  it('will not possess an idle robot out of range', () => {
+  it('will not possess a robot out of range', () => {
     const ctx = makeCtx(1);
     spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
     const drone = spawnDrone(ctx.world, Owner.Player, {
@@ -207,9 +212,10 @@ describe('droneSystem — possession', () => {
   });
 
   it('clears an outstanding move order — taking the wheel spends it', () => {
-    // Idle is not "not en route": `taskSystem` emits no move intent for an Idle
-    // robot, so a right-clicked destination survives and would leave two hands on
-    // the hull — the pilot steering while `movementSystem` drives the old goal.
+    // Two hands on the hull otherwise: the pilot steering while `movementSystem`
+    // walks the route queued behind them. A programmed hull gets a fresh goal from
+    // its own resolver on release; an `Idle` one holding a right-clicked
+    // destination is the case nothing else would ever clear.
     const ctx = makeCtx(1);
     fillNav(ctx, false);
     const robot = spawnRobot(ctx.world, Owner.Player, { x: 400, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);

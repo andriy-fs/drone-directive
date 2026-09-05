@@ -1,6 +1,5 @@
 import { gameConfig, worldPixelSize } from '../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
-import { TaskType } from '@drone-directive/types/enums';
 import { clamp, distance, vecLength } from '../../utils/math';
 import type { BaseEntity, DroneEntity, Positioned, RobotEntity } from '../ecs/archetypes';
 import { spawnProjectile } from '../ecs/factory';
@@ -15,18 +14,19 @@ import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from '..
 
 /**
  * Observer-drone flight. A drone free-flies ignoring obstacles (it never
- * pathfinds), and can land on an idle friendly robot to possess it — then it
+ * pathfinds), and can land on any living friendly robot to possess it — then it
  * steers that robot directly (obstacle-checked, so the robot still stops at
  * walls) and fires/detonates its weapon on demand (fully manual — no auto-fire).
  * The stick is read differently once it is riding a hull — see `drivePossessed`.
  *
- * Runs after `taskSystem` so it can override the target the Idle resolver set,
- * keeping a possessed robot's fire strictly manual. Every side has a drone, and
- * each is driven by its owner's slot in `ctx.droneControl`: the app bridge fills
- * a human's from local input (and, online, the peer's networked input), while a
- * bot's is filled by `systems/ai/pilot.ts` earlier in the same tick. This system
- * cannot tell the difference, which is the point — possession and manual fire
- * work identically for whoever is on the stick.
+ * Runs after `taskSystem`, which stands a piloted hull's program down for the
+ * duration; this system clears any target that pass left behind on the tick the
+ * hull was boarded, so its fire is manual from the first frame. Every side has a
+ * drone, and each is driven by its owner's slot in `ctx.droneControl`: the app
+ * bridge fills a human's from local input (and, online, the peer's networked
+ * input), while a bot's is filled by `systems/ai/pilot.ts` earlier in the same
+ * tick. This system cannot tell the difference, which is the point — possession
+ * and manual fire work identically for whoever is on the stick.
  */
 export function droneSystem(ctx: GameContext, dt: number): void {
   for (const drone of [...drones(ctx.world).entities]) driveDrone(ctx, dt, drone);
@@ -102,24 +102,43 @@ function freeFly(ctx: GameContext, dt: number, drone: DroneEntity, dir: Vec2, po
   if (dir.x !== 0 || dir.y !== 0) drone.heading = Math.atan2(dir.y, dir.x);
 }
 
-/** Lands on the nearest idle friendly robot within range; returns whether it did. */
+/**
+ * Lands on the nearest friendly robot within range; returns whether it did.
+ *
+ * **Any hull will do, including one in the middle of a march.** It used to be
+ * `Idle` only, which sounds like a modest restriction and was in fact the whole
+ * cost of the mechanic: a player cannot assign `Idle` (it is not in
+ * `ASSIGNABLE_TASKS`), so the only hulls wearing it are the ones fresh off the
+ * factory floor. Possession therefore meant "take a new machine from home and
+ * drive it yourself", and on a medium map home is 2 000-odd px from anywhere
+ * worth being — twenty to fifty seconds of manual driving, during which the
+ * side's only eye is sitting on the hull instead of scouting. The cockpit was
+ * priced out of the game by its commute. Letting the drone drop onto a hull that
+ * is already where the fighting is puts the view back within reach of the moment
+ * it was built for.
+ *
+ * What makes that safe is that `taskSystem` now suspends a piloted hull's
+ * program (`task/resolver.ts`): the machine stops being run by two things at
+ * once, and gets its orders back the moment the pilot steps off — the same deal
+ * a knocked-out robot gets.
+ */
 function tryPossess(ctx: GameContext, drone: DroneEntity): boolean {
   const pos = drone.position;
-  const idle = robots(ctx.world).entities.filter(
+  const candidates = robots(ctx.world).entities.filter(
     (r) =>
       r.owner === drone.owner &&
       isAlive(r) &&
       !isDisabled(r) && // nothing to steer: its controls are down
-      r.script.programId === TaskType.Idle &&
       distance(pos.x, pos.y, r.position.x, r.position.y) <= gameConfig.drone.possessRadius,
   );
-  const target = nearest(pos, idle);
+  const target = nearest(pos, candidates);
   if (!target) return false;
-  // Taking the wheel spends whatever order the hull was still walking to. Idle is
-  // not the same as "not en route": `taskSystem` deliberately emits no move intent
-  // for an Idle robot, which is exactly what lets a right-clicked destination
-  // survive — so without this the pilot steers while `movementSystem` keeps driving
-  // toward the old goal in the same tick, and the machine crabs.
+  // Taking the wheel spends whatever route the hull was still walking. The
+  // suspended program will re-issue a goal on release, but the *path* queued
+  // behind this one is stale the moment the pilot drives anywhere, and
+  // `movementSystem` would otherwise resume walking it from wherever the machine
+  // was left. Clearing it also covers the one hull whose order nothing re-issues:
+  // an `Idle` machine holding a right-clicked destination.
   clearGoal(target);
   // And the drone's own standing order with it, for the same reason: a pilot who
   // has taken a hull is no longer flying to where they sent the eye, and leaving
@@ -166,7 +185,10 @@ function drivePossessed(
     // out with `release`), but the hull answers neither the stick nor the trigger.
     robot.targetId = undefined;
   } else {
-    // Manual-only fire: never let the Idle-under-fire resolver auto-fire this robot.
+    // Manual-only fire. `taskSystem` already stands a piloted hull's program down,
+    // so this is belt and braces — but it is the cheap half of the pair, and it is
+    // what covers the tick a hull is boarded on, whose `taskSystem` ran before the
+    // drone landed and may have left a target behind.
     robot.targetId = undefined;
     // Screen y grows downward, so `W` arrives as y = -1 and is forward.
     const throttle = -clamp(dir.y, -1, 1);

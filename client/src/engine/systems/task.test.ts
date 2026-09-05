@@ -496,6 +496,77 @@ describe('taskSystem — a kamikaze on its lit fuse', () => {
   });
 });
 
+describe('taskSystem — a hull under a pilot', () => {
+  it('stands the program down: nobody drives a machine two ways at once', () => {
+    // This is what lets the drone board a hull that is already marching. Left
+    // running, the program would re-issue a goal every tick and hand the machine
+    // back walking somewhere the pilot never chose.
+    const ctx = makeCtx(2);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    hull.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    spawnRobot(ctx.world, Owner.AI, { x: 110, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 50, y: 50 });
+    drone.drone.possessedId = hull.id;
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+
+    expect(hull.targetId).toBeUndefined();
+    expect(hull.movement.goal).toBeUndefined();
+  });
+
+  it('does not light a kamikaze fuse under the pilot', () => {
+    // The one outcome that would be irreversible: `beginArming` is committed, and
+    // `movementSystem` parks the hull on `isArming` — the pilot would lose the
+    // wheel and the choice of when to go up in the same tick.
+    const ctx = makeCtx(2);
+    const bomb = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Wheels, WeaponType.Bomb);
+    bomb.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    spawnRobot(ctx.world, Owner.AI, { x: 80, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 50, y: 50 });
+    drone.drone.possessedId = bomb.id;
+
+    visionSystem(ctx);
+    for (let i = 0; i < 10; i++) taskSystem(ctx, DT);
+
+    expect(bomb.arming).toBeUndefined();
+  });
+
+  it('picks the program back up the moment the pilot steps off', () => {
+    // Same deal a knocked-out robot gets: nothing here overwrites the script, so
+    // the order it was given is still there to resume.
+    const ctx = makeCtx(2);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    hull.script = { programId: TaskType.AttackRobots, blackboard: {} };
+    spawnRobot(ctx.world, Owner.AI, { x: 110, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 50, y: 50 });
+    drone.drone.possessedId = hull.id;
+
+    visionSystem(ctx);
+    taskSystem(ctx, DT);
+    expect(hull.targetId).toBeUndefined();
+
+    drone.drone.possessedId = undefined;
+    taskSystem(ctx, DT);
+
+    expect(hull.targetId).toBeDefined();
+  });
+
+  it('keeps the under-fire window ticking down while the hull is ridden', () => {
+    // The machine is still being shot at. Freezing the window would hand back a
+    // hull that thinks the fight is still on.
+    const ctx = makeCtx(2);
+    const hull = spawnRobot(ctx.world, Owner.Player, { x: 50, y: 50 }, ChassisType.Tracks, WeaponType.Cannon);
+    hull.threat = { underFireLeft: 1 };
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 50, y: 50 });
+    drone.drone.possessedId = hull.id;
+
+    taskSystem(ctx, DT);
+
+    expect(hull.threat.underFireLeft).toBeCloseTo(1 - DT, 6);
+  });
+});
+
 describe('taskSystem — the directed-energy knock-out', () => {
   it('does not run the program of a disabled robot', () => {
     const ctx = makeCtx(2);
