@@ -47,6 +47,12 @@ interface Hold {
  * to `window` (`pixi/input/pointer.ts`), so the pilot can still steer and fire
  * with the other hand through the whole 0.8 s.
  *
+ * **Touch needs two things a mouse does not**, both of them about the browser
+ * wanting the same gesture: `touch-action: none` on the row so a press is not
+ * claimed as a pan, and `contextmenu` suppressed so the long-press menu does not
+ * open — because opening it cancels the pointer stream and takes the hold with
+ * it. See the handler below and `.service-menu__button` in `App.css`.
+ *
  * The countdown *after* arming is not here — it is the fourth bar in
  * `pixi/render/fpv/instruments.ts`, drawn per frame. This panel rides the store
  * snapshot at 5 Hz, which is fine for a list that changes once a match and a
@@ -144,6 +150,18 @@ export function ServiceMenu() {
                 onPointerUp={cancel}
                 onPointerLeave={cancel}
                 onPointerCancel={cancel}
+                // A press held long enough to arm is also long enough to be a
+                // long-press, and on touch that is the gesture that opens the
+                // browser's own context menu. Opening it cancels the pointer
+                // stream — the `pointercancel` above fires and the hold is thrown
+                // away — so this was not a menu appearing *beside* the feature,
+                // it was the menu appearing *instead of* it, every time.
+                //
+                // Killed here rather than on the panel so nothing else on the
+                // page loses its right-click, and paired with `touch-action:
+                // none` in the CSS, which stops the browser claiming the same
+                // press as a pan before it ever gets this far.
+                onContextMenu={(e) => e.preventDefault()}
               >
                 <Icon size={16} aria-hidden />
                 <span className="service-menu__label">{labels[kind]}</span>

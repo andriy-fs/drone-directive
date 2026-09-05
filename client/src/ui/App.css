@@ -2677,6 +2677,13 @@ a.menu-nav__item {
 }
 
 .service-menu__button {
+  /* The press is ours for the whole 0.8 s: without this the browser may claim it
+     as a pan or a long-press and fire `pointercancel`, which throws the hold
+     away. Same reason the canvas sets it (see `.game-canvas canvas`). The callout
+     rule is the iOS half of the same problem — there the long press raises a
+     selection bubble rather than a context menu. */
+  touch-action: none;
+  -webkit-touch-callout: none;
   display: flex;
   align-items: center;
   gap: 8px;
