@@ -211,8 +211,8 @@ export const pl: Dict = {
     bombNote: 'Wybucha przy kontakcie, promień wybuchu',
     cannonNote: 'Zbalansowana szybkostrzelność i zasięg — solidny wybór uniwersalny',
     missilesNote:
-      'Większy zasięg i obrażenia kosztem wolniejszego przeładowania. Jedyna broń zdolna zestrzelić cel powietrzny — drona obserwacyjnego lub nadlatującego drona uderzeniowego FPV',
-    dewNote: 'Broń energii skierowanej: nie zadaje obrażeń — unieruchamia cel na, s:',
+      'Większy zasięg i obrażenia kosztem wolniejszego przeładowania. Jedyna broń zdolna zniszczyć cel powietrzny — drona obserwacyjnego lub nadlatującego drona uderzeniowego FPV',
+    dewNote: 'Broń energii skierowanej: nie zadaje obrażeń — unieruchamia dowolny cel, naziemny lub powietrzny, na, s:',
     fpvNote:
       'Wysyła drony uderzeniowe w dowolny cel, który widzi twoja strona — na każdą odległość i ponad terenem, ale sam nosiciel nigdzie nie jedzie. Rój zatrzymuje obrona przeciwlotnicza i wrogi zakłócacz',
   },

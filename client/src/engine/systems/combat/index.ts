@@ -1,7 +1,14 @@
 import { gameConfig, munitionReach } from '../../../config/gameConfig';
 import type { Vec2 } from '@drone-directive/types/entities';
 import { distance, vecLength } from '../../../utils/math';
-import type { BaseEntity, Positioned, ProjectileEntity, Shooter } from '../../ecs/archetypes';
+import type {
+  BaseEntity,
+  DroneEntity,
+  MunitionEntity,
+  Positioned,
+  ProjectileEntity,
+  Shooter,
+} from '../../ecs/archetypes';
 import { spawnEmpBurst, spawnExplosion, spawnMunition, spawnProjectile } from '../../ecs/factory';
 import type { Entity, WeaponComp } from '../../ecs/entity';
 import { isAlive, isBase, isPositioned } from '../../ecs/guards';
@@ -30,7 +37,7 @@ import { alreadyDoomed } from '../../threat';
  * `fpv` weapon (`salvo > 0`) releases a swarm of flying munitions instead of a
  * round, over terrain and without a line of sight, and everything that happens
  * to them afterwards belongs to `systems/combat/munition.ts`. Air is hit only by a
- * deliberate surface-to-air shot — see `hitsAimedAir`.
+ * deliberate surface-to-air shot — see `aimedAirHit`.
  *
  * **Two passes, one rule.** Bases carry a built-in battery
  * (`gameConfig.bases.weapon`) and go through the very same `fireWeapon` as a
@@ -280,7 +287,7 @@ function distanceToBaseCentre(p: Vec2, base: BaseEntity): number {
  * Whether a round dies on `base`'s energy dome instead of reaching the roof.
  *
  * Gated on what the round was *aimed at*, the same rule (and the same reason) as
- * `hitsAimedAir`: a blanket radius test would swallow every shot fired at a
+ * `aimedAirHit`: a blanket radius test would swallow every shot fired at a
  * robot standing under the dome, turning it into a bubble of cover, which is
  * exactly what it is not. Note this decides only *where the round is seen to
  * stop* — the absorption itself is `applyDamage`'s job, so a stray shot that
@@ -297,25 +304,29 @@ function hitsBase(p: Vec2, base: BaseEntity): boolean {
 }
 
 /**
- * Anti-air hit test: a shot damages the flyer it was *aimed at*, and never one
- * that merely drifts across its path. Stray hits would be unplayable — the
- * camera keeps the observer drone in the middle of the fight, so it sits in every
- * crossfire by design, and a salvo crossing a firefight would otherwise be swept
- * up by rounds meant for the ground. Deliberately fire only, and only from a
- * `canHitAir` weapon, so the rule holds even if some other code hands a cannon
- * the id of something airborne.
+ * Anti-air hit test: the flyer a shot was *aimed at* and has now reached, or null.
+ * A round never touches one that merely drifts across its path — stray hits would
+ * be unplayable, since the camera keeps the observer drone in the middle of the
+ * fight, so it sits in every crossfire by design, and a salvo crossing a firefight
+ * would otherwise be swept up by rounds meant for the ground. Deliberately fire
+ * only, and only from a `canHitAir` weapon, so the rule holds even if some other
+ * code hands a cannon the id of something airborne.
+ *
+ * Returns the flyer rather than applying anything, because what a hit *does* now
+ * depends on the weapon: `missiles` take hp off, `dew` takes the airframe's
+ * electronics out. That decision lives with the ground one in `stepProjectiles`,
+ * so both arms of "what a round does on arrival" read as one rule.
  */
-function hitsAimedAir(ctx: GameContext, p: ProjectileEntity, pos: Vec2): boolean {
-  if (!p.targetId || !gameConfig.robots.weapons[p.weaponType].canHitAir) return false;
+function aimedAirHit(ctx: GameContext, p: ProjectileEntity, pos: Vec2): DroneEntity | MunitionEntity | undefined {
+  if (!p.targetId || !gameConfig.robots.weapons[p.weaponType].canHitAir) return undefined;
 
   const flyer = enemyAirTargets(ctx, p.owner).find((e) => e.id === p.targetId);
-  if (!flyer) return false;
+  if (!flyer) return undefined;
   const bodyR = flyer.munition ? gameConfig.munition.hitRadius : gameConfig.drone.hitRadius;
   if (distance(pos.x, pos.y, flyer.position.x, flyer.position.y) > bodyR + gameConfig.combat.projectileRadius) {
-    return false;
+    return undefined;
   }
-  applyDamage(flyer, p.damage, p.sourceId);
-  return true;
+  return flyer;
 }
 
 function stepProjectiles(ctx: GameContext, dt: number): void {
@@ -365,9 +376,6 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
         break;
       }
     }
-    // The discharge is the only moment this weapon is visibly doing anything: a
-    // round that deals no damage and leaves no mark reads as a shot that missed.
-    if (burstAt) spawnEmpBurst(world, burstAt);
     // A harmless round (dew) flies straight over a base rather than being eaten
     // by it: buildings have no crew to knock out, so a hit there is a dud, and
     // absorbing the shot would only make the weapon feel broken.
@@ -389,7 +397,23 @@ function stepProjectiles(ctx: GameContext, dt: number): void {
         }
       }
     }
-    if (!struck && hitsAimedAir(ctx, projectile, pos)) struck = 'air';
+    if (!struck) {
+      // Air last, and on the same terms as the ground: damage from a lethal round,
+      // a knock-out from a `dew` one. A frozen drone hangs helpless where it was
+      // hit; a frozen munition comes down on its own next tick (`munitionSystem`).
+      const flyer = aimedAirHit(ctx, projectile, pos);
+      if (flyer) {
+        applyDamage(flyer, projectile.damage, projectile.sourceId);
+        if (fired.freezeDuration > 0) {
+          applyDisable(flyer, fired.freezeDuration);
+          burstAt = { x: flyer.position.x, y: flyer.position.y };
+        }
+        struck = 'air';
+      }
+    }
+    // The discharge is the only moment this weapon is visibly doing anything: a
+    // round that deals no damage and leaves no mark reads as a shot that missed.
+    if (burstAt) spawnEmpBurst(world, burstAt);
     if (struck) {
       emitHit(ctx, projectile, struck);
       world.remove(projectile);

@@ -26,6 +26,21 @@ function flyOut(ctx: GameContext, ticks = 400): number {
   return ticks;
 }
 
+describe('munitionSystem — knocked out', () => {
+  it('a strike drone hit by a dew round comes down instead of pressing on', () => {
+    const ctx = makeCtx(1);
+    const foe = spawnRobot(ctx.world, Owner.AI, { x: 400, y: 200 }, ChassisType.Tracks, WeaponType.Cannon);
+    const hp = foe.hp!;
+    const m = launch(ctx, foe);
+    applyDisable(m, gameConfig.robots.weapons.dew.freezeDuration);
+
+    munitionSystem(ctx, DT);
+
+    expect(ctx.world.with('munition').entities.length).toBe(0);
+    expect(foe.hp!).toBe(hp); // it never arrived
+  });
+});
+
 describe('munitionSystem — reaching the target', () => {
   it('deals its damage once and is gone', () => {
     const ctx = makeCtx(1);

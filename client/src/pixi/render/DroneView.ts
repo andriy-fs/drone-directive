@@ -196,6 +196,13 @@ export class DroneView {
     this.hpBar.container.visible = maxHp > 0 && hp < maxHp;
     if (this.hpBar.container.visible) this.hpBar.set(hp / maxHp);
 
+    // Knocked out by a `dew` round: the same dimming a stunned hull gets in
+    // `RobotView`, so "the lights went out" reads identically on both. It is only
+    // the dimming — a drone hanging dead in the air is already the whole picture,
+    // and the sparks that crawl over a hull would fight the discharge ring the
+    // round itself leaves behind.
+    this.body.alpha = (drone.disabled?.left ?? 0) > 0 ? 0.45 : 1;
+
     this.fly(drone, visible, now);
   }
 

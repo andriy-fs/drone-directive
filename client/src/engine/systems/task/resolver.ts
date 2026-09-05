@@ -200,7 +200,9 @@ function applyOutcome(ctx: GameContext, e: RobotEntity, out: Outcome): void {
  */
 function airTarget(ctx: GameContext, e: RobotEntity): string | undefined {
   const w = e.weapon;
-  if (!w.canHitAir || w.range <= 0 || w.damage <= 0) return undefined;
+  // `canEngage` rather than `damage > 0`: a `dew` hull is armed against air even
+  // though it deals nothing, and its whole job here is to freeze what it cannot kill.
+  if (!w.canHitAir || !canEngage(w)) return undefined;
 
   const pos = e.position;
   const flyer = nearest(pos, knownEnemyAir(ctx, e.owner));

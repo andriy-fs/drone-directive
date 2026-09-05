@@ -11,7 +11,7 @@ import { isBlockedGrid, tileOf } from '../obstacles';
 import { canEngage, detonateBomb, launchSalvo, withinMunitionReach } from './combat';
 import { clearGoal } from './movement';
 import { startOverride } from './override';
-import { isDisabled } from '../status';
+import { decayDisabled, isDisabled } from '../status';
 import { enemyBases, enemyRobots, isKnownTo, livingRobotById, nearest } from '../targeting';
 
 /**
@@ -36,6 +36,25 @@ export function droneSystem(ctx: GameContext, dt: number): void {
 
 function driveDrone(ctx: GameContext, dt: number, drone: DroneEntity): void {
   const control = ctx.droneControl[drone.owner];
+
+  // Knocked out by a `dew` round. This is the one status the drone can carry, and
+  // it is decayed here because nothing else walks drones — `taskSystem` only ever
+  // sees robots. A frozen drone hangs exactly where it was hit: it cannot fly, it
+  // cannot land on a hull, and every pulse aimed at it this tick is spent unheard,
+  // so nothing queues up to fire the instant it recovers. It is also, throughout,
+  // a stationary target for whatever else the enemy has — which is the whole point
+  // of freezing something that could otherwise simply outrun every chassis.
+  //
+  // A standing `MoveDrone` goal is deliberately left alone: the order resumes when
+  // the drone does. Possession is unreachable from here — a riding drone is not a
+  // legal target (`isTargetableDrone`), so nothing can freeze one.
+  if (isDisabled(drone)) {
+    decayDisabled(drone, dt);
+    control.possessPulse = false;
+    control.firePulse = false;
+    control.overridePulse = OverrideKind.None;
+    return;
+  }
 
   const possessedId = drone.drone.possessedId;
   const robot = possessedId ? livingRobotById(ctx, possessedId) : undefined;

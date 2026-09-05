@@ -363,8 +363,10 @@ export const gameConfig = {
      * (no-op). `jamRadius` (px) only matters for `ew` — see `combat.jamMultiplier`.
      * `canHitAir` marks a surface-to-air weapon: only those can engage an **air**
      * entity — an enemy observer drone or an FPV strike drone in flight (a
-     * howitzer plainly can't). Today that's `missiles` alone — a dedicated AA
-     * weapon would just be another entry with the flag on.
+     * howitzer plainly can't). Two carry it, and they are deliberately different
+     * answers rather than two of the same one: `missiles` shoot a flyer *down*,
+     * `dew` (zero damage, `freezeDuration`) knocks it *out* where it hangs. A
+     * third AA weapon would just be another entry with the flag on.
      * `freezeDuration` (seconds) only matters for `dew` — how long a hit leaves
      * the target disabled; it is also what makes a zero-damage weapon count as
      * armed at all (see `canEngage` in `systems/combat/index.ts`).
@@ -408,8 +410,9 @@ export const gameConfig = {
         salvo: 0,
         armingTime: 0,
       },
-      // The only surface-to-air weapon: doubles as this side's answer to an enemy
-      // drone — and, since `fpv` exists, the only thing that can shoot a salvo down.
+      // The side's lethal answer to an enemy drone, and — since `fpv` exists — to
+      // a salvo. It is not the *only* anti-air any more (`dew` freezes what this
+      // one kills), but it is the only one that takes a flyer out of the match.
       missiles: {
         range: 255,
         damage: 22,
@@ -491,6 +494,14 @@ export const gameConfig = {
       // Directed-energy weapon: the cannon's reach and price, but it deals no damage at
       // all — a hit disables the target for `freezeDuration` seconds instead. Control,
       // not attrition, so the long cooldown is the whole balance lever.
+      //
+      // `canHitAir` because a beam does not care what it is pointed at, and because
+      // one lethal AA weapon was too few: a side that built no `missiles` had no
+      // answer to anything airborne at all. What a freeze does to a flyer is not
+      // what it does to a hull, and that is the point — an observer drone hangs
+      // helpless for the duration (long enough for something else to kill it), and
+      // an FPV munition simply comes down, the same way an `ew` bubble drops one.
+      // The 5 s reload keeps it single-target counter-play rather than air denial.
       dew: {
         range: 120,
         damage: 0,
@@ -498,7 +509,7 @@ export const gameConfig = {
         explosionRadius: 0,
         sightMultiplier: 1,
         jamRadius: 0,
-        canHitAir: false,
+        canHitAir: true,
         freezeDuration: 8,
         salvo: 0,
         armingTime: 0,

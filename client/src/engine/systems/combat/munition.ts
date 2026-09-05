@@ -23,7 +23,7 @@ import { distanceToBase, findById, isEnemy } from '../../targeting';
  * `entityDestroyed` event, no death sound and no dangling references to clean up
  * (its `targetId` points *out*, and nothing points *at* it — a shooter that aimed
  * at one simply finds nothing next tick). So its whole life ends here, in one of
- * the five ways below.
+ * the six ways below.
  *
  * The one thing that makes this cheap enough to run five-per-carrier: a munition
  * is deliberately stupid. It never re-picks a target, never pathfinds, never
@@ -34,12 +34,12 @@ export function munitionSystem(ctx: GameContext, dt: number): void {
 }
 
 /**
- * One drone's tick. Order matters and is fixed by tests: shot down, jammed and
- * timed out are all checked *before* the step, so a drone that should be gone
- * can never cover its last few pixels and land a hit on the way out.
+ * One drone's tick. Order matters and is fixed by tests: shot down, jammed,
+ * frozen and timed out are all checked *before* the step, so a drone that should
+ * be gone can never cover its last few pixels and land a hit on the way out.
  */
 function stepMunition(ctx: GameContext, dt: number, m: MunitionEntity): void {
-  // 1. Shot down by anti-air this tick (`hitsAimedAir` already took the hp off).
+  // 1. Shot down by anti-air this tick (`aimedAirHit` already took the hp off).
   if (m.hp <= 0) return fall(ctx, m);
 
   // 2. Flown into an enemy jamming bubble. The link is what an FPV drone *is*,
@@ -47,17 +47,23 @@ function stepMunition(ctx: GameContext, dt: number, m: MunitionEntity): void {
   // This is the hard counter to a salvo, next to anti-air's soft one.
   if (isJammed(ctx, m)) return fall(ctx, m);
 
-  // 3. Out of flight time — the drone that found nothing simply comes down.
+  // 3. Hit by a `dew` round. Same ending as jamming and for the same reason — the
+  // electronics are the aircraft — but earned very differently: a bubble drops
+  // everything that wanders into it, while this costs an aimed shot on a 5 s
+  // reload and so takes one drone out of a salvo, not the salvo.
+  if (isDisabled(m)) return fall(ctx, m);
+
+  // 4. Out of flight time — the drone that found nothing simply comes down.
   m.ttl -= dt;
   if (m.ttl <= 0) return fall(ctx, m);
 
-  // 4. Target gone. Locked at launch and never re-picked: a swarm that re-targeted
+  // 5. Target gone. Locked at launch and never re-picked: a swarm that re-targeted
   // would make pulling a damaged unit out of the line pointless, which is one of
   // the few answers there is to this weapon.
   const target = findById(ctx, m.targetId);
   if (!target || !isPositioned(target) || !isAlive(target) || !isEnemy(m.owner, target.owner)) return fall(ctx, m);
 
-  // 5. Fly at it, free of terrain, and detonate on contact.
+  // 6. Fly at it, free of terrain, and detonate on contact.
   const pos = m.position;
   const tp = target.position;
   const dx = tp.x - pos.x;

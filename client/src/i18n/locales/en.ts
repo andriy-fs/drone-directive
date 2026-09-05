@@ -211,8 +211,8 @@ export const en: Dict = {
     bombNote: 'Self-destructs on impact, blast radius',
     cannonNote: 'Balanced rate of fire and range — a reliable all-rounder',
     missilesNote:
-      'Longer range and heavier damage, at the cost of a slower reload. The only weapon that can shoot down enemy aircraft — an observer drone, or an incoming FPV strike drone',
-    dewNote: 'Directed-energy weapon: deals no damage — knocks the target out, s:',
+      'Longer range and heavier damage, at the cost of a slower reload. The only weapon that destroys an air target outright — an observer drone, or an incoming FPV strike drone',
+    dewNote: 'Directed-energy weapon: deals no damage — knocks out any target, ground or air, for, s:',
     fpvNote:
       'Launches strike drones at any target your side can see, anywhere on the map and over any terrain — but the carrier itself never advances. The swarm is stopped by anti-air fire and by an enemy jammer',
   },

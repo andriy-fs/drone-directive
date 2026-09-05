@@ -72,6 +72,27 @@ describe('combatSystem — anti-air', () => {
     expect(victim.hp!).toBeLessThan(victim.maxHp!);
   });
 
+  it('a dew round aimed at a drone knocks it out instead of damaging it', () => {
+    const ctx = makeCtx(1);
+    openGround(ctx);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    spawnProjectile(
+      ctx.world,
+      Owner.AI,
+      { x: 390, y: 400 },
+      drone.position!,
+      drone.id,
+      gameConfig.robots.weapons.dew.damage,
+      'shooter',
+      WeaponType.Dew,
+    );
+
+    combatSystem(ctx, DT);
+
+    expect(drone.hp).toBe(gameConfig.drone.maxHp); // a beam takes nothing off
+    expect(drone.disabled?.left).toBe(gameConfig.robots.weapons.dew.freezeDuration);
+  });
+
   it('a cannon shot cannot touch a drone even when aimed at one', () => {
     const ctx = makeCtx(1);
     openGround(ctx);
@@ -112,18 +133,6 @@ describe('combatSystem — anti-air', () => {
     combatSystem(ctx, DT);
 
     expect(drone.hp).toBe(gameConfig.drone.maxHp);
-  });
-
-  it('a directed-energy shot cannot touch a drone', () => {
-    const ctx = makeCtx(1);
-    openGround(ctx);
-    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
-    spawnProjectile(ctx.world, Owner.AI, { x: 390, y: 400 }, drone.position!, drone.id, 0, 'shooter', WeaponType.Dew);
-
-    for (let i = 0; i < 5; i++) combatSystem(ctx, DT);
-
-    expect(drone.hp).toBe(gameConfig.drone.maxHp);
-    expect(drone.disabled).toBeUndefined();
   });
 
   it('leaves a friendly drone alone', () => {

@@ -6,6 +6,7 @@ import type { GameContext } from '../game/context';
 import { droneSystem, manualFireTarget } from './drone';
 import { movementSystem, setGoal } from './movement';
 import { reapSystem } from './reap';
+import { applyDisable } from '../status';
 import { isTargetableDrone } from '../targeting';
 import { makeCtx } from './testkit';
 
@@ -47,6 +48,37 @@ describe('droneSystem — free flight', () => {
     droneSystem(ctx, 1);
     expect(drone.position!.x).toBe(0);
     expect(drone.position!.y).toBe(0);
+  });
+
+  it('a knocked-out drone hangs where it was hit, then flies again', () => {
+    const ctx = makeCtx(1);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    const freeze = gameConfig.robots.weapons.dew.freezeDuration;
+    applyDisable(drone, freeze);
+    setControl(ctx, { x: 1, y: 0 });
+
+    droneSystem(ctx, 1);
+    expect(drone.position!.x).toBe(400); // frozen: the stick is not heard
+
+    setControl(ctx, { x: 1, y: 0 });
+    droneSystem(ctx, freeze); // long enough to thaw, but this tick is still spent frozen
+    expect(drone.position!.x).toBe(400);
+
+    setControl(ctx, { x: 1, y: 0 });
+    droneSystem(ctx, 1);
+    expect(drone.position!.x).toBeCloseTo(400 + gameConfig.drone.speed, 3);
+  });
+
+  it('a knocked-out drone cannot land on a hull', () => {
+    const ctx = makeCtx(1);
+    const drone = spawnDrone(ctx.world, Owner.Player, { x: 400, y: 400 });
+    spawnRobot(ctx.world, Owner.Player, { x: 405, y: 400 }, ChassisType.Tracks, WeaponType.Cannon);
+    applyDisable(drone, gameConfig.robots.weapons.dew.freezeDuration);
+    setControl(ctx, { x: 0, y: 0 }, true);
+
+    droneSystem(ctx, gameConfig.fixedDt);
+
+    expect(drone.drone!.possessedId).toBeUndefined();
   });
 
   it('consumes the one-shot pulses each tick', () => {
