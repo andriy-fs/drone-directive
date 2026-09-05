@@ -106,9 +106,16 @@ export interface PointerControls {
  * - Right click on an enemy (robot or base) = order the selection to attack it;
  *   right click on open ground = move the selection there in a compact formation.
  * - **A tap is the touchscreen's right click.** With the drone or robots selected,
- *   a tap on open ground orders them there (`handleTap`); a finger has no second
- *   button, and this is the only gesture left once left-drag is the marquee.
- *   Gated on `pointerType`, so a mouse keeps clearing the selection instead.
+ *   a tap orders them there (`handleTap`); a finger has no second button, and this
+ *   is the only gesture left once left-drag is the marquee. Gated on
+ *   `pointerType`, so a mouse keeps clearing the selection instead.
+ *
+ *   It reaches here over open ground, over an enemy (no view claims those), and —
+ *   **while the drone is selected** — over one of your own hulls, because
+ *   `RobotView` stands its selection handler down for exactly that case. Without
+ *   that, the one place a player most needs to send the eye, a machine they mean
+ *   to land on, was the one place they could not send it. Your own base still wins
+ *   the tap outright; see `handleTap`.
  *
  * **The mouse goes dead while a drone is riding a hull.** The top view is hidden
  * then (see `pixi/render/fpv/`), so a marquee would box units nobody can see and a
@@ -432,7 +439,9 @@ function handleTap(
   const point = camera.screenToWorld(e.global.x, e.global.y);
   // A building wins the tap either way: picking your base is not something the
   // drone's order should swallow, and it is the one thing under a tap here that
-  // has a meaning of its own (robots and the drone stop the event in their views).
+  // has a meaning of its own. The drone stops the event in its own view, and so
+  // does a friendly robot — except while the drone is selected, which is the one
+  // case a hull deliberately lets through to be ordered on (see `RobotView`).
   const base = ownBaseAt(ctx, point, store.localSide);
   if (base) {
     store.selectBase(base.id);

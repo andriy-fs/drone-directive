@@ -259,8 +259,29 @@ export class RobotView {
       this.container.hitArea = new Circle(0, 0, outerRadius + 5);
       this.container.on('pointerdown', (e) => {
         if (e.button !== 0) return; // left-click selects; right-click falls to the stage
-        e.stopPropagation(); // don't let the stage start a pan / marquee / deselect
         const store = useGameStore.getState();
+
+        // **With the drone selected, a tap belongs to the drone, not to this hull.**
+        // A finger has one gesture where a mouse has two, and `input/pointer.ts`
+        // already settled which one wins: a tap is the touchscreen's right click.
+        // That rule was only ever applied on the stage, though, so this handler
+        // used to swallow the tap before `handleTap` could turn it into the
+        // drone's move order — which left the one place a player most needs to
+        // send the eye, a hull they mean to land on, the one place they could not
+        // send it. A mouse is unaffected: its right click already leaves on the
+        // line above.
+        //
+        // Falling through rather than ordering from here on purpose. The stage
+        // owns every order the pointer issues, and duplicating `sendSelectedDrone`
+        // into a view would be a second copy of that decision to keep in step.
+        //
+        // The cost is that a tap can no longer select this robot while the drone
+        // is up. That is the same trade the tap-as-order rule already made for
+        // open ground, and it has the same way out: tap the drone to put it down
+        // (`DroneView`), then tap the robot.
+        if (e.pointerType === 'touch' && store.selectedDroneId !== null) return;
+
+        e.stopPropagation(); // don't let the stage start a pan / marquee / deselect
 
         const now = performance.now();
         // Double left-click (no shift): select every player robot sharing this
